@@ -226,6 +226,15 @@ export function createSim(source: SimOptions | SimSave): Sim {
       () => updateLandMemory(sim),
     ],
   })
+  /**
+   * Карта для сохранения: пока её не правили, отдаётся та же, что в прошлый раз. Она в мегабайтах, а сохранение идёт
+   * каждые полминуты — собирать её заново каждый раз значит копить мусор быстрее, чем его убирают.
+   */
+  let landSaved: { revision: number; bytes: Uint8Array } | null = null
+  const savedLand = () => {
+    if (landSaved?.revision !== sim.land.revision) landSaved = { revision: sim.land.revision, bytes: saveLand(sim.land) }
+    return landSaved.bytes
+  }
   const sim: Sim = {
     options,
     bounds,
@@ -250,7 +259,7 @@ export function createSim(source: SimOptions | SimSave): Sim {
       tick: loop.time.tick,
       world: world.snapshot(SAVED),
       explored: Object.fromEntries(sim.vision.players().map((player) => [player, sim.vision.map(player)])),
-      land: saveLand(sim.land),
+      land: savedLand(),
       ...(sim.landMemory.original.size && { landMemory: saveLandMemory(sim.landMemory) }),
       deposits: saveDeposits(sim.deposits),
     }),

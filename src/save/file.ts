@@ -35,25 +35,31 @@ export const readJson = <T>(bytes: Uint8Array | undefined): T | undefined => (by
 export const deflate = (bytes: Uint8Array) => pipe(bytes, new CompressionStream('deflate-raw'))
 export const inflate = (bytes: Uint8Array) => pipe(bytes, new DecompressionStream('deflate-raw'))
 
-async function pipe(bytes: Uint8Array, stream: CompressionStream | DecompressionStream) {
-  return new Uint8Array(await new Response(new Response(bytes as Uint8Array<ArrayBuffer>).body!.pipeThrough(stream)).arrayBuffer())
+async function pipe(bytes: Uint8Array | Uint8Array[], stream: CompressionStream | DecompressionStream) {
+  // Куски уходят в поток по одному, как он их берёт: склеивать их в один массив ради сжатия незачем.
+  const parts = Array.isArray(bytes) ? bytes : [bytes]
+  let next = 0
+  const source = new ReadableStream<Uint8Array<ArrayBuffer>>({
+    pull(controller) {
+      if (next < parts.length) controller.enqueue(parts[next++] as Uint8Array<ArrayBuffer>)
+      else controller.close()
+    },
+  })
+  return new Uint8Array(await new Response(source.pipeThrough(stream)).arrayBuffer())
 }
 
 /** Собирает файл из разделов. */
 export async function packSections(sections: Sections, version = SAVE_VERSION): Promise<Uint8Array> {
-  let size = 0
-  for (const [, data] of sections) size += 8 + data.length
-  const body = new Uint8Array(size)
-  const view = new DataView(body.buffer)
-  let at = 0
+  // Тело не собирается целиком: у большой карты оно в десятки мегабайт, а сохранение идёт каждые полминуты.
+  const parts: Uint8Array[] = []
   for (const [tag, data] of sections) {
     if (tag.length !== 4) throw new Error(`Тег раздела должен быть из 4 букв: ${tag}`)
-    body.set(encoder.encode(tag), at)
-    view.setUint32(at + 4, data.length, true)
-    body.set(data, at + 8)
-    at += 8 + data.length
+    const head = new Uint8Array(8)
+    head.set(encoder.encode(tag))
+    new DataView(head.buffer).setUint32(4, data.length, true)
+    parts.push(head, data)
   }
-  const packed = await pipe(body, new CompressionStream('deflate-raw'))
+  const packed = await pipe(parts, new CompressionStream('deflate-raw'))
   const file = new Uint8Array(6 + packed.length)
   file.set(encoder.encode(MAGIC))
   new DataView(file.buffer).setUint16(4, version, true)

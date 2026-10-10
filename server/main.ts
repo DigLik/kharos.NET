@@ -58,11 +58,17 @@ let storing: Promise<void> = Promise.resolve()
 /** Пишет во временный файл и подменяет им сохранение: упавший посреди записи сервер не оставит половину файла. */
 function store() {
   const { sim, ...rest } = host.save()
-  storing = storing.then(async () => {
-    const temporary = `${SAVE_PATH}.tmp`
-    writeFileSync(temporary, await encodeSave(sim, { HOST: rest }))
-    renameSync(temporary, SAVE_PATH)
-  })
+  storing = storing
+    .then(async () => {
+      const temporary = `${SAVE_PATH}.tmp`
+      writeFileSync(temporary, await encodeSave(sim, { HOST: rest }))
+      renameSync(temporary, SAVE_PATH)
+    })
+    // Не вышло записать — следующая запись всё равно пойдёт: отказ не должен остаться в цепочке навсегда.
+    .catch((error) => console.log(`мир не сохранён: ${error instanceof Error ? error.message : error}`))
+    // Снимок мира и его JSON — десятки мегабайт мусора разом; сам сборщик до них добирается не сразу, и на
+    // сервере с малой памятью несколько сохранений подряд её съедают.
+    .then(() => Bun.gc(true))
   return storing
 }
 
