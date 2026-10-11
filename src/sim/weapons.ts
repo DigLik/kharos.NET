@@ -69,7 +69,7 @@ export const WEAPONS = {
   // Бьёт редко: одиночку и разведку она отгоняет, а настоящий штурм её перемалывает.
   coreGun: { shot: 'laser', range: 10, damage: 40, reload: 2.5, air: true, vs: { building: 0.5 } },
   // Разряд бьёт цель и перескакивает на соседей: против толпы.
-  arc: { shot: 'arc', range: 4.5, damage: 46, reload: 2, chain: 2, air: true, vs: { infantry: 1.5, building: 0.4 } },
+  arc: { shot: 'arc', range: 4.5, damage: 46, reload: 2, chain: 2, air: true, vs: { infantry: 1.5, building: 0.4, air: 0.25 } },
 } satisfies Record<string, WeaponSpec>
 
 export type WeaponType = keyof typeof WEAPONS

@@ -234,9 +234,14 @@ test('летающие летят по прямой над зданиями, а 
   seconds(sim, 1)
   expect(gunTarget(sim, tank)).toBe(-1)
 
-  // Разрядник достаёт: разряд бьёт и по воздуху.
+  // Разрядник достаёт: разряд бьёт и по воздуху, хоть и вчетверо слабее.
   spawnUnit(sim, 'tesla', 2, x + 15, y + 2)
-  seconds(sim, 12)
+  seconds(sim, 5)
+  // Каждый разряд снимает с дрона четверть обычного урона.
+  const shots = ((1 - health(sim, drone)!) * UNITS.drone.hp) / (WEAPONS.arc.damage * 0.25)
+  expect(shots).toBeGreaterThan(0.5)
+  expect(shots).toBeCloseTo(Math.round(shots), 5)
+  seconds(sim, 20)
   expect(alive(sim, drone)).toBe(false)
 })
 
