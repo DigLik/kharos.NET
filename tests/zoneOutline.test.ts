@@ -28,7 +28,11 @@ test('граница зоны по сетке — та же, что перебо
   const started = performance.now()
   const dots = outlineOf(zone)
   const took = performance.now() - started
-  expect(dots).toEqual(slow(zone))
+  const startedSlow = performance.now()
+  const expected = slow(zone)
+  const tookSlow = performance.now() - startedSlow
+  expect(dots).toEqual(expected)
   expect(dots.length).toBeGreaterThan(0)
-  expect(took).toBeLessThan(50)
+  // Порог — относительно перебора, а не в миллисекундах: машины сборки бывают медленными.
+  expect(took).toBeLessThan(tookSlow / 2)
 })
