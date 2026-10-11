@@ -15,8 +15,8 @@ import { freeTilesNear, isWalkable, spawnUnit, vehicleReach, type UnitType } fro
 
 /** Сколько кредитов у игрока на тестовой карте: хватает, чтобы сразу строить и заказывать юнитов. */
 const SANDBOX_CREDITS = 10000
-/** Что уже лежит в хранилищах: хватает на первые заказы, и сразу есть что продать. */
-const SANDBOX_STOCK: Amounts = { metal: 120, silicon: 40, fuel: 30, kharite: 12, blocks: 20, ammo: 60, parts: 6 }
+/** Что уже лежит в хранилищах: хватает на первые заказы и исследования, и сразу есть что продать. */
+const SANDBOX_STOCK: Amounts = { metal: 120, silicon: 40, fuel: 30, kharite: 12, blocks: 20, ammo: 60, parts: 30 }
 /** Насколько далеко от начала мира ищется месторождение под базу, в клетках месторождений. */
 const SEARCH_CELLS = 6
 /** Сколько тайлов вокруг шахты оставлено свободными: там встают грузовики. */
@@ -27,7 +27,7 @@ const BASE_REACH = 8000
 
 /** Что стоит на тестовой карте, кроме шахты и главного здания: по порядку, от главного здания наружу. */
 const SANDBOX_BUILDINGS: BuildingType[] = [
-  'generator', 'generator', 'generator', 'generator', 'smelter', 'siliconWorks', 'blockPlant', 'ammoPlant', 'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker', 'spaceport', 'factory', 'barracks', 'matter',
+  'generator', 'generator', 'generator', 'generator', 'smelter', 'siliconWorks', 'blockPlant', 'ammoPlant', 'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker', 'spaceport', 'factory', 'barracks', 'matter', 'techCenter',
 ]
 /** С какими юнитами игрок начинает на тестовой карте, кроме грузовиков. */
 const SANDBOX_UNITS: UnitType[] = ['harvester', 'builder', 'builder', 'infantry', 'infantry', 'rocketeer', 'buggy', 'tank', 'tesla', 'carrier']

@@ -68,8 +68,9 @@ export const Path = component('Path', () => ({ points: [] as number[], goalX: 0,
  * earned — заработанная доля кредита, ещё не дошедшая до целого. rewards — какие награды игрок уже получил, по порядку.
  * away — сколько он заработал за нынешнее отсутствие, см. Rules.offlineIncome; в сети — ноль. camera — где у него
  * камера в начале игры: середина экрана в тайлах и масштаб, x, y, zoom; пусто — у его юнитов. Задаёт редактор.
+ * research — какие темы игрок исследовал, по порядку, см. research.ts.
  */
-export const Player = component('Player', () => ({ id: 0, credits: 0, earned: 0, rewards: [] as string[], away: 0, camera: [] as number[] }), { tracked: true })
+export const Player = component('Player', () => ({ id: 0, credits: 0, earned: 0, rewards: [] as string[], away: 0, camera: [] as number[], research: [] as string[] }), { tracked: true })
 
 /**
  * Производство юнитов: есть у MCV и у главного здания.
@@ -286,6 +287,12 @@ export const Batch = component('Batch', () => ({ from: -1, to: -1, resource: 'me
  */
 export const Upgrade = component('Upgrade', { progress: 0 })
 
+/**
+ * Исследование, которое ведёт техцентр: topic — тема (см. RESEARCH в research.ts), progress — сколько тиков оно уже
+ * идёт; при нехватке энергии растёт медленнее. Компонент есть, только пока оно идёт. Цена списана при заказе.
+ */
+export const Research = component('Research', { topic: '', progress: 0 })
+
 /** Компоненты, которые попадают в сохранение и в сеть. Новый компонент симуляции добавляй сюда. */
 /**
  * Призрак: чужое здание или месторождение, каким клиент видел его последний раз. Живёт только в клиенте: хост
@@ -294,4 +301,4 @@ export const Upgrade = component('Upgrade', { progress: 0 })
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Harvester, Inventory, Beam, Assembly, Trade, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Harvester, Inventory, Beam, Assembly, Trade, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research]

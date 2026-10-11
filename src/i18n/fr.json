@@ -79,7 +79,7 @@
     "barracks": "Forme l'infanterie : fusiliers, lance-roquettes et lance-flammes",
     "factory": "Produit les véhicules terrestres et les MCV pour de nouvelles bases",
     "airfield": "Produit l'aviation : camions volants, drones, hélicoptères d'assaut et bombardiers",
-    "techCenter": "Débloque les unités lourdes : chars, artillerie, tesla, porte-drones et bombardiers",
+    "techCenter": "Mène les recherches : elles débloquent les niveaux des bâtiments, les véhicules lourds, les engins de siège, le bombardier et les tourelles à rayons",
     "wall": "Un obstacle solide et bon marché : il barre le passage et protège des tirs. Peut être placé hors zone",
     "pipe": "Relie les bâtiments en réseau : les tuyaux transportent marchandises et énergie et étendent la zone. Bon marché et fragile, il barre le passage. Peut être placé hors zone",
     "well": "L'entrée d'un tuyau souterrain : il se relie à son jumeau en ligne droite jusqu'à 10 cases. On roule et on construit au-dessus. Peut être placé hors zone",
@@ -358,7 +358,15 @@
     "upgrade": "Niveau {level}",
     "upgradeTip": "Monter de niveau : {gain} ×{factor}. Le prix est payé tout de suite, les matériaux viennent du réseau du bâtiment ; les constructeurs font le travail et le bâtiment continue de fonctionner",
     "upgradeNoMaterials": "Le réseau du bâtiment manque de matériaux pour l'amélioration",
-    "cancelUpgradeTip": "Annuler l'amélioration : son prix est rendu en entier"
+    "cancelUpgradeTip": "Annuler l'amélioration : son prix est rendu en entier",
+    "needsResearch": "Nécessite une recherche au centre technique : {name}",
+    "researchDone": "Déjà recherché",
+    "researchRunning": "Déjà en cours de recherche",
+    "researchAfter": "Recherche d'abord : {name}",
+    "researchBusy": "Le centre technique est occupé par un autre sujet",
+    "researchNoParts": "Le réseau du centre technique manque de composants",
+    "researchTip": "La recherche prend {seconds} s. Le prix est payé tout de suite, les composants viennent du réseau du centre technique",
+    "cancelResearchTip": "Abandonner la recherche : son prix est rendu en entier"
   },
   "hud": {
     "players": "Joueurs",
@@ -449,6 +457,8 @@
     "levelBase": "Niveau {level} sur {max}",
     "upgrading": "Amélioration — {percent} fait",
     "waitsToUpgrade": "L'amélioration attend un constructeur : sélectionne-le et fais un clic droit sur le bâtiment",
+    "researching": "{name} — recherché à {percent}",
+    "researchIdle": "Choisis un sujet de recherche : ce qui est débloqué le reste pour toujours",
     "building": "En construction — {percent}",
     "blocked": "L'emplacement est occupé par des unités",
     "waitsBuilder": "Attend un constructeur",
@@ -465,6 +475,22 @@
     "placingTip": "Bouton gauche — poser, encore et encore ; bouton droit ou Échap — terminer",
     "adminPassword": "Mot de passe administrateur",
     "adminMode": "mode administrateur"
+  },
+  "research": {
+    "levels2": "Modernisation",
+    "levels3": "Modernisation poussée",
+    "armor": "Blindage lourd",
+    "siege": "Art du siège",
+    "bombing": "Bombardement",
+    "beams": "Défense à rayons"
+  },
+  "researchInfo": {
+    "levels2": "Débloque le niveau deux des bâtiments : mines, raffineries, entrepôts, spatioport et centrales",
+    "levels3": "Débloque le niveau trois des bâtiments",
+    "armor": "Débloque le char et le tesla à l'usine",
+    "siege": "Débloque l'artillerie et le porteur à l'usine",
+    "bombing": "Débloque le bombardier à l'aérodrome",
+    "beams": "Débloque les tourelles laser et à arc"
   },
   "levelGains": {
     "extract": "extraction",

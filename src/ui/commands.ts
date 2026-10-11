@@ -1,7 +1,7 @@
 import type { HudState, Stack } from '../game/hud'
 import type { PaveIcon } from '../game/portraits'
 import type { PaveTool } from '../game/scene'
-import { BRIDGE_COST, BUILDINGS, UNDERGROUND_REACH, BUILDING_TYPES, DEPOSIT_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, WARES, type Stance, type BuildingType, type Command, type DepositKind, type Good, type Resource } from '../sim'
+import { BRIDGE_COST, BUILDINGS, UNDERGROUND_REACH, BUILDING_TYPES, DEPOSIT_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, WARES, type Stance, type BuildingType, type Command, type DepositKind, type Good, type Resource, type Topic } from '../sim'
 import { t } from '../i18n'
 
 /** Клавиши ячеек сетки команд по порядку: три ряда по четыре, как на клавиатуре, справа от WASD. */
@@ -229,14 +229,15 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
   // Страницы торговли закрывают собой заказ техники и разбор.
   if (production && page === 'root') {
     list(
-      production.options.map(({ unit, cost, affordable, materials, missing }) => ({
+      production.options.map(({ unit, cost, affordable, materials, missing, research }) => ({
         label: t(`units.${unit}`),
         unit,
         cost,
         materials,
-        disabled: !affordable || production.full || missing.length > 0,
+        disabled: !affordable || production.full || missing.length > 0 || !!research,
         title: missing.length
           ? t('grid.needs', { list: missing.map((type) => t(`buildings.${type}`)).join(', ') })
+          : research ? t('grid.needsResearch', { name: t(`research.${research}`) })
           : production.full ? t('grid.queueFull') : affordable ? undefined : t('grid.noCredits'),
         run: () => send({ type: 'produce', producer: production.producer, unit }),
       })),
@@ -466,7 +467,9 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
         cost: next.cost,
         materials: next.materials,
         disabled: !!next.lack,
-        title: next.lack ? t(next.lack === 'credits' ? 'grid.noCredits' : 'grid.upgradeNoMaterials') : t('grid.upgradeTip', { gain: t(`levelGains.${level.gain}`), factor: next.factor }),
+        title: next.lack === 'research' ? t('grid.needsResearch', { name: t(`research.${next.topic}`) })
+          : next.lack ? t(next.lack === 'credits' ? 'grid.noCredits' : 'grid.upgradeNoMaterials')
+          : t('grid.upgradeTip', { gain: t(`levelGains.${level.gain}`), factor: next.factor }),
         run: () => next.buildings.forEach((building) => send({ type: 'upgrade', building, builders: [] })),
       }
     } else if (raising) {
@@ -476,6 +479,31 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
         run: () => raising.buildings.forEach((building) => send({ type: 'cancelUpgrade', building })),
       }
     }
+  }
+
+  const { research } = state
+  if (research && page === 'root' && !construction) {
+    const { lab, current } = research
+    /** Почему тему не начать: подсказка под кнопкой. */
+    const reason = (lack: NonNullable<(typeof research.topics)[number]['lack']>, after: Topic | null) =>
+      lack === 'done' ? t('grid.researchDone')
+      : lack === 'running' ? t('grid.researchRunning')
+      : lack === 'after' ? t('grid.researchAfter', { name: after ? t(`research.${after}`) : '' })
+      : lack === 'credits' ? t('grid.noCredits')
+      : t('grid.researchNoParts')
+    list(
+      research.topics.map(({ topic, cost, materials, seconds, lack, after }): Slot => ({
+        label: lack === 'done' ? `✓ ${t(`research.${topic}`)}` : t(`research.${topic}`),
+        cost: lack === 'done' ? undefined : cost,
+        materials: lack === 'done' ? undefined : materials,
+        about: t(`researchInfo.${topic}`),
+        active: lack === 'done' || current?.topic === topic,
+        disabled: !!lack || !!current,
+        title: lack ? reason(lack, after) : current ? t('grid.researchBusy') : t('grid.researchTip', { seconds }),
+        run: () => send({ type: 'research', lab, topic }),
+      })),
+    )
+    if (current) slots[CANCEL] = { label: t('grid.cancel'), title: t('grid.cancelResearchTip'), run: () => send({ type: 'cancelResearch', lab }) }
   }
 
   if (site) {

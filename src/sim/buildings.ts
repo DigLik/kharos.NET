@@ -7,6 +7,7 @@ import { ORE_SPECS, PRODUCT_SPECS, WARES, stockedFor, type Amounts, type Good, t
 import type { Sim } from './sim'
 import { mountTurrets, type MountSpec } from './turrets'
 import { isPaved } from './paved'
+import { hasResearch, type Topic } from './topics'
 import type { UnitType } from './units'
 
 /** Что симуляция знает о виде здания. Как оно выглядит, знает клиент: см. game/buildings/buildingArt.ts. */
@@ -85,6 +86,8 @@ export interface BuildingSpec {
   pipe?: 'surface' | 'well'
   /** Здание не подключается к сети труб: стене нечего брать и отдавать. */
   isolated?: boolean
+  /** Здание ведёт исследования, см. research.ts. */
+  researches?: boolean
 }
 
 /** На сколько тайлов от своего центра расширяет зону готовая труба или колодец. */
@@ -166,9 +169,9 @@ export const BUILDINGS = {
   partsPlant: plant('parts'),
   // Машинный завод: машинки и тяжёлая техника. Строится из стройблоков: военная промышленность требует цеха.
   factory: { width: 3, height: 3, cost: 450, power: -5, materials: { blocks: 10 }, produces: ['buggy', 'flak', 'lancer', 'tank', 'artillery', 'tesla', 'carrier', 'mcv'] },
-  // Техцентр открывает второй тир: тяжёлую технику, артиллерию и бомбардировщик. Строится из стройблоков:
-  // до него игрок должен наладить цех.
-  techCenter: { width: 3, height: 3, cost: 1000, power: -6, materials: { blocks: 15 }, sight: 8 },
+  // Техцентр ведёт исследования: они открывают уровни зданий, второй тир техники и лучевую оборону. Строится
+  // из стройблоков: до него игрок должен наладить цех.
+  techCenter: { width: 3, height: 3, cost: 1000, power: -6, materials: { blocks: 15 }, sight: 8, researches: true },
   // Аэродром выпускает летающих: им нужно топливо, бомбардировщику ещё и техцентр.
   airfield: { width: 4, height: 3, cost: 500, power: -4, materials: { metal: 15, blocks: 5 }, produces: ['airTruck', 'drone', 'gunship', 'bomber'] },
   // Электростанция.
@@ -326,6 +329,12 @@ export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = 
   arcTurret: ['techCenter'],
 }
 
+/** Какое исследование открывает здание вдобавок к REQUIRES: без него строители его не ставят. */
+export const RESEARCH_FOR: Partial<Record<BuildingType, Topic>> = {
+  laserTurret: 'beams',
+  arcTurret: 'beams',
+}
+
 /** Каких готовых зданий из списка у игрока нет. */
 export function missingBuildings(sim: Sim, player: number, needs: readonly BuildingType[] | undefined): BuildingType[] {
   if (!needs?.length) return []
@@ -336,7 +345,7 @@ export function missingBuildings(sim: Sim, player: number, needs: readonly Build
 
 /** Открыто ли игроку здание: строится строителями и все нужные для него здания стоят. */
 export const isUnlocked = (sim: Sim, player: number, type: BuildingType) =>
-  BUILDABLE.includes(type) && (!sim.rules.techTree || missingBuildings(sim, player, REQUIRES[type]).length === 0)
+  BUILDABLE.includes(type) && (!sim.rules.techTree || (missingBuildings(sim, player, REQUIRES[type]).length === 0 && hasResearch(sim, player, RESEARCH_FOR[type])))
 
 /** Хранилища — по одному на каждое готовое. */
 export const STORES = BUILDING_TYPES.filter((type) => buildingSpec(type).stores)

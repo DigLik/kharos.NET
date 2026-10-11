@@ -16,6 +16,8 @@ import { orderPipes, orderWells } from './piping'
 import { cancelUnit, orderUnit } from './production'
 import { setFilter, setRoute, setServe } from './routes'
 import { surrender } from './defeat'
+import { cancelResearch, startResearch } from './research'
+import type { Topic } from './topics'
 import { resolveOrder } from './target'
 import { clearTactics, orderPatrol, setStance, startMarch, type Stance } from './tactics'
 import type { Good, Resource } from './resources'
@@ -82,6 +84,10 @@ export type Command = (
   | { type: 'upgrade'; building: number; builders: number[] }
   /** Отменить улучшение своего здания: цена возвращается. */
   | { type: 'cancelUpgrade'; building: number }
+  /** Начать исследование темы в своём свободном техцентре: цена списывается сразу. */
+  | { type: 'research'; lab: number; topic: Topic }
+  /** Бросить исследование своего техцентра: цена возвращается. */
+  | { type: 'cancelResearch'; lab: number }
   /** Дать своим грузовикам маршрут: свои здания-остановки по кругу. Меньше двух остановок — снять маршрут. */
   | { type: 'route'; units: number[]; stops: number[] }
   /** Своим грузовикам — возить только по заявкам этих своих зданий. Пусто — снять назначение. */
@@ -274,6 +280,10 @@ function run(sim: Sim, player: number, command: Command): boolean {
     }
     case 'cancelUpgrade':
       return cancelUpgrade(sim, player, command.building as Entity)
+    case 'research':
+      return startResearch(sim, player, command.lab as Entity, command.topic)
+    case 'cancelResearch':
+      return cancelResearch(sim, player, command.lab as Entity)
     case 'rally': {
       const building = command.building as Entity
       const producer = sim.world.get(building, Producer)

@@ -616,6 +616,12 @@ function Info({ state, lookAtSelection, narrow, deal, setAmount, confirm }: {
             {state.level.raising.progress > 0 ? t('hud.upgrading', { percent: percent(state.level.raising.progress) }) : t('hud.waitsToUpgrade')}
           </Progress>
         )}
+        {state.research && !state.research.current && <div class="hud__hint">{t('hud.researchIdle')}</div>}
+        {state.research?.current && (
+          <Progress value={state.research.current.progress}>
+            {t('hud.researching', { name: t(`research.${state.research.current.topic}`), percent: percent(state.research.current.progress) })}
+          </Progress>
+        )}
         {site && (
           <Progress value={site.progress}>
             {site.demolish

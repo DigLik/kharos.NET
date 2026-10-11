@@ -79,7 +79,7 @@
     "barracks": "Trains infantry: riflemen, rocketeers and flamethrowers",
     "factory": "Builds ground vehicles and MCVs for new bases",
     "airfield": "Builds aircraft: air trucks, drones, gunships and bombers",
-    "techCenter": "Unlocks heavy units: tanks, artillery, tesla, carrier and bombers",
+    "techCenter": "Runs research: it unlocks building levels, heavy vehicles, siege machines, the bomber and beam turrets",
     "wall": "A cheap, sturdy barrier: blocks the way and shields from fire. Can be placed outside a zone",
     "pipe": "Links buildings into a network: pipes carry goods and power and extend the zone. Cheap and fragile, blocks passage. Can be placed outside a zone",
     "well": "The entrance of an underground pipe: links with its pair in a straight line up to 10 tiles away. Units drive and build over the stretch. Can be placed outside a zone",
@@ -358,7 +358,15 @@
     "upgrade": "Level {level}",
     "upgradeTip": "Raise the level: {gain} ×{factor}. The price is paid at once, goods come from the building's network; builders do the work and the building keeps running",
     "upgradeNoMaterials": "The building's network lacks the goods for the upgrade",
-    "cancelUpgradeTip": "Cancel the upgrade: its price is refunded in full"
+    "cancelUpgradeTip": "Cancel the upgrade: its price is refunded in full",
+    "needsResearch": "Requires research at the tech center: {name}",
+    "researchDone": "Already researched",
+    "researchRunning": "Already being researched",
+    "researchAfter": "Research first: {name}",
+    "researchBusy": "The tech center is busy with another topic",
+    "researchNoParts": "The tech center's network lacks components",
+    "researchTip": "The research takes {seconds} s. The price is paid at once, components come from the tech center's network",
+    "cancelResearchTip": "Drop the research: its price is refunded in full"
   },
   "hud": {
     "players": "Players",
@@ -449,6 +457,8 @@
     "levelBase": "Level {level} of {max}",
     "upgrading": "Upgrading — {percent} done",
     "waitsToUpgrade": "The upgrade awaits a builder: select one and right-click the building",
+    "researching": "{name} — {percent} researched",
+    "researchIdle": "Pick a research topic: what is unlocked stays forever",
     "building": "Under construction — {percent}",
     "blocked": "The site is blocked by units",
     "waitsBuilder": "Waiting for a builder",
@@ -465,6 +475,22 @@
     "placingTip": "Left button — place, again and again; right button or Esc — finish",
     "adminPassword": "Administrator password",
     "adminMode": "administrator mode"
+  },
+  "research": {
+    "levels2": "Modernization",
+    "levels3": "Deep modernization",
+    "armor": "Heavy armor",
+    "siege": "Siegecraft",
+    "bombing": "Bombing",
+    "beams": "Beam defense"
+  },
+  "researchInfo": {
+    "levels2": "Unlocks building level two: mines, refineries, stores, the spaceport and power plants",
+    "levels3": "Unlocks building level three",
+    "armor": "Unlocks the tank and the tesla at the factory",
+    "siege": "Unlocks artillery and the carrier at the factory",
+    "bombing": "Unlocks the bomber at the airfield",
+    "beams": "Unlocks the laser and arc turrets"
   },
   "levelGains": {
     "extract": "output",

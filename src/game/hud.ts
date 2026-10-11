@@ -7,6 +7,7 @@ import { textOf } from '../i18n'
 import {
   Assembly, Harvester, BUILDABLE, isUnlocked, buyPrice, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
+  RESEARCH, Research, TOPICS, isLab, levelTopic, missingResearch, researchTicks, topicLack, topicMaterials, type Topic, type TopicLack,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   Off, Owner, Position, Tactics, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType,
 } from '../sim'
@@ -161,8 +162,18 @@ export interface HudState {
     max: number
     gain: LevelGain
     factor: number
-    next: { buildings: number[]; level: number; factor: number; cost: number; materials: Stack[]; lack: UpgradeLack | null } | null
+    /** topic — исследование, которое открывает этот уровень: его называет подсказка, когда lack — research. */
+    next: { buildings: number[]; level: number; factor: number; cost: number; materials: Stack[]; lack: UpgradeLack | null; topic: Topic } | null
     raising: { buildings: number[]; progress: number } | null
+  } | null
+  /**
+   * Исследования выбранного своего готового техцентра: темы с ценой и тем, что мешает начать (lack; after — тема,
+   * которую надо открыть раньше), и current — тема в работе с готовностью от 0 до 1.
+   */
+  research: {
+    lab: number
+    topics: { topic: Topic; cost: number; materials: Stack[]; seconds: number; lack: TopicLack | null; after: Topic | null }[]
+    current: { topic: Topic; progress: number } | null
   } | null
   /** Что можно построить, если среди выбранного есть строитель. */
   construction: {
@@ -202,7 +213,8 @@ export interface HudState {
     /** Здание, а не MCV: ему можно поставить точку сбора. rally — она, если поставлена. */
     building: boolean
     rally: boolean
-    options: { unit: UnitType; cost: number; affordable: boolean; materials: Stack[]; missing: BuildingType[] }[]
+    /** missing — каких зданий не хватает для заказа, research — какого исследования. */
+    options: { unit: UnitType; cost: number; affordable: boolean; materials: Stack[]; missing: BuildingType[]; research: Topic | null }[]
   } | null
 }
 
@@ -266,6 +278,7 @@ export function readHud(scene: Scene): HudState {
   let site: HudState['site'] = null
   let demolish: HudState['demolish'] = null
   let level: HudState['level'] = null
+  let research: HudState['research'] = null
   /** Готовое на улучшение всех выбранных вместе. */
   const upgradeMaterials: Amounts = {}
   let deposit: HudState['deposit'] = null
@@ -366,11 +379,27 @@ export function readHud(scene: Scene): HudState {
         level.raising.buildings.push(entity)
       } else if (isUpgradable(sim, player, entity)) {
         const price = upgradeCost(built.type, built.level)
-        level.next ??= { buildings: [], level: built.level + 1, factor: levelFactor(built.level + 1), cost: 0, materials: [], lack: null }
+        level.next ??= { buildings: [], level: built.level + 1, factor: levelFactor(built.level + 1), cost: 0, materials: [], lack: null, topic: levelTopic(built.level) }
         level.next.buildings.push(entity)
         level.next.cost += price.credits
         for (const [resource, amount] of entriesOf(price.materials)) upgradeMaterials[resource] = (upgradeMaterials[resource] ?? 0) + amount
-        if (upgradeLack(sim, player, entity) === 'materials') level.next.lack = 'materials'
+        const lack = upgradeLack(sim, player, entity)
+        if (lack === 'research' || (lack === 'materials' && !level.next.lack)) level.next.lack = lack
+      }
+    }
+    if (!research && built && ready && isLab(sim, player, entity)) {
+      const running = world.get(entity, Research)
+      research = {
+        lab: entity,
+        topics: TOPICS.map((topic) => ({
+          topic,
+          cost: RESEARCH[topic].cost,
+          materials: exactOf(topicMaterials(topic)),
+          seconds: RESEARCH[topic].seconds,
+          lack: topicLack(sim, player, entity, topic) ?? null,
+          after: 'after' in RESEARCH[topic] ? (RESEARCH[topic].after as Topic) : null,
+        })),
+        current: running ? { topic: running.topic as Topic, progress: round(Math.min(1, running.progress / researchTicks(running.topic as Topic, sim.time.step))) } : null,
       }
     }
     const digging = world.get(entity, Harvester)
@@ -469,7 +498,7 @@ export function readHud(scene: Scene): HudState {
   const stock = stockOf(sim, player)
   if (level?.next) {
     level.next.materials = exactOf(upgradeMaterials)
-    if (credits < level.next.cost) level.next.lack = 'credits'
+    if (credits < level.next.cost && level.next.lack !== 'research') level.next.lack = 'credits'
   }
   const state: HudState = {
     credits,
@@ -518,6 +547,7 @@ export function readHud(scene: Scene): HudState {
     site,
     demolish,
     level,
+    research,
     construction: counts.has('builder')
       ? {
           placing: scene.placing,
@@ -569,6 +599,7 @@ export function readHud(scene: Scene): HudState {
       affordable: credits >= UNITS[unit].cost,
       materials: exactOf(unitSpec(unit).materials ?? {}),
       missing: missingRequirements(sim, player, unit),
+      research: missingResearch(sim, player, unit) ?? null,
     })),
   }
   return state

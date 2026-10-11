@@ -79,7 +79,7 @@
     "barracks": "Entrena infantería: fusileros, lanzacohetes y lanzallamas",
     "factory": "Fabrica vehículos terrestres y MCV para nuevas bases",
     "airfield": "Fabrica aviación: camiones aéreos, drones, cañoneras y bombarderos",
-    "techCenter": "Desbloquea unidades pesadas: tanques, artillería, tesla, portadrones y bombarderos",
+    "techCenter": "Lleva la investigación: desbloquea niveles de edificios, vehículos pesados, máquinas de asedio, el bombardero y las torretas de rayos",
     "wall": "Una barrera barata y resistente: corta el paso y cubre de los disparos. Se puede colocar fuera de la zona",
     "pipe": "Une los edificios en una red: por las tuberías van la carga y la energía, y amplían la zona. Barata y frágil, corta el paso. Se puede colocar fuera de la zona",
     "well": "Entrada de una tubería subterránea: se une con su pareja en línea recta hasta 10 casillas. Sobre el tramo se circula y se construye. Se puede colocar fuera de la zona",
@@ -358,7 +358,15 @@
     "upgrade": "Nivel {level}",
     "upgradeTip": "Subir de nivel: {gain} ×{factor}. El precio se cobra al momento y los materiales salen de la red del edificio; el trabajo lo hacen los constructores y el edificio sigue funcionando",
     "upgradeNoMaterials": "En la red del edificio faltan materiales para la mejora",
-    "cancelUpgradeTip": "Cancelar la mejora: su precio se devuelve entero"
+    "cancelUpgradeTip": "Cancelar la mejora: su precio se devuelve entero",
+    "needsResearch": "Requiere investigación en el centro técnico: {name}",
+    "researchDone": "Ya investigado",
+    "researchRunning": "Ya se está investigando",
+    "researchAfter": "Investiga primero: {name}",
+    "researchBusy": "El centro técnico está ocupado con otro tema",
+    "researchNoParts": "En la red del centro técnico faltan componentes",
+    "researchTip": "La investigación tarda {seconds} s. El precio se cobra al momento y los componentes salen de la red del centro técnico",
+    "cancelResearchTip": "Abandonar la investigación: su precio se devuelve entero"
   },
   "hud": {
     "players": "Jugadores",
@@ -449,6 +457,8 @@
     "levelBase": "Nivel {level} de {max}",
     "upgrading": "Mejorando — {percent} hecho",
     "waitsToUpgrade": "La mejora espera a un constructor: selecciónalo y haz clic derecho en el edificio",
+    "researching": "{name} — investigado {percent}",
+    "researchIdle": "Elige un tema de investigación: lo desbloqueado queda para siempre",
     "building": "En construcción — {percent}",
     "blocked": "El lugar está ocupado por unidades",
     "waitsBuilder": "Espera a un constructor",
@@ -465,6 +475,22 @@
     "placingTip": "Botón izquierdo — colocar, una y otra vez; botón derecho o Esc — terminar",
     "adminPassword": "Contraseña de administrador",
     "adminMode": "modo administrador"
+  },
+  "research": {
+    "levels2": "Modernización",
+    "levels3": "Modernización profunda",
+    "armor": "Blindaje pesado",
+    "siege": "Arte del asedio",
+    "bombing": "Bombardeo",
+    "beams": "Defensa de rayos"
+  },
+  "researchInfo": {
+    "levels2": "Desbloquea el nivel dos de los edificios: minas, refinerías, almacenes, el puerto espacial y las centrales",
+    "levels3": "Desbloquea el nivel tres de los edificios",
+    "armor": "Desbloquea el tanque y el tesla en la fábrica",
+    "siege": "Desbloquea la artillería y el portador en la fábrica",
+    "bombing": "Desbloquea el bombardero en el aeródromo",
+    "beams": "Desbloquea las torretas láser y de arco"
   },
   "levelGains": {
     "extract": "extracción",
