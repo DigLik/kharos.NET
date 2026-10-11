@@ -262,7 +262,9 @@ export function requestsOf(sim: Sim, player: number, flows = flowsOf(sim)): Requ
   // Продажа: товар заявки.
   for (const [entity, order] of world.query(Trade, Inventory)) {
     if (order.total > 0 || !isReady(sim, player, entity)) continue
-    need(entity, order.resource, order.wanted - deliveredTo(sim, entity), PRIORITY.trade, 'zone', false, true)
+    // Недостачу заказывают целыми единицами, как стройка: хранилище отдало дробный остаток — и заявке не хватает
+    // меньше MIN_JOB, а такое не привёз бы никто: корабль ждал бы последнюю единицу вечно. Лишнее вернётся в хранилища.
+    need(entity, order.resource, Math.ceil(order.wanted - deliveredTo(sim, entity) - 1e-6), PRIORITY.trade, 'zone', false, true)
   }
   return requests.sort((a, b) => b.priority - a.priority)
 }
