@@ -1,26 +1,25 @@
 /**
  * Раздел «набег»: нападение на экономику.
  *
- * Сцена — живая линия добычи: шахта на металле, переработка с электростанцией, хранилище с главным зданием
- * рядом и два грузовика: один привязан к шахте и возит руду на завод, второй свободный — развозит готовое.
- * Сначала линия меряется на ходу (сколько металла в секунду приходит в хранилище), потом к ней подходит
- * отряд и получает приказ: снести шахту, затем грузовики.
+ * Сцена — живая линия добычи на трубах: шахта на металле, плавильня, двор металла, главное здание и электростанция
+ * в одной сети. Линия разгоняется и меряется (сколько металла в секунду приходит во двор), потом к ней подходит
+ * отряд с одной целью: труба у шахты, сама шахта или двор с накопленным металлом.
  *
- * Строки — отряды разной цены. Меряется: за сколько секунд они сносят шахту, за сколько — грузовики, и сколько
- * это стоит защитнику. Обороны в сцене нет: она мерится отдельно, в разделе осады. Здесь видно, чего стоит один
- * набег на экономику и сколько линии он останавливает.
+ * Строки — отряды разной цены, по три цели на каждый. Меряется: за сколько секунд цель снесена, чего это стоит
+ * защитнику (отстроить заново и простой линии, пока один строитель отстраивает), сколько груза осталось на земле —
+ * дроп ничей, его увозит любой грузовик, и для нападающего это добыча, — и сколько отряд теряет, если цель
+ * стережёт одна турель с полным боезапасом. Набег окупается, когда ущерб и добыча больше потерь.
  */
 import type { Entity } from '../../src/ecs'
 import {
-  BUILDINGS, Inventory, Owner, Position, RESOURCE_SPECS, UNITS, Unit,
+  BUILDINGS, BUILD_RATE, Building, Drop, Inventory, Owner, Position, RESOURCE_SPECS, UNITS, Unit, WARES, amountOf, isPipe, networkOf, connectAll,
   spawnBattle, type BuildingType, type Sim, type UnitType,
 } from '../../src/sim'
 import { placeBuilding } from '../../src/sim/buildings'
 import { depositIn } from '../../src/sim'
-import { freeTilesNear, spawnUnit } from '../../src/sim/units'
-import { TICK, buildingAt, clock, newSim, placeableNear, printTable, rings, round, seconds, spotNear } from './lib'
+import { TICK, centerOf, clock, newSim, placeNear, placeableNear, printTable, rings, round, seconds, spotNear } from './lib'
 
-/** На сколько тайлов от шахты встают атакующие. */
+/** На сколько тайлов от цели встают атакующие. */
 const GAP = 12
 /** Сколько секунд отводится набегу. */
 const LIMIT = 120
@@ -30,6 +29,8 @@ const ORDERS_TICKS = Math.round(ORDERS_EVERY / TICK)
 /** Разгон линии и окно замера её потока, в секундах. */
 const WARMUP = 60
 const WINDOW = 60
+/** Сколько секунд после набега смотрят, идёт ли металл во двор. */
+const AFTER = 20
 /** Игрок-защитник: его линия добычи. Атакующие — игрок 1, иначе свои цели не бьются. */
 const DEFENDER = 2
 
@@ -48,12 +49,20 @@ const SQUADS: Squad[] = [
   { name: '4 винтокрыла', units: Array<UnitType>(4).fill('gunship') },
 ]
 
-/** Линия добычи: шахта и грузовики при ней. */
+/** Что бьёт отряд. */
+type Target = 'pipe' | 'mine' | 'yard'
+const TARGETS: { target: Target; name: string }[] = [
+  { target: 'pipe', name: 'труба' },
+  { target: 'mine', name: 'шахта' },
+  { target: 'yard', name: 'двор' },
+]
+
+/** Линия добычи: здания сети и труба, которая связывает шахту с остальными. */
 interface Line {
   sim: Sim
-  /** Место шахты: по нему же ищем, жива ли она. */
-  mine: { x: number; y: number }
-  trucks: Entity[]
+  mine: Entity
+  yard: Entity
+  pipe: Entity
 }
 
 /** Ставит здание у шахты, не задевая место для грузовиков под ней. */
@@ -69,126 +78,155 @@ function placeNearMine(sim: Sim, spot: { x: number; y: number }, type: BuildingT
   return tile && placeBuilding(sim.world, type, tile.x, tile.y, DEFENDER)
 }
 
-/** Линия добычи у ближайшего к началу мира месторождения металла. */
+/** Линия добычи на трубах у ближайшего к началу мира месторождения металла. */
 function lineScene(): Line {
   const sim = newSim()
   for (const cell of rings(0, 0, 6)) {
     const spot = depositIn(sim, cell.x, cell.y)
     if (!spot || spot.kind !== 'metal') continue
-    const mine = placeBuilding(sim.world, 'mine', spot.x, spot.y, DEFENDER)
-    const silo = placeNearMine(sim, spot, 'metalYard', spot.x + 4, spot.y + 4)
+    // Главное здание — первым: с его сетью автоподключение соединяет остальные.
     const core = placeNearMine(sim, spot, 'command', spot.x + 8, spot.y)
-    const refinery = placeNearMine(sim, spot, 'smelter', spot.x + 4, spot.y - 4)
-    const generator = placeNearMine(sim, spot, 'generator', spot.x + 8, spot.y - 4)
-    const tiles = freeTilesNear(sim, spot.x, spot.y, 4)
-    if (!silo || !core || !refinery || !generator || tiles.length < 4) break
-    const trucks = [0, 1].map((i) => spawnUnit(sim, 'truck', DEFENDER, tiles[i * 2], tiles[i * 2 + 1]))
-    // Первый возит руду из шахты на завод, второй свободен: он развозит готовое по хранилищам.
-    sim.send(DEFENDER, { type: 'haul', units: [trucks[0]], mine })
-    return { sim, mine: { x: spot.x, y: spot.y }, trucks }
+    const mine = placeBuilding(sim.world, 'mine', spot.x, spot.y, DEFENDER)
+    const yard = placeNearMine(sim, spot, 'metalYard', spot.x + 4, spot.y + 5)
+    const refinery = placeNearMine(sim, spot, 'smelter', spot.x + 4, spot.y - 5)
+    const generator = placeNearMine(sim, spot, 'generator', spot.x + 8, spot.y - 5)
+    if (!yard || !core || !refinery || !generator) break
+    connectAll(sim, DEFENDER)
+    const network = networkOf(sim, mine)
+    if (!network || !network.buildings.includes(yard) || !network.buildings.includes(refinery)) break
+    // Труба у самой шахты: перерезать её — отрезать шахту от плавильни.
+    const at = centerOf(sim, mine)
+    let pipe: Entity | undefined
+    let best = Infinity
+    for (const entity of network.buildings) {
+      if (!isPipe(sim.world.get(entity, Building)!.type)) continue
+      const center = centerOf(sim, entity)
+      const distance = Math.hypot(center.x - at.x, center.y - at.y)
+      if (distance < best) [pipe, best] = [entity, distance]
+    }
+    if (pipe === undefined) break
+    return { sim, mine, yard, pipe }
   }
   sim.destroy()
   throw new Error('Не нашлось места под линию добычи у месторождения металла')
 }
 
-/**
- * Сколько металла у игрока всего: в складах зданий и в кузовах грузовиков. Грузовики сгружают в ближайшее
- * хранилище — им может оказаться и главное здание, поэтому мерить поток по одному хранилищу нельзя.
- */
-function storedMetal(sim: Sim, player: number) {
-  let total = 0
-  for (const [, inventory, owner] of sim.world.query(Inventory, Owner)) {
-    if (owner.player === player) total += inventory.items.metal ?? 0
+/** Сколько металла лежит во дворе. */
+const yardMetal = (sim: Sim, yard: Entity) => amountOf(sim.world.get(yard, Inventory) ?? { items: {}, capacity: 0, accepts: [], limits: {} }, 'metal')
+
+/** Сколько стоит груз, брошенный на землю, по цене продажи. */
+function lootValue(sim: Sim) {
+  let value = 0
+  for (const [, , inventory] of sim.world.query(Drop, Inventory)) {
+    for (const ware of WARES) value += amountOf(inventory, ware) * (ware in RESOURCE_SPECS ? RESOURCE_SPECS[ware as keyof typeof RESOURCE_SPECS].price : 0)
   }
-  return total
+  return value
 }
 
-/** Сколько у игрока живых юнитов этого вида. */
-function countUnits(sim: Sim, player: number, type: UnitType) {
-  let count = 0
-  for (const [, unit, owner] of sim.world.query(Unit, Owner)) if (owner.player === player && unit.type === type) count++
-  return count
+/** Живые юниты игрока. */
+function unitsOf(sim: Sim, player: number) {
+  const units: Entity[] = []
+  for (const [entity, , owner] of sim.world.query(Unit, Owner)) if (owner.player === player) units.push(entity)
+  return units
 }
 
 /** Итог одного набега. */
 interface Result {
   /** Поток линии до набега: металла в секунду. */
   flow: number
-  /** Секунда, когда пала шахта: 0 — не снесли. */
-  mineAt: number
-  /** Секунда, когда пал последний грузовик: 0 — не добили. */
-  trucksAt: number
+  /** Секунда, когда цель пала: 0 — не снесли. */
+  downAt: number
+  /** Поток после набега: идёт ли ещё металл во двор. */
+  after: number
+  /** Груз на земле после набега, кр по цене продажи. */
+  loot: number
+  /** Сколько кредитов отряда погибло. */
+  lost: number
 }
 
-/** Один набег: живая линия, отряд, приказы и замер. */
-function raid(squad: Squad): Result {
-  const { sim, mine, trucks } = lineScene()
+/** Один набег: живая линия, отряд, цель и замер. guarded — цель стережёт турель с полным боезапасом. */
+function raid(squad: Squad, target: Target, guarded: boolean): Result {
+  const { sim, mine, yard, pipe } = lineScene()
   seconds(sim, WARMUP)
-  const before = storedMetal(sim, DEFENDER)
+  const before = yardMetal(sim, yard)
   seconds(sim, WINDOW)
-  const flow = (storedMetal(sim, DEFENDER) - before) / WINDOW
+  const flow = (yardMetal(sim, yard) - before) / WINDOW
 
-  spawnBattle(sim, 1, mine.x + 1, mine.y + 1, squad.units, [], GAP)
-  const kind = squad.units[0]
-  const alive = (id: Entity) => sim.world.get(id, Unit) !== undefined
-  let mineAt = 0
-  let trucksAt = 0
-  for (let tick = 0; tick < Math.round(LIMIT / TICK); tick++) {
+  const aim = target === 'pipe' ? pipe : target === 'mine' ? mine : yard
+  const type = sim.world.get(aim, Building)!.type
+  const place = { ...sim.world.get(aim, Position)! }
+  const center = centerOf(sim, aim)
+  if (guarded) {
+    const turret = placeNear(sim, 'turret', center.x + 2, center.y + 2, DEFENDER)
+    const ammo = turret === undefined ? undefined : sim.world.get(turret, Inventory)
+    if (ammo) ammo.items.ammo = ammo.capacity
+  }
+  spawnBattle(sim, 1, Math.round(center.x), Math.round(center.y), squad.units, [], GAP)
+  const cost = (units: Entity[]) => units.reduce((sum, entity) => sum + UNITS[sim.world.get(entity, Unit)!.type].cost, 0)
+  const sent = cost(unitsOf(sim, 1))
+  const standing = () => {
+    for (const [entity, building, position] of sim.world.query(Building, Position)) {
+      if (building.type === type && position.x === place.x && position.y === place.y) return entity
+    }
+    return undefined
+  }
+  let downAt = 0
+  for (let tick = 0; tick < Math.round(LIMIT / TICK) && !downAt; tick++) {
     if (tick % ORDERS_TICKS === 0) {
-      if (countUnits(sim, 1, kind) === 0) break
-      // Приказ как у игрока: сперва шахта, потом грузовики — по одному, ближний первым.
-      const target =
-        buildingAt(sim, 'mine', mine.x, mine.y) ??
-        trucks.filter(alive).sort((a, b) => distanceTo(sim, a, mine) - distanceTo(sim, b, mine))[0]
-      if (target !== undefined) {
-        const units: Entity[] = []
-        for (const [entity, unit, owner] of sim.world.query(Unit, Owner)) {
-          if (owner.player === 1 && unit.type === kind) units.push(entity)
-        }
-        sim.send(1, { type: 'attack', units, target })
-      }
+      const units = unitsOf(sim, 1)
+      const alive = standing()
+      if (!units.length || alive === undefined) break
+      sim.send(1, { type: 'attack', units, target: alive })
     }
     sim.advance(TICK)
-    if (mineAt === 0 && buildingAt(sim, 'mine', mine.x, mine.y) === undefined) mineAt = (tick + 1) * TICK
-    if (trucksAt === 0 && trucks.every((id) => !alive(id))) trucksAt = (tick + 1) * TICK
-    if (trucksAt > 0) break
+    if (standing() === undefined) downAt = (tick + 1) * TICK
+  }
+  const lost = sent - cost(unitsOf(sim, 1))
+  const loot = lootValue(sim)
+  // Двор снесли — мерить поток негде: линия без хранилища стоит.
+  let after = 0
+  if (sim.world.has(yard, Inventory) && target !== 'yard') {
+    const left = yardMetal(sim, yard)
+    seconds(sim, AFTER)
+    after = Math.max(0, (yardMetal(sim, yard) - left) / AFTER)
   }
   sim.destroy()
-  return { flow, mineAt, trucksAt }
-}
-
-/** Насколько юнит далеко от места шахты, в квадрате расстояния. */
-function distanceTo(sim: Sim, entity: Entity, spot: { x: number; y: number }) {
-  const position = sim.world.get(entity, Position)
-  if (!position) return Infinity
-  return (position.x - spot.x) ** 2 + (position.y - spot.y) ** 2
+  return { flow, downAt, after, loot, lost }
 }
 
 /** Печатает таблицу набегов. */
 export function runRaids() {
-  console.log('\nНабег на экономику: шахта с грузовиками, переработкой и хранилищем, обороны нет')
-  console.log(`  сперва меряется поток линии, потом отряд в ${GAP} тайлах получает приказ: шахта, затем грузовики`)
+  console.log('\nНабег на экономику: шахта, плавильня и двор металла в одной сети труб')
+  console.log(`  линия разгоняется ${WARMUP + WINDOW} с, потом отряд в ${GAP} тайлах получает одну цель; «с турелью» — цель стережёт пулемётная турель`)
   const rows: (string | number)[][] = []
   let flow = 0
+  const costs: Record<Target, BuildingType> = { pipe: 'pipe', mine: 'mine', yard: 'metalYard' }
   for (const squad of SQUADS) {
-    const cost = squad.units.reduce((sum, type) => sum + UNITS[type].cost, 0)
-    const result = raid(squad)
-    flow = result.flow
-    const damage = BUILDINGS.mine.cost + 2 * UNITS.truck.cost
-    const done = result.trucksAt || result.mineAt || LIMIT
-    rows.push([
-      squad.name,
-      cost,
-      result.mineAt ? clock(result.mineAt) : '—',
-      result.trucksAt ? clock(result.trucksAt) : '—',
-      damage,
-      round(damage / done, 1),
-      round(cost / damage, 2),
-    ])
+    const price = squad.units.reduce((sum, type) => sum + UNITS[type].cost, 0)
+    for (const { target, name } of TARGETS) {
+      const open = raid(squad, target, false)
+      const guarded = raid(squad, target, true)
+      flow = open.flow
+      const rebuild = BUILDINGS[costs[target]].cost
+      // Простой: линия стоит, пока один строитель отстраивает снесённое. Труба режет линию только пока её нет.
+      const stopped = target === 'yard' || open.after < open.flow * 0.5
+      const idle = stopped ? (rebuild / BUILD_RATE) * open.flow * RESOURCE_SPECS.metal.price : 0
+      const damage = rebuild + idle
+      const gain = damage + guarded.loot
+      rows.push([
+        squad.name, price, name,
+        open.downAt ? clock(open.downAt) : '—',
+        rebuild, round(idle), round(open.loot),
+        guarded.downAt ? clock(guarded.downAt) : '—',
+        round(guarded.lost),
+        !guarded.downAt ? 'отбит' : guarded.lost <= gain ? 'да' : 'нет',
+      ])
+    }
   }
-  printTable(['отряд', 'цена', 'шахта', 'грузовики', 'ущерб кр', 'ущерб/с', 'цена/ущерб'], rows, 14, 10)
-  console.log('  шахта и грузовики — когда их снесли; ущерб — сколько защитнику строить заново;')
-  console.log('  ущерб/с — с какой скоростью отряд сносит линию; цена/ущерб — во сколько кр обходится 1 кр ущерба')
-  console.log('  переработка в ущерб не входит: она переживает набег, но встаёт без шахты и грузовиков')
+  printTable(['отряд', 'цена', 'цель', 'снесли', 'стройка', 'простой', 'добыча', 'с турелью', 'потери', 'окупился'], rows, 14, 10)
+  console.log('  снесли — за сколько без обороны; стройка — сколько защитнику отстроить; простой — выручка, потерянная, пока')
+  console.log('  один строитель отстраивает; добыча — груз на земле по цене продажи: дроп ничей, его увозит любой грузовик;')
+  console.log('  с турелью — за сколько снесли под огнём турели, потери — сколько кредитов отряда при этом погибло;')
+  console.log('  окупился — потери не больше ущерба (стройка + простой) и добычи; «отбит» — цель под турелью устояла')
   console.log(`  линия добывает металла в секунду: ${round(flow, 2)}, это ${round(flow * RESOURCE_SPECS.metal.price, 1)} кр/с выручки, пока цела`)
 }
