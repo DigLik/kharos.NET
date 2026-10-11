@@ -6,7 +6,7 @@
  * ждут loadLang. Русский словарь — исходный: по нему выводится тип ключей, а остальные обязаны повторить каждую его
  * строку и её подстановки — это проверяет tests/i18n.test.ts.
  */
-export type Lang = 'ru' | 'en' | 'es' | 'fr' | 'de' | 'pt' | 'uk'
+export type Lang = 'ru' | 'en' | 'es' | 'fr' | 'de' | 'pt' | 'uk' | 'uz'
 
 /** Языки с названиями на них самих: список в настройках читается, пока словарь ещё не загружен. */
 export const LANGS: readonly { lang: Lang; name: string }[] = [
@@ -17,6 +17,7 @@ export const LANGS: readonly { lang: Lang; name: string }[] = [
   { lang: 'de', name: 'Deutsch' },
   { lang: 'pt', name: 'Português' },
   { lang: 'uk', name: 'Українська' },
+  { lang: 'uz', name: "O'zbekcha" },
 ]
 
 const LOADERS: Record<Lang, () => Promise<{ default: unknown }>> = {
@@ -27,6 +28,7 @@ const LOADERS: Record<Lang, () => Promise<{ default: unknown }>> = {
   de: () => import('./de.json'),
   pt: () => import('./pt.json'),
   uk: () => import('./uk.json'),
+  uz: () => import('./uz.json'),
 }
 
 type Dict = typeof import('./ru.json')
