@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Path, Producer, Unit, canPlace, createSim } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
@@ -18,8 +19,10 @@ test('точка сбора: готовый юнит сам едет к ней; 
   sim.send(1, { type: 'produce', producer: core, unit: 'builder' })
   sim.advance(1 / 20)
   expect(sim.world.get(core, Producer)!.rally).toEqual([spot!.x + 8, spot!.y + 1])
-  const before = new Set([...sim.world.query(Unit)].map(([entity]) => entity))
-  let made: number | undefined
+  // Массив строки обхода один на весь обход — собираем сразу, иначе в наборе окажется одна сущность.
+  const before = new Set<Entity>()
+  for (const [entity] of sim.world.query(Unit)) before.add(entity)
+  let made: Entity | undefined
   for (let i = 0; i < 20 * 60 && made === undefined; i++) {
     sim.advance(1 / 20)
     for (const [entity] of sim.world.query(Unit)) if (!before.has(entity)) made = entity

@@ -118,7 +118,12 @@ test('производство ждёт материалов первого за
   expect(sim.world.get(factory, Producer)).toMatchObject({ queue: ['tank'], progress: 0 })
 
   stash({ metal: 40, parts: 10 })
-  const tanks = () => [...sim.world.query(Unit)].filter(([, unit]) => unit.type === 'tank').length
+  // Массив строки обхода один на весь обход — считаем сразу.
+  const tanks = () => {
+    let n = 0
+    for (const [, unit] of sim.world.query(Unit)) if (unit.type === 'tank') n++
+    return n
+  }
   until(sim, () => tanks() > 0)
   // Привезли ровно на танк, и танк их забрал.
   expect(oreIn(sim, store('metal'), 'metal') + oreIn(sim, factory, 'metal')).toBeCloseTo(40 - UNITS.tank.materials.metal)
@@ -252,7 +257,11 @@ test('машинный завод строит MCV из стройблоков �
   const [factory] = buildings
   stash({ blocks: 40, metal: 40 })
   sim.send(1, { type: 'produce', producer: factory, unit: 'mcv' })
-  const mcvs = () => [...sim.world.query(Unit)].filter(([, unit]) => unit.type === 'mcv').map(([entity]) => entity)
+  const mcvs = () => {
+    const out: Entity[] = []
+    for (const [entity, unit] of sim.world.query(Unit)) if (unit.type === 'mcv') out.push(entity)
+    return out
+  }
   until(sim, () => mcvs().length > 0)
   expect(sim.world.has(mcvs()[0], Producer)).toBe(true)
 })

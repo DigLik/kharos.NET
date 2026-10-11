@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { createLocalServer, type LocalControl, type LocalNotice, type LocalPort, type LocalServer } from '../src/net/local'
 import { decodeServer } from '../src/net/protocol'
 import { createReplica, type Replica } from '../src/net/replica'
+import type { Entity } from '../src/ecs'
 import { Position, Unit, createSim, creditsOf, type SimSave } from '../src/sim'
 import { addCredits } from '../src/sim/economy'
 
@@ -30,7 +31,12 @@ function tab(server: LocalServer, save: SimSave | null = null, mode: 'play' | 'b
   return { sim: sim!, saves, control }
 }
 
-const units = (sim: Replica) => [...sim.world.query(Unit)].map(([entity]) => entity)
+/** Массив строки обхода один на весь обход — собираем сущности сразу, а не переиспользованные строки. */
+const units = (sim: Replica) => {
+  const out: Entity[] = []
+  for (const [entity] of sim.world.query(Unit)) out.push(entity)
+  return out
+}
 
 test('две вкладки локальной игры видят один мир и играют за одного игрока', () => {
   const server = createLocalServer()
@@ -80,13 +86,19 @@ test('новый мир получают все вкладки: копии сб�
 test('показательный бой идёт сам и не сохраняется', () => {
   const server = createLocalServer()
   const { sim, saves } = tab(server, null, 'battle')
-  const before = units(sim).map((entity) => ({ ...sim.world.get(entity, Position)! }))
-  for (let i = 0; i < 10 / STEP; i++) server.advance(STEP)
-  sim.advance(STEP)
-  const moved = units(sim).some((entity, i) => {
-    const now = sim.world.get(entity, Position)
-    return now && before[i] && (now.x !== before[i].x || now.y !== before[i].y)
-  })
+  // За ходом следим по дороге, а не в конце: иная армия игрока гибнет раньше десяти секунд, и в тумане вкладка
+  // к концу срока уже ничего не видит — но юниты к тому времени давно сдвинулись с места.
+  const start = new Map(units(sim).map((entity) => [entity, { ...sim.world.get(entity, Position)! }] as const))
+  let moved = false
+  for (let i = 0; i < 10 / STEP && !moved; i++) {
+    server.advance(STEP)
+    sim.advance(STEP)
+    for (const entity of units(sim)) {
+      const from = start.get(entity)
+      const now = sim.world.get(entity, Position)
+      if (from && now && (now.x !== from.x || now.y !== from.y)) moved = true
+    }
+  }
   expect(moved).toBe(true)
   expect(saves.length).toBe(0)
 })

@@ -68,9 +68,8 @@ export function EditorView({ launch, settings, exit }: { launch: EditorLaunch; s
     const sim = simRef.current
     const opened = openedRef.current
     if (!sim || !opened) return
-    // Призрак юнита под указателем — не часть мира.
-    const ghosts = [...sim.world.query(Ghost)].map(([entity]) => entity)
-    for (const ghost of ghosts) erase(sim, ghost)
+    // Призрак юнита под указателем — не часть мира. Массив строки обхода один на весь обход — берём из него сразу.
+    for (const [ghost] of sim.world.query(Ghost)) erase(sim, ghost)
     const { fog: _, ...rest } = sim.save()
     // Без тумана разведанной была бы вся карта: игроки получают прежнее разведанное.
     const save: SimSave = { ...rest, ...(opened.save.fog === false && { fog: false }), explored: opened.save.explored }

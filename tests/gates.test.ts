@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { BUILDINGS, GATE_CLOSE, Position, Site, canPlace, createSim, creditsOf, isOpenGate, isWalkable, wallStroke, type Sim } from '../src/sim'
 import { addCredits } from '../src/sim/economy'
@@ -83,7 +84,9 @@ test('ворота тянутся линией, и секции вплотную
   addCredits(sim, 1, 1000)
   sim.send(1, { type: 'walls', tiles, builders: [], gate: true })
   sim.advance(TICK)
-  const sites = [...sim.world.query(Site)].filter(([, site]) => site.type === 'gate')
+  // Массив строки обхода один на весь обход — собираем сразу.
+  const sites: Entity[] = []
+  for (const [entity, site] of sim.world.query(Site)) if (site.type === 'gate') sites.push(entity)
   expect(sites).toHaveLength(5)
   expect(creditsOf(sim, 1)).toBeCloseTo(credits + 1000 - 5 * BUILDINGS.gate.cost, 0)
 
