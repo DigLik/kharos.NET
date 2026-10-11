@@ -88,16 +88,17 @@ export const UNITS = {
   // Лазеру нужен кремний.
   lancer: { speed: 4.5, turn: 4.5, radius: 0.45, cost: 350, buildTime: 9, kind: 'vehicle', hp: 180, weapon: 'laser', materials: { metal: 8, silicon: 4 } },
   // Тяжёлые: медленные, крепкие и дорогие.
-  // Танк бьёт ядрами из башни: она поворачивается сама, и стрелять можно на ходу.
+  // Весь второй тир собирают с компонентами: в них харит, и без его месторождения и цеха верхней техники нет.
+  // Танк бьёт ядрами из башни: она поворачивается сама, и стрелять можно на ходу. Кремний его прицела — в компонентах.
   tank: {
-    speed: 2.2, turn: 2.5, radius: 0.7, cost: 600, buildTime: 14, kind: 'heavy', hp: 450, materials: { metal: 20, silicon: 4 }, requires: ['techCenter'],
+    speed: 2.2, turn: 2.5, radius: 0.7, cost: 600, buildTime: 14, kind: 'heavy', hp: 450, materials: { metal: 20, parts: 2 }, requires: ['techCenter'],
     mounts: [{ turret: 'cannon', along: -0.06, across: 0 }],
   },
   // Артиллерия: гаубица на колёсном лафете. Бьёт дальше турелей, но видит меньше, чем стреляет, — ей нужен
   // разведчик; хрупкая и с мёртвой зоной вблизи, без прикрытия её съедают машинки. Второй тир.
   artillery: {
     speed: 2.4, turn: 2.2, radius: 0.6, cost: 800, buildTime: 16, kind: 'vehicle', hp: 200, weapon: 'artillery', sight: 8,
-    materials: { metal: 16, blocks: 4 }, requires: ['techCenter'],
+    materials: { metal: 16, blocks: 4, parts: 2 }, requires: ['techCenter'],
   },
   // Разрядник: тяжёлое шасси с разрядной башней. Катушку собирают из компонентов: в них харит, и без цеха её не сделать.
   tesla: {
@@ -123,7 +124,7 @@ export const UNITS = {
   // турели и зенитки. Второй тир.
   bomber: {
     speed: 5.5, turn: 2.5, radius: 0.7, cost: 700, buildTime: 14, kind: 'air', hp: 180, weapon: 'bomb', sight: 7,
-    materials: { metal: 10, fuel: 12 }, requires: ['techCenter'],
+    materials: { metal: 10, fuel: 12, parts: 2 }, requires: ['techCenter'],
   },
 } satisfies Record<string, UnitSpec>
 
