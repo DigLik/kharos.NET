@@ -89,6 +89,47 @@ const CONTROL_DASHES = 120
 const CONTROL_DASH = 3
 
 /**
+ * Точки внешней границы зоны, x и y подряд. zone — круги: x, y и радиус подряд. Точка внутри соседнего круга —
+ * не граница. Соседей точка ищет по сетке, а не среди всех кругов: у большой базы кругов сотни, и перебор
+ * каждого с каждым — десятки миллионов проверок.
+ */
+export function outlineOf(zone: readonly number[]) {
+  let cell = 1
+  for (let i = 2; i < zone.length; i += 3) cell = Math.max(cell, zone[i])
+  // Сторона ячейки — самый большой радиус: круг, накрывающий точку, лежит центром в её ячейке или в соседней.
+  const keyOf = (x: number, y: number) => (Math.floor(x / cell) + 32768) * 65536 + Math.floor(y / cell) + 32768
+  const cells = new Map<number, number[]>()
+  for (let i = 0; i < zone.length; i += 3) {
+    const key = keyOf(zone[i], zone[i + 1])
+    const list = cells.get(key)
+    if (list) list.push(i)
+    else cells.set(key, [i])
+  }
+  const dots: number[] = []
+  for (let i = 0; i < zone.length; i += 3) {
+    const radius = zone[i + 2]
+    // Точки идут с одним шагом на любом круге, поэтому на малом их меньше.
+    const dashes = Math.round((CONTROL_DASHES * radius) / CONTROL_RADIUS)
+    dashes: for (let dash = 0; dash < dashes; dash++) {
+      const angle = (dash / dashes) * Math.PI * 2
+      const x = zone[i] + Math.cos(angle) * radius
+      const y = zone[i + 1] + Math.sin(angle) * radius
+      for (let dy = -cell; dy <= cell; dy += cell) {
+        for (let dx = -cell; dx <= cell; dx += cell) {
+          const list = cells.get(keyOf(x + dx, y + dy))
+          if (!list) continue
+          for (const other of list) {
+            if (other !== i && Math.hypot(x - zone[other], y - zone[other + 1]) < zone[other + 2] - 0.01) continue dashes
+          }
+        }
+      }
+      dots.push(x, y)
+    }
+  }
+  return dots
+}
+
+/**
  * Подсветка под указателем мыши, пока игрок выбирает место под здание: его основание (зелёное, если строить можно,
  * красное, если нельзя) и границы зон строительства. Так же — тайлы покрытия, которое игрок тянет мышью.
  * В остальное время ничего не рисует.
@@ -98,9 +139,24 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
   const program = createSpriteProgram(gl)
   const rects = createSprites(gl, program)
   const white = createWhiteTexture(gl)
+  /**
+   * Границы зон: свои — где строить можно, чужие — где нельзя. Считаются заново, только когда сменились сами зоны
+   * (allZones отдаёт новый набор) или игрок, а не каждый кадр.
+   */
+  let borders: { zones: unknown; player: number; own: number[]; foreign: number[] } | undefined
+  const bordersOf = () => {
+    const zones = allZones(scene.sim)
+    if (borders?.zones === zones && borders.player === scene.player) return borders
+    borders = { zones, player: scene.player, own: [], foreign: [] }
+    for (const [player, list] of zones) {
+      if (player === scene.player) borders.own = outlineOf(list.flatMap((zone) => zone.circles))
+      else for (const zone of list) for (const value of outlineOf(zone.circles)) borders.foreign.push(value)
+    }
+    return borders
+  }
 
   return {
-    draw({ camera, view }) {
+    draw({ camera, view, width, height }) {
       const placement = scene.camera.pointerTile ? placementOf(scene) : null
       const stroke = scene.camera.pointerTile ? paveStrokeOf(scene) : null
       const routes = routesOf(scene)
@@ -149,30 +205,20 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
       }
       if (placement || stroke) {
         const size = CONTROL_DASH / camera.zoom
-        /** Внешняя граница зоны пунктиром. zone — круги: x, y и радиус подряд. */
-        const outline = (zone: readonly number[], color: Color) => {
-          for (let i = 0; i < zone.length; i += 3) {
-            const radius = zone[i + 2]
-            // Точки идут с одним шагом на любом круге, поэтому на малом их меньше.
-            const dashes = Math.round((CONTROL_DASHES * radius) / CONTROL_RADIUS)
-            dashes: for (let dash = 0; dash < dashes; dash++) {
-              const angle = (dash / dashes) * Math.PI * 2
-              const x = zone[i] + Math.cos(angle) * radius
-              const y = zone[i + 1] + Math.sin(angle) * radius
-              // Рисуется только внешняя граница зоны: точка внутри соседнего круга — не граница.
-              for (let other = 0; other < zone.length; other += 3) {
-                if (other !== i && Math.hypot(x - zone[other], y - zone[other + 1]) < zone[other + 2] - 0.01) continue dashes
-              }
-              rect(x - camera.x - size / 2, y - camera.y - size / 2, size, size, color, BORDER_ALPHA)
-            }
+        const reachX = width / 2 / camera.zoom + size
+        const reachY = height / 2 / camera.zoom + size
+        /** Внешняя граница зоны пунктиром: те её точки, что попали в кадр. dots — x и y подряд. */
+        const outline = (dots: readonly number[], color: Color) => {
+          for (let i = 0; i < dots.length; i += 2) {
+            const x = dots[i] - camera.x
+            const y = dots[i + 1] - camera.y
+            if (Math.abs(x) > reachX || Math.abs(y) > reachY) continue
+            rect(x - size / 2, y - size / 2, size, size, color, BORDER_ALPHA)
           }
         }
-        // Свои зоны — где строить можно, чужие — где нельзя.
-        for (const [player, zones] of allZones(scene.sim)) {
-          const own = player === scene.player
-          if (own) outline(zones.flatMap((zone) => zone.circles), CONTROL)
-          else for (const zone of zones) outline(zone.circles, FORBIDDEN)
-        }
+        const { own, foreign } = bordersOf()
+        outline(own, CONTROL)
+        outline(foreign, FORBIDDEN)
         /**
          * С чем свяжется ставящееся: колодец — пунктир до парных колодцев, без пары — красная метка.
          */
