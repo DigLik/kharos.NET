@@ -213,7 +213,7 @@ test('лазер попадает сразу, оставляя след', () => 
   expect(traced).toBe(true)
 })
 
-test('летающие летят по прямой над зданиями, а пушка и разряд до них не достают', () => {
+test('летающие летят по прямой над зданиями, а пушка до них не достаёт', () => {
   const { sim, x, y } = field()
   const drone = spawnUnit(sim, 'drone', 1, x, y)
   // Стена из зданий поперёк пути, если здесь есть скала; летающему всё равно.
@@ -225,19 +225,17 @@ test('летающие летят по прямой над зданиями, а 
   expect(sim.world.get(drone, Position)).toEqual({ x: x + 12.5, y: y + 0.5 })
 
   const tank = spawnUnit(sim, 'tank', 2, x + 15, y)
-  const tesla = spawnUnit(sim, 'tesla', 2, x + 15, y + 2)
   seconds(sim, 5)
   expect(health(sim, drone)).toBe(1)
   expect(gunTarget(sim, tank)).toBe(-1)
-  // А дрон по ним стреляет.
-  expect(health(sim, tank)! < 1 || health(sim, tesla)! < 1).toBe(true)
-  sim.send(2, { type: 'attack', units: [tank, tesla], target: drone })
+  // А дрон по нему стреляет.
+  expect(health(sim, tank)!).toBeLessThan(1)
+  sim.send(2, { type: 'attack', units: [tank], target: drone })
   seconds(sim, 1)
   expect(gunTarget(sim, tank)).toBe(-1)
 
-  // Ракетчик достаёт. Дрону велено не стрелять: иначе он бросил бы безобидный танк ради того, кто ему опасен.
-  sim.send(1, { type: 'stance', units: [drone], stance: 'passive' })
-  spawnUnit(sim, 'rocketeer', 2, x + 12, y + 3)
+  // Разрядник достаёт: разряд бьёт и по воздуху.
+  spawnUnit(sim, 'tesla', 2, x + 15, y + 2)
   seconds(sim, 12)
   expect(alive(sim, drone)).toBe(false)
 })

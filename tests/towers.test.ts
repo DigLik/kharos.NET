@@ -49,3 +49,21 @@ test('лазерная турель бьёт танк без всяких пат
   // Без электростанции лазеру стрелять нечем.
   expect(hurt(false)).toBe(false)
 })
+
+test('разрядная турель бьёт и землю, и воздух, и тоже только на энергии зоны', () => {
+  const hurt = (type: 'buggy' | 'drone', powered: boolean) => {
+    const sim = newSim()
+    placeBuilding(sim.world, 'command', 0, 10, 1)
+    if (powered) placeBuilding(sim.world, 'generator', 4, 10, 1)
+    const tower = placeBuilding(sim.world, 'arcTurret', 0, 0, 1)
+    expect(sim.world.has(tower, Inventory)).toBe(false)
+    // Цель — по другую сторону от главного здания: его пушка туда не достаёт.
+    const unit = spawnUnit(sim, type, TRAINING_PLAYER, 0, -Math.floor(WEAPONS.arc.range + TOWER_RANGE / 2))
+    sim.send(TRAINING_PLAYER, { type: 'stance', units: [unit], stance: 'passive' })
+    for (let i = 0; i < 20 * 5; i++) sim.advance(0.05)
+    return !sim.world.alive(unit) || sim.world.get(unit, Health)!.value < 1
+  }
+  expect(hurt('buggy', true)).toBe(true)
+  expect(hurt('drone', true)).toBe(true)
+  expect(hurt('buggy', false)).toBe(false)
+})

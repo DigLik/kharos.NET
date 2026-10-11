@@ -211,6 +211,9 @@ export const BUILDINGS = {
   // Лазерная турель — противотанковая: бьёт мгновенно и лучше всего по тяжёлой броне. Патронов не просит, а питается
   // от энергии зоны: грузовики ей не нужны, но электростанция — нужна.
   laserTurret: { width: 1, height: 1, cost: 400, hp: 450, defense: true, power: -2, mounts: [{ turret: 'laser', along: 0, across: 0 }] },
+  // Разрядная турель — против толпы: разряд бьёт цель и перескакивает на соседей, достаёт и до летающих, но недалеко.
+  // Как и лазерная, патронов не просит и стреляет энергией зоны, только берёт её больше.
+  arcTurret: { width: 1, height: 1, cost: 500, hp: 450, defense: true, power: -3, mounts: [{ turret: 'arc', along: 0, across: 0 }] },
   cannonTurret: { width: 1, height: 1, cost: 450, hp: 500, defense: true, ...TURRET_STORE, mounts: [{ turret: 'cannon', along: 0, across: 0 }] },
 } satisfies Record<string, BuildingSpec>
 
@@ -224,7 +227,7 @@ export const BUILDING_TYPES = Object.keys(BUILDINGS) as BuildingType[]
 export const BUILDABLE: BuildingType[] = [
   'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'blockPlant', 'ammoPlant', 'partsPlant',
   'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker', 'spaceport', 'barracks', 'factory', 'airfield', 'techCenter',
-  'radar', 'wall', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret',
+  'radar', 'wall', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret',
 ]
 
 /** Труба ли это или колодец. */
@@ -265,6 +268,7 @@ export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = 
   cannonTurret: ['radar'],
   techCenter: ['factory'],
   laserTurret: ['techCenter'],
+  arcTurret: ['techCenter'],
 }
 
 /** Каких готовых зданий из списка у игрока нет. */
