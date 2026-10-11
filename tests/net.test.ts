@@ -237,8 +237,8 @@ test('сохранённый сервер после перезапуска уз
   expect(back.peer.player).toBe(1)
   expect(unitsOf(back.sim, 1).length).toBe(units)
   expect(back.sim.players).toEqual([
-    { player: 1, name: 'Вася', online: true },
-    { player: 2, name: 'Петя', online: false },
+    { player: 1, name: 'Вася', online: true, safe: true },
+    { player: 2, name: 'Петя', online: false, safe: true },
   ])
   expect(join(restarted).peer.player).toBe(3)
 })
@@ -323,7 +323,8 @@ test('склад, очередь производства и цель стрел
 })
 
 test('цель приказа выбирает сервер по точке: атаку по номеру сущности не берёт, а точка в тумане — движение', () => {
-  const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 256 }))
+  // Без защиты новичка: под ней врага не атаковать.
+  const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 256, rules: { protection: 0 } }))
   const first = join(host)
   join(host)
   const { world } = host.sim

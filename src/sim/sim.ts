@@ -69,6 +69,8 @@ export interface Rules {
    */
   offlineIncome: number
   offlineMinutes: number
+  /** Защита новичка: сколько минут после появления игрока нельзя атаковать, см. shelter.ts. Ноль — защиты нет. */
+  protection: number
 }
 
 export const DEFAULT_RULES: Rules = {
@@ -87,6 +89,7 @@ export const DEFAULT_RULES: Rules = {
   toxicSwamp: 0.01,
   offlineIncome: 0.2,
   offlineMinutes: 30,
+  protection: 10,
 }
 
 export interface SimOptions {

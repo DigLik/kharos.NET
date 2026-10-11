@@ -1,7 +1,7 @@
 import { applyEdit, type EditOp } from '../sim/editOps'
 import type { Entity } from '../ecs'
 import { Terrain, terrainAt, tileBytes } from '../map/terrain'
-import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, shownTo, spawnStartingUnits, wipePlayer, type Command, type Sim, type SimSave } from '../sim'
+import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownTo, spawnStartingUnits, wipePlayer, type Command, type Sim, type SimSave } from '../sim'
 import { Attached, Building, Owner, Path, Position, Unit } from '../sim/components'
 import { pathOf, seenBy, sharedWireOf, type Wired } from './wire'
 import { LAND, encodeDelta, type Motion } from './codec'
@@ -202,10 +202,12 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
   const names = new Map<number, string>(Object.entries(saved?.names ?? {}).map(([player, name]) => [Number(player), name]))
   /** Скрытые администраторы, /hide: для остальных их нет — ни в списке, ни в сообщениях о входе. До перезапуска. */
   const hidden = new Set<number>()
+  /** Кто под защитой новичка, каким это знают клиенты: поменялось — список игроков рассылается заново. */
+  let sheltered = protectedPlayers(sim)
   /** Кто играет — глазами viewer: скрытых он не видит, кроме самого себя. */
   const roster = (viewer?: number) => {
     const online = new Set(peers.values())
-    const list: PlayerInfo[] = [...names].filter(([who]) => !hidden.has(who) || who === viewer).map(([player, name]) => ({ player, name, online: online.has(player) }))
+    const list: PlayerInfo[] = [...names].filter(([who]) => !hidden.has(who) || who === viewer).map(([player, name]) => ({ player, name, online: online.has(player), ...(sheltered.has(player) && { safe: true as const }) }))
     return JSON.stringify({ type: 'players', players: list } satisfies ServerMessage)
   }
   /** Сообщает всем подключённым, кто сейчас в игре. */
@@ -683,11 +685,15 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
   /** Новый игрок: стартовый набор в случайном месте, см. spawnPoint; не нашлось — на круге вокруг начала мира. */
   const addPlayer = () => place(nextPlayer++)
 
-  /** Ставит игроку стартовый набор: в случайном месте вдали от других, а не нашлось — на круге вокруг начала мира. */
+  /**
+   * Ставит игроку стартовый набор: в случайном месте вдали от других, а не нашлось — на круге вокруг начала мира.
+   * С ним игрок получает защиту новичка, см. Rules.protection.
+   */
   const place = (player: number) => {
     const point = spawnPoint()
     if (point) {
       spawnStartingUnits(sim, player, point.x, point.y)
+      protect(sim, player)
       return player
     }
     const slot = player - 1
@@ -697,6 +703,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     const clamp = (value: number, from: number, to: number) => Math.max(from + 2, Math.min(to - 3, Math.round(value)))
     const spot = openSpawn(sim, clamp(Math.cos(angle) * radius, left, right), clamp(Math.sin(angle) * radius, top, bottom))
     spawnStartingUnits(sim, player, spot.x, spot.y)
+    protect(sim, player)
     return player
   }
 
@@ -960,6 +967,12 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
         sinceSweep += ticks
         const sweep = sinceSweep >= SWEEP_TICKS
         if (sweep) sinceSweep = 0
+        // Защита новичка началась или кончилась — список игроков всем заново.
+        const safe = protectedPlayers(sim)
+        if (safe.size !== sheltered.size || [...safe].some((who) => !sheltered.has(who))) {
+          sheltered = safe
+          announce()
+        }
         // Поражение — сообщение всем, один раз. Локальной игре не нужно: там игрок один.
         if (editing.size) sendViews()
         if (sweep && player === undefined) {

@@ -68,9 +68,10 @@ export const Path = component('Path', () => ({ points: [] as number[], goalX: 0,
  * earned — заработанная доля кредита, ещё не дошедшая до целого. rewards — какие награды игрок уже получил, по порядку.
  * away — сколько он заработал за нынешнее отсутствие, см. Rules.offlineIncome; в сети — ноль. camera — где у него
  * камера в начале игры: середина экрана в тайлах и масштаб, x, y, zoom; пусто — у его юнитов. Задаёт редактор.
- * research — какие темы игрок исследовал, по порядку, см. research.ts.
+ * research — какие темы игрок исследовал, по порядку, см. research.ts. safe — до какого тика у него защита новичка,
+ * см. shelter.ts; ноль — её нет.
  */
-export const Player = component('Player', () => ({ id: 0, credits: 0, earned: 0, rewards: [] as string[], away: 0, camera: [] as number[], research: [] as string[] }), { tracked: true })
+export const Player = component('Player', () => ({ id: 0, credits: 0, earned: 0, rewards: [] as string[], away: 0, camera: [] as number[], research: [] as string[], safe: 0 }), { tracked: true })
 
 /**
  * Производство юнитов: есть у MCV и у главного здания.

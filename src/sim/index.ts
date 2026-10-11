@@ -6,6 +6,7 @@ export { cancelUpgrade, isUpgradable, levelTopic, orderUpgrade, upgradeLack, typ
 export type { BuildingSpec, BuildingType, Occupancy } from './buildings'
 export { ROUTE_LIMIT, carries, isStop } from './routes'
 export { isDefeated, wipePlayer } from './defeat'
+export { protect, protectedPlayers, protectionLeft, unprotect } from './shelter'
 export { LEASH, PATROL_LIMIT, STANCES, stanceOf, type Stance } from './tactics'
 export { BRIDGE_COST, FOUNDATION_COST, FOUNDATION_ROCK, FOUNDATION_SAND, PAVE_KINDS, PAVE_LIMIT, FOUNDATION_SPEED, ROAD_COST, ROAD_SPEED, buildSpeed, buildingWithin, canPave, isPaved, paveCost } from './paving'
 export type { PaveKind, Paving } from './paving'

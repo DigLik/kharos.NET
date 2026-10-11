@@ -9,6 +9,7 @@ import { releaseHauler } from './hauling'
 import { powerSupply } from './income'
 import { amountOf, take } from './inventory'
 import { searchCut, searchedTiles, withSearchQuota } from './path'
+import { protectedPlayers, protectionLeft, unprotect } from './shelter'
 import type { Sim } from './sim'
 import { TURRETS, carrierOf, turnerOf, turretsOf } from './turrets'
 import { UNITS, flies, orderMove, unitSpec, type UnitSpec } from './units'
@@ -234,7 +235,9 @@ export const weaponOf = (sim: Sim, entity: Entity): WeaponType | undefined => {
 export function canAttack(sim: Sim, player: number, target: Entity) {
   const { world } = sim
   if (!world.has(target, Position) || (!world.has(target, Unit) && !world.has(target, Building))) return false
-  return hostile(player, ownerOf(sim, target))
+  const owner = ownerOf(sim, target)
+  // Новичка под защитой не атакуют, см. shelter.ts.
+  return hostile(player, owner) && protectionLeft(sim, owner) === 0
 }
 
 /**
@@ -245,6 +248,8 @@ export function canAttack(sim: Sim, player: number, target: Entity) {
 export function orderAttack(sim: Sim, player: number, units: Entity[], target: Entity) {
   const { world } = sim
   if (!canAttack(sim, player, target)) return false
+  // Сам приказал атаковать — защита новичка снята.
+  unprotect(sim, player)
   const unit = world.get(target, Unit)
   const air = !!unit && flies(unit.type)
   /** Берёт ли цель этот стрелок; возвращает дальность его оружия или 0. */
@@ -302,8 +307,10 @@ export function fight(sim: Sim) {
   /** Взрывы тика. ground — пришёлся в землю, а не в летающего: такой оставляет гарь. */
   const blasts: { x: number; y: number; size: number; ground: boolean }[] = []
 
+  /** Игроки под защитой новичка: в них не попасть, и сами они не стреляют. */
+  const safe = protectedPlayers(sim)
   const canHit = (weapon: WeaponSpec, player: number, mark: Mark) =>
-    hostile(player, mark.player) && (mark.air ? weapon.air : !weapon.onlyAir) && !dead.has(mark.entity)
+    hostile(player, mark.player) && !safe.has(player) && !safe.has(mark.player) && (mark.air ? weapon.air : !weapon.onlyAir) && !dead.has(mark.entity)
 
   /** Может ли mark навредить такому стрелку: есть ли у неё или у её турелей оружие, которое по нему бьёт. */
   const threatens = (mark: Mark, air: boolean) => {

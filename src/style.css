@@ -317,6 +317,17 @@ body {
   font-weight: bold;
 }
 
+.roster em {
+  margin-left: 8px;
+  font-size: 12px;
+  font-style: normal;
+  color: #7fd0a8;
+}
+
+.hud__shelter {
+  color: #7fd0a8;
+}
+
 .roster .is-away {
   opacity: 0.45;
 }

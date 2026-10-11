@@ -734,9 +734,12 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
         <section class="hud roster" aria-label={t('hud.players')}>
           <h2>{t('hud.roster', { online: state.players.filter(({ online }) => online).length })}</h2>
           <ul>
-            {state.players.map(({ name, own, online }) => (
+            {state.players.map(({ name, own, online, safe }) => (
               <li class={own ? 'is-own' : online ? undefined : 'is-away'}>
-                <span>{name}</span>
+                <span>
+                  {name}
+                  {safe && <em>{t('hud.sheltered')}</em>}
+                </span>
                 <small>{own ? t('hud.you') : online ? t('hud.online') : t('hud.offline')}</small>
               </li>
             ))}
@@ -749,6 +752,11 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
           {state.credits}
           {state.income > 0 && <small>{t('hud.perSecond', { amount: state.income })}</small>}
         </span>
+        {state.protection && (
+          <span class="hud__shelter" data-tip={t('hud.protectionTip')}>
+            {t('hud.protection', { left: state.protection })}
+          </span>
+        )}
         {state.stock && (
           <span class="hud__stock" data-tip={t('hud.stockTip', { capacity: state.stock.capacity })}>
             <Stacks items={state.stock.items} />

@@ -6,7 +6,7 @@ import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
   Assembly, Harvester, BUILDABLE, isUnlocked, buyPrice, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
-  awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
+  awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   RESEARCH, Research, TOPICS, isLab, levelTopic, missingResearch, researchTicks, topicLack, topicMaterials, type Topic, type TopicLack,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   Off, Owner, Position, Tactics, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType,
@@ -32,7 +32,9 @@ export interface HudState {
   clock: string
   storm: boolean
   /** Кто ещё на сервере: ники, свой ли, подключён ли. Пусто в локальной игре. */
-  players: { name: string; own: boolean; online: boolean }[]
+  players: { name: string; own: boolean; online: boolean; safe: boolean }[]
+  /** Сколько осталось своей защиты новичка, «м:сс» десятками секунд; пусто — её нет. */
+  protection: string
   /** Чат сетевой игры: сообщения и когда пришли (мс, performance.now); null — игра локальная, чата нет. */
   chat: { name: string; own: boolean; text: string; at: number; system: boolean; whisper?: string }[] | null
   /** Команды чата для дополнения и администратор ли игрок; в локальной игре команд нет. */
@@ -265,6 +267,12 @@ function pipeHoverOf(scene: Scene): HudState['pipeHover'] {
   const buildings = network.buildings.filter((member) => !isPipe(sim.world.get(member, Building)!.type)).length
   const { items, capacity } = stockOfZone(sim, network)
   return { buildings, stock: stacksOf(items), capacity, x: camera.pointer.x, y: camera.pointer.y }
+}
+
+/** Остаток защиты новичка для интерфейса: вверх до десятка секунд, чтобы он не перерисовывался каждый тик. */
+function protectionOf({ sim, player }: Scene) {
+  const seconds = Math.ceil((protectionLeft(sim, player) * sim.time.step) / 10) * 10
+  return seconds > 0 ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : ''
 }
 
 /** Собирает состояние интерфейса из симуляции и выделения. */
@@ -517,7 +525,8 @@ export function readHud(scene: Scene): HudState {
     admin: 'admin' in sim && (sim as Replica).admin,
     editor: 'editor' in sim && (sim as Replica).editor,
     picking: !!(scene.routing || scene.serving),
-    players: 'players' in sim ? (sim as Replica).players.map(({ player, name, online }) => ({ name, own: player === scene.player, online })) : [],
+    players: 'players' in sim ? (sim as Replica).players.map(({ player, name, online, safe }) => ({ name, own: player === scene.player, online, safe: !!safe })) : [],
+    protection: protectionOf(scene),
     income: round(economyOf(sim, player).income),
     power,
     health,

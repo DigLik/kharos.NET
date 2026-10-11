@@ -11,7 +11,7 @@ import type { Text } from '../i18n'
  * из тех же компонентов и правил, что у сервера. Поднимай её при каждом изменении протокола, компонентов из SAVED
  * или симуляции, которое меняет то, что видит клиент.
  */
-export const PROTOCOL_VERSION = 20
+export const PROTOCOL_VERSION = 21
 
 /** Порт сервера по умолчанию. */
 export const DEFAULT_PORT = 8787
@@ -104,6 +104,8 @@ export interface PlayerInfo {
   player: number
   name: string
   online: boolean
+  /** Под защитой новичка: его нельзя атаковать, см. src/sim/shelter.ts. */
+  safe?: true
 }
 
 /** Самый длинный ник; длиннее обрезается. */
