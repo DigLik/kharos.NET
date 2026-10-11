@@ -10,7 +10,8 @@ const flatten = (dict: object, prefix = '', out: Record<string, string> = {}) =>
   }
   return out
 }
-const placeholders = (text: string) => [...text.matchAll(/\{\w+(?::\w+)?\}/g)].map((match) => match[0]).sort()
+/** Что подставляется в строку: имена без «:lower» — строчными язык пишет по своим правилам. */
+const placeholders = (text: string) => [...text.matchAll(/\{(\w+)(?::\w+)?\}/g)].map((match) => match[1]).sort()
 
 test('словари: в каждом языке те же ключи и те же подстановки, что в русском', async () => {
   const source = flatten(ru)

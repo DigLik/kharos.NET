@@ -1,21 +1,32 @@
 /**
- * Языки интерфейса. Словарь языка — JSON рядом (ru.json, en.json): вложенные разделы со строками, в строке
- * подстановки в фигурных скобках — «{name}», а «{name:lower}» — строчными. Словарь не лежит в сборке, а догружается:
+ * Языки интерфейса. Словарь языка — JSON рядом (ru.json, en.json, …): вложенные разделы со строками, в строке
+ * подстановки в фигурных скобках — «{name}», а «{name:lower}» — строчными; нужны ли строчные, язык решает сам
+ * (в немецком существительные остаются с заглавной). Словарь не лежит в сборке, а догружается:
  * нужен только выбранный язык. Пока он не загружен, t отдаёт сам ключ, поэтому страница, сервер и тесты первым делом
  * ждут loadLang. Русский словарь — исходный: по нему выводится тип ключей, а остальные обязаны повторить каждую его
  * строку и её подстановки — это проверяет tests/i18n.test.ts.
  */
-export type Lang = 'ru' | 'en'
+export type Lang = 'ru' | 'en' | 'es' | 'fr' | 'de' | 'pt' | 'uk'
 
 /** Языки с названиями на них самих: список в настройках читается, пока словарь ещё не загружен. */
 export const LANGS: readonly { lang: Lang; name: string }[] = [
   { lang: 'ru', name: 'Русский' },
   { lang: 'en', name: 'English' },
+  { lang: 'es', name: 'Español' },
+  { lang: 'fr', name: 'Français' },
+  { lang: 'de', name: 'Deutsch' },
+  { lang: 'pt', name: 'Português' },
+  { lang: 'uk', name: 'Українська' },
 ]
 
 const LOADERS: Record<Lang, () => Promise<{ default: unknown }>> = {
   ru: () => import('./ru.json'),
   en: () => import('./en.json'),
+  es: () => import('./es.json'),
+  fr: () => import('./fr.json'),
+  de: () => import('./de.json'),
+  pt: () => import('./pt.json'),
+  uk: () => import('./uk.json'),
 }
 
 type Dict = typeof import('./ru.json')
