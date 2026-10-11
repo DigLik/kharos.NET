@@ -2,8 +2,8 @@
  * Раздел «economy»: рудник, производство и разгон.
  *
  *   1. Потолок по описаниям: сколько даёт шахта, во что обходится линия и когда она окупается.
- *   2. Замер живой линии в симуляции: шахта, два грузовика, хранилище, космопорт и продажа — сколько кредитов
- *      в секунду выходит на самом деле, с дорогой, погрузкой и полётом корабля.
+ *   2. Замер живой линии в симуляции: шахта, переработка, хранилище и космопорт на одной сети труб и продажа —
+ *      сколько кредитов в секунду выходит на самом деле, с доставкой по трубам и полётом корабля.
  *   3. Производство: сколько кредитов и материалов в секунду тратит здание и сколько линий его кормят.
  *   4. Разгон настоящими командами: типовой порядок стройки от разворота MCV до второго генератора материи —
  *      когда появляются первые деньги и на что их хватает.
@@ -26,8 +26,8 @@ import { TICK, clock, newSim, placeableNear, printTable, rectOf, rectsApart, rin
 /** Тиков в секунду: внутренние циклы идут ровно по секундам. */
 const TICKS = Math.round(1 / TICK)
 
-/** Цена линии добычи: шахта на месторождении, грузовик к ней и переработка, которая делает из руды товар. */
-const LINE_COST = BUILDINGS.mine.cost + UNITS.truck.cost + BUILDINGS.smelter.cost
+/** Цена линии добычи: шахта на месторождении и переработка, которая делает из руды товар. Трубы — отдельно, по длине. */
+const LINE_COST = BUILDINGS.mine.cost + BUILDINGS.smelter.cost
 
 /** 1. Потолок по описаниям: добыча месторождения, цена продажи, окупаемость линии и сколько шахт кормит завод. */
 function printLineMath() {
@@ -43,18 +43,20 @@ function printLineMath() {
       ]
     }),
   )
-  console.log(`  линия — шахта (${BUILDINGS.mine.cost}), грузовик (${UNITS.truck.cost}) и переработка (${BUILDINGS.smelter.cost}) = ${LINE_COST} кр`)
-  console.log(`  переработка принимает ${REFINE_RATE} руды/с: столько шахт она держит; вторая шахта на том же заводе — ${BUILDINGS.mine.cost + UNITS.truck.cost} кр`)
+  console.log(`  линия — шахта (${BUILDINGS.mine.cost}) и переработка (${BUILDINGS.smelter.cost}) = ${LINE_COST} кр; трубы — ${BUILDINGS.pipe.cost} кр за тайл сверх того`)
+  console.log(`  переработка принимает ${REFINE_RATE} руды/с: столько шахт она держит; вторая шахта на том же заводе — ${BUILDINGS.mine.cost} кр`)
   console.log('  запас — сколько даёт одно месторождение')
 }
 
-/** Рудник в симуляции: шахта с грузовиками, переработка, база рядом и космопорт. */
+/** Рудник в симуляции: шахта, переработка, база рядом и космопорт — всё на одной сети труб. */
 interface Mine {
   sim: Sim
   port: Entity
+  /** Сколько тайлов трубы ушло на то, чтобы связать рудник в одну сеть. */
+  pipes: number
 }
 
-/** Ставит готовое здание у месторождения, не задевая место для грузовиков под шахтой. */
+/** Ставит готовое здание у месторождения, оставляя вокруг шахты место под трубы. */
 function placeNearMine(sim: Sim, spot: DepositSpot, type: BuildingType, x: number, y: number) {
   const ok = (tx: number, ty: number) =>
     placeableNear(sim, type, tx, ty, 1, 0) !== undefined && rectsApart(rectOf(type, tx, ty), rectOf('mine', spot.x, spot.y), 2)
@@ -62,20 +64,17 @@ function placeNearMine(sim: Sim, spot: DepositSpot, type: BuildingType, x: numbe
   return tile ? placeBuilding(sim.world, type, tile.x, tile.y, 1) : undefined
 }
 
-/** Сколько свободных грузовиков работает на заявки зон; первый привязан к шахте и возит руду на переработку. */
-const FREE_TRUCKS = 2
-
 /**
  * База у ближайшего к началу мира месторождения металла: всё готовое — меряется поток, а не стройка.
- * Энергии две электростанции: переработка и космопорт просят по пять, генератор материи — три.
- * freeTrucks — сколько свободных грузовиков сверх привязанного к шахте.
+ * Энергии две электростанции — на переработку, космопорт и генератор материи. Грузовиков нет: внутри сети
+ * руду и металл носят трубы.
  */
-function mineScene(freeTrucks = FREE_TRUCKS): Mine {
+function mineScene(): Mine {
   const sim = newSim()
   for (const cell of rings(0, 0, 6)) {
     const spot = depositIn(sim, cell.x, cell.y)
     if (!spot || spot.kind !== 'metal') continue
-    const mine = placeBuilding(sim.world, 'mine', spot.x, spot.y, 1)
+    placeBuilding(sim.world, 'mine', spot.x, spot.y, 1)
     const cx = spot.x + 1
     const cy = spot.y + 1
     const core = placeNearMine(sim, spot, 'command', cx + 7, cy)
@@ -85,21 +84,12 @@ function mineScene(freeTrucks = FREE_TRUCKS): Mine {
     const generator = placeNearMine(sim, spot, 'generator', cx + 6, cy - 5)
     const generator2 = placeNearMine(sim, spot, 'generator', cx + 8, cy - 5)
     const matter = placeNearMine(sim, spot, 'matter', cx + 3, cy - 5)
-    const mineTiles = freeTilesNear(sim, spot.x, spot.y, 2)
-    const coreTiles = freeTilesNear(sim, cx + 7, cy, freeTrucks * 2)
     if (!core || !silo || !refinery || !port || !generator || !generator2 || !matter) {
       sim.destroy()
       continue
     }
-    if (mineTiles.length < 2 || coreTiles.length < freeTrucks * 2) {
-      sim.destroy()
-      continue
-    }
     connectAll(sim, 1)
-    const truck = spawnUnit(sim, 'truck', 1, mineTiles[0], mineTiles[1])
-    for (let i = 0; i < freeTrucks; i++) spawnUnit(sim, 'truck', 1, coreTiles[i * 2], coreTiles[i * 2 + 1])
-    sim.send(1, { type: 'haul', units: [truck], mine })
-    return { sim, port }
+    return { sim, port, pipes: countBuildings(sim, 'pipe') }
   }
   throw new Error('Не нашлось места под рудник у месторождения металла')
 }
@@ -126,66 +116,42 @@ function runMine(scene: Mine, time: number, firstSale = 0) {
   return sale
 }
 
-/** 2. Замер живой линии: пять минут рудника с продажей. Возвращает выручку линии в кредитах в секунду. */
-function measureMine(): number {
-  const { sim, port } = mineScene()
-  const warmup = 120
-  const firstSale = runMine({ sim, port }, warmup)
-  const before = creditsOf(sim, 1)
-  const passive = economyOf(sim, 1).income
-  runMine({ sim, port }, 180, firstSale)
-  const measured = (creditsOf(sim, 1) - before) / 180
-  const line = Math.max(0, measured - passive)
-  const invested = BUILDINGS.mine.cost + (FREE_TRUCKS + 1) * UNITS.truck.cost + BUILDINGS.metalYard.cost + BUILDINGS.smelter.cost + BUILDINGS.spaceport.cost + 2 * BUILDINGS.generator.cost
-
-  console.log(`\nРудник в симуляции: шахта, ${FREE_TRUCKS + 1} грузовика, переработка, хранилище и космопорт; продажа металла, 5 минут`)
-  console.log(`  первая продажа         ${firstSale ? clock(firstSale) : 'не дождались'}`)
-  console.log(`  доход всего            ${round(measured, 1)} кр/с`)
-  console.log(`  пассивка               ${round(passive, 1)} кр/с (главное здание и генератор материи)`)
-  console.log(`  выручка линии          ${round(line, 1)} кр/с`)
-  console.log(`  через переработку      ${round(line / RESOURCE_SPECS.metal.price, 1)} металла/с (шахта даёт 1 руды/с, завод принимает ${REFINE_RATE}/с)`)
-  if (line > 0) {
-    console.log(`  окупаемость линии      ${Math.round(LINE_COST / line)} с (шахта, грузовик и переработка, ${LINE_COST} кр)`)
-    console.log(`  вложено в рудник       ${invested} кр, окупается за ${Math.round(invested / line)} с`)
-  }
-  sim.destroy()
-  printTrucks()
-  return line
-}
-
-/** Сколько металла в мире: в хранилищах, на заводе и в кузовах грузовиков. */
+/** Сколько металла в мире: в хранилищах, на заводе и в трюме космопорта. */
 function metalInWorld(sim: Sim) {
   let total = 0
   for (const [, inventory] of sim.world.query(Inventory)) total += amountOf(inventory, 'metal')
   return total
 }
 
-/**
- * Сколько металла в секунду даёт линия при разном числе грузовиков (вопрос 3.4: не превращается ли игра
- * в возню с рудой). Первый грузовик привязан к шахте и возит руду, остальные свободны: они и руду возят по
- * заявке завода, и развозят готовое по хранилищам. Считается всё, что вышло из завода: и то, что лежит
- * в хранилищах, и то, что уже продано.
- */
-function printTrucks() {
-  const window = 240
-  const rows: (string | number)[][] = []
-  for (const free of [0, 1, 2]) {
-    const scene = mineScene(free)
-    runMine(scene, 120)
-    const before = metalInWorld(scene.sim)
-    const credits = creditsOf(scene.sim, 1)
-    const passive = economyOf(scene.sim, 1).income
-    runMine(scene, window)
-    const made = metalInWorld(scene.sim) - before
-    const sold = (creditsOf(scene.sim, 1) - credits - passive * window) / RESOURCE_SPECS.metal.price
-    const rate = Math.max(0, made + sold) / window
-    rows.push([free + 1, round(rate, 2), round(rate * RESOURCE_SPECS.metal.price, 1), `${Math.round((rate / DEPOSIT_KINDS.metal.rate) * 100)}%`])
-    scene.sim.destroy()
+/** 2. Замер живой линии: пять минут рудника с продажей. Возвращает выручку линии в кредитах в секунду. */
+function measureMine(): number {
+  const scene = mineScene()
+  const { sim, pipes } = scene
+  const warmup = 120
+  const firstSale = runMine(scene, warmup)
+  const before = creditsOf(sim, 1)
+  const held = metalInWorld(sim)
+  const passive = economyOf(sim, 1).income
+  runMine(scene, 180, firstSale)
+  const measured = (creditsOf(sim, 1) - before) / 180
+  // Продажа идёт партиями: что из окна замера осталось на складах или пришло в него с прогрева — тоже выручка линии.
+  const line = Math.max(0, measured - passive + ((metalInWorld(sim) - held) * RESOURCE_SPECS.metal.price) / 180)
+  const piping = pipes * BUILDINGS.pipe.cost
+  const invested = BUILDINGS.mine.cost + piping + BUILDINGS.metalYard.cost + BUILDINGS.smelter.cost + BUILDINGS.spaceport.cost + 2 * BUILDINGS.generator.cost
+
+  console.log(`\nРудник в симуляции: шахта, переработка, хранилище и космопорт на одной сети труб; продажа металла, 5 минут`)
+  console.log(`  труб                   ${pipes} тайлов, ${piping} кр`)
+  console.log(`  первая продажа         ${firstSale ? clock(firstSale) : 'не дождались'}`)
+  console.log(`  доход всего            ${round(measured, 1)} кр/с`)
+  console.log(`  пассивка               ${round(passive, 1)} кр/с (главное здание и генератор материи)`)
+  console.log(`  выручка линии          ${round(line, 1)} кр/с (с металлом, который за замер лёг на склады)`)
+  console.log(`  через переработку      ${round(line / RESOURCE_SPECS.metal.price, 1)} металла/с (шахта даёт 1 руды/с, завод принимает ${REFINE_RATE}/с)`)
+  if (line > 0) {
+    console.log(`  окупаемость линии      ${Math.round(LINE_COST / line)} с (шахта и переработка, ${LINE_COST} кр)`)
+    console.log(`  вложено в рудник       ${invested} кр, окупается за ${Math.round(invested / line)} с`)
   }
-  console.log('\nСколько грузовиков нужно линии: привязанный к шахте и свободные, металла в секунду')
-  printTable(['грузовиков', 'металла/с', 'кр/с', 'от потолка'], rows)
-  console.log('  от потолка — доля от добычи шахты (1 руды/с); свободные грузовики возят и руду по заявке завода,')
-  console.log('  и готовое из переработки в хранилища: без свободного грузовика готовое остаётся на заводе')
+  sim.destroy()
+  return line
 }
 
 /** Материалы в сырых ресурсах: изделия раскладываются по рецепту цеха на то, из чего их собирают. */
@@ -228,7 +194,7 @@ function printProduction(lineRate: number) {
   printTable(['здание', 'юнит', 'цена', 'время', 'кр/с', 'м/с', 'к/с', 'т/с', 'х/с', 'линий', 'по деньгам', 'материалы'], rows, 12, 8)
   console.log('  кр/с — кредитов в секунду; м/к/т/х — материалов в секунду, изделия разложены по рецепту цеха;')
   console.log('  материалы — доля сырья по цене продажи в полной цене юнита (кредиты плюс сырьё), цель 25–40%;')
-  console.log(`  линий — столько шахт с грузовиками нужно на материалы, и каждая кормится переработкой (завод держит ${REFINE_RATE} руды/с);`)
+  console.log(`  линий — столько шахт нужно на материалы, и каждая кормится переработкой (завод держит ${REFINE_RATE} руды/с);`)
   console.log(`  по деньгам — на кредиты при выручке ${round(feed, 1)} кр/с`)
 }
 
@@ -246,17 +212,19 @@ function ammoBurn() {
  * держит одна линия металла через цех на патронах (§3.7 design.md: цель — 2–4 турели под огнём).
  */
 function printProducts() {
-  console.log('\nСборочный цех: рецепт, что он ест и что даёт, работая без остановки')
+  console.log('\nЗаводы изделий: рецепт, что завод ест и что даёт, работая без остановки')
   const rows: (string | number)[][] = []
   for (const product of PRODUCTS) {
-    const { recipe, yield: made, stock } = PRODUCT_SPECS[product]
+    const { recipe, yield: made } = PRODUCT_SPECS[product]
+    const plant = BUILDING_TYPES.find((type) => buildingSpec(type).assembles === product)
     const seconds = cycleSeconds(product)
     const show = (resource: Resource) => ((recipe as Partial<Record<Resource, number>>)[resource] ? round((recipe as Record<Resource, number>)[resource] / seconds, 2) : '—')
     const lines = entriesOf(recipe).reduce((sum, [resource, need]) => sum + need / seconds / DEPOSIT_KINDS[resource as Resource].rate, 0)
-    rows.push([product, round(made / seconds, 2), show('metal'), show('silicon'), show('kharite'), round(lines, 2), stock])
+    rows.push([product, round(made / seconds, 2), show('metal'), show('silicon'), show('kharite'), round(lines, 2), (plant && buildingSpec(plant).limits?.[product]) ?? '—'])
   }
-  printTable(['изделие', 'штук/с', 'м/с', 'к/с', 'х/с', 'линий', 'норма'], rows)
-  console.log(`  линий — сколько линий добычи цех съедает, работая без остановки; встаёт он, набрав норму у зоны`)
+  printTable(['изделие', 'штук/с', 'м/с', 'к/с', 'х/с', 'линий', 'склад'], rows)
+  console.log('  линий — сколько линий добычи завод съедает, работая без остановки; склад — сколько готового он держит у себя:')
+  console.log('  набрал и сеть не забирает — встаёт')
 
   const ammoPerLine = (PRODUCT_SPECS.ammo.yield / totalOf(PRODUCT_SPECS.ammo.recipe)) * DEPOSIT_KINDS.metal.rate
   console.log('\nБоеприпасы: что тратит турель под непрерывным огнём и сколько их держит одна линия металла')
@@ -276,7 +244,6 @@ interface Opening {
   mine?: Entity
   port?: Entity
   builders: Entity[]
-  trucks: Entity[]
 }
 
 /** Сколько готовых зданий этого вида у игрока; sites — считать и заложенные. */
@@ -430,11 +397,9 @@ function refresh(sim: Sim, opening: Opening) {
     if (building.type === 'spaceport') opening.port = entity
   }
   opening.builders = []
-  opening.trucks = []
   for (const [entity, unit, owner] of sim.world.query(Unit, Owner)) {
     if (owner.player !== 1) continue
     if (unit.type === 'builder') opening.builders.push(entity)
-    if (unit.type === 'truck') opening.trucks.push(entity)
   }
 }
 
@@ -455,7 +420,7 @@ function startSpot(sim: Sim) {
 /** Русские имена наград: в таблице наград они названы по-английски, игроку они знакомы по-русски. */
 const REWARD_NAMES: Record<string, string> = {
   deploy: 'разворот MCV', unit: 'первый юнит', generator: 'электростанция',
-  matter: 'генератор материи', mine: 'шахта', silo: 'хранилище',
+  matter: 'генератор материи', mine: 'шахта', metalYard: 'хранилище',
 }
 
 /** 4. Разгон настоящими командами: от разворота MCV до второго генератора материи. */
@@ -463,7 +428,7 @@ function printOpening() {
   const sim = newSim()
   const start = startSpot(sim)
   const center = { x: start.core.x + 1, y: start.core.y + 1 }
-  const opening: Opening = { mcv: spawnUnit(sim, 'mcv', 1, center.x, center.y), builders: [], trucks: [] }
+  const opening: Opening = { mcv: spawnUnit(sim, 'mcv', 1, center.x, center.y), builders: [] }
   addCredits(sim, 1, STARTING_CREDITS)
   const tiles = freeTilesNear(sim, start.core.x, start.core.y, 8)
   for (let i = 0; i < 2 && i * 2 + 1 < tiles.length; i++) {
@@ -520,7 +485,7 @@ function printOpening() {
       if (second % 60 === 0) {
         // Доход — это всё, что пришло не от разовых наград: продажи и пассивка, за вычетом потраченного.
         const income = (credits - minute - minuteRewards + minuteSpend) / 60
-        curve.push([clock(second), credits, round(income, 1), Math.floor(stockOf(sim, 1).items.metal ?? 0), opening.trucks.length])
+        curve.push([clock(second), credits, round(income, 1), Math.floor(stockOf(sim, 1).items.metal ?? 0)])
         minute = credits
         minuteRewards = 0
         minuteSpend = 0
@@ -532,7 +497,7 @@ function printOpening() {
   console.log('\nРазгон настоящими командами: от MCV до второго генератора материи')
   for (const event of events) console.log(`  ${clock(event.time).padStart(5)}  ${event.text}`)
   if (index < steps.length) console.log(`  застряли на шаге «${steps[index].title}»: не хватило места, денег или строителя`)
-  printTable(['минута', 'кредиты', 'доход/с', 'металл', 'грузовиков'], curve)
+  printTable(['минута', 'кредиты', 'доход/с', 'металл'], curve)
   console.log(`  продаж за прогон: ${sales}; доход/с — продажи и пассивка, без разовых наград за вехи`)
   sim.destroy()
 }
