@@ -1,7 +1,7 @@
 import type { Entity, World } from '../ecs'
 import { Terrain, isBuildable, isCliffFoot, terrainAt, tileKey } from '../map/terrain'
 import { isOwn } from './common'
-import { Assembly, Building, Health, Repair, Owner, Position, Producer, Site } from './components'
+import { Assembly, Building, Health, Inventory, Repair, Owner, Position, Producer, Site } from './components'
 import { equipStorage, type BeamSpec } from './inventory'
 import { ORE_SPECS, PRODUCT_SPECS, WARES, stockedFor, type Amounts, type Good, type Ore, type Product } from './resources'
 import type { Sim } from './sim'
@@ -229,6 +229,61 @@ export const BUILDABLE: BuildingType[] = [
   'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker', 'spaceport', 'barracks', 'factory', 'airfield', 'techCenter',
   'radar', 'wall', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret',
 ]
+
+/** Выше этого уровня здания не улучшают. */
+export const MAX_LEVEL = 3
+/** На какую долю от первого уровня каждый следующий поднимает то, что здание делает: второй — в полтора раза, третий — вдвое. */
+export const LEVEL_BONUS = 0.5
+/** Во сколько раз здание этого уровня сильнее первого. */
+export const levelFactor = (level: number) => 1 + LEVEL_BONUS * (level - 1)
+/** Уровень здания; у стройки и у того, что не здание, — первый. */
+export const levelOf = (world: World, entity: Entity) => world.get(entity, Building)?.level ?? 1
+
+/** Что уровень поднимает у здания: добычу, скорость переработки, ёмкость, трюм и время рейса или выработку. */
+export type LevelGain = 'extract' | 'refine' | 'store' | 'trade' | 'power'
+
+/** Что даёт уровень зданию этого вида; undefined — его не улучшают. */
+export function levelGain(type: BuildingType): LevelGain | undefined {
+  const spec = buildingSpec(type)
+  if (spec.extract) return 'extract'
+  if (spec.refines) return 'refine'
+  if (spec.stores) return 'store'
+  if (spec.trades) return 'trade'
+  return (spec.power ?? 0) > 0 ? 'power' : undefined
+}
+
+/** Какую долю цены здания стоит в кредитах подъём с первого уровня; с каждого следующего — на столько же больше. */
+const UPGRADE_SHARE = 0.5
+/** На сколько кредитов цены здания идёт один стройблок за уровень и один компонент на верхних уровнях. */
+const UPGRADE_BLOCKS = 30
+const UPGRADE_PARTS = 60
+
+/**
+ * Цена подъёма здания с уровня level на следующий: кредиты и готовое. Стройблоки нужны всегда, с третьего уровня —
+ * ещё и компоненты: первый подъём по силам базе с одним цехом, дальше нужна вся цепочка изделий.
+ */
+export function upgradeCost(type: BuildingType, level: number): { credits: number; materials: Amounts } {
+  const { cost } = buildingSpec(type)
+  const materials: Amounts = { blocks: Math.ceil(cost / UPGRADE_BLOCKS) * level }
+  if (level >= 2) materials.parts = Math.ceil(cost / UPGRADE_PARTS) * (level - 1)
+  return { credits: Math.round(cost * UPGRADE_SHARE * level), materials }
+}
+
+/** Сколько кредитов вложено в уровни здания сверх его цены. */
+export function upgradeSpent(type: BuildingType, level: number) {
+  let spent = 0
+  for (let below = 1; below < level; below++) spent += upgradeCost(type, below).credits
+  return spent
+}
+
+/** Подгоняет склад здания под его уровень: хранилище и трюм космопорта с уровнем вмещают больше. */
+export function applyLevel(world: World, entity: Entity) {
+  const building = world.get(entity, Building)
+  const inventory = world.get(entity, Inventory)
+  if (!building || !inventory) return
+  const spec = buildingSpec(building.type)
+  if ((spec.stores || spec.trades) && spec.inventory) inventory.capacity = Math.round(spec.inventory * levelFactor(building.level))
+}
 
 /** Труба ли это или колодец. */
 export const isPipe = (type: BuildingType) => !!buildingSpec(type).pipe

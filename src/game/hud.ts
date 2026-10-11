@@ -7,6 +7,7 @@ import { textOf } from '../i18n'
 import {
   Assembly, Harvester, BUILDABLE, isUnlocked, buyPrice, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
+  MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   Off, Owner, Position, Tactics, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType,
 } from '../sim'
 import { paveStrokeOf } from './placing'
@@ -150,6 +151,19 @@ export interface HudState {
   } | null
   /** Разбор выбранных своих готовых зданий, которые можно разобрать. refund — сколько кредитов вернётся за все. */
   demolish: { buildings: number[]; refund: number } | null
+  /**
+   * Уровень выбранных своих зданий, которые улучшают: level, gain и factor — уровень первого из них, что он поднимает
+   * и во сколько раз. next — заказ следующего уровня: кому слать, сколько это стоит за всех и чего не хватает;
+   * raising — улучшения в работе: чьи и готовность первого от 0 до 1.
+   */
+  level: {
+    level: number
+    max: number
+    gain: LevelGain
+    factor: number
+    next: { buildings: number[]; level: number; factor: number; cost: number; materials: Stack[]; lack: UpgradeLack | null } | null
+    raising: { buildings: number[]; progress: number } | null
+  } | null
   /** Что можно построить, если среди выбранного есть строитель. */
   construction: {
     /** Здание, для которого сейчас выбирается место. */
@@ -251,6 +265,9 @@ export function readHud(scene: Scene): HudState {
   let building: BuildingType | null = null
   let site: HudState['site'] = null
   let demolish: HudState['demolish'] = null
+  let level: HudState['level'] = null
+  /** Готовое на улучшение всех выбранных вместе. */
+  const upgradeMaterials: Amounts = {}
   let deposit: HudState['deposit'] = null
   let stored: HudState['stored'] = null
   let reserve: HudState['reserve'] = null
@@ -339,7 +356,23 @@ export function readHud(scene: Scene): HudState {
       reserve.buildings.push(entity)
       reserve.capacity = Math.min(reserve.capacity, inventory.capacity)
     }
-    if (ready && spec!.refines) refinery = { ore: spec!.refines, intake: REFINE_RATE }
+    if (ready && spec!.refines) refinery = { ore: spec!.refines, intake: REFINE_RATE * levelFactor(built.level) }
+    const gain = ready && isOwn(sim, player, entity) ? levelGain(built.type) : undefined
+    if (built && gain) {
+      level ??= { level: built.level, max: MAX_LEVEL, gain, factor: levelFactor(built.level), next: null, raising: null }
+      const upgrade = world.get(entity, Upgrade)
+      if (upgrade) {
+        level.raising ??= { buildings: [], progress: round(Math.min(1, upgrade.progress / upgradeTicks(built.type, built.level, sim.time.step))) }
+        level.raising.buildings.push(entity)
+      } else if (isUpgradable(sim, player, entity)) {
+        const price = upgradeCost(built.type, built.level)
+        level.next ??= { buildings: [], level: built.level + 1, factor: levelFactor(built.level + 1), cost: 0, materials: [], lack: null }
+        level.next.buildings.push(entity)
+        level.next.cost += price.credits
+        for (const [resource, amount] of entriesOf(price.materials)) upgradeMaterials[resource] = (upgradeMaterials[resource] ?? 0) + amount
+        if (upgradeLack(sim, player, entity) === 'materials') level.next.lack = 'materials'
+      }
+    }
     const digging = world.get(entity, Harvester)
     if (digging && isOwn(sim, player, entity)) {
       const first: boolean = !harvest
@@ -420,7 +453,7 @@ export function readHud(scene: Scene): HudState {
     if (canDemolish(sim, player, entity)) {
       demolish ??= { buildings: [], refund: 0 }
       demolish.buildings.push(entity)
-      demolish.refund += refundOf(world.get(entity, Building)!.type)
+      demolish.refund += refundOf(built!.type, built!.level)
     }
     const kind = world.get(entity, Building)?.type ?? world.get(entity, Site)?.type
     if (kind) {
@@ -434,6 +467,10 @@ export function readHud(scene: Scene): HudState {
   // Кнопки стройки показывают энергию для первой зоны: в какую попадёт здание, до выбора места неизвестно.
   const economy = zones[0] ?? economyOf(sim, player)
   const stock = stockOf(sim, player)
+  if (level?.next) {
+    level.next.materials = exactOf(upgradeMaterials)
+    if (credits < level.next.cost) level.next.lack = 'credits'
+  }
   const state: HudState = {
     credits,
     hover: hoverOf(scene),
@@ -480,6 +517,7 @@ export function readHud(scene: Scene): HudState {
     tactics,
     site,
     demolish,
+    level,
     construction: counts.has('builder')
       ? {
           placing: scene.placing,

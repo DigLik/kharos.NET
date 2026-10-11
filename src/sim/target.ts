@@ -3,7 +3,7 @@ import { siteAt } from './buildings'
 import { canAttack } from './combat'
 import type { Command } from './commands'
 import { isOwn } from './common'
-import { Harvester, Hauler, Owner, Position, Repair, Unit } from './components'
+import { Harvester, Hauler, Owner, Position, Repair, Unit, Upgrade } from './components'
 import { canRepair } from './construction'
 import { DEPOSIT_SIZE, depositNear } from './deposits'
 import { dropAt } from './drops'
@@ -48,11 +48,11 @@ export function resolveOrder(sim: Sim, player: number, units: Entity[], point: {
   const y = Math.floor(point.y)
   const seen = !fog || sim.vision.sees(player, x, y)
   const unitAt = (own: boolean) => (seen ? unitNear(sim, player, point.x, point.y, own, margin, fog) : undefined)
-  // Работа для строителей: стройка, разбор или своё повреждённое — здание или юнит.
+  // Работа для строителей: стройка, разбор, своё повреждённое — здание или юнит — или здание, которое улучшают.
   const damaged = seen ? sim.occupancy.at(x, y) : undefined
   const planned = seen ? siteAt(sim, x, y) : undefined
   const broken = unitAt(true) ?? damaged
-  const site = planned ?? (broken !== undefined && canRepair(sim, player, broken) ? broken : undefined)
+  const site = planned ?? (broken !== undefined && (canRepair(sim, player, broken) || world.has(broken, Upgrade)) ? broken : undefined)
   const builders = units.some((entity) => world.has(entity, Repair))
   // То, чему грузовики могут привезти груз: своя стройка или здание в точке.
   const needy = planned ?? damaged
@@ -82,7 +82,7 @@ export function resolveOrder(sim: Sim, player: number, units: Entity[], point: {
     if (rest.length && planned === needy) commands.push({ type: 'assist', units: rest, site: needy })
     return commands
   }
-  // Строители по своей стройке — строят, по повреждённому зданию или юниту — чинят; остальные выбранные при этом стоят.
+  // Строители по своей стройке — строят, по повреждённому зданию или юниту — чинят, по улучшаемому — улучшают; остальные выбранные при этом стоят.
   if (site !== undefined && builders && isOwn(sim, player, site)) return [{ type: 'assist', units, site }]
   return [{ type: 'move', units, x, y }]
 }

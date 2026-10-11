@@ -1,5 +1,5 @@
 import type { Entity, Time } from '../ecs'
-import { buildingSpec } from './buildings'
+import { buildingSpec, levelFactor, levelOf } from './buildings'
 import { Building, Inventory, Site } from './components'
 import { powerSupply } from './income'
 import { amountOf, put, roomFor, take } from './inventory'
@@ -18,7 +18,8 @@ const EPSILON = 1e-9
 
 /**
  * Раз в тик: переработка превращает свою руду со склада в её ресурс со скоростью REFINE_RATE, а готовое кладёт,
- * только пока под него есть место: потерять руду нельзя. При нехватке энергии завод работает медленнее.
+ * только пока под него есть место: потерять руду нельзя. При нехватке энергии завод работает медленнее,
+ * уровнем выше — быстрее.
  */
 export function refine(sim: Sim, time: Time) {
   const { world } = sim
@@ -35,7 +36,7 @@ export function refine(sim: Sim, time: Time) {
     const inventory = world.get(entity, Inventory)!
     const ore = buildingSpec(world.get(entity, Building)!.type).refines!
     const product = resourceOf(ore)
-    const wanted = Math.min(REFINE_RATE * time.step * (supply.get(entity) ?? 0), amountOf(inventory, ore))
+    const wanted = Math.min(REFINE_RATE * levelFactor(levelOf(world, entity)) * time.step * (supply.get(entity) ?? 0), amountOf(inventory, ore))
     // Готовому некуда лечь — завод стоит, пока грузовики не развезут его.
     const taken = Math.min(wanted, roomFor(inventory, product) * REFINE_RATIO)
     if (taken > EPSILON) put(inventory, product, take(inventory, ore, taken) / REFINE_RATIO)

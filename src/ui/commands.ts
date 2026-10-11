@@ -13,6 +13,8 @@ export const GRID_SIZE = GRID_KEYS.length
 const CONVERT = 8
 const CANCEL = 9
 const DEMOLISH = 10
+/** Улучшение здания: конец второго ряда корня — у зданий, которые улучшают, списков там нет. */
+const UPGRADE = 7
 const BACK = 11
 /** Выключатель потребителя энергии — в углу корня, где у страниц «Назад». */
 const SWITCH = BACK
@@ -451,6 +453,28 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
         }
       }
       slots[BACK] = { label: t('common.back'), run: () => open('root') }
+    }
+  }
+
+  const { level } = state
+  if (level && page === 'root' && !construction) {
+    const { next, raising } = level
+    if (next) {
+      slots[UPGRADE] = {
+        label: t('grid.upgrade', { level: next.level }),
+        building: state.building ?? undefined,
+        cost: next.cost,
+        materials: next.materials,
+        disabled: !!next.lack,
+        title: next.lack ? t(next.lack === 'credits' ? 'grid.noCredits' : 'grid.upgradeNoMaterials') : t('grid.upgradeTip', { gain: t(`levelGains.${level.gain}`), factor: next.factor }),
+        run: () => next.buildings.forEach((building) => send({ type: 'upgrade', building, builders: [] })),
+      }
+    } else if (raising) {
+      slots[UPGRADE] = {
+        label: t('grid.cancel'),
+        title: t('grid.cancelUpgradeTip'),
+        run: () => raising.buildings.forEach((building) => send({ type: 'cancelUpgrade', building })),
+      }
     }
   }
 

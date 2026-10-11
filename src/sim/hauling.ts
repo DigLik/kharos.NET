@@ -1,5 +1,5 @@
 import type { Entity } from '../ecs'
-import { BUILDINGS, buildingSpec, isReady, type BuildingSpec } from './buildings'
+import { BUILDINGS, buildingSpec, isReady, levelFactor, levelOf, type BuildingSpec } from './buildings'
 import { NONE, isOwn, onTurn } from './common'
 import { Beam, Building, Converting, Drop, Hauler, Harvester, Inventory, Owner, Path, Position, Site } from './components'
 import { DEPOSIT_KINDS, reserveLeft, takeReserve } from './deposits'
@@ -185,7 +185,8 @@ function extract(sim: Sim) {
     if (!ore) continue
     const inventory = world.get(entity, Inventory)!
     const { x, y } = world.get(entity, Position)!
-    const rate = DEPOSIT_KINDS[resourceOf(ore)].rate
+    // Шахта уровнем выше качает быстрее — и месторождение под ней кончается раньше.
+    const rate = DEPOSIT_KINDS[resourceOf(ore)].rate * levelFactor(levelOf(world, entity))
     put(inventory, ore, takeReserve(sim, x, y, Math.min(rate * time.step, roomFor(inventory, ore))))
   }
 }

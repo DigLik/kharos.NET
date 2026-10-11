@@ -354,7 +354,11 @@
     "dropSale": "Auftrag aufheben",
     "cancelDemolish": "Abbau abbrechen",
     "cancelBuild": "Bau abbrechen",
-    "demolishTip": "Baufahrzeuge bauen das Gebäude ab; danach gibt es den halben Preis zurück"
+    "demolishTip": "Baufahrzeuge bauen das Gebäude ab; danach gibt es den halben Preis zurück",
+    "upgrade": "Stufe {level}",
+    "upgradeTip": "Stufe erhöhen: {gain} ×{factor}. Der Preis wird sofort abgezogen, die Güter kommen aus dem Netz des Gebäudes; Baufahrzeuge erledigen die Arbeit, das Gebäude läuft weiter",
+    "upgradeNoMaterials": "Im Netz des Gebäudes fehlen Güter für den Ausbau",
+    "cancelUpgradeTip": "Ausbau abbrechen: sein Preis wird voll erstattet"
   },
   "hud": {
     "players": "Spieler",
@@ -441,6 +445,10 @@
     "depositLeft": "{icon} {name}: {left}",
     "demolishing": "Wird abgebaut — noch {percent}",
     "waitsToDemolish": "Wartet auf ein Baufahrzeug: eines auswählen und das Gebäude mit rechts anklicken",
+    "level": "Stufe {level} von {max}: {gain} ×{factor}",
+    "levelBase": "Stufe {level} von {max}",
+    "upgrading": "Wird ausgebaut — {percent} fertig",
+    "waitsToUpgrade": "Der Ausbau wartet auf ein Baufahrzeug: wähle es aus und klicke rechts auf das Gebäude",
     "building": "Im Bau — {percent}",
     "blocked": "Der Platz ist von Einheiten belegt",
     "waitsBuilder": "Wartet auf ein Baufahrzeug",
@@ -457,6 +465,13 @@
     "placingTip": "Linke Taste — setzen, immer wieder; rechte Taste oder Esc — beenden",
     "adminPassword": "Administratorpasswort",
     "adminMode": "Administratormodus"
+  },
+  "levelGains": {
+    "extract": "Förderung",
+    "refine": "Verarbeitungstempo",
+    "store": "Kapazität",
+    "trade": "Laderaum und Flugtempo",
+    "power": "Stromerzeugung"
   },
   "chat": {
     "help": {

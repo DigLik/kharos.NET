@@ -12,8 +12,11 @@ import type { Command } from './commands'
 /** Место на карте в тайлах. У здания — левый верхний тайл основания, у юнита — его центр. */
 export const Position = component('Position', { x: 0, y: 0 })
 
-/** Здание. phase — сдвиг анимации в кадрах, чтобы одинаковые здания не мигали в такт. */
-export const Building = component('Building', { type: 'command' as BuildingType, phase: 0 })
+/**
+ * Здание. phase — сдвиг анимации в кадрах, чтобы одинаковые здания не мигали в такт. level — уровень, с единицы:
+ * что он даёт, решает вид здания, см. levelFactor в buildings.ts.
+ */
+export const Building = component('Building', { type: 'command' as BuildingType, phase: 0, level: 1 })
 
 /**
  * Прочность юнита или здания: value — от max до 0, в нуле юнит гибнет, а здание разрушается.
@@ -276,6 +279,13 @@ export const Doomed = component('Doomed', { left: 0 })
  */
 export const Batch = component('Batch', () => ({ from: -1, to: -1, resource: 'metal' as Good, amount: 0, sent: 0, arrive: 0, push: false, path: [] as number[] }))
 
+/**
+ * Улучшение: готовое здание поднимают на следующий уровень. Компонент есть, только пока оно идёт; здание при этом
+ * работает как обычно. progress — сколько тиков работы одного строителя уже вложено. Цена списана при заказе.
+ * См. upgrades.ts.
+ */
+export const Upgrade = component('Upgrade', { progress: 0 })
+
 /** Компоненты, которые попадают в сохранение и в сеть. Новый компонент симуляции добавляй сюда. */
 /**
  * Призрак: чужое здание или месторождение, каким клиент видел его последний раз. Живёт только в клиенте: хост
@@ -284,4 +294,4 @@ export const Batch = component('Batch', () => ({ from: -1, to: -1, resource: 'me
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Harvester, Inventory, Beam, Assembly, Trade, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Harvester, Inventory, Beam, Assembly, Trade, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade]

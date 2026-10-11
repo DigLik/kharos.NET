@@ -604,6 +604,18 @@ function Info({ state, lookAtSelection, narrow, deal, setAmount, confirm }: {
             })}
           </div>
         )}
+        {state.level && (
+          <div class="hud__hint">
+            {state.level.level > 1
+              ? t('hud.level', { level: state.level.level, max: state.level.max, gain: t(`levelGains.${state.level.gain}`), factor: state.level.factor })
+              : t('hud.levelBase', { level: state.level.level, max: state.level.max })}
+          </div>
+        )}
+        {state.level?.raising && (
+          <Progress value={state.level.raising.progress}>
+            {state.level.raising.progress > 0 ? t('hud.upgrading', { percent: percent(state.level.raising.progress) }) : t('hud.waitsToUpgrade')}
+          </Progress>
+        )}
         {site && (
           <Progress value={site.progress}>
             {site.demolish

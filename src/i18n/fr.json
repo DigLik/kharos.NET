@@ -354,7 +354,11 @@
     "dropSale": "Annuler la commande",
     "cancelDemolish": "Annuler le démontage",
     "cancelBuild": "Annuler le chantier",
-    "demolishTip": "Les constructeurs démontent le bâtiment ; à la fin, la moitié du prix est rendue"
+    "demolishTip": "Les constructeurs démontent le bâtiment ; à la fin, la moitié du prix est rendue",
+    "upgrade": "Niveau {level}",
+    "upgradeTip": "Monter de niveau : {gain} ×{factor}. Le prix est payé tout de suite, les matériaux viennent du réseau du bâtiment ; les constructeurs font le travail et le bâtiment continue de fonctionner",
+    "upgradeNoMaterials": "Le réseau du bâtiment manque de matériaux pour l'amélioration",
+    "cancelUpgradeTip": "Annuler l'amélioration : son prix est rendu en entier"
   },
   "hud": {
     "players": "Joueurs",
@@ -441,6 +445,10 @@
     "depositLeft": "{icon} {name} : {left}",
     "demolishing": "Démontage — reste {percent}",
     "waitsToDemolish": "Attend un constructeur : sélectionnez-le et faites un clic droit sur le bâtiment",
+    "level": "Niveau {level} sur {max} : {gain} ×{factor}",
+    "levelBase": "Niveau {level} sur {max}",
+    "upgrading": "Amélioration — {percent} fait",
+    "waitsToUpgrade": "L'amélioration attend un constructeur : sélectionne-le et fais un clic droit sur le bâtiment",
     "building": "En construction — {percent}",
     "blocked": "L'emplacement est occupé par des unités",
     "waitsBuilder": "Attend un constructeur",
@@ -457,6 +465,13 @@
     "placingTip": "Bouton gauche — poser, encore et encore ; bouton droit ou Échap — terminer",
     "adminPassword": "Mot de passe administrateur",
     "adminMode": "mode administrateur"
+  },
+  "levelGains": {
+    "extract": "extraction",
+    "refine": "vitesse de raffinage",
+    "store": "capacité",
+    "trade": "soute et vitesse de vol",
+    "power": "production d'énergie"
   },
   "chat": {
     "help": {

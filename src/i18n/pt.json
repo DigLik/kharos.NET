@@ -354,7 +354,11 @@
     "dropSale": "Cancelar pedido",
     "cancelDemolish": "Cancelar desmontagem",
     "cancelBuild": "Cancelar construção",
-    "demolishTip": "Os construtores desmontam o edifício; ao terminar, metade do preço é devolvida"
+    "demolishTip": "Os construtores desmontam o edifício; ao terminar, metade do preço é devolvida",
+    "upgrade": "Nível {level}",
+    "upgradeTip": "Subir de nível: {gain} ×{factor}. O preço é cobrado na hora e os materiais saem da rede do edifício; os construtores fazem o trabalho e o edifício continua funcionando",
+    "upgradeNoMaterials": "Faltam materiais para a melhoria na rede do edifício",
+    "cancelUpgradeTip": "Cancelar a melhoria: o preço é devolvido por inteiro"
   },
   "hud": {
     "players": "Jogadores",
@@ -441,6 +445,10 @@
     "depositLeft": "{icon} {name}: {left}",
     "demolishing": "Desmontando — falta {percent}",
     "waitsToDemolish": "Aguarda um construtor: selecione-o e clique no edifício com o botão direito",
+    "level": "Nível {level} de {max}: {gain} ×{factor}",
+    "levelBase": "Nível {level} de {max}",
+    "upgrading": "Melhorando — {percent} feito",
+    "waitsToUpgrade": "A melhoria espera um construtor: selecione-o e clique com o botão direito no edifício",
     "building": "Em construção — {percent}",
     "blocked": "O local está ocupado por unidades",
     "waitsBuilder": "Aguarda um construtor",
@@ -457,6 +465,13 @@
     "placingTip": "Botão esquerdo — colocar, quantas vezes quiser; botão direito ou Esc — encerrar",
     "adminPassword": "Senha de administrador",
     "adminMode": "modo administrador"
+  },
+  "levelGains": {
+    "extract": "extração",
+    "refine": "velocidade de refino",
+    "store": "capacidade",
+    "trade": "porão e velocidade de voo",
+    "power": "geração"
   },
   "chat": {
     "help": {

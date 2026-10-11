@@ -354,7 +354,11 @@
     "dropSale": "Cancel order",
     "cancelDemolish": "Cancel dismantling",
     "cancelBuild": "Cancel construction",
-    "demolishTip": "Builders dismantle the building; when they finish, half the price is refunded"
+    "demolishTip": "Builders dismantle the building; when they finish, half the price is refunded",
+    "upgrade": "Level {level}",
+    "upgradeTip": "Raise the level: {gain} ×{factor}. The price is paid at once, goods come from the building's network; builders do the work and the building keeps running",
+    "upgradeNoMaterials": "The building's network lacks the goods for the upgrade",
+    "cancelUpgradeTip": "Cancel the upgrade: its price is refunded in full"
   },
   "hud": {
     "players": "Players",
@@ -441,6 +445,10 @@
     "depositLeft": "{icon} {name}: {left}",
     "demolishing": "Dismantling — {percent} left",
     "waitsToDemolish": "Waiting for a builder: select one and right-click the building",
+    "level": "Level {level} of {max}: {gain} ×{factor}",
+    "levelBase": "Level {level} of {max}",
+    "upgrading": "Upgrading — {percent} done",
+    "waitsToUpgrade": "The upgrade awaits a builder: select one and right-click the building",
     "building": "Under construction — {percent}",
     "blocked": "The site is blocked by units",
     "waitsBuilder": "Waiting for a builder",
@@ -457,6 +465,13 @@
     "placingTip": "Left button — place, again and again; right button or Esc — finish",
     "adminPassword": "Administrator password",
     "adminMode": "administrator mode"
+  },
+  "levelGains": {
+    "extract": "output",
+    "refine": "refining speed",
+    "store": "capacity",
+    "trade": "hold and flight speed",
+    "power": "power output"
   },
   "chat": {
     "help": {

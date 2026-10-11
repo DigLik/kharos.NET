@@ -21,6 +21,7 @@ import { clearTactics, orderPatrol, setStance, startMarch, type Stance } from '.
 import type { Good, Resource } from './resources'
 import type { Sim } from './sim'
 import { buy, closeSale, sell } from './trade'
+import { cancelUpgrade, orderUpgrade } from './upgrades'
 import { inBounds, orderGroupMove, type UnitType } from './units'
 
 /**
@@ -77,6 +78,10 @@ export type Command = (
   | { type: 'cancelBuild'; site: number }
   /** Назначить своё готовое здание под разбор и послать к нему своих строителей. Отменяется через cancelBuild. */
   | { type: 'demolish'; building: number; builders: number[] }
+  /** Заказать следующий уровень своего готового здания и послать к нему своих строителей: цена списывается сразу. */
+  | { type: 'upgrade'; building: number; builders: number[] }
+  /** Отменить улучшение своего здания: цена возвращается. */
+  | { type: 'cancelUpgrade'; building: number }
   /** Дать своим грузовикам маршрут: свои здания-остановки по кругу. Меньше двух остановок — снять маршрут. */
   | { type: 'route'; units: number[]; stops: number[] }
   /** Своим грузовикам — возить только по заявкам этих своих зданий. Пусто — снять назначение. */
@@ -263,6 +268,12 @@ function run(sim: Sim, player: number, command: Command): boolean {
       const builders = Array.isArray(command.builders) ? (command.builders as Entity[]) : []
       return demolish(sim, player, command.building as Entity, builders)
     }
+    case 'upgrade': {
+      const builders = Array.isArray(command.builders) ? (command.builders as Entity[]) : []
+      return orderUpgrade(sim, player, command.building as Entity, builders)
+    }
+    case 'cancelUpgrade':
+      return cancelUpgrade(sim, player, command.building as Entity)
     case 'rally': {
       const building = command.building as Entity
       const producer = sim.world.get(building, Producer)
