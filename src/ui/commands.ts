@@ -1,7 +1,7 @@
 import type { HudState, Stack } from '../game/hud'
 import type { PaveIcon } from '../game/portraits'
 import type { PaveTool } from '../game/scene'
-import { BRIDGE_COST, BUILDINGS, UNDERGROUND_REACH, BUILDING_TYPES, DEPOSIT_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, WARES, type Amounts, type Stance, type BuildingType, type Command, type DepositKind, type Good, type Resource, type Topic } from '../sim'
+import { BRIDGE_COST, BUILDINGS, UNDERGROUND_REACH, BUILDING_TYPES, DEPOSIT_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, TRANSFER_CAPACITY, WARES, type Amounts, type Stance, type BuildingType, type Command, type DepositKind, type Good, type Resource, type Topic } from '../sim'
 import { t } from '../i18n'
 
 /** Клавиши ячеек сетки команд по порядку: три ряда по четыре, как на клавиатуре, справа от WASD. */
@@ -22,6 +22,8 @@ const SWITCH = BACK
 const GIFT = BACK
 /** Кнопки продажи и закупки космопорта: начало нижнего ряда. Отмена заказа техники у космопорта тогда — на месте «Назад». */
 const TRADE = 8
+/** Подарок союзнику — сверху: нижний ряд космопорта уже занят торговлей, разбором и выключателем. */
+const FERRY = 0
 /** Сколько ячеек сверху отдаётся под списки: заказы, здания, рецепты. */
 const LIST = 8
 
@@ -473,9 +475,9 @@ export function commandsOf(
         title: order ? t('grid.buyBusyTip') : t('grid.buyTip'),
         run: () => open('buy'),
       }
-      // Подарок союзнику: деньги, груз и юниты кораблём. Набранное ждёт возвращения на страницу подарка.
+      // Подарок союзнику: деньги и груз кораблём. Набранное ждёт возвращения на страницу подарка.
       const allies = state.players.filter(({ own, relation }) => !own && relation === 'ally').length
-      slots[TRADE + 2] = {
+      slots[FERRY] = {
         label: t('grid.give'),
         building: 'spaceport',
         active: !!ferry,
@@ -531,7 +533,9 @@ export function commandsOf(
       } else {
         // Количество: верхний ряд — прибавить, второй — убавить, «Всё» — сколько есть, «Добавить» — в корабль.
         const editing = ferry.editing
-        const max = editing.kind === 'good' ? state.stock?.items.find(({ resource }) => resource === editing.good)?.amount ?? 0 : credits
+        const max = editing.kind === 'good'
+          ? Math.min(state.stock?.items.find(({ resource }) => resource === editing.good)?.amount ?? 0, TRANSFER_CAPACITY)
+          : credits
         const loaded = editing.kind === 'good' ? Math.floor(ferry.goods[editing.good] ?? 0) : ferry.credits
         const steps = FERRY_STEPS[editing.kind]
         const set = (next: number) => draft({ ...ferry, amount: Math.max(0, Math.min(max, next)) })

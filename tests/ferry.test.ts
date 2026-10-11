@@ -207,7 +207,10 @@ test('/give переводит деньги союзнику сразу, а чу
   expect(second.chat).toContain('giveGot')
   expect(creditsOf(host.sim, 1)).toBe(before[0] - 300)
   expect(creditsOf(host.sim, 2)).toBe(before[1] + 300)
-  // Себе и больше, чем есть, — не перевод.
+  // Дробные кредиты, перевод себе и больше, чем есть, — не перевод.
+  first.say('/give Петя 0.5')
+  expect(creditsOf(host.sim, 1)).toBe(before[0] - 300)
+  expect(creditsOf(host.sim, 2)).toBe(before[1] + 300)
   first.say('/give Вася 10')
   expect(first.chat).toContain('giveSelf')
   first.say('/give Петя 999999')
@@ -251,6 +254,7 @@ function panel(trade: HudState['trade'], players: unknown[]) {
   const state = {
     trade, credits: 1000, units: [], building: 'spaceport',
     stock: { items: [{ resource: 'metal', amount: 130 }], capacity: 500 },
+    demolish: { buildings: [7], refund: 100 },
     players,
   } as unknown as HudState
   let ferry: FerryDraft | null = null
@@ -275,6 +279,8 @@ test('панель космопорта: подарок союзнику наб�
   ])
 
   // В корне космопорта — «Союзнику», и набор начинается с выбора союзника.
+  expect(grid('root')[0]).toMatchObject({ label: 'Союзнику' })
+  expect(grid('root')[10]).toMatchObject({ label: 'Разобрать' })
   press('root', 'Союзнику')
   expect(page()).toBe('ally')
   expect(grid('ally').filter(Boolean).map((slot) => slot!.label)).toEqual(['Петя', 'Назад'])
@@ -318,7 +324,22 @@ test('космопорт занят или союзников нет: подар
   ]
   const transfer: NonNullable<HudState['trade']>['transfer'] = { to: 2, credits: 100, goods: [{ resource: 'metal', amount: 50 }], flight: 0.5 }
   const busy = panel({ port: 7, order: null, offers: [], purchases: [], transfer }, players)
-  expect(busy.grid('root')[10]).toMatchObject({ label: 'Союзнику', disabled: true, title: 'Космопорт занят: корабль уже в пути' })
+  expect(busy.grid('root')[0]).toMatchObject({ label: 'Союзнику', disabled: true, title: 'Космопорт занят: корабль уже в пути' })
   const lone = panel({ port: 7, order: null, offers: [], purchases: [], transfer: null }, players.slice(0, 1))
-  expect(lone.grid('root')[10]).toMatchObject({ label: 'Союзнику', disabled: true, title: 'Союзников нет: предложите союз в списке по Tab' })
+  expect(lone.grid('root')[0]).toMatchObject({ label: 'Союзнику', disabled: true, title: 'Союзников нет: предложите союз в списке по Tab' })
+})
+
+test('панель подарка не обещает взять больше вместимости корабля', () => {
+  const players = [
+    { player: 1, name: 'Вася', own: true, relation: null },
+    { player: 2, name: 'Петя', own: false, relation: 'ally' },
+  ]
+  const view = panel({ port: 7, order: null, offers: [], purchases: [], transfer: null }, players)
+  view.state.stock!.items[0].amount = 700
+  view.press('root', 'Союзнику')
+  view.press('ally', 'Петя')
+  view.press('ferryGoods', 'Металл ×700')
+  view.press('ferryGoods', 'Всё')
+  expect(view.ferry()!.amount).toBe(500)
+  expect(view.grid('ferryGoods').find((slot) => slot?.label === 'Всё')).toMatchObject({ title: '×500' })
 })

@@ -546,7 +546,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       if (to === undefined) return caller.reply(hostText('noPlayer', { name: args[0] ?? '' }))
       if (to === from) return caller.reply(hostText('giveSelf'))
       if (!allied(sim, from, to)) return caller.reply(hostText('giveNoAlly', { name: nameOf(to) }))
-      if (!Number.isFinite(amount) || amount <= 0) return caller.reply(usage(this))
+      if (!Number.isSafeInteger(amount) || amount <= 0) return caller.reply(usage(this))
       if (!pay(sim, from, amount)) return caller.reply(hostText('giveShort', { amount }))
       addCredits(sim, to, amount)
       tell(from, hostText('giveSent', { name: nameOf(to), amount: Math.floor(amount) }))
