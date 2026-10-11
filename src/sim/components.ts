@@ -292,7 +292,7 @@ export const Upgrade = component('Upgrade', { progress: 0 })
  * Исследование, которое ведёт техцентр: topic — тема (см. RESEARCH в research.ts), progress — сколько тиков оно уже
  * идёт; при нехватке энергии растёт медленнее. Компонент есть, только пока оно идёт. Цена списана при заказе.
  */
-export const Research = component('Research', { topic: '', progress: 0 })
+export const Research = component('Research', { topic: '', progress: 0, cost: 0, parts: 0, ticks: 0 })
 
 /** Компоненты, которые попадают в сохранение и в сеть. Новый компонент симуляции добавляй сюда. */
 /**

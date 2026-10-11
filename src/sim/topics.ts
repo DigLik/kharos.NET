@@ -1,5 +1,5 @@
 import type { Entity } from '../ecs'
-import { Player } from './components'
+import { Owner, Player, Research } from './components'
 import type { Amounts } from './resources'
 import type { Sim } from './sim'
 
@@ -33,8 +33,6 @@ export type Topic = keyof typeof RESEARCH
 export const TOPICS = Object.keys(RESEARCH) as Topic[]
 export const topicSpec = (topic: Topic): TopicSpec => RESEARCH[topic]
 
-/** Что тема стоит в готовом. */
-export const topicMaterials = (topic: Topic): Amounts => ({ parts: RESEARCH[topic].parts })
 
 export function playerEntity(sim: Sim, player: number): Entity | undefined {
   for (const [entity, data] of sim.world.query(Player)) if (data.id === player) return entity
@@ -50,3 +48,29 @@ export function researchOf(sim: Sim, player: number): readonly string[] {
 /** Открыта ли игроку тема. Без дерева технологий (Rules.techTree) открыто всё. */
 export const hasResearch = (sim: Sim, player: number, topic: Topic | undefined) =>
   topic === undefined || !sim.rules.techTree || researchOf(sim, player).includes(topic)
+
+/** Сколько тем игрок ведёт прямо сейчас во всех своих техцентрах. */
+function runningTopics(sim: Sim, player: number) {
+  let count = 0
+  for (const [entity] of sim.world.query(Research)) if (sim.world.get(entity, Owner)?.player === player) count++
+  return count
+}
+
+/** Цена темы: кредиты, готовое и секунды при полной энергии. */
+export interface TopicPrice {
+  cost: number
+  materials: Amounts
+  seconds: number
+}
+
+/**
+ * Что тема стоит игроку сейчас, по правилам мира (Rules.researchScale и researchGrowth). Удорожают и открытые темы,
+ * и начатые: иначе несколько техцентров разом начали бы всё дерево по цене первой темы. Порядок тем игрок выбирает
+ * сам — и тем самым решает, что достанется дёшево.
+ */
+export function topicPrice(sim: Sim, player: number, topic: Topic): TopicPrice {
+  const { cost, parts, seconds } = topicSpec(topic)
+  const { researchScale, researchGrowth } = sim.rules
+  const factor = researchScale * researchGrowth ** (researchOf(sim, player).length + runningTopics(sim, player))
+  return { cost: Math.round(cost * factor), materials: { parts: Math.round(parts * factor) }, seconds: seconds * factor }
+}

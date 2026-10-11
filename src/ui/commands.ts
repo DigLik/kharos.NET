@@ -492,14 +492,14 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
       : lack === 'credits' ? t('grid.noCredits')
       : t('grid.researchNoParts')
     list(
-      research.topics.map(({ topic, cost, materials, seconds, lack, after }): Slot => ({
+      research.topics.map(({ topic, cost, materials, time, lack, after }): Slot => ({
         label: lack === 'done' ? `✓ ${t(`research.${topic}`)}` : t(`research.${topic}`),
         cost: lack === 'done' ? undefined : cost,
         materials: lack === 'done' ? undefined : materials,
         about: t(`researchInfo.${topic}`),
         active: lack === 'done' || current?.topic === topic,
         disabled: !!lack || !!current,
-        title: lack ? reason(lack, after) : current ? t('grid.researchBusy') : t('grid.researchTip', { seconds }),
+        title: lack ? reason(lack, after) : current ? t('grid.researchBusy') : t('grid.researchTip', { time }),
         run: () => send({ type: 'research', lab, topic }),
       })),
     )

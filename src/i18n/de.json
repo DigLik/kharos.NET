@@ -365,7 +365,7 @@
     "researchAfter": "Zuerst erforschen: {name}",
     "researchBusy": "Das Techzentrum ist mit einem anderen Thema beschäftigt",
     "researchNoParts": "Im Netz des Techzentrums fehlen Komponenten",
-    "researchTip": "Die Forschung dauert {seconds} s. Der Preis wird sofort abgezogen, die Komponenten kommen aus dem Netz des Techzentrums",
+    "researchTip": "Die Forschung dauert {time}. Der Preis wird sofort abgezogen, die Komponenten kommen aus dem Netz des Techzentrums",
     "cancelResearchTip": "Forschung abbrechen: ihr Preis wird voll erstattet"
   },
   "hud": {

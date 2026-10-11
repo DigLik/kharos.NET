@@ -31,6 +31,15 @@ export interface ServerSettings {
   limits: ConnectLimits
 }
 
+/**
+ * Правила серверной сессии, которыми она отличается от матча. Мир живёт две недели, и дерево исследований
+ * растянуто на них: первая тема — в десять раз дороже и дольше матчевой (30–60 компонентов, 5–10 минут), каждая
+ * следующая — ещё вдвое, последняя — 640–1280 компонентов и 2–3,5 часа. Всё дерево, смотря по порядку тем, —
+ * 2600–3300 компонентов (харит с девяти–одиннадцати месторождений), 260–330 тысяч кредитов и 7–9 часов работы
+ * одного техцентра.
+ */
+export const SESSION_RULES: Partial<Rules> = { researchScale: 10, researchGrowth: 2 }
+
 /** Настройки по умолчанию; seed у каждого нового сервера свой. */
 export const defaultSettings = (): ServerSettings => ({
   port: DEFAULT_PORT,
@@ -42,7 +51,7 @@ export const defaultSettings = (): ServerSettings => ({
   fog: true,
   generator: { ...DEFAULT_CONFIG, seed: Math.floor(Math.random() * 2 ** 31) },
   weather: { ...DEFAULT_WEATHER },
-  rules: { ...DEFAULT_RULES },
+  rules: { ...DEFAULT_RULES, ...SESSION_RULES },
   tls: { ...DEFAULT_TLS },
   limits: { ...DEFAULT_LIMITS },
 })

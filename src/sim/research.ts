@@ -4,7 +4,7 @@ import { Building, Owner, Player, Research } from './components'
 import { addCredits, creditsOf, pay } from './economy'
 import { powerSupply } from './income'
 import type { Sim } from './sim'
-import { RESEARCH, playerEntity, researchOf, topicMaterials, topicSpec, type Topic } from './topics'
+import { RESEARCH, playerEntity, researchOf, topicPrice, topicSpec, type Topic } from './topics'
 import { networkHas, returnToNetwork, takeFromNetwork } from './upgrades'
 
 /**
@@ -13,6 +13,8 @@ import { networkHas, returnToNetwork, takeFromNetwork } from './upgrades'
  * (UnitSpec.research) и лучевую оборону (RESEARCH_FOR в buildings.ts). Цена списывается сразу: компоненты — из сети
  * труб техцентра. Один техцентр ведёт одну тему; два техцентра — две разные темы сразу. При нехватке энергии
  * исследование идёт медленнее, в выключенном техцентре — стоит. Темы и то, что игрок открыл, — в topics.ts.
+ * Цена и срок зависят от правил мира и от того, сколько тем игрок уже открыл (topicPrice): начатое исследование
+ * помнит свои, и другие темы или смена правил их уже не меняют.
  */
 
 /** Ведёт ли кто-то из техцентров игрока эту тему прямо сейчас. */
@@ -37,16 +39,18 @@ export function topicLack(sim: Sim, player: number, lab: Entity, topic: Topic): 
   if (done.includes(topic)) return 'done'
   if (inProgress(sim, player, topic)) return 'running'
   if (spec.after && !done.includes(spec.after)) return 'after'
-  if (creditsOf(sim, player) < spec.cost) return 'credits'
-  return networkHas(sim, lab, topicMaterials(topic)) ? undefined : 'materials'
+  const price = topicPrice(sim, player, topic)
+  if (creditsOf(sim, player) < price.cost) return 'credits'
+  return networkHas(sim, lab, price.materials) ? undefined : 'materials'
 }
 
 /** Начинает исследование в своём свободном техцентре: кредиты и компоненты списываются сразу. */
 export function startResearch(sim: Sim, player: number, lab: Entity, topic: Topic) {
   if (!Object.hasOwn(RESEARCH, topic) || !isLab(sim, player, lab) || sim.world.has(lab, Research)) return false
-  if (topicLack(sim, player, lab, topic) || !pay(sim, player, topicSpec(topic).cost)) return false
-  takeFromNetwork(sim, lab, topicMaterials(topic))
-  sim.world.add(lab, Research({ topic }))
+  const price = topicPrice(sim, player, topic)
+  if (topicLack(sim, player, lab, topic) || !pay(sim, player, price.cost)) return false
+  takeFromNetwork(sim, lab, price.materials)
+  sim.world.add(lab, Research({ topic, cost: price.cost, parts: price.materials.parts ?? 0, ticks: Math.round(price.seconds / sim.time.step) }))
   return true
 }
 
@@ -54,15 +58,12 @@ export function startResearch(sim: Sim, player: number, lab: Entity, topic: Topi
 export function cancelResearch(sim: Sim, player: number, lab: Entity) {
   const research = sim.world.get(lab, Research)
   if (!research || !isReady(sim, player, lab)) return false
-  const topic = research.topic as Topic
   sim.world.remove(lab, Research)
-  addCredits(sim, player, topicSpec(topic).cost)
-  returnToNetwork(sim, lab, topicMaterials(topic))
+  addCredits(sim, player, research.cost)
+  returnToNetwork(sim, lab, { parts: research.parts })
   return true
 }
 
-/** Сколько тиков идёт исследование темы при полной энергии. */
-export const researchTicks = (topic: Topic, step: number) => Math.round(topicSpec(topic).seconds / step)
 
 /** Раз в тик: техцентры ведут свои темы; законченная достаётся хозяину техцентра. */
 export function research(sim: Sim, time: Time) {
@@ -73,7 +74,8 @@ export function research(sim: Sim, time: Time) {
   const done: { lab: Entity; topic: Topic }[] = []
   for (const [entity, running] of world.query(Research)) {
     running.progress += supply.get(entity) ?? 0
-    if (running.progress >= researchTicks(running.topic as Topic, time.step)) done.push({ lab: entity, topic: running.topic as Topic })
+    // У исследования из сохранения прежней версии своего срока нет: оно идёт по сроку из описания темы.
+    if (running.progress >= (running.ticks || Math.round(topicSpec(running.topic as Topic).seconds / time.step))) done.push({ lab: entity, topic: running.topic as Topic })
   }
   for (const { lab, topic } of done) {
     world.remove(lab, Research)

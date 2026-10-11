@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test'
 import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import {
-  BUILDINGS, Inventory, Off, RESEARCH, Research, Upgrade, canPlace, createSim, creditsOf, hasResearch, isUnlocked, researchOf, stockOf, topicLack, upgradeLack,
-  type BuildingType, type Sim,
+  BUILDINGS, Inventory, Off, RESEARCH, Research, Upgrade, canPlace, createSim, creditsOf, hasResearch, isUnlocked, researchOf, stockOf, topicLack, topicPrice, upgradeLack,
+  type BuildingType, type Rules, type Sim,
 } from '../src/sim'
 import { STORES, placeBuilding, storeFor } from '../src/sim/buildings'
 import type { Amounts, Ware } from '../src/sim/resources'
@@ -17,8 +17,8 @@ const seconds = (sim: Sim, time: number) => {
 }
 
 /** База игрока 1 в ряд на скале в одной сети труб: главное здание, электростанция, здания из списка и все хранилища. */
-function base(extra: BuildingType[]) {
-  const sim = createSim(options)
+function base(extra: BuildingType[], rules?: Partial<Rules>) {
+  const sim = createSim({ ...options, rules })
   addCredits(sim, 1, 10000)
   const layout: [BuildingType, number][] = [['command', 0], ['generator', 4]]
   let at = 7
@@ -132,4 +132,37 @@ test('исследования открывают лучевые турели и
   sim.send(1, { type: 'upgrade', building: plant, builders: [] })
   sim.advance(TICK)
   expect(sim.world.has(plant, Upgrade)).toBe(true)
+})
+
+test('темп исследований: правила множат цену и срок, каждая открытая или начатая тема удорожает следующую', () => {
+  const { sim, buildings: [lab, second], stash } = base(['techCenter', 'techCenter'], { researchScale: 2, researchGrowth: 3 })
+  stash({ parts: 60 })
+  const { cost, parts, seconds: time } = RESEARCH.armor
+  expect(topicPrice(sim, 1, 'armor')).toEqual({ cost: cost * 2, materials: { parts: parts * 2 }, seconds: time * 2 })
+
+  const credits = creditsOf(sim, 1)
+  study(sim, lab, 'armor')
+  expect(credits - creditsOf(sim, 1)).toBe(cost * 2)
+  // Начатая тема уже удорожает следующую: второй техцентр не возьмёт её по цене первой.
+  expect(topicPrice(sim, 1, 'beams').cost).toBe(RESEARCH.beams.cost * 2 * 3)
+  study(sim, second, 'beams')
+  expect(sim.world.get(second, Research)!.cost).toBe(RESEARCH.beams.cost * 6)
+  expect(topicPrice(sim, 1, 'bombing').cost).toBe(RESEARCH.bombing.cost * 2 * 9)
+
+  // Срок — свой у каждого начатого исследования: первая тема кончается вдвое позже матчевой.
+  expect(sim.world.get(lab, Research)!.ticks).toBe(Math.round((time * 2) / TICK))
+  seconds(sim, time)
+  expect(hasResearch(sim, 1, 'armor')).toBe(false)
+  // Двум техцентрам одной электростанции мало: исследование идёт медленнее, отсюда запас.
+  seconds(sim, time * 4)
+  expect(hasResearch(sim, 1, 'armor')).toBe(true)
+
+  // Отмена возвращает то, что было уплачено, а не нынешнюю цену темы.
+  const before = creditsOf(sim, 1)
+  sim.send(1, { type: 'cancelResearch', lab: second })
+  sim.advance(TICK)
+  expect(creditsOf(sim, 1) - before).toBeGreaterThanOrEqual(RESEARCH.beams.cost * 6)
+  expect(creditsOf(sim, 1) - before).toBeLessThan(RESEARCH.beams.cost * 6 + 50)
+  expect(stockOf(sim, 1).items.parts).toBe(60 - parts * 2)
+  expect(topicPrice(sim, 1, 'beams').cost).toBe(RESEARCH.beams.cost * 2 * 3)
 })

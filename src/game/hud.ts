@@ -7,7 +7,7 @@ import { textOf } from '../i18n'
 import {
   Assembly, Harvester, BUILDABLE, isUnlocked, buyPrice, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
-  RESEARCH, Research, TOPICS, isLab, levelTopic, missingResearch, researchTicks, topicLack, topicMaterials, type Topic, type TopicLack,
+  RESEARCH, Research, TOPICS, isLab, levelTopic, missingResearch, topicLack, topicPrice, type Topic, type TopicPrice, type TopicLack,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   Off, Owner, Position, Tactics, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType,
 } from '../sim'
@@ -174,7 +174,7 @@ export interface HudState {
    */
   research: {
     lab: number
-    topics: { topic: Topic; cost: number; materials: Stack[]; seconds: number; lack: TopicLack | null; after: Topic | null }[]
+    topics: { topic: Topic; cost: number; materials: Stack[]; time: string; lack: TopicLack | null; after: Topic | null }[]
     current: { topic: Topic; progress: number } | null
   } | null
   /** Что можно построить, если среди выбранного есть строитель. */
@@ -269,10 +269,20 @@ function pipeHoverOf(scene: Scene): HudState['pipeHover'] {
   return { buildings, stock: stacksOf(items), capacity, x: camera.pointer.x, y: camera.pointer.y }
 }
 
+/** Срок для интерфейса: минуты и секунды, от часа — часы и минуты. */
+const clockOf = (seconds: number) => {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  const whole = Math.round(seconds)
+  return whole < 3600 ? `${Math.floor(whole / 60)}:${pad(whole % 60)}` : `${Math.floor(whole / 3600)}:${pad(Math.floor((whole % 3600) / 60))}:${pad(whole % 60)}`
+}
+
+/** Цена темы исследования для интерфейса. */
+const topicCost = ({ cost, materials, seconds }: TopicPrice) => ({ cost, materials: exactOf(materials), time: clockOf(seconds) })
+
 /** Остаток защиты новичка для интерфейса: вверх до десятка секунд, чтобы он не перерисовывался каждый тик. */
 function protectionOf({ sim, player }: Scene) {
   const seconds = Math.ceil((protectionLeft(sim, player) * sim.time.step) / 10) * 10
-  return seconds > 0 ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : ''
+  return seconds > 0 ? clockOf(seconds) : ''
 }
 
 /** Собирает состояние интерфейса из симуляции и выделения. */
@@ -401,13 +411,11 @@ export function readHud(scene: Scene): HudState {
         lab: entity,
         topics: TOPICS.map((topic) => ({
           topic,
-          cost: RESEARCH[topic].cost,
-          materials: exactOf(topicMaterials(topic)),
-          seconds: RESEARCH[topic].seconds,
+          ...topicCost(topicPrice(sim, player, topic)),
           lack: topicLack(sim, player, entity, topic) ?? null,
           after: 'after' in RESEARCH[topic] ? (RESEARCH[topic].after as Topic) : null,
         })),
-        current: running ? { topic: running.topic as Topic, progress: round(Math.min(1, running.progress / researchTicks(running.topic as Topic, sim.time.step))) } : null,
+        current: running ? { topic: running.topic as Topic, progress: round(Math.min(1, running.progress / Math.max(1, running.ticks))) } : null,
       }
     }
     const digging = world.get(entity, Harvester)

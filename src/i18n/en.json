@@ -365,7 +365,7 @@
     "researchAfter": "Research first: {name}",
     "researchBusy": "The tech center is busy with another topic",
     "researchNoParts": "The tech center's network lacks components",
-    "researchTip": "The research takes {seconds} s. The price is paid at once, components come from the tech center's network",
+    "researchTip": "The research takes {time}. The price is paid at once, components come from the tech center's network",
     "cancelResearchTip": "Drop the research: its price is refunded in full"
   },
   "hud": {

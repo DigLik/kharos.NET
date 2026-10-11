@@ -365,7 +365,7 @@
     "researchAfter": "Pesquise primeiro: {name}",
     "researchBusy": "O centro técnico está ocupado com outro tema",
     "researchNoParts": "Faltam componentes na rede do centro técnico",
-    "researchTip": "A pesquisa leva {seconds} s. O preço é cobrado na hora e os componentes saem da rede do centro técnico",
+    "researchTip": "A pesquisa leva {time}. O preço é cobrado na hora e os componentes saem da rede do centro técnico",
     "cancelResearchTip": "Abandonar a pesquisa: o preço é devolvido por inteiro"
   },
   "hud": {

@@ -71,6 +71,13 @@ export interface Rules {
   offlineMinutes: number
   /** Защита новичка: сколько минут после появления игрока нельзя атаковать, см. shelter.ts. Ноль — защиты нет. */
   protection: number
+  /**
+   * Темп исследований. researchScale — во сколько раз тема дороже и дольше, чем в RESEARCH; researchGrowth — во сколько
+   * раз каждая открытая или начатая тема удорожает следующую. Единицы — дерево на один матч; на сервере, где мир живёт
+   * две недели, они больше, см. server/settings.ts.
+   */
+  researchScale: number
+  researchGrowth: number
 }
 
 export const DEFAULT_RULES: Rules = {
@@ -90,6 +97,8 @@ export const DEFAULT_RULES: Rules = {
   offlineIncome: 0.2,
   offlineMinutes: 30,
   protection: 10,
+  researchScale: 1,
+  researchGrowth: 1,
 }
 
 export interface SimOptions {
