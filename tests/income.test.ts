@@ -420,6 +420,7 @@ test('радар разведывает вспышками в своём рад�
   const { sim, x, y } = start()
   const radar = put(sim, 'radar', x + 9, y)
   put(sim, 'generator', x + 6, y + 4)
+  expect(scanRadius('radar')).toBe(60)
   const center = { x: x + 10, y: y + 1 }
   const spots: { x: number; y: number }[] = []
   let last = -1

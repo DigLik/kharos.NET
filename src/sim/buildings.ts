@@ -185,7 +185,7 @@ export const BUILDINGS = {
   // одной электростанции хватает на два генератора.
   matter: { width: 2, height: 2, cost: 250, power: -3, income: 1.5, crowding: true },
   // Радар открывает туман далеко вокруг: так видно, кто идёт к базе, и куда бить артиллерией.
-  radar: { width: 2, height: 2, cost: 400, power: -3, sight: 14, scan: 40 },
+  radar: { width: 2, height: 2, cost: 400, power: -3, sight: 14, scan: 60 },
   windtrap: { width: 2, height: 2, cost: 300 },
   barracks: { width: 3, height: 2, cost: 250, power: -2, produces: ['infantry', 'rocketeer', 'flamer'] },
   // Шахта энергии не просит и начинает свою зону: тянуть к месторождению цепочку зданий не нужно.
