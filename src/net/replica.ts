@@ -11,20 +11,28 @@ import { createPaving } from '../sim/paved'
 import { createReceivedTraces } from '../sim/traces'
 import { createVision } from '../sim/vision'
 import { BUILDINGS, type BuildingType } from '../sim/buildings'
-import { Armed, Attached, Ghost, Position, SAVED, Turret, Unit } from '../sim/components'
+import { Armed, Attached, Blast, Ghost, Position, SAVED, Shot, Turret, Unit } from '../sim/components'
 import { placeTurret } from '../sim/turrets'
+import { wrap } from '../sim/common'
+import { MOTION_FIELDS } from './codec'
 import { SAVE_VERSION, type SimSave } from '../sim/sim'
 import type { ChatLine, ClientMessage, PlayerInfo, PlayerView, ServerMessage, ViewBox } from './protocol'
 import { t, textOf } from '../i18n'
 
 /** Из чего собираются призраки: сохраняемое и метка призрака. */
 const REMEMBERED = [...SAVED, Ghost]
-/** Поля компонентов, которые приходят не в нём самом: поворот юнита — движением, см. codec.ts. */
-const KEPT: Record<string, string[]> = { Unit: ['facing', 'prevX', 'prevY', 'prevFacing'] }
+/**
+ * Поля компонентов, которые приходят не в нём самом: поворот юнита — движением, см. codec.ts; прошлое место копия
+ * помнит сама; возраст выстрела и взрыва считает по тику рождения, см. wire.ts.
+ */
+const KEPT: Record<string, string[]> = { Unit: ['facing', 'prevX', 'prevY', 'prevFacing'], Shot: ['prevX', 'prevY', 'age'], Blast: ['age'] }
 /** Компоненты, которые присылает хост, по имени. */
 const BY_KEY = new Map<string, Component<any>>(SAVED.map((component) => [component.key, component]))
 
 type Delta = Extract<ServerMessage, { type: 'delta' }>
+
+/** Дольше скольких тиков копия юнита к присланному месту не ведёт: секунда отставания — уже заметно. */
+const GLIDE_MOST = 20
 
 /** Сколько последних сообщений чата держит клиент. */
 const CHAT_KEPT = 50
@@ -74,6 +82,13 @@ export function createReplica(welcome: Extract<ServerMessage, { type: 'welcome' 
   let pending: Delta[] = []
   /** Что хост прислал и что игрок сейчас видит: сущность целиком, как её собрали из изменений. */
   const mirror = new Map<number, Record<string, object>>()
+  /**
+   * Юниты, которых хост шлёт не каждый тик (см. очередь рассылки в host.ts): куда каждый едет и сколько тиков ему
+   * осталось. Место приходит раз в несколько тиков вместе со сроком — сколько тиков оно набегало; копия ведёт юнита
+   * к нему столько же тиков, шаг за шагом, и общий alpha сглаживает каждый шаг, как у остальных. Юнит отстаёт от
+   * хоста на свой срок, зато едет ровно, а не стоит и прыгает.
+   */
+  const glides = new Map<Entity, { x: number; y: number; facing: number; left: number }>()
   let failure: string | null = null
   let player = welcome.player
   /** Чужие здания и месторождения, увиденные раньше: какими их видели последний раз. */
@@ -124,6 +139,7 @@ export function createReplica(welcome: Extract<ServerMessage, { type: 'welcome' 
     world.clear()
     world.flush()
     mirror.clear()
+    glides.clear()
     Object.assign(time, { tick: 0, step, elapsed: 0, delta: 0, alpha: 0 })
     pending = []
   }
@@ -165,22 +181,27 @@ export function createReplica(welcome: Extract<ServerMessage, { type: 'welcome' 
       if (('Building' in entry || 'Deposit' in entry) && owner !== player) memory.set(id, entry)
     }
     // Движение — после set: новая сущность к этому времени уже есть.
-    for (let i = 0; i < motion.length; i += 4) {
+    for (let i = 0; i < motion.length; i += MOTION_FIELDS) {
       const id = motion[i]
       const entity = id as Entity
       const x = motion[i + 1]
       const y = motion[i + 2]
       const facing = motion[i + 3]
+      const span = motion[i + 4]
       if (!world.alive(entity)) world.insert(id, {}, BY_KEY)
       let entry = mirror.get(id)
       if (!entry) mirror.set(id, (entry = {}))
       entry.Position = { x, y }
+      if (!Number.isNaN(facing) && entry.Unit) entry.Unit = { ...entry.Unit, facing }
+      // Юнит, которого хост придержал на несколько тиков, едет к новому месту столько же, а не прыгает, см. glides.
+      if (span > 1 && world.has(entity, Position) && world.has(entity, Unit)) {
+        glides.set(entity, { x, y, facing, left: Math.min(span, GLIDE_MOST) })
+        continue
+      }
+      glides.delete(entity)
       if (world.has(entity, Position)) world.set(entity, Position, { x, y })
       else world.add(entity, Position({ x, y }))
-      if (!Number.isNaN(facing)) {
-        if (entry.Unit) entry.Unit = { ...entry.Unit, facing }
-        if (world.has(entity, Unit)) world.set(entity, Unit, { facing })
-      }
+      if (!Number.isNaN(facing) && world.has(entity, Unit)) world.set(entity, Unit, { facing })
     }
     for (const [id, keys] of unset) {
       const entry = mirror.get(id)
@@ -247,7 +268,22 @@ export function createReplica(welcome: Extract<ServerMessage, { type: 'welcome' 
       const before = new Map<Entity, [number, number, number]>()
       for (const [entity, position, unit] of world.query(Position, Unit)) before.set(entity, [position.x, position.y, unit.facing])
       for (const [entity, position, turret] of world.query(Position, Turret)) before.set(entity, [position.x, position.y, turret.angle])
+      for (const [entity, position] of world.query(Position, Shot)) before.set(entity, [position.x, position.y, 0])
       for (const delta of pending) apply(delta)
+      for (const [entity, glide] of glides) {
+        const position = world.get(entity, Position)
+        const unit = world.get(entity, Unit)
+        if (!position || !unit) {
+          glides.delete(entity)
+          continue
+        }
+        // Доля оставшегося пути, которую юнит проходит за пришедшие тики.
+        const share = Math.min(1, ticks / glide.left)
+        glide.left -= ticks
+        world.set(entity, Position, { x: position.x + (glide.x - position.x) * share, y: position.y + (glide.y - position.y) * share })
+        if (!Number.isNaN(glide.facing)) world.set(entity, Unit, { facing: share >= 1 ? glide.facing : wrap(unit.facing + wrap(glide.facing - unit.facing) * share) })
+        if (glide.left <= 0) glides.delete(entity)
+      }
       for (const [entity, position, unit] of world.query(Position, Unit)) {
         const [x, y, facing] = before.get(entity) ?? [position.x, position.y, unit.facing]
         unit.prevX = x
@@ -277,6 +313,14 @@ export function createReplica(welcome: Extract<ServerMessage, { type: 'welcome' 
         turret.prevY = position.y
         turret.prevAngle = turret.angle
       }
+      // Возраст выстрела и взрыва хост шлёт тиком рождения, а где снаряд был тик назад, не шлёт вовсе, см. wire.ts.
+      for (const [entity, shot, position] of world.query(Shot, Position)) {
+        const [x, y] = before.get(entity) ?? [position.x, position.y]
+        shot.prevX = x
+        shot.prevY = y
+        shot.age = last.tick - ((shot as typeof shot & { born?: number }).born ?? last.tick)
+      }
+      for (const [, blast] of world.query(Blast)) blast.age = last.tick - ((blast as typeof blast & { born?: number }).born ?? last.tick)
       // Перезарядку хост шлёт тиком её конца, см. wire.ts.
       for (const [, armed] of world.query(Armed)) {
         const wired = armed as typeof armed & { until?: number }

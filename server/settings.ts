@@ -1,6 +1,7 @@
 import { DEFAULT_CONFIG, type GeneratorConfig } from '../src/map/terrain'
 import { DEFAULT_LIMITS, type ConnectLimits } from '../src/net/limits'
 import type { Lang } from '../src/i18n'
+import { DEFAULT_SEND_RATE } from '../src/net/host'
 import { DEFAULT_PORT } from '../src/net/protocol'
 import { DEFAULT_RULES, type Rules } from '../src/sim'
 import { DEFAULT_WEATHER, type WeatherOptions } from '../src/sim/weather'
@@ -29,6 +30,11 @@ export interface ServerSettings {
   tls: TlsSettings
   /** Ограничения на подключения с одного адреса; ноль снимает ограничение. */
   limits: ConnectLimits
+  /**
+   * Сколько КБ в секунду сервер шлёт одному игроку: в большом бою то, что не влезло, приходит реже — сначала то, что
+   * у игрока на экране, см. рассылку в src/net/host.ts. Ноль снимает ограничение.
+   */
+  sendRate: number
 }
 
 /**
@@ -54,6 +60,7 @@ export const defaultSettings = (): ServerSettings => ({
   rules: { ...DEFAULT_RULES, ...SESSION_RULES },
   tls: { ...DEFAULT_TLS },
   limits: { ...DEFAULT_LIMITS },
+  sendRate: DEFAULT_SEND_RATE,
 })
 
 /**

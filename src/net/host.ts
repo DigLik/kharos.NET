@@ -1,9 +1,9 @@
 import { applyEdit, type EditOp } from '../sim/editOps'
 import type { Entity } from '../ecs'
 import { Terrain, terrainAt, tileBytes } from '../map/terrain'
-import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownTo, spawnStartingUnits, wipePlayer, type Command, type Sim, type SimSave } from '../sim'
-import { Attached, Building, Owner, Path, Position, Unit } from '../sim/components'
-import { pathOf, seenBy, sharedWireOf, type Wired } from './wire'
+import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownBy, sightingOf, spawnStartingUnits, wipePlayer, type Command, type Sim, type Sighting, type SimSave } from '../sim'
+import { Armed, Attached, Blast, Building, Health, Owner, Path, Player, Position, Shot, Unit } from '../sim/components'
+import { motionOf, pathOf, seenBy, sharedWireOf, type Wired } from './wire'
 import { LAND, encodeDelta, type Motion } from './codec'
 import { deflate } from '../save/file'
 import { DEPOSIT_SIZE, fillDeposits, saveDeposits } from '../sim/deposits'
@@ -58,8 +58,108 @@ const DEFAULT_NAMES: HostNames = { player: 'Игрок {number}', server: '[Се
 /** Сколько игроков помещается на круге появления; следующие встают на круг шире. */
 const SPAWN_SLOTS = 8
 
-/** Мир, каким его видит игрок: по сущности — JSON каждого её компонента. */
-type View = Map<number, Wired>
+/** Сколько КБ в секунду сервер шлёт одному подключению, если в настройках не сказано иначе, см. HostOptions.budget. */
+export const DEFAULT_SEND_RATE = 256
+/** Сколько сущностей подключение сверяет за один заход круга, см. Host.advance. */
+const BATCH = 24
+/**
+ * Какую долю тика хост может занять симуляцией и рассылкой вместе, если не сказано иначе, и сколько мс на очередь
+ * рассылки есть всегда, даже когда симуляция съела всё.
+ */
+const TICK_SHARE = 0.8
+const SEND_LEAST = 4
+/**
+ * Как делится байтовый бюджет подключения на тик. Следам — TRACE_SHARE. Новые выстрелы и взрывы уходят сразу, пока
+ * кадр не набрал FLEETING_SHARE: в большом бою на экране их сотни за тик, и без предела они съедали бы канал
+ * целиком. Очереди остаётся остальное и не меньше QUEUE_SHARE, сколько бы ни заняло обязательное: иначе юниты
+ * на экране стояли бы.
+ */
+const TRACE_SHARE = 0.15
+const FLEETING_SHARE = 0.35
+const QUEUE_SHARE = 0.5
+/** Во что обходится один след в сообщении traces, в байтах: для бюджета, на глаз. */
+const TRACE_BYTES = 100
+/** Веса в очереди рассылки, см. begin: на экране игрока, в запасе вокруг экрана, едет, в бою. */
+const ON_SCREEN = 8
+const NEAR_SCREEN = 3
+const MOVING = 2
+const FIGHTING = 2
+/** Запас вокруг экрана — доля его стороны, но не меньше стольких тайлов: туда камера доедет раньше, чем придёт её новое место. */
+const SCREEN_MARGIN = 0.25
+const SCREEN_MARGIN_LEAST = 6
+/** Сколько тиков после попадания сущность считается «в бою». */
+const HOT_TICKS = 20
+/** Корзин в очереди рассылки: по четыре на каждое удвоение приоритета, см. bucketOf. */
+const BUCKETS = 64
+/** Во что кадру обходится запись движения, обёртка записи set и номер в remove, в байтах: для бюджета, на глаз. */
+const MOTION_BYTES = 13
+const SET_BYTES = 10
+const REMOVE_BYTES = 6
+const PATH_KEY = JSON.stringify(Path.key)
+
+/**
+ * Корзина по приоритету: чем он выше, тем корзина старше. Внутри корзины порядок случайный, поэтому корзины узкие —
+ * четверть удвоения; приоритет растёт с возрастом, и отложенное само переходит в корзину старше.
+ */
+const bucketOf = (priority: number) => {
+  if (priority < 4) return priority
+  const high = 31 - Math.clz32(priority)
+  return Math.min(BUCKETS - 1, high * 4 + ((priority >> (high - 2)) & 3))
+}
+
+/** Что подключение знает о сущности: какой она ему ушла и когда хост последний раз сверял её с миром. */
+interface Known {
+  /** JSON компонентов по имени — как в Wired; путь — отдельно, он свой у каждого игрока. */
+  parts: ReadonlyMap<string, string>
+  path?: string
+  motion?: Motion
+  /** Тик последней сверки: возраст в очереди считается от него. */
+  checked: number
+  /** Проход рассылки, в котором сущность последний раз была в обзоре: не нынешний — её больше не видно. */
+  seen: number
+  /** Клиент о ней слышал: о пропаже такой ему надо сказать. */
+  told: boolean
+}
+/** Мир, каким его знает подключение. */
+type View = Map<number, Known>
+
+/** Что о сущности нужно очереди рассылки — одно на всех игроков, раз за тик. */
+interface Brief {
+  motion?: Motion
+  /** Есть ли у неё место на карте и где оно, в тайлах. */
+  placed: boolean
+  x: number
+  y: number
+  /** В бою: целится, недавно получила попадание или сама выстрел. */
+  hot: boolean
+  /** Чей это счёт игрока; 0 — это не счёт. */
+  account: number
+  /** Выстрел или взрыв: живёт несколько тиков. aim — в чьё оно летит; 0 — ни в чьё. */
+  fleeting: boolean
+  aim: number
+}
+
+/** Кадр изменений мира для одного подключения, пока он собирается. */
+interface Frame {
+  send: Send
+  player: number
+  god: boolean
+  known: View
+  pass: number
+  set: string[]
+  unset: [number, string[]][]
+  remove: number[]
+  motions: [number, Motion, number][]
+  /** Очередь необязательного: номера сущностей по корзинам, см. bucketOf; bucket и at — докуда она разобрана. */
+  queue: number[][]
+  bucket: number
+  at: number
+  /** Сколько в очереди ещё не сверено. */
+  queued: number
+  /** Сколько байт кадр уже набрал, примерно, и больше скольких в него не кладётся необязательное. */
+  bytes: number
+  most: number
+}
 /** Как отправить сообщение подключению: изменения мира — двоичные, остальное — текст. */
 type Send = (data: ServerData) => void
 
@@ -100,6 +200,12 @@ export interface HostOptions {
   log?(text: string): void
   /** Подписи хоста; нет — русские. */
   names?: HostNames
+  /**
+   * Бюджет рассылки мира, см. Host.advance: ms — сколько мс хост может занять за тик симуляцией и рассылкой вместе
+   * (нет — TICK_SHARE тика); bytes — сколько байт в секунду уходит одному подключению (нет — без предела: локальной
+   * игре канал не тесен). Что не влезло, ждёт следующих тиков. Обязательное в бюджет не смотрит.
+   */
+  budget?: { ms?: number; bytes?: number }
 }
 
 export interface Host {
@@ -110,6 +216,11 @@ export interface Host {
   readonly peers: number
   /** Размер самого большого из последних разосланных изменений мира в байтах. */
   readonly stateSize: number
+  /**
+   * Рассылка последнего тика: waited — сколько тиков ждала сверки самая залежавшаяся из сверенных сущностей (1 — никто
+   * не ждал), deferred — сколько сверок бюджет отложил на следующие тики, по всем подключениям.
+   */
+  readonly sending: { readonly waited: number; readonly deferred: number }
   /**
    * Подключает клиента. send отправляет ему сообщение: текст или двоичный кадр изменений мира, см. codec.ts. id — то, по чему хост узнаёт вернувшегося игрока: его
    * выдаёт сам хост в приветствии; с прежним id клиент получает прежнего игрока, а не новый стартовый набор.
@@ -122,7 +233,12 @@ export interface Host {
   addCommand(command: HostCommand): void
   /** Пишет всем в чат от имени сервера. */
   say(text: string): void
-  /** Продвигает игру на seconds реального времени и рассылает мир, если прошёл хотя бы один тик. */
+  /**
+   * Продвигает игру на seconds реального времени и рассылает мир, если прошёл хотя бы один тик. Рассылка — с бюджетом:
+   * новое и пропавшее уходит каждому сразу, остальное сверяется по очереди, пока есть время и байты. Подключения
+   * идут по кругу, каждому — пачка из верха его очереди (см. BATCH): у кого слать нечего, выпадает, и его доля достаётся
+   * остальным. Хотя бы одну пачку за тик получает каждый.
+   */
   advance(seconds: number): number
   /** Знает ли хост игрока с этим id; незнакомому при подключении заводится новый игрок. */
   knows(id?: string): boolean
@@ -169,13 +285,17 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
    * Следы, которые подключение видит — они в обзоре его юнитов и зданий прямо сейчас, — а ещё не получало. Новые проверяются каждый тик, все — раз в SWEEP_TICKS:
    * так находятся старые следы там, куда игрок только что пришёл. Полный обход смотрит не все следы мира, а только
    * ячейки, где игрок видит хоть что-то сейчас или видел при прошлом обходе: в остальных ничего не поменялось.
+   * most — сколько следов влезает в бюджет тика: за экраном игрока берётся не больше половины, а что не влезло,
+   * найдётся при следующем обходе.
    */
-  const traces = (send: Send, player: number, sweep: boolean) => {
+  const traces = (send: Send, player: number, sweep: boolean, most = Infinity) => {
     const known = shown.get(send)!
     const found: Trace[] = []
+    const near = nearOf(send)
     const check = (trace: Trace) => {
       const seen = sim.vision.sees(player, trace.x, trace.y)
       if (seen && !known.has(trace.id)) {
+        if (found.length >= (near(trace.x, trace.y) ? most : most / 2)) return
         found.push(trace)
         known.add(trace.id)
       } else if (!seen && known.has(trace.id)) {
@@ -241,6 +361,18 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
   const editing = new Set<Send>()
   /** Где камера у каждой вкладки, см. ViewBox: редактор показывает их на карте. */
   const views = new Map<Send, ViewBox>()
+  /** Рядом ли точка с экраном подключения: на нём или в запасе вокруг, см. SCREEN_MARGIN. Камеры нет — рядом всё. */
+  const nearOf = (send: Send) => {
+    const box = views.get(send)
+    if (!box) return () => true
+    const marginX = Math.max(SCREEN_MARGIN_LEAST, (box.right - box.left) * SCREEN_MARGIN)
+    const marginY = Math.max(SCREEN_MARGIN_LEAST, (box.bottom - box.top) * SCREEN_MARGIN)
+    const left = box.left - marginX
+    const top = box.top - marginY
+    const right = box.right + marginX
+    const bottom = box.bottom + marginY
+    return (x: number, y: number) => x >= left && x <= right && y >= top && y <= bottom
+  }
   /** Какие камеры каждый редактор получил последними: шлются заново, только если что-то сдвинулось. */
   const viewsShown = new Map<Send, string>()
   /** Шлёт редакторам камеры игроков — всех, кроме своих. */
@@ -596,66 +728,213 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
   /** Кто уже побеждён: о поражении сообщается один раз, когда оно случилось. */
   const defeated = new Set([...names.keys()].filter((who) => isDefeated(sim, who)))
 
-  /** Сущности, какими они уходят всем, кроме пути, — собранные в этом тике, см. sharedWireOf. */
-  const common: { tick: number; sim: Sim | undefined; wired: Map<number, Wired> } = { tick: -1, sim: undefined, wired: new Map() }
+  /**
+   * Мир, разобранный один раз на всех подключённых: ids — сущности, остальное — по тому же месту в списке. sightings —
+   * кому сущность видна, см. sightingOf; wired — какой она уходит в сеть, кроме пути, см. sharedWireOf; briefs — что
+   * о ней нужно очереди, см. Brief. Последние два собираются, только когда до сущности дошли.
+   */
+  let scanned: { tick: number; ids: number[]; sightings: Sighting[]; wired: (Wired | undefined)[]; briefs: (Brief | undefined)[] }
+  const scan = () => {
+    const { world } = sim
+    const ids: number[] = []
+    const sightings: Sighting[] = []
+    for (const entity of world.all) {
+      ids.push(entity)
+      sightings.push(sightingOf(world, entity))
+    }
+    scanned = { tick: sim.time.tick, ids, sightings, wired: [], briefs: [] }
+  }
+  const briefOf = (at: number) => {
+    let brief = scanned.briefs[at]
+    if (!brief) {
+      const { world } = sim
+      const entity = scanned.ids[at] as Entity
+      const place = world.get(entity, Position)
+      const armed = world.get(entity, Armed)
+      const hit = world.get(entity, Health)?.hit ?? -1
+      const shot = world.get(entity, Shot)
+      const fleeting = shot !== undefined || world.has(entity, Blast)
+      brief = {
+        motion: motionOf(world, entity),
+        placed: place !== undefined,
+        x: place?.x ?? 0,
+        y: place?.y ?? 0,
+        hot: fleeting || (armed !== undefined && armed.target >= 0) || (hit >= 0 && scanned.tick - hit < HOT_TICKS),
+        account: world.get(entity, Player)?.id ?? 0,
+        fleeting,
+        aim: shot ? (world.get(shot.target as Entity, Owner)?.player ?? 0) : 0,
+      }
+      scanned.briefs[at] = brief
+    }
+    return brief
+  }
 
   /**
-   * Мир глазами игрока: только то, что он видит. Вкладки одного игрока смотрят на один и тот же. В редакторе (god)
-   * — весь мир, со складами и целями чужих: администратор правит всё. В кэше такой мир — под номером -player.
+   * Что игрок видит: места сущностей в scanned. Вкладки одного игрока смотрят на одно и то же. В редакторе (god) —
+   * весь мир, со складами и целями чужих: администратор правит всё. В кэше такой список — под номером -player.
    */
-  const view = (player: number, cache?: Map<number, View>, god = false) => {
+  const visible = (player: number, cache?: Map<number, number[]>, god = false) => {
     const slot = god ? -player : player
     let found = cache?.get(slot)
     if (found === undefined) {
-      found = new Map()
-      const tick = sim.time.tick
-      if (common.tick !== tick || common.sim !== sim) Object.assign(common, { tick, sim, wired: new Map() })
-      for (const entity of sim.world.all) {
-        if (!god && !shownTo(sim, player, entity)) continue
-        // Общее для всех собирается раз за тик — у первого, кто увидел сущность; путь — свой у каждого.
-        let shared = common.wired.get(entity)
-        if (!shared) common.wired.set(entity, (shared = sharedWireOf(sim.world, entity, tick)))
-        let wired = god ? shared : seenBy(shared, player)
-        const path = pathOf(sim.world, entity, player)
-        if (path !== undefined) wired = { parts: new Map(wired.parts).set(Path.key, path), motion: wired.motion }
-        if (wired.parts.size || wired.motion) found.set(entity, wired)
-      }
+      found = []
+      const { sightings } = scanned
+      const sees = sim.vision.seer(player)
+      for (let at = 0; at < sightings.length; at++) if (god || shownBy(player, sees, sightings[at])) found.push(at)
       cache?.set(slot, found)
     }
     return found
   }
 
+  let passes = 0
+  /** Рассылка последнего тика, см. Host.sending. */
+  const sending = { waited: 0, deferred: 0 }
+
   /**
-   * Что поменялось в мире подключения с прошлого раза: сравнивается JSON компонентов, так что неподвижное здание
-   * не уходит в сеть каждый тик. Текст собирается из готовых кусков JSON, чтобы не сериализовать всё второй раз.
+   * Сверяет сущность (at — её место в scanned) с тем, что подключение о ней знает, и кладёт разницу в кадр:
+   * сравнивается JSON компонентов, так что неподвижное здание в сеть не уходит. Текст собирается из готовых кусков
+   * JSON, чтобы не сериализовать всё второй раз. Общее для всех собирается раз — у первого, кто до сущности дошёл;
+   * путь — свой у каждого.
    */
-  const delta = (send: Send, player: number, cache?: Map<number, View>) => {
-    const before = sent.get(send)!
-    const now = view(player, cache, editing.has(send))
-    const set: string[] = []
-    const unset: [number, string[]][] = []
-    const remove: number[] = []
-    const motions: [number, Motion][] = []
-    for (const [id, { parts: components, motion }] of now) {
-      const old = before.get(id)
-      const parts: string[] = []
-      for (const [key, json] of components) if (old?.parts.get(key) !== json) parts.push(`${JSON.stringify(key)}:${json}`)
-      if (parts.length) set.push(`[${id},{${parts.join(',')}}]`)
-      // Новая сущность получает движение, даже если ничего, кроме него, у неё нет: так клиент узнаёт о ней.
-      if (motion && (!old?.motion || motion.some((value, i) => value !== old.motion![i]))) motions.push([id, motion])
-      else if (!old && !parts.length) set.push(`[${id},{}]`)
-      if (old) {
-        const dropped = [...old.parts.keys()].filter((key) => !components.has(key))
-        if (dropped.length) unset.push([id, dropped])
+  const check = (frame: Frame, at: number) => {
+    const { known, player } = frame
+    const { tick } = scanned
+    const id = scanned.ids[at]
+    const entity = id as Entity
+    const shared = (scanned.wired[at] ??= sharedWireOf(sim.world, entity, tick))
+    const { parts, motion } = frame.god ? shared : seenBy(shared, player)
+    const path = pathOf(sim.world, entity, player)
+    const old = known.get(id)
+    let set = ''
+    for (const [key, json] of parts) if (old?.parts.get(key) !== json) set += `${set && ','}${JSON.stringify(key)}:${json}`
+    if (path !== undefined && path !== old?.path) set += `${set && ','}${PATH_KEY}:${path}`
+    // Новая сущность получает движение, даже если ничего, кроме него, у неё нет: так клиент узнаёт о ней.
+    const moved = motion !== undefined && (!old?.motion || motion[0] !== old.motion[0] || motion[1] !== old.motion[1] || motion[2] !== old.motion[2])
+    if (set) {
+      frame.set.push(`[${id},{${set}}]`)
+      frame.bytes += set.length + SET_BYTES
+    }
+    if (moved) {
+      // Срок — сколько тиков подключение не знало, где сущность: столько клиент и ведёт её к новому месту.
+      frame.motions.push([id, motion, old ? tick - old.checked : 1])
+      frame.bytes += MOTION_BYTES
+    }
+    if (!old) {
+      // Сущность, которой в сети нечего показать, клиенту не называется — но помнится, чтобы не собирать её каждый тик.
+      known.set(id, { parts, path, motion, checked: tick, seen: frame.pass, told: !!set || moved })
+      return
+    }
+    let dropped: string[] | undefined
+    for (const key of old.parts.keys()) if (!parts.has(key)) (dropped ??= []).push(key)
+    if (old.path !== undefined && path === undefined) (dropped ??= []).push(Path.key)
+    if (dropped) frame.unset.push([id, dropped])
+    if (tick - old.checked > sending.waited) sending.waited = tick - old.checked
+    old.parts = parts
+    old.path = path
+    old.motion = motion
+    old.checked = tick
+    old.told ||= !!set || moved
+  }
+
+  /**
+   * Начинает кадр подключения. Обязательное кладётся сразу: сущности, которых подключение ещё не знает (появилось,
+   * вошло в обзор, выстрел), те, которых больше не видно (гибель, ушло из обзора), и счёт самого игрока. Остальное
+   * видимое только встаёт в очередь по приоритету — возраст × вес — и сверяется, пока хватает бюджета, см. advance.
+   * Возраст — сколько тиков сущность не сверялась: отложенная тяжелеет с каждым тиком, и навсегда не застревает
+   * никто. Вес: на экране игрока — ON_SCREEN, в запасе вокруг него — NEAR_SCREEN (камеру клиент присылает сам, см.
+   * views; не прислал — все равны); едет — ×MOVING; в бою — ×FIGHTING. Очередь — корзины по приоритету, см.
+   * bucketOf: полная сортировка стоила бы дороже самой рассылки.
+   *
+   * Выстрелы и взрывы — обязательное с оговорками: в большом бою их сотни за тик, а живут они несколько тиков. За
+   * экраном игрок их не видит и не слышит — такие встают в очередь; на экране уходят сразу, пока кадр не набрал
+   * fleeting байт, дальше — тоже в очередь, первыми. До кого бюджет не дошёл, тот просто не приходит. Выстрел
+   * по своим считается как выстрел на экране, где бы ни был: по ним клиент узнаёт, что его атакуют, см. alerts.ts.
+   */
+  const begin = (send: Send, player: number, cache?: Map<number, number[]>, fleeting = Infinity): Frame => {
+    const { tick, ids, sightings } = scanned
+    const god = editing.has(send)
+    const known = sent.get(send)!
+    const frame: Frame = { send, player, god, known, pass: ++passes, set: [], unset: [], remove: [], motions: [], queue: [], bucket: BUCKETS - 1, at: 0, queued: 0, bytes: 0, most: Infinity }
+    const box = views.get(send)
+    const near = nearOf(send)
+    const enqueue = (at: number, priority: number) => {
+      ;(frame.queue[bucketOf(priority)] ??= []).push(at)
+      frame.queued++
+    }
+    for (const at of visible(player, cache, god)) {
+      const old = known.get(ids[at])
+      if (!old) {
+        const brief = briefOf(at)
+        if (brief.fleeting) {
+          let away = brief.aim !== player && !(brief.placed && near(brief.x, brief.y))
+          const points = sightings[at].points ?? []
+          for (let i = 0; away && i + 1 < points.length; i += 2) away = !near(points[i], points[i + 1])
+          if (away || frame.bytes >= fleeting) {
+            enqueue(at, away ? FIGHTING : FIGHTING * ON_SCREEN * MOVING * 2)
+            continue
+          }
+        }
+        check(frame, at)
+        continue
       }
-      before.set(id, { parts: components, motion })
+      old.seen = frame.pass
+      const age = tick - old.checked
+      // Сверена в этом же тике: мир подключению ушёл сразу при входе.
+      if (age <= 0) continue
+      const brief = briefOf(at)
+      if (brief.account === player) {
+        check(frame, at)
+        continue
+      }
+      let weight = 1
+      if (box) {
+        const { x, y } = brief
+        // Что без места на карте — заказы, потоки в трубах — идёт как ближнее.
+        if (!brief.placed) weight = NEAR_SCREEN
+        else if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) weight = ON_SCREEN
+        else if (near(x, y)) weight = NEAR_SCREEN
+      }
+      const { motion } = brief
+      if (motion && old.motion && (motion[0] !== old.motion[0] || motion[1] !== old.motion[1] || motion[2] !== old.motion[2])) weight *= MOVING
+      if (brief.hot) weight *= FIGHTING
+      enqueue(at, age * weight)
     }
-    for (const id of before.keys()) {
-      if (now.has(id)) continue
-      remove.push(id)
-      before.delete(id)
+    for (const [id, old] of known) {
+      if (old.seen === frame.pass) continue
+      known.delete(id)
+      if (!old.told) continue
+      frame.remove.push(id)
+      frame.bytes += REMOVE_BYTES
     }
-    return encodeDelta(sim.time.tick, motions, `{"set":[${set.join(',')}],"unset":${JSON.stringify(unset)},"remove":${JSON.stringify(remove)}}`)
+    return frame
+  }
+
+  /** Сверяет до count сущностей из верха очереди кадра. */
+  const take = (frame: Frame, count: number) => {
+    while (count > 0 && frame.queued > 0) {
+      const list = frame.queue[frame.bucket]
+      if (!list || frame.at >= list.length) {
+        frame.bucket--
+        frame.at = 0
+        continue
+      }
+      check(frame, list[frame.at++])
+      frame.queued--
+      count--
+    }
+  }
+
+  /** Кадр, каким он уходит подключению. */
+  const finish = ({ motions, set, unset, remove }: Frame) =>
+    encodeDelta(sim.time.tick, motions, `{"set":[${set.join(',')}],"unset":${JSON.stringify(unset)},"remove":${JSON.stringify(remove)}}`)
+
+  /**
+   * Весь мир подключения, которое о нём ещё ничего не знает: при входе и когда мир начинается заново. cache — мир
+   * уже разобран (scan) для нескольких подключений подряд.
+   */
+  const whole = (send: Send, player: number, cache?: Map<number, number[]>) => {
+    if (!cache) scan()
+    return finish(begin(send, player, cache))
   }
 
   /** Случайная точка появления: на скале, просторная и подальше от других игроков; undefined — не нашлась. */
@@ -782,7 +1061,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     send(explored(who))
     sent.set(send, new Map())
     shown.set(send, new Set())
-    send(delta(send, who))
+    send(whole(send, who))
   }
 
   return {
@@ -796,13 +1075,14 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       depositsSent = sim.deposits.revision
       defeated.clear()
       for (const who of names.keys()) if (isDefeated(sim, who)) defeated.add(who)
-      const cache = new Map<number, View>()
+      const cache = new Map<number, number[]>()
+      scan()
       for (const [send, player] of peers) {
         send(welcome(player))
         sendLand(send, player)
         send(explored(player))
         sent.set(send, new Map())
-        send(delta(send, player, cache))
+        send(whole(send, player, cache))
         shown.set(send, new Set())
       }
       announce()
@@ -813,6 +1093,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     get stateSize() {
       return stateSize
     },
+    sending,
     knows: (id) => player !== undefined || (!!id && players.has(id)),
     command: runCommand,
     addCommand: add,
@@ -843,7 +1124,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       sendLand(send, joined)
       send(explored(joined))
       // Мир сразу, не дожидаясь тика: иначе клиент начал бы с пустого экрана.
-      send(delta(send, joined))
+      send(whole(send, joined))
       sendCommands(send)
       announce()
       return {
@@ -937,6 +1218,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       return { sim: sim.save(), players: Object.fromEntries(players), names: Object.fromEntries(names) }
     },
     advance(seconds) {
+      const began = performance.now()
       const ticks = sim.advance(seconds)
       // Правки карты — только тем, кто их увидел, см. landMemory.ts. Узнанное игроками без вкладок уже в их памяти.
       const learned = new Map<number, string>()
@@ -962,7 +1244,8 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
         if (text) send(text)
       }
       if (ticks && peers.size) {
-        const cache = new Map<number, View>()
+        const cache = new Map<number, number[]>()
+        const frames: Frame[] = []
         stateSize = 0
         sinceSweep += ticks
         const sweep = sinceSweep >= SWEEP_TICKS
@@ -984,15 +1267,33 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
         }
         const expired = sim.traces.expired()
         const deposits = new Map<number, string>()
+        /** Сколько байт на подключение в этом тике, см. HostOptions.budget. */
+        const most = (options.budget?.bytes ?? Infinity) * sim.time.step * ticks
+        scan()
         for (const [send, player] of peers) {
           const known = shown.get(send)!
           for (const id of expired) known.delete(id)
           if (sweep) sendDeposits(send, player, deposits)
-          const found = traces(send, player, sweep)
+          const found = traces(send, player, sweep, Math.ceil((most * TRACE_SHARE) / TRACE_BYTES))
           if (found.length) send(JSON.stringify({ type: 'traces', traces: found } satisfies ServerMessage))
-          const text = delta(send, player, cache)
-          stateSize = Math.max(stateSize, text.length)
-          send(text)
+          const frame = begin(send, player, cache, most * FLEETING_SHARE)
+          frame.most = Math.max(most * (1 - TRACE_SHARE), frame.bytes + most * QUEUE_SHARE)
+          frames.push(frame)
+        }
+        // Обязательное уже в кадрах; остальное — по кругу, пока есть время и байты.
+        const deadline = Math.max(began + (options.budget?.ms ?? sim.time.step * 1000 * TICK_SHARE), performance.now() + SEND_LEAST)
+        sending.waited = 1
+        let waiting = frames
+        do {
+          for (const frame of waiting) take(frame, BATCH)
+          waiting = waiting.filter((frame) => frame.queued > 0 && frame.bytes < frame.most)
+        } while (waiting.length && performance.now() < deadline)
+        sending.deferred = 0
+        for (const frame of frames) {
+          sending.deferred += frame.queued
+          const bytes = finish(frame)
+          stateSize = Math.max(stateSize, bytes.length)
+          frame.send(bytes)
         }
       }
       return ticks

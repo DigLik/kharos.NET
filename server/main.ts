@@ -82,6 +82,7 @@ const host = createHost(saved ? createSim({ ...saved.sim, rules }) : createSim({
   admin: settings.admin,
   log: (text) => console.log(text),
   names: { player: t('server.player'), server: t('server.name') },
+  budget: { bytes: settings.sendRate > 0 ? settings.sendRate * 1024 : undefined },
 })
 if (saved) console.log(`мир загружен из ${SAVE_PATH}: тик ${saved.sim.tick}, игроков ${Object.keys(saved.players).length}`)
 else console.log(`новый мир ${size}×${size}, seed ${generator.seed}`)

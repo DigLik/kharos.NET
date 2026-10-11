@@ -11,7 +11,7 @@ import { spawnUnit } from '../src/sim/units'
 const n = Number(process.argv[2] ?? 1000)
 /** Сколько игроков подключено; армии — у первых двух, остальные смотрят. */
 const players = Number(process.argv[3] ?? 2)
-const sim = createSim({ generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false }, fog: false })
+const sim = createSim({ generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false, protection: 0 }, fog: false })
 const host = createHost(sim)
 let bytes = 0
 host.join((text) => (bytes += Buffer.byteLength(text)))

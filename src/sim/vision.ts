@@ -60,6 +60,8 @@ export function buildingSight(type: keyof typeof BUILDINGS, site = false, off = 
 export interface Vision {
   /** Видит ли игрок тайл сейчас. */
   sees(player: number, x: number, y: number): boolean
+  /** То же, что sees, для одного игрока и только до конца этого тика: когда спрашивать приходится тысячи раз подряд. */
+  seer(player: number): (x: number, y: number) => boolean
   /** Бывал ли тайл в виду игрока. */
   explored(player: number, x: number, y: number): boolean
   /** Видит ли игрок сущность сейчас: юнит — по его тайлу, здание — по любому тайлу основания. Своё видно всегда. */
@@ -184,6 +186,13 @@ export function createVision(world: World, bounds: Bounds, tick: () => number, f
       const index = indexOf(x, y)
       return index >= 0 && sightOf(player).cells[index] === VISIBLE
     },
+    seer(player) {
+      const { cells } = sightOf(player)
+      return (x, y) => {
+        const index = indexOf(x, y)
+        return index >= 0 && cells[index] === VISIBLE
+      }
+    },
     explored(player, x, y) {
       const index = indexOf(x, y)
       return index >= 0 && sightOf(player).cells[index] !== HIDDEN
@@ -269,27 +278,69 @@ export function createVision(world: World, bounds: Bounds, tick: () => number, f
   return vision
 }
 
+const EVERYONE = 0
+const ONLY = 1
+const SEEN = 2
+const NOBODY = -1
+
 /**
- * Узнаёт ли игрок о сущности: так хост решает, что слать клиенту. Своё — всегда; чужого игрока — его счёт — никогда;
- * выстрел — если виден снаряд, стрелок или место попадания: по выстрелу из тумана видно, откуда бьют. Остальное
- * с местом на карте — пока оно в обзоре; без места — всегда.
+ * Кому сущность видна — всё, что для этого нужно знать о ней самой, без игрока. Хост собирает это раз за тик
+ * и спрашивает shownBy у каждого игрока: так тысячи сущностей на десяток игроков не разбираются заново для каждого.
+ * rule: EVERYONE — всем; ONLY — только игроку owner; SEEN — игроку owner всегда, остальным — пока в их обзоре хоть
+ * один тайл прямоугольника (x, y, width, height) или точка из points (x, y подряд). width 0 — места на карте нет.
  */
-export function shownTo(sim: Sim, player: number, entity: Entity) {
-  const { world, vision } = sim
-  const owner = world.get(entity, Player)
-  if (owner) return owner.id === player
+export interface Sighting {
+  rule: number
+  owner: number
+  x: number
+  y: number
+  width: number
+  height: number
+  points?: number[]
+}
+
+const TO_EVERYONE: Sighting = { rule: EVERYONE, owner: NOBODY, x: 0, y: 0, width: 0, height: 0 }
+
+/**
+ * Кому сущность видна, см. Sighting. Своё — всегда; чужого игрока — его счёт — никогда; выстрел — если виден снаряд,
+ * стрелок или место попадания: по выстрелу из тумана видно, откуда бьют. Остальное с местом на карте — пока оно
+ * в обзоре; без места — всегда.
+ */
+export function sightingOf(world: World, entity: Entity): Sighting {
+  const account = world.get(entity, Player)
+  if (account) return { rule: ONLY, owner: account.id, x: 0, y: 0, width: 0, height: 0 }
   // Что течёт по трубам, видит только хозяин; союзникам — когда появятся союзы.
-  if (world.has(entity, Batch)) return world.get(entity, Owner)?.player === player
+  if (world.has(entity, Batch)) return { rule: ONLY, owner: world.get(entity, Owner)?.player ?? NOBODY, x: 0, y: 0, width: 0, height: 0 }
   const shot = world.get(entity, Shot)
   if (shot) {
     const at = world.get(entity, Position)
-    return (
-      shot.player === player ||
-      vision.sees(player, shot.fromX, shot.fromY) ||
-      vision.sees(player, shot.toX, shot.toY) ||
-      (at !== undefined && vision.sees(player, at.x, at.y))
-    )
+    const points = [shot.fromX, shot.fromY, shot.toX, shot.toY]
+    if (at) points.push(at.x, at.y)
+    return { rule: SEEN, owner: shot.player, x: 0, y: 0, width: 0, height: 0, points }
   }
-  if (!world.has(entity, Position)) return true
-  return vision.seesEntity(player, entity)
+  if (!world.has(entity, Position)) return TO_EVERYONE
+  // Турель видна там же и тем же, что её носитель.
+  const parent = world.get(entity, Attached)?.parent
+  const target = parent === undefined ? entity : (parent as Entity)
+  const owner = world.get(target, Owner)?.player ?? NOBODY
+  const position = world.get(target, Position)
+  if (!position) return { rule: SEEN, owner, x: 0, y: 0, width: 0, height: 0 }
+  const building = world.get(target, Building)
+  const { width, height } = building ? BUILDINGS[building.type] : { width: 1, height: 1 }
+  return { rule: SEEN, owner, x: position.x, y: position.y, width, height }
+}
+
+/** Узнаёт ли игрок о сущности с таким Sighting; sees — видит ли он точку, см. Vision.seer. */
+export function shownBy(player: number, sees: (x: number, y: number) => boolean, sighting: Sighting) {
+  if (sighting.rule === EVERYONE || sighting.owner === player) return true
+  if (sighting.rule === ONLY) return false
+  const { x, y, width, height, points } = sighting
+  for (let dy = 0; dy < height; dy++) for (let dx = 0; dx < width; dx++) if (sees(x + dx, y + dy)) return true
+  if (points) for (let i = 0; i + 1 < points.length; i += 2) if (sees(points[i], points[i + 1])) return true
+  return false
+}
+
+/** Узнаёт ли игрок о сущности: так хост решает, что слать клиенту, см. sightingOf. */
+export function shownTo(sim: Sim, player: number, entity: Entity) {
+  return shownBy(player, sim.vision.seer(player), sightingOf(sim.world, entity))
 }
