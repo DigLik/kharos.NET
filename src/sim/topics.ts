@@ -69,8 +69,12 @@ export interface TopicPrice {
  * сам — и тем самым решает, что достанется дёшево.
  */
 export function topicPrice(sim: Sim, player: number, topic: Topic): TopicPrice {
+  return priceAfter(topic, sim.rules, researchOf(sim, player).length + runningTopics(sim, player))
+}
+
+/** Цена темы для того, у кого открыто или начато taken тем, по правилам темпа: так же считает и харнесс баланса. */
+export function priceAfter(topic: Topic, { researchScale, researchGrowth }: Pick<Sim['rules'], 'researchScale' | 'researchGrowth'>, taken: number): TopicPrice {
   const { cost, parts, seconds } = topicSpec(topic)
-  const { researchScale, researchGrowth } = sim.rules
-  const factor = researchScale * researchGrowth ** (researchOf(sim, player).length + runningTopics(sim, player))
+  const factor = researchScale * researchGrowth ** taken
   return { cost: Math.round(cost * factor), materials: { parts: Math.round(parts * factor) }, seconds: seconds * factor }
 }

@@ -324,6 +324,7 @@ bun run balance duel     # только бои
 bun run balance economy  # рудник, производство и разгон
 bun run balance siege    # штурм узла обороны: ремонт против осады
 bun run balance raid     # набег на линию добычи
+bun run balance research # компоненты и лестница исследований: харит на карте, линия, когда открывается тема
 bun run balance all      # все разделы
 ```
 

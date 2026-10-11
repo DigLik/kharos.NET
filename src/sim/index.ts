@@ -42,7 +42,7 @@ export { ASSEMBLE_RATE, cycleSeconds, hasRoom, productStock, recipeOf } from './
 export { HARVEST_SEARCH, hasMine } from './harvesting'
 export { REFINE_RATE, REFINE_RATIO } from './refining'
 export { cancelResearch, isLab, startResearch, topicLack, type TopicLack } from './research'
-export { RESEARCH, TOPICS, hasResearch, researchOf, topicPrice, topicSpec, type Topic, type TopicPrice, type TopicSpec } from './topics'
+export { RESEARCH, TOPICS, hasResearch, priceAfter, researchOf, topicPrice, topicSpec, type Topic, type TopicPrice, type TopicSpec } from './topics'
 export { OVERLOAD_DAMAGE, coreless, economyOf, powerOf, powerStates, powerSupply, zoneEconomies } from './income'
 export type { Economy, PowerState } from './income'
 export { QUEUE_LIMIT, buildTicks, missingRequirements, missingResearch, producibleBy } from './production'

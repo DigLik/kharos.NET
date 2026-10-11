@@ -57,7 +57,7 @@ interface Mine {
 }
 
 /** Ставит готовое здание у месторождения, оставляя вокруг шахты место под трубы. */
-function placeNearMine(sim: Sim, spot: DepositSpot, type: BuildingType, x: number, y: number) {
+export function placeNearMine(sim: Sim, spot: DepositSpot, type: BuildingType, x: number, y: number) {
   const ok = (tx: number, ty: number) =>
     placeableNear(sim, type, tx, ty, 1, 0) !== undefined && rectsApart(rectOf(type, tx, ty), rectOf('mine', spot.x, spot.y), 2)
   const tile = spotNear(x, y, ok, 14)

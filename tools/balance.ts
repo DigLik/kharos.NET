@@ -6,7 +6,8 @@
  *   duel    — парные бои отрядов равной цены;
  *   economy — рудник, производство и разгон настоящими командами;
  *   siege   — штурм узла обороны с ремонтом и без;
- *   raid    — набег на экономику противника.
+ *   raid    — набег на экономику противника;
+ *   research — компоненты и лестница исследований: сколько харита на карте, что даёт линия, когда открывается тема.
  *
  * Запуск: bun run balance            — таблица и парные бои (как раньше);
  *        bun run balance all        — все разделы;
@@ -16,6 +17,7 @@ import { printDuels, printStats, runCombat } from './harness/combat'
 import { runEconomy } from './harness/economy'
 import { runSiege } from './harness/siege'
 import { runRaids } from './harness/raid'
+import { runResearch } from './harness/research'
 
 const modes: Record<string, () => void> = {
   table: () => printStats(),
@@ -24,11 +26,13 @@ const modes: Record<string, () => void> = {
   economy: () => runEconomy(),
   siege: () => runSiege(),
   raid: () => runRaids(),
+  research: () => runResearch(),
   all: () => {
     runCombat()
     runEconomy()
     runSiege()
     runRaids()
+    runResearch()
   },
 }
 
