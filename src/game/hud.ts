@@ -9,7 +9,7 @@ import {
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   RESEARCH, Research, TOPICS, isLab, levelTopic, missingResearch, topicLack, topicPrice, type Topic, type TopicPrice, type TopicLack,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
-  Off, Owner, Player, Position, Tactics, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
+  Off, Owner, Player, Position, Tactics, Transfer, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
 import { paveStrokeOf } from './placing'
 import type { PaveTool, Scene } from './scene'
@@ -32,8 +32,12 @@ export interface HudState {
   clock: string
   storm: boolean
   /** Кто ещё на сервере: ники, свой ли, подключён ли. Пусто в локальной игре. */
-  /** relation — что между игроком и нами: союз, он предложил союз или мы ему, см. allies.ts. */
-  players: { name: string; own: boolean; online: boolean; safe: boolean; relation: 'ally' | 'allyAsked' | 'allyOffered' | null }[]
+  /**
+   * relation — что между игроком и нами: союз, он предложил союз или мы ему, см. allies.ts. credits — счёт союзника
+   * (свой и союзнический хост шлёт целиком), base — где его главное здание: туда ведёт клик по панели союзников.
+   * player — номер игрока: по нему команда ferry называет получателя подарка.
+   */
+  players: { player: number; name: string; own: boolean; online: boolean; safe: boolean; relation: 'ally' | 'allyAsked' | 'allyOffered' | null; credits: number; base: { x: number; y: number } | null }[]
   /** Сколько осталось своей защиты новичка, «м:сс» десятками секунд; пусто — её нет. */
   protection: string
   /** Чат сетевой игры: сообщения и когда пришли (мс, performance.now); null — игра локальная, чата нет. */
@@ -67,6 +71,11 @@ export interface HudState {
   coreless: boolean
   /** Выбранные юниты по видам. */
   units: { type: UnitType; count: number }[]
+  /**
+   * Свои юниты среди выбранных, которых можно отдать союзнику: их номера — для команды gift, см. gift.ts.
+   * null — отдавать нечего: выбран не свой юнит, турель на носителе или обречённый.
+   */
+  gift: number[] | null
   /** Бой: сколько среди выбранных юнитов вооружённых и средняя прочность выбранных юнитов от 0 до 1. */
   army: { armed: number; health: number } | null
   /**
@@ -128,6 +137,11 @@ export interface HudState {
     purchases: { resource: Resource; price: number; room: number }[]
     /** buy — это закупка: деньги уже отданы, корабль летит с грузом. */
     order: { resource: Resource; wanted: number; delivered: number; price: number; flight: number | null; buy: boolean } | null
+    /**
+     * Корабль с подарком союзнику в пути: кому (to — номер игрока), что везёт и как далеко улетел (flight — от 0
+     * до 1). Груз и деньги выгружаются при посадке: с этого мига их тут уже нет.
+     */
+    transfer: { to: number; credits: number; goods: Stack[]; flight: number } | null
   } | null
   /**
    * Резерв выбранных своих хранилищ: кому слать, сколько не выдаётся у первого из них и сколько они вмещают
@@ -461,6 +475,7 @@ export function readHud(scene: Scene): HudState {
       const zone = zoneWith(sim, player, entity)
       const order = world.get(entity, Trade)
       const items = zone ? stockOfZone(sim, zone).items : {}
+      const ferry = world.get(entity, Transfer)
       trade = {
         port: entity,
         offers: resourceStacksOf(items).map(({ resource, amount }) => ({ resource, available: amount, price: RESOURCE_SPECS[resource].price })),
@@ -477,6 +492,14 @@ export function readHud(scene: Scene): HudState {
               price: order.buy ? buyPrice(order.resource) : RESOURCE_SPECS[order.resource].price,
               flight: order.total ? round(1 - order.left / order.total) : null,
               buy: order.buy,
+            }
+          : null,
+        transfer: ferry
+          ? {
+              to: ferry.to,
+              credits: Math.floor(ferry.credits),
+              goods: stacksOf(ferry.goods),
+              flight: ferry.total ? round(Math.min(1, 1 - ferry.left / ferry.total)) : 1,
             }
           : null,
       }
@@ -513,6 +536,10 @@ export function readHud(scene: Scene): HudState {
   // Кнопки стройки показывают энергию для первой зоны: в какую попадёт здание, до выбора места неизвестно.
   const economy = zones[0] ?? economyOf(sim, player)
   const stock = stockOf(sim, player)
+  // Главные здания всех игроков — одним обходом: по ним панель союзников ведёт камеру. В локальной игре игроков нет.
+  const bases = 'players' in sim ? coreBasesOf(sim) : new Map<number, { x: number; y: number }>()
+  // Кого из выбранных можно отдать союзнику: по ним меню юнитов и показывает кнопку подарка.
+  const gift = giftable(sim, player, [...selection])
   if (level?.next) {
     level.next.materials = exactOf(upgradeMaterials)
     if (credits < level.next.cost && level.next.lack !== 'research') level.next.lack = 'credits'
@@ -534,7 +561,18 @@ export function readHud(scene: Scene): HudState {
     admin: 'admin' in sim && (sim as Replica).admin,
     editor: 'editor' in sim && (sim as Replica).editor,
     picking: !!(scene.routing || scene.serving),
-    players: 'players' in sim ? (sim as Replica).players.map(({ player, name, online, safe }) => ({ name, own: player === scene.player, online, safe: !!safe, relation: relationWith(sim, scene.player, player) })) : [],
+    players: 'players' in sim
+      ? (sim as Replica).players.map(({ player, name, online, safe }) => ({
+          player,
+          name,
+          own: player === scene.player,
+          online,
+          safe: !!safe,
+          relation: relationWith(sim, scene.player, player),
+          credits: creditsOf(sim, player),
+          base: bases.get(player) ?? null,
+        }))
+      : [],
     protection: protectionOf(scene),
     income: round(economyOf(sim, player).income),
     power,
@@ -544,6 +582,7 @@ export function readHud(scene: Scene): HudState {
     coreless: idle,
     unlinked: loose,
     units: UNIT_TYPES.filter((type) => counts.has(type)).map((type) => ({ type, count: counts.get(type)! })),
+    gift: gift.length ? gift : null,
     army: unitCount ? { armed, health: round(unitHealth / unitCount) } : null,
     building,
     deposit,
@@ -628,6 +667,16 @@ function pavingOf(scene: Scene): NonNullable<HudState['construction']>['paving']
   if (!scene.paving) return null
   const stroke = paveStrokeOf(scene)
   return { tool: scene.paving, cost: stroke?.cost ?? 0, tiles: stroke ? stroke.allowed.filter(Boolean).length : 0, short: stroke ? stroke.short.filter(Boolean).length : 0 }
+}
+
+/** Главные здания всех игроков: центр здания, туда ведёт клик по панели союзников. Все одним обходом зданий. */
+function coreBasesOf(sim: Sim) {
+  const bases = new Map<number, { x: number; y: number }>()
+  const { width, height } = BUILDINGS[CORE]
+  for (const [, position, building, owner] of sim.world.query(Position, Building, Owner)) {
+    if (building.type === CORE && !bases.has(owner.player)) bases.set(owner.player, { x: position.x + width / 2, y: position.y + height / 2 })
+  }
+  return bases
 }
 
 /** Что между игроком other и нами — для списка игроков. */

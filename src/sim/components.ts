@@ -194,6 +194,23 @@ export const Assembly = component('Assembly', { recipe: 'blocks' as Product, on:
 export const Trade = component('Trade', { resource: 'metal' as Resource, wanted: 0, left: 0, total: 0, buy: false })
 
 /**
+ * Корабль космопорта с подарком союзнику: деньги и груз летят к его главному зданию. Всё отдано порту при
+ * отправке — деньги списаны, груз забран из хранилищ, — и всё это выгрузится в точке (x, y), где стояло его
+ * главное здание на момент отправки. left и total — сколько тиков лететь; done — уже выгрузил, и хост,
+ * объявив об этом, снимает компонент, см. ferry.ts.
+ */
+export const Transfer = component('Transfer', () => ({
+  to: 0,
+  x: 0,
+  y: 0,
+  credits: 0,
+  goods: {} as Amounts,
+  left: 0,
+  total: 0,
+  done: false,
+}))
+
+/**
  * Вооружённый юнит. target — кого он атакует, -1 — никого. chase — гнаться ли за целью, когда она вне дальности:
  * так ведёт себя юнит, которому цель указал игрок или который отвечает на огонь; иначе он бьёт только тех, до кого
  * достаёт с места. cooldown — сколько тиков до следующего выстрела. stuck — сколько раз подряд гонящийся не нашёл,
@@ -311,4 +328,4 @@ export const Scan = component('Scan', { x: 0, y: 0, tick: -1, wait: 0 })
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Harvester, Inventory, Beam, Assembly, Trade, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Harvester, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate]

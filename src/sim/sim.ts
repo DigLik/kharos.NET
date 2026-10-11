@@ -21,6 +21,7 @@ import { adoptLegacyHarvesters, harvest } from './harvesting'
 import { haul } from './hauling'
 import { pipeFlow } from './pipes'
 import { earn } from './income'
+import { ferry } from './ferry'
 import { trade } from './trade'
 import { moveUnits, planPaths } from './movement'
 import { produceUnits } from './production'
@@ -236,6 +237,8 @@ export function createSim(source: SimOptions | SimSave): Sim {
       () => pipeFlow(sim),
       () => haul(sim),
       () => trade(sim),
+      // Тут же: корабли с подарками союзникам летят по тем же правилам, что рейсы космопорта.
+      () => ferry(sim),
       // После движения и работ: стреляющий юнит поворачивается к цели, и погибшие в этот тик уже ничего не делают.
       () => fight(sim),
       // После боя: вставшие без цели продолжают патруль или возвращаются на место.

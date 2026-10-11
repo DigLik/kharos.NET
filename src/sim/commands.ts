@@ -20,8 +20,10 @@ import { cancelResearch, startResearch } from './research'
 import type { Topic } from './topics'
 import { resolveOrder } from './target'
 import { clearTactics, orderPatrol, setStance, startMarch, type Stance } from './tactics'
-import type { Good, Resource } from './resources'
+import type { Amounts, Good, Resource } from './resources'
 import type { Sim } from './sim'
+import { sendFerry } from './ferry'
+import { handOver } from './gift'
 import { buy, closeSale, sell } from './trade'
 import { cancelUpgrade, orderUpgrade } from './upgrades'
 import { inBounds, orderGroupMove, type UnitType } from './units'
@@ -74,6 +76,16 @@ export type Command = (
   | { type: 'buy'; port: number; resource: Resource; amount: number }
   /** Закрыть заявку раньше срока: корабль улетает с тем, что привезли; если ничего — заявка снимается. */
   | { type: 'closeSale'; port: number }
+  /**
+   * Подарок союзнику через свой космопорт: деньги и груз из хранилищ летят к его главному зданию, см. ferry.ts.
+   * Всё отдаётся сразу, а выгрузится через полёт корабля. Юнитов так не передают — их отдают сразу, см. gift.
+   */
+  | { type: 'ferry'; port: number; to: number; credits: number; goods: Amounts }
+  /**
+   * Отдать своих юнитов союзнику: они переходят под его управление там же, где стоят, и бросают прежнюю работу,
+   * см. gift.ts. Груз в кузове остаётся с ними.
+   */
+  | { type: 'gift'; units: number[]; to: number }
   /** Включить или выключить своё здание — потребителя энергии: выключенное не берёт энергию и не работает. */
   | { type: 'work'; building: number; on: boolean }
   /** Отменить свою стройку и вернуть кредиты; для здания под разбор — отменить разбор. */
@@ -253,6 +265,14 @@ function run(sim: Sim, player: number, command: Command): boolean {
       return buy(sim, player, command.port as Entity, command.resource, command.amount)
     case 'closeSale':
       return closeSale(sim, player, command.port as Entity)
+    case 'ferry': {
+      if (typeof command.goods !== 'object' || command.goods === null) return false
+      return sendFerry(sim, player, command.port as Entity, Number(command.to), Number(command.credits), command.goods)
+    }
+    case 'gift': {
+      if (!Array.isArray(command.units)) return false
+      return handOver(sim, player, Number(command.to), command.units as Entity[]) > 0
+    }
     case 'work':
       return setWorking(sim, player, command.building as Entity, !!command.on)
     case 'cancelBuild':

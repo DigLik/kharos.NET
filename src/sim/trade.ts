@@ -1,6 +1,6 @@
 import type { Entity } from '../ecs'
 import { buildingSpec, isReady, levelFactor, levelOf } from './buildings'
-import { Building, Inventory, Owner, Trade } from './components'
+import { Building, Inventory, Owner, Trade, Transfer } from './components'
 import { addCredits, pay } from './economy'
 import { amountOf, put, roomFor, take } from './inventory'
 import { incomingTo } from './logistics'
@@ -19,7 +19,7 @@ export const BUY_MARKUP = 3
 export const BUY_SECONDS = SELL_SECONDS
 
 /** Сколько тиков летит корабль этого космопорта: с уровнем рейс короче во столько же раз, во сколько больше трюм. */
-const flightTicks = (sim: Sim, port: Entity, seconds: number) => Math.round(seconds / levelFactor(levelOf(sim.world, port)) / sim.time.step)
+export const flightTicks = (sim: Sim, port: Entity, seconds: number) => Math.round(seconds / levelFactor(levelOf(sim.world, port)) / sim.time.step)
 
 /** Сколько стоит купить единицу ресурса с орбиты. */
 export const buyPrice = (resource: Resource) => RESOURCE_SPECS[resource].price * BUY_MARKUP
@@ -68,8 +68,11 @@ function isPort(sim: Sim, player: number, port: Entity) {
   return type !== undefined && !!buildingSpec(type).trades && isReady(sim, player, port)
 }
 
-/** Может ли игрок продавать и покупать через это здание: это его готовый космопорт, и он не занят прошлым рейсом. */
-export const canSell = (sim: Sim, player: number, port: Entity) => isPort(sim, player, port) && !sim.world.has(port, Trade)
+/**
+ * Может ли игрок продавать и покупать через это здание: это его готовый космопорт, и он не занят — ни прошлым
+ * рейсом, ни кораблём с подарком союзнику (см. ferry.ts): корабль у космопорта один.
+ */
+export const canSell = (sim: Sim, player: number, port: Entity) => isPort(sim, player, port) && !sim.world.has(port, Trade) && !sim.world.has(port, Transfer)
 
 /**
  * Закупка с орбиты: amount единиц ресурса за buyPrice каждая, кредиты списываются сразу. Корабль прилетает через

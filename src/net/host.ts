@@ -1,8 +1,8 @@
 import { applyEdit, type EditOp } from '../sim/editOps'
 import type { Entity } from '../ecs'
 import { Terrain, terrainAt, tileBytes } from '../map/terrain'
-import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownBy, sightingOf, alliesOf, breakAlliance, offerAlliance, spawnStartingUnits, wipePlayer, type Command, type Sim, type Sighting, type SimSave } from '../sim'
-import { Armed, Attached, Blast, Building, Health, Owner, Path, Player, Position, Shot, Unit } from '../sim/components'
+import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownBy, sightingOf, allied, alliesOf, breakAlliance, offerAlliance, giftable, spawnStartingUnits, wipePlayer, type Command, type Sim, type Sighting, type SimSave } from '../sim'
+import { Armed, Attached, Blast, Building, Health, Owner, Path, Player, Position, Shot, Transfer, Unit } from '../sim/components'
 import { pathOf, seenBy, sharedWireOf, type Wired } from './wire'
 import { LAND, POSITION, encodeDelta, type Motion, type ShotRecord } from './codec'
 import { deflate } from '../save/file'
@@ -15,6 +15,7 @@ import { cleanChat, cleanName, type ChatLine, type PlayerInfo, type PlayerView, 
 import { PLAYER_ARG, parseCommand, type CommandInfo } from './chatCommands'
 import { hostText, type Text } from '../i18n'
 import { erase, putUnit, setCredits, setHealth } from '../sim/editor'
+import { addCredits, pay } from '../sim/economy'
 import { freeTilesNear } from '../sim/units'
 
 /**
@@ -508,6 +509,25 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       if (result !== 'withdrawn') tell(to, hostText(result === 'left' ? 'allyLeftBy' : 'allyDeclinedBy', { name: nameOf(from) }))
     },
   })
+  /** Союзникам — делиться: деньги приходят сразу, груз везёт корабль, см. ferry.ts. Юнитов отдают из меню юнитов. */
+  add({
+    name: 'give',
+    args: [PLAYER_ARG, '<amount>'],
+    game: true,
+    run(args, _rest, caller) {
+      const to = findPlayer(args[0], caller.admin)
+      const from = caller.player!
+      const amount = Number(args[1])
+      if (to === undefined) return caller.reply(hostText('noPlayer', { name: args[0] ?? '' }))
+      if (to === from) return caller.reply(hostText('giveSelf'))
+      if (!allied(sim, from, to)) return caller.reply(hostText('giveNoAlly', { name: nameOf(to) }))
+      if (!Number.isFinite(amount) || amount <= 0) return caller.reply(usage(this))
+      if (!pay(sim, from, amount)) return caller.reply(hostText('giveShort', { amount }))
+      addCredits(sim, to, amount)
+      tell(from, hostText('giveSent', { name: nameOf(to), amount: Math.floor(amount) }))
+      tell(to, hostText('giveGot', { name: nameOf(from), amount: Math.floor(amount) }))
+    },
+  })
   add({
     name: 'admin',
     args: [],
@@ -765,6 +785,10 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
 
   /** Кто уже побеждён: о поражении сообщается один раз, когда оно случилось. */
   const defeated = new Set([...names.keys()].filter((who) => isDefeated(sim, who)))
+
+  /** Корабли с подарками, о которых уже сказано: об отправке — раз, о прибытии — раз, см. advance. */
+  const ferrySent = new Set<Entity>()
+  const ferryArrived = new Set<Entity>()
 
   /**
    * Мир, разобранный один раз на всех подключённых: ids — сущности, остальное — по тому же месту в списке. sightings —
@@ -1248,6 +1272,17 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
           if (type !== 'command' || typeof command !== 'object' || command === null) return
           // Цель по номеру сущности клиент не называет: приказ идёт точкой, а цель по ней выбирает симуляция.
           if (!fromClient(command as Command)) return
+          // Про подарок юнитами весть идёт по самой команде: симуляция её только ставит в очередь, а юниты перейдут
+          // в ближайшем тике, и спрашивать о переходе ещё не у кого. Проверка та же, что и там, — иначе весть соврала бы.
+          if ((command as Command).type === 'gift') {
+            const gift = command as Extract<Command, { type: 'gift' }>
+            const to = Number(gift.to)
+            const units = giftable(sim, joined, Array.isArray(gift.units) ? (gift.units as Entity[]) : [])
+            if (units.length && allied(sim, joined, to)) {
+              tell(joined, hostText('giftSent', { name: nameOf(to), units: units.length }))
+              tell(to, hostText('giftGot', { name: nameOf(joined), units: units.length }))
+            }
+          }
           // Что внутри команды, проверит сама симуляция: она не доверяет и локальному клиенту.
           sim.send(joined, command as Command)
         },
@@ -1298,6 +1333,29 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
         }
         const text = learned.get(player)
         if (text) send(text)
+      }
+      // Подарки союзникам: об отправке и прибытии корабля узнают обе стороны. Говорит сам мир — корабль появился
+      // или долетел, — поэтому весть не соврёт, даже если команда до сих пор не выполнилась, см. ferry.ts.
+      const ferries = new Set<Entity>()
+      for (const [entity, transfer, owner] of sim.world.query(Transfer, Owner)) {
+        ferries.add(entity)
+        if (transfer.done) {
+          if (!ferryArrived.has(entity)) {
+            ferryArrived.add(entity)
+            tell(owner.player, hostText('ferryArrived', { name: nameOf(transfer.to) }))
+            tell(transfer.to, hostText('ferryGot', { name: nameOf(owner.player) }))
+            sim.world.remove(entity, Transfer)
+          }
+          continue
+        }
+        if (ferrySent.has(entity)) continue
+        ferrySent.add(entity)
+        tell(owner.player, hostText('ferrySent', { name: nameOf(transfer.to) }))
+        tell(transfer.to, hostText('ferryComing', { name: nameOf(owner.player) }))
+      }
+      if (ferrySent.size > ferries.size) {
+        for (const entity of ferrySent) if (!ferries.has(entity)) ferrySent.delete(entity)
+        for (const entity of ferryArrived) if (!ferries.has(entity)) ferryArrived.delete(entity)
       }
       if (ticks && peers.size) {
         const cache = new Map<number, number[]>()

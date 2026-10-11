@@ -7,7 +7,7 @@ import { buildingPortrait, pavePortrait, unitPortrait } from '../game/portraits'
 import { goodIcon } from '../game/goodIcons'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { REWARDS, resourceOf, type UnitType, type BuildingType, type Command, type Good, type Reward } from '../sim'
-import { GRID_KEYS, commandsOf, dealOf, keyLabel, type Deal, type Page, type Slot } from './commands'
+import { GRID_KEYS, commandsOf, dealOf, keyLabel, type Deal, type FerryDraft, type Page, type Slot } from './commands'
 import { rich, t, type Key } from '../i18n'
 
 interface HudProps {
@@ -412,17 +412,27 @@ function CommandGrid({ slots }: { slots: (Slot | null)[] }) {
   )
 }
 
+/** Что уже набрано в подарок союзнику: груз по видам и деньги — как это видно в панели сведений. */
+function listOfDraft(ferry: FerryDraft) {
+  const parts = (Object.entries(ferry.goods) as [Good, number][]).map(([resource, amount]) => `${t(`goods.${resource}`)} ×${Math.floor(amount)}`)
+  if (ferry.credits > 0) parts.push(`${ferry.credits} ${t('hud.cr')}`)
+  return parts.join(', ')
+}
+
 /** Сведения о выбранном: портрет, название, прочность и всё, что здание или отряд делает сейчас. */
-function Info({ state, lookAtSelection, narrow, deal, setAmount, confirm }: {
+function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm }: {
   state: HudState
   lookAtSelection: () => void
   narrow: HudProps['narrow']
   /** Набираемая сделка космопорта: количество можно вписать с клавиатуры, Enter — отправить. */
   deal: (NonNullable<ReturnType<typeof dealOf>> & { buying: boolean }) | null
+  /** Набираемый подарок союзнику: кому и что уже положено в корабль. */
+  ferry: FerryDraft | null
   setAmount: (amount: number) => void
   confirm: () => void
 }) {
   const { units, building, deposit, site, construction, conversion, production, assembly, trade } = state
+  const nameOf = (player: number) => state.players.find((one) => one.player === player)?.name ?? ''
   const many = units.length > 1 || (units[0]?.count ?? 0) > 1
   const health = building !== null ? (state.health ?? 1) : (state.army?.health ?? 1)
 
@@ -582,6 +592,10 @@ function Info({ state, lookAtSelection, narrow, deal, setAmount, confirm }: {
                 ? t('hud.shipping', { name: t(`goods.${trade.order.resource}`), wanted: trade.order.wanted, total: trade.order.wanted * trade.order.price })
                 : t('hud.hauling', { name: t(`goods.${trade.order.resource}`), delivered: trade.order.delivered, wanted: trade.order.wanted })}
             </Progress>
+          ) : trade.transfer ? (
+            <Progress value={trade.transfer.flight}>
+              {t('hud.ferrying', { name: nameOf(trade.transfer.to), percent: percent(trade.transfer.flight) })}
+            </Progress>
           ) : deal ? (
             <div class="hud__hint">
               {t(deal.buying ? 'grid.buy' : 'grid.sell')}: <Res resource={deal.resource} amount={deal.amount} />{' '}
@@ -607,6 +621,11 @@ function Info({ state, lookAtSelection, narrow, deal, setAmount, confirm }: {
               {t('hud.buyHint')}
             </div>
           ))}
+        {ferry && (
+          <div class="hud__hint">
+            {t('hud.ferryDraft', { name: ferry.name, list: listOfDraft(ferry) || t('common.empty') })}
+          </div>
+        )}
         {deposit && (
           <div class="hud__hint">
             {rich<ComponentChildren>('hud.depositLeft', {
@@ -698,10 +717,15 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
   // Сделка космопорта: что и сколько игрок набирает на странице продажи или закупки. С уходом со страницы бросается.
   const [deal, setDeal] = useState<Deal | null>(null)
   useEffect(() => setDeal(null), [selectionKey, page])
+  // Подарок союзнику набирается по страницам подряд, поэтому живёт, пока выбран тот же космопорт.
+  const [ferry, setFerry] = useState<FerryDraft | null>(null)
+  useEffect(() => setFerry(null), [selectionKey])
   const { trade } = state
+  // Союзники — справа над панелью, всегда на виду: у кого союз, тот и в списке.
+  const allies = state.players.filter(({ own, relation }) => !own && relation === 'ally')
   const dealing = trade && !trade.order && deal && (page === 'sell' || page === 'buy') ? dealOf(trade, state.credits, page === 'buy', deal) : null
 
-  const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, patrol, open: setPage, pick: setDeal }, deal) : []
+  const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, patrol, open: setPage, pick: setDeal, draft: setFerry }, deal, ferry) : []
 
   // Клавиши сетки. Читаются из ref, чтобы не переподписываться на каждое обновление.
   const slotsRef = useRef(slots)
@@ -799,6 +823,23 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
         <span class="hud__menu">{menu}</span>
       </header>
 
+      {allies.length > 0 && (
+        <section class="hud hud--allies" aria-label={t('hud.friends')}>
+          {allies.map(({ name, online, credits, base }) => (
+            <button
+              key={name}
+              class={online ? 'hud__ally' : 'hud__ally is-away'}
+              data-tip={t('hud.friendTip', { name, credits })}
+              onClick={() => base && flyTo(base.x, base.y)}
+            >
+              <em class="is-ally" />
+              {name}
+              <small>{credits}</small>
+            </button>
+          ))}
+        </section>
+      )}
+
       <Tip />
       {state.chat && <Chat
           lines={state.chat}
@@ -856,6 +897,7 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
             lookAtSelection={lookAtSelection}
             narrow={narrow}
             deal={dealing && { ...dealing, buying: page === 'buy' }}
+            ferry={ferry}
             setAmount={(amount) => deal && setDeal({ ...deal, amount })}
             confirm={() => {
               if (!trade || !dealing || dealing.amount < 1) return

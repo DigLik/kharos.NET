@@ -337,6 +337,45 @@ body {
   gap: 6px;
 }
 
+/*
+ * Панель союзников: справа над нижней полосой, всегда на виду. Чип — кнопка: клик ведёт камеру к главному
+ * зданию союзника, счёт — тут же, см. Hud.tsx и baseOf в game/hud.ts.
+ */
+.hud--allies {
+  right: 12px;
+  bottom: 222px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+}
+
+.hud__ally {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  color: #4ec973;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hud__ally em {
+  width: 8px;
+  height: 8px;
+  background: #4ec973;
+  box-shadow: 1px 1px 0 #0b111b;
+}
+
+.hud__ally small {
+  color: #f0c95a;
+  font-size: 12px;
+}
+
+.hud__ally.is-away {
+  opacity: 0.45;
+}
+
 .hud__shelter {
   color: #7fd0a8;
 }
