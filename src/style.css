@@ -360,6 +360,10 @@ body {
   color: #ffd27a;
 }
 
+.hud__alert.is-found {
+  color: #8fe0a8;
+}
+
 /* Строка гаснет к концу своего времени, см. ALERT_SECONDS. */
 @keyframes hud-alert {
   0%, 75% { opacity: 1; }

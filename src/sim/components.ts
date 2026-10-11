@@ -294,6 +294,12 @@ export const Upgrade = component('Upgrade', { progress: 0, scale: 1 })
  */
 export const Research = component('Research', { topic: '', progress: 0, cost: 0, parts: 0, ticks: 0 })
 
+/**
+ * Разведка радара, см. radar.ts: (x, y) — середина последней вспышки, tick — когда она случилась (−1 — ещё не было);
+ * wait — сколько тиков до следующей. Обзор хозяина включает круг вспышки, пока она не погасла.
+ */
+export const Scan = component('Scan', { x: 0, y: 0, tick: -1, wait: 0 })
+
 /** Компоненты, которые попадают в сохранение и в сеть. Новый компонент симуляции добавляй сюда. */
 /**
  * Призрак: чужое здание или месторождение, каким клиент видел его последний раз. Живёт только в клиенте: хост
@@ -302,4 +308,4 @@ export const Research = component('Research', { topic: '', progress: 0, cost: 0,
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Harvester, Inventory, Beam, Assembly, Trade, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Harvester, Inventory, Beam, Assembly, Trade, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan]

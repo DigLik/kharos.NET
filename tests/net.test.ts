@@ -6,7 +6,8 @@ import { decodeServer } from '../src/net/protocol'
 import type { WeaponType } from '../src/sim/weapons'
 import { createReplica, type Replica } from '../src/net/replica'
 import { Armed, Building, Ghost, Owner, Path, Player, Position, Producer, Unit, createSim, isWalkable, shownTo } from '../src/sim'
-import { SAVED } from '../src/sim/components'
+import { SAVED, Scan } from '../src/sim/components'
+import { connectAll } from '../src/sim/piping'
 import { wireOf } from '../src/net/wire'
 import type { Entity } from '../src/ecs'
 import { placeBuilding } from '../src/sim/buildings'
@@ -467,4 +468,37 @@ test('юнит, которого хост придержал на несколь
   expect(frame([id, 8, 0, 2, 2]).x).toBeCloseTo(6)
   expect(frame([id, 0, 0, 2, 1])).toEqual({ x: 0, y: 0 })
   expect(unit().prevX).toBeCloseTo(6)
+})
+
+test('вспышки радара видит только хозяин: его копия открывает туман там же, где хост, а чужой про них не знает', () => {
+  const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 256, rules: { techTree: false } }))
+  const first = join(host)
+  const second = join(host)
+  const { world } = host.sim
+  const at = world.get(unitsOf(host.sim as never, 1)[0]! as never, Position)!
+  const x = Math.floor(at.x)
+  const y = Math.floor(at.y)
+  placeBuilding(world, 'command', x, y + 3, 1)
+  placeBuilding(world, 'generator', x + 4, y + 3, 1)
+  const radar = placeBuilding(world, 'radar', x + 8, y + 3, 1)
+  connectAll(host.sim, 1)
+  let flash = world.get(radar, Scan)
+  for (let tick = 0; tick < 400 && !((flash = world.get(radar, Scan)) && flash.tick >= 0 && Math.hypot(flash.x - x, flash.y - y) > 25); tick++) {
+    host.advance(STEP)
+    first.sim.advance(STEP)
+    second.sim.advance(STEP)
+  }
+  expect(flash!.tick).toBeGreaterThanOrEqual(0)
+  for (let tick = 0; tick < 6; tick++) {
+    host.advance(STEP)
+    first.sim.advance(STEP)
+    second.sim.advance(STEP)
+  }
+  // Далеко за постоянным обзором радара: открыто вспышкой — и на хосте, и в копии хозяина.
+  expect(host.sim.vision.sees(1, flash!.x, flash!.y)).toBe(true)
+  expect(first.sim.world.get(radar, Scan)).toMatchObject({ x: flash!.x, y: flash!.y, tick: flash!.tick })
+  expect(first.sim.vision.sees(1, flash!.x, flash!.y)).toBe(true)
+  // Куда смотрит чужой радар, сосед не знает, даже видя сам радар.
+  expect(wireOf(world as never, radar as never, 2, 0).parts.has(Scan.key)).toBe(false)
+  expect(wireOf(world as never, radar as never, 1, 0).parts.has(Scan.key)).toBe(true)
 })

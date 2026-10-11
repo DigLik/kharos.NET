@@ -6,6 +6,7 @@ import { buildingSpec, createOccupancy, type Occupancy } from './buildings'
 import { fight, recover } from './combat'
 import { assemble } from './assembly'
 import { research } from './research'
+import { scan } from './radar'
 import { apply, type Command } from './commands'
 import { Building, Carrier, Inventory, Position, SAVED, Site, Unit } from './components'
 import { mountTurrets } from './turrets'
@@ -218,6 +219,7 @@ export function createSim(source: SimOptions | SimSave): Sim {
       // Цеха собирают изделия из привезённого сырья.
       (_, time) => assemble(sim, time),
       (_, time) => research(sim, time),
+      (_, time) => scan(sim, time),
       // До движения: едущие к цели напрямую получают пути, сколько успеет поиск за тик.
       () => planPaths(sim),
       (_, time) => moveUnits(sim, time),

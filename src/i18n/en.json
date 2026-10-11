@@ -74,7 +74,7 @@
     "ammoBunker": "Stores the zone's ammo; turrets are supplied from here",
     "partsLocker": "Stores the zone's parts",
     "spaceport": "Sells resources from the zone's stores and buys missing ones for credits",
-    "radar": "Sees far through the fog of war",
+    "radar": "Sees its surroundings and scouts distant spots in flashes; finds deposits",
     "windtrap": "Catches moisture from the wind",
     "barracks": "Trains infantry: riflemen, rocketeers and flamethrowers",
     "factory": "Builds ground vehicles and MCVs for new bases",
@@ -394,7 +394,8 @@
     "alerts": {
       "spotted": "Enemy spotted",
       "baseAttacked": "Base under attack",
-      "unitsAttacked": "Our units are under attack"
+      "unitsAttacked": "Our units are under attack",
+      "oreFound": "Deposit found"
     },
     "nothingSelected": "Nothing selected. Left button — select, drag a box — several units, right button — order. Ctrl+digit — remember a group, digit — select it",
     "buildingsCount": "Buildings: {count}",
@@ -500,7 +501,8 @@
     "refine": "refining speed",
     "store": "capacity",
     "trade": "hold and flight speed",
-    "power": "power output"
+    "power": "power output",
+    "scan": "scan radius (and power draw)"
   },
   "chat": {
     "help": {

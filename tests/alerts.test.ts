@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { createAlerts } from '../src/game/alerts'
 import type { Scene } from '../src/game/scene'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { tileKey } from '../src/map/terrain'
 import { Health, Shot, createSim } from '../src/sim'
 import { spawnUnit } from '../src/sim/units'
 
@@ -67,4 +68,28 @@ test('урон без чужого выстрела рядом — не атак
   sim.world.get(own, Health)!.value -= 1
   alerts.update(0.1)
   expect(kinds()).not.toContain('attacked')
+})
+
+test('о найденном месторождении сообщают, когда игрок узнал новое; знакомые при входе в мир — не новость', () => {
+  const { sim, alerts, kinds } = setup()
+  // Как у клиента: слой месторождений присылает хост — только то, что игрок разведал.
+  sim.deposits.complete = true
+  const learn = (x: number, y: number) => {
+    sim.deposits.cells.set(tileKey(Math.floor(x / 40), Math.floor(y / 40)), [{ x, y, kind: 'kharite', reserve: 300 }])
+    sim.deposits.revision++
+  }
+  learn(10, 10)
+  alerts.update(0.1)
+  expect(kinds()).toEqual([])
+  learn(60, 10)
+  alerts.update(0.1)
+  expect(alerts.current()).toMatchObject([{ kind: 'found', text: 'oreFound', x: 61, y: 11 }])
+  // Следом ещё одно — молча: армия в походе находит их пачками.
+  learn(100, 10)
+  alerts.update(1)
+  expect(kinds()).toEqual(['found'])
+  alerts.update(6)
+  learn(140, 10)
+  alerts.update(0.1)
+  expect(kinds()).toEqual(['found', 'found'])
 })

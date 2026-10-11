@@ -74,7 +74,7 @@
     "ammoBunker": "Stocke les munitions de la zone ; les tourelles sont ravitaillées d'ici",
     "partsLocker": "Stocke les composants de la zone",
     "spaceport": "Vend les ressources des entrepôts de la zone et achète celles qui manquent contre des crédits",
-    "radar": "Voit loin à travers le brouillard de guerre",
+    "radar": "Voit les alentours et explore au loin par éclairs ; trouve des gisements",
     "windtrap": "Capte l'humidité du vent",
     "barracks": "Forme l'infanterie : fusiliers, lance-roquettes et lance-flammes",
     "factory": "Produit les véhicules terrestres et les MCV pour de nouvelles bases",
@@ -394,7 +394,8 @@
     "alerts": {
       "spotted": "Ennemi repéré",
       "baseAttacked": "Base attaquée",
-      "unitsAttacked": "Nos unités sont attaquées"
+      "unitsAttacked": "Nos unités sont attaquées",
+      "oreFound": "Gisement découvert"
     },
     "nothingSelected": "Rien de sélectionné. Bouton gauche — sélectionner, cadre — plusieurs unités, bouton droit — ordre. Ctrl+chiffre — mémoriser un groupe, chiffre — le sélectionner",
     "buildingsCount": "Bâtiments : {count}",
@@ -500,7 +501,8 @@
     "refine": "vitesse de raffinage",
     "store": "capacité",
     "trade": "soute et vitesse de vol",
-    "power": "production d'énergie"
+    "power": "production d'énergie",
+    "scan": "rayon de reconnaissance (et consommation)"
   },
   "chat": {
     "help": {

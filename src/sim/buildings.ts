@@ -32,6 +32,8 @@ export interface BuildingSpec {
   mounts?: MountSpec[]
   /** Сколько тайлов от центра видит готовое здание; без поля — на BUILDING_SIGHT от края. См. vision.ts. */
   sight?: number
+  /** На сколько тайлов от центра здание разведывает вспышками, см. radar.ts; с уровнем радиус растёт. */
+  scan?: number
   /** Энергия: больше нуля — вырабатывает, меньше — потребляет. */
   power?: number
   /**
@@ -181,7 +183,7 @@ export const BUILDINGS = {
   // одной электростанции хватает на два генератора.
   matter: { width: 2, height: 2, cost: 250, power: -3, income: 1.5, crowding: true },
   // Радар открывает туман далеко вокруг: так видно, кто идёт к базе, и куда бить артиллерией.
-  radar: { width: 2, height: 2, cost: 400, power: -3, sight: 24 },
+  radar: { width: 2, height: 2, cost: 400, power: -3, sight: 14, scan: 40 },
   windtrap: { width: 2, height: 2, cost: 300 },
   barracks: { width: 3, height: 2, cost: 250, power: -2, produces: ['infantry', 'rocketeer', 'flamer'] },
   // Шахта энергии не просит и начинает свою зону: тянуть к месторождению цепочку зданий не нужно.
@@ -242,8 +244,11 @@ export const levelFactor = (level: number) => 1 + LEVEL_BONUS * (level - 1)
 /** Уровень здания; у стройки и у того, что не здание, — первый. */
 export const levelOf = (world: World, entity: Entity) => world.get(entity, Building)?.level ?? 1
 
-/** Что уровень поднимает у здания: добычу, скорость переработки, ёмкость, трюм и время рейса или выработку. */
-export type LevelGain = 'extract' | 'refine' | 'store' | 'trade' | 'power'
+/**
+ * Что уровень поднимает у здания: добычу, скорость переработки, ёмкость, трюм и время рейса, выработку или радиус
+ * разведки — у радара вместе с ним растёт и потребление.
+ */
+export type LevelGain = 'extract' | 'refine' | 'store' | 'trade' | 'power' | 'scan'
 
 /** Что даёт уровень зданию этого вида; undefined — его не улучшают. */
 export function levelGain(type: BuildingType): LevelGain | undefined {
@@ -252,6 +257,7 @@ export function levelGain(type: BuildingType): LevelGain | undefined {
   if (spec.refines) return 'refine'
   if (spec.stores) return 'store'
   if (spec.trades) return 'trade'
+  if (spec.scan) return 'scan'
   return (spec.power ?? 0) > 0 ? 'power' : undefined
 }
 

@@ -1,7 +1,7 @@
 import type { Entity, World } from '../ecs'
 import { tileKey } from '../map/terrain'
 import { BUILDINGS, buildingSpec } from './buildings'
-import { Attached, Batch, Building, Off, Owner, Player, Position, Shot, Site, Unit } from './components'
+import { Attached, Batch, Building, Off, Owner, Player, Position, Scan, Shot, Site, Unit } from './components'
 import type { Sim } from './sim'
 import type { Bounds } from './sim'
 import { TURRETS } from './turrets'
@@ -15,6 +15,9 @@ const SIGHT_OVER_RANGE = 1.5
 /** Сколько тайлов от края видит готовое здание и стройка, если у вида нет своего числа. */
 const BUILDING_SIGHT = 4
 const SITE_SIGHT = 2
+/** Вспышка разведки радара: радиус в тайлах и сколько тиков она светит (20 тиков в секунду), см. radar.ts. */
+export const SCAN_SIZE = 6
+export const SCAN_TICKS = 30
 /** Раз во сколько тиков пересчитывается обзор игрока. */
 const VISION_TICKS = 4
 
@@ -169,6 +172,10 @@ export function createVision(world: World, bounds: Bounds, tick: () => number, f
       if (!building) continue
       const { width: w, height: h } = BUILDINGS[building.type]
       stamp(sight, position.x + w / 2, position.y + h / 2, buildingSight(building.type, world.has(entity, Site), world.has(entity, Off)))
+    }
+    // Вспышки разведки своих радаров, пока не погасли, см. radar.ts.
+    for (const [, flash, owner] of world.query(Scan, Owner)) {
+      if (owner.player === player && flash.tick >= 0 && now - flash.tick < SCAN_TICKS) stamp(sight, flash.x, flash.y, SCAN_SIZE)
     }
     if (before.length !== sight.lit.length || before.some((index, i) => index !== sight!.lit[i])) sight.changed++
     return sight

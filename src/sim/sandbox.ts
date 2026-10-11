@@ -27,7 +27,7 @@ const BASE_REACH = 8000
 
 /** Что стоит на тестовой карте, кроме шахты и главного здания: по порядку, от главного здания наружу. */
 const SANDBOX_BUILDINGS: BuildingType[] = [
-  'generator', 'generator', 'generator', 'generator', 'smelter', 'siliconWorks', 'blockPlant', 'ammoPlant', 'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker', 'spaceport', 'factory', 'barracks', 'matter', 'techCenter',
+  'generator', 'generator', 'generator', 'generator', 'smelter', 'siliconWorks', 'blockPlant', 'ammoPlant', 'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker', 'spaceport', 'factory', 'barracks', 'matter', 'techCenter', 'radar',
 ]
 /** С какими юнитами игрок начинает на тестовой карте, кроме грузовиков. */
 const SANDBOX_UNITS: UnitType[] = ['harvester', 'builder', 'builder', 'infantry', 'infantry', 'rocketeer', 'buggy', 'tank', 'tesla', 'carrier']

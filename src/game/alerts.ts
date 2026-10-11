@@ -1,10 +1,14 @@
 import type { Audio } from '../audio/audio'
 import type { Entity } from '../ecs'
 import { Building, Health, Owner, Position, Shot, Unit, buildingSpec } from '../sim'
+import { tileKey } from '../map/terrain'
+import { DEPOSIT_SIZE } from '../sim/deposits'
 import type { Scene } from './scene'
 
 /** Не чаще этого, в секундах, игрока предупреждают, что замечен противник. */
 const SPOTTED_GAP = 12
+/** Не чаще этого, в секундах, игроку сообщают о найденном месторождении: армия в походе находит их пачками. */
+const FOUND_GAP = 6
 /** Сколько секунд строка уведомления висит в ленте и метка мигает на мини-карте. */
 export const ALERT_SECONDS = 8
 /** Больше строк лента не держит: старые уходят. */
@@ -18,10 +22,10 @@ const HIT_MEMORY = 1.5
 /** Громкость сигналов: они слышны всегда, где бы ни была камера. */
 const VOLUME = 0.7
 
-export type AlertKind = 'attacked' | 'spotted'
+export type AlertKind = 'attacked' | 'spotted' | 'found'
 
 /** Что сказать об уведомлении: ключ строки в разделе hud.alerts словаря. */
-export type AlertText = 'spotted' | 'baseAttacked' | 'unitsAttacked'
+export type AlertText = 'spotted' | 'baseAttacked' | 'unitsAttacked' | 'oreFound'
 
 export interface Alert {
   kind: AlertKind
@@ -38,7 +42,8 @@ export interface Alert {
  * чужой выстрел — «атакованы»;
  * в виду появился чужой юнит — «замечен противник». Хост шлёт только то, что игрок видит, поэтому чужие юниты
  * в копии мира — это враги в виду. Об атаке предупреждают раз: снова — когда враги пропали из виду и напали опять.
- * О замеченном — не чаще SPOTTED_GAP. Каждое уведомление — строка в ленте, сигнал и метка на мини-карте.
+ * О замеченном — не чаще SPOTTED_GAP. Игрок узнал о новом месторождении — разведал его юнитом или радаром — «найдено
+ * месторождение», не чаще FOUND_GAP. Каждое уведомление — строка в ленте, сигнал и метка на мини-карте.
  */
 export function createAlerts(scene: Scene, audio: Audio | null) {
   let clock = 0
@@ -50,6 +55,9 @@ export function createAlerts(scene: Scene, audio: Audio | null) {
   const alerts: Alert[] = []
   /** Куда недавно падали чужие выстрелы: номер выстрела — место и когда его заметили. */
   const impacts = new Map<Entity, { x: number; y: number; at: number }>()
+  /** Какие месторождения игрок уже знал: по номеру правки слоя и по миру, с которым они сверены. */
+  let deposits: { sim: unknown; generation: number | undefined; revision: number; known: Set<number> } | undefined
+  let foundAt = -Infinity
 
   const raise = (kind: AlertKind, text: AlertText, x: number, y: number) => {
     alerts.push({ kind, text, x, y, at: clock })
@@ -84,6 +92,28 @@ export function createAlerts(scene: Scene, audio: Audio | null) {
         spottedAt = clock
         const { x, y } = world.get(spotted, Position)!
         raise('spotted', 'spotted', x, y)
+      }
+
+      // Месторождения игрок знает только разведанные: хост шлёт слой заново, когда он узнал новые.
+      const layer = scene.sim.deposits
+      const generation = (scene.sim as { generation?: number }).generation
+      if (layer.complete && (deposits?.sim !== scene.sim || deposits.generation !== generation || deposits.revision !== layer.revision)) {
+        const known = new Set<number>()
+        let fresh: { x: number; y: number } | undefined
+        // Тот же мир, что в прошлый раз: чего в нём не было, то найдено сейчас. Новый мир — всё в нём уже знакомо.
+        const before = deposits?.sim === scene.sim && deposits.generation === generation ? deposits.known : undefined
+        for (const spots of layer.cells.values()) {
+          for (const spot of spots) {
+            const key = tileKey(spot.x, spot.y)
+            known.add(key)
+            if (before && !before.has(key)) fresh ??= spot
+          }
+        }
+        deposits = { sim: scene.sim, generation, revision: layer.revision, known }
+        if (fresh && clock - foundAt >= FOUND_GAP) {
+          foundAt = clock
+          raise('found', 'oreFound', fresh.x + DEPOSIT_SIZE / 2, fresh.y + DEPOSIT_SIZE / 2)
+        }
       }
 
       for (const [entity, shot] of world.query(Shot)) {

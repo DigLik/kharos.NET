@@ -74,7 +74,7 @@
     "ammoBunker": "Lagert die Munition der Zone; von hier werden die Türme versorgt",
     "partsLocker": "Lagert die Teile der Zone",
     "spaceport": "Verkauft Rohstoffe aus den Lagern der Zone und kauft fehlende für Credits",
-    "radar": "Sieht weit durch den Nebel des Krieges",
+    "radar": "Sieht die Umgebung und erkundet ferne Stellen in Blitzen; findet Vorkommen",
     "windtrap": "Fängt Feuchtigkeit aus dem Wind",
     "barracks": "Bildet Infanterie aus: Schützen, Raketenschützen und Flammenwerfer",
     "factory": "Baut Bodenfahrzeuge und MCVs für neue Basen",
@@ -394,7 +394,8 @@
     "alerts": {
       "spotted": "Feind gesichtet",
       "baseAttacked": "Basis wird angegriffen",
-      "unitsAttacked": "Unsere Einheiten werden angegriffen"
+      "unitsAttacked": "Unsere Einheiten werden angegriffen",
+      "oreFound": "Vorkommen entdeckt"
     },
     "nothingSelected": "Nichts ausgewählt. Linke Taste — auswählen, Rahmen — mehrere Einheiten, rechte Taste — Befehl. Strg+Ziffer — Gruppe merken, Ziffer — sie auswählen",
     "buildingsCount": "Gebäude: {count}",
@@ -500,7 +501,8 @@
     "refine": "Verarbeitungstempo",
     "store": "Kapazität",
     "trade": "Laderaum und Flugtempo",
-    "power": "Stromerzeugung"
+    "power": "Stromerzeugung",
+    "scan": "Aufklärungsradius (und Verbrauch)"
   },
   "chat": {
     "help": {

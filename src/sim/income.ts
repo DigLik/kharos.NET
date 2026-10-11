@@ -84,7 +84,8 @@ export function coreless(sim: Sim): Set<Entity> {
 function powerAt(sim: Sim, building: Entity) {
   const { type, level } = sim.world.get(building, Building)!
   const power = buildingSpec(type).power ?? 0
-  return power > 0 ? power * levelFactor(level) : power
+  // Выработка растёт с уровнем; у радара — потребление: дальше разведывает — больше ест.
+  return power > 0 || buildingSpec(type).scan ? power * levelFactor(level) : power
 }
 /** Потребитель, которого игрок выключил: энергии ему не нужно, и работать он не будет. У завода изделий — свой флаг. */
 function switchedOff(sim: Sim, building: Entity) {

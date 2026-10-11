@@ -74,7 +74,7 @@
     "ammoBunker": "Guarda a munição da zona; daqui as torres são abastecidas",
     "partsLocker": "Guarda os componentes da zona",
     "spaceport": "Vende recursos dos armazéns da zona e compra os que faltam com créditos",
-    "radar": "Enxerga longe através da névoa de guerra",
+    "radar": "Enxerga os arredores e explora pontos distantes em clarões; encontra jazidas",
     "windtrap": "Capta a umidade do vento",
     "barracks": "Treina infantaria: fuzileiros, lança-foguetes e lança-chamas",
     "factory": "Produz veículos terrestres e MCVs para novas bases",
@@ -394,7 +394,8 @@
     "alerts": {
       "spotted": "Inimigo avistado",
       "baseAttacked": "Base sob ataque",
-      "unitsAttacked": "Nossas unidades estão sob ataque"
+      "unitsAttacked": "Nossas unidades estão sob ataque",
+      "oreFound": "Jazida encontrada"
     },
     "nothingSelected": "Nada selecionado. Botão esquerdo — selecionar, quadro — várias unidades, botão direito — ordem. Ctrl+número — memorizar um grupo, número — selecioná-lo",
     "buildingsCount": "Edifícios: {count}",
@@ -500,7 +501,8 @@
     "refine": "velocidade de refino",
     "store": "capacidade",
     "trade": "porão e velocidade de voo",
-    "power": "geração"
+    "power": "geração",
+    "scan": "raio de exploração (e consumo)"
   },
   "chat": {
     "help": {
