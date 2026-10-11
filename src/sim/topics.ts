@@ -64,7 +64,7 @@ export interface TopicPrice {
 }
 
 /**
- * Что тема стоит игроку сейчас, по правилам мира (Rules.researchScale и researchGrowth). Удорожают и открытые темы,
+ * Что тема стоит игроку сейчас, по правилам мира (Rules.researchScale, researchGrowth и researchSlow). Удорожают и открытые темы,
  * и начатые: иначе несколько техцентров разом начали бы всё дерево по цене первой темы. Порядок тем игрок выбирает
  * сам — и тем самым решает, что достанется дёшево.
  */
@@ -73,8 +73,8 @@ export function topicPrice(sim: Sim, player: number, topic: Topic): TopicPrice {
 }
 
 /** Цена темы для того, у кого открыто или начато taken тем, по правилам темпа: так же считает и харнесс баланса. */
-export function priceAfter(topic: Topic, { researchScale, researchGrowth }: Pick<Sim['rules'], 'researchScale' | 'researchGrowth'>, taken: number): TopicPrice {
+export function priceAfter(topic: Topic, { researchScale, researchGrowth, researchSlow }: Pick<Sim['rules'], 'researchScale' | 'researchGrowth' | 'researchSlow'>, taken: number): TopicPrice {
   const { cost, parts, seconds } = topicSpec(topic)
   const factor = researchScale * researchGrowth ** taken
-  return { cost: Math.round(cost * factor), materials: { parts: Math.round(parts * factor) }, seconds: seconds * factor }
+  return { cost: Math.round(cost * factor), materials: { parts: Math.round(parts * factor) }, seconds: seconds * factor * researchSlow }
 }

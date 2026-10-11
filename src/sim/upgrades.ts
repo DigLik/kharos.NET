@@ -81,7 +81,7 @@ export function upgradeLack(sim: Sim, player: number, building: Entity): Upgrade
   const built = sim.world.get(building, Building)
   if (!built) return undefined
   if (!hasResearch(sim, player, levelTopic(built.level))) return 'research'
-  const { credits, materials } = upgradeCost(built.type, built.level)
+  const { credits, materials } = upgradeCost(built.type, built.level, sim.rules.upgradeScale)
   if (creditsOf(sim, player) < credits) return 'credits'
   return networkHas(sim, building, materials) ? undefined : 'materials'
 }
@@ -94,10 +94,11 @@ export function orderUpgrade(sim: Sim, player: number, building: Entity, builder
   const { world } = sim
   if (!isUpgradable(sim, player, building) || upgradeLack(sim, player, building)) return false
   const { type, level } = world.get(building, Building)!
-  const { credits, materials } = upgradeCost(type, level)
+  const scale = sim.rules.upgradeScale
+  const { credits, materials } = upgradeCost(type, level, scale)
   if (!pay(sim, player, credits)) return false
   takeFromNetwork(sim, building, materials)
-  world.add(building, Upgrade())
+  world.add(building, Upgrade({ scale }))
   assignBuilders(sim, player, building, builders)
   return true
 }
@@ -109,8 +110,9 @@ export function orderUpgrade(sim: Sim, player: number, building: Entity, builder
 export function cancelUpgrade(sim: Sim, player: number, building: Entity) {
   const { world } = sim
   const built = world.get(building, Building)
-  if (!built || !world.has(building, Upgrade) || !isReady(sim, player, building)) return false
-  const { credits, materials } = upgradeCost(built.type, built.level)
+  const upgrade = world.get(building, Upgrade)
+  if (!built || !upgrade || !isReady(sim, player, building)) return false
+  const { credits, materials } = upgradeCost(built.type, built.level, upgrade.scale)
   world.remove(building, Upgrade)
   addCredits(sim, player, credits)
   returnToNetwork(sim, building, materials)

@@ -113,11 +113,11 @@ function upgradeAt(sim: Sim, entity: Entity) {
   const upgrade = world.get(entity, Upgrade)
   const building = world.get(entity, Building)
   if (!upgrade || !building || world.has(entity, Site) || isRepairable(sim, entity)) return undefined
-  return { upgrade, building, ticks: upgradeTicks(building.type, building.level, sim.time.step) }
+  return { upgrade, building, ticks: upgradeTicks(building.type, building.level, sim.time.step, upgrade.scale) }
 }
 
 /** Сколько тиков работы одного строителя нужно, чтобы поднять здание с уровня level на следующий. */
-export const upgradeTicks = (type: BuildingType, level: number, step: number) => workTicks(upgradeCost(type, level).credits, step)
+export const upgradeTicks = (type: BuildingType, level: number, step: number, scale = 1) => workTicks(upgradeCost(type, level, scale).credits, step)
 
 /** Может ли игрок послать строителей чинить это здание или юнит. */
 export const canRepair = (sim: Sim, player: number, entity: Entity) => isOwn(sim, player, entity) && isRepairable(sim, entity)
@@ -153,7 +153,7 @@ function workAt(sim: Sim, entity: Entity): Work | undefined {
   const built = type ?? (repair || raised ? world.get(entity, Building)!.type : undefined)
   if (built === undefined) return undefined
   const { width, height, cost } = BUILDINGS[built]
-  return { x: position.x, y: position.y, width, height, radius: 0, cost: raised ? upgradeCost(built, raised.building.level).credits : cost }
+  return { x: position.x, y: position.y, width, height, radius: 0, cost: raised ? upgradeCost(built, raised.building.level, raised.upgrade.scale).credits : cost }
 }
 
 /** Расстояние от точки до края того, над чем работают, в тайлах; внутри основания — ноль. */

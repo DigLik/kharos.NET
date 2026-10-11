@@ -73,11 +73,15 @@ export interface Rules {
   protection: number
   /**
    * Темп исследований. researchScale — во сколько раз тема дороже и дольше, чем в RESEARCH; researchGrowth — во сколько
-   * раз каждая открытая или начатая тема удорожает следующую. Единицы — дерево на один матч; на сервере, где мир живёт
-   * две недели, они больше, см. server/settings.ts.
+   * раз каждая открытая или начатая тема удорожает следующую; researchSlow — во сколько раз срок длиннее сверх этого:
+   * цену держит земля (харит конечен), и растянуть срок ценой нельзя. Единицы — дерево на один матч; на сервере, где
+   * мир живёт две недели, они больше, см. server/settings.ts.
    */
   researchScale: number
   researchGrowth: number
+  researchSlow: number
+  /** Во сколько раз уровни зданий дороже и дольше, чем в матче, см. upgradeCost. */
+  upgradeScale: number
 }
 
 export const DEFAULT_RULES: Rules = {
@@ -99,6 +103,8 @@ export const DEFAULT_RULES: Rules = {
   protection: 10,
   researchScale: 1,
   researchGrowth: 1,
+  researchSlow: 1,
+  upgradeScale: 1,
 }
 
 export interface SimOptions {

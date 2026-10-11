@@ -283,10 +283,10 @@ export const Batch = component('Batch', () => ({ from: -1, to: -1, resource: 'me
 
 /**
  * Улучшение: готовое здание поднимают на следующий уровень. Компонент есть, только пока оно идёт; здание при этом
- * работает как обычно. progress — сколько тиков работы одного строителя уже вложено. Цена списана при заказе.
- * См. upgrades.ts.
+ * работает как обычно. progress — сколько тиков работы одного строителя уже вложено. Цена списана при заказе;
+ * scale — по какому Rules.upgradeScale: отмена возвращает уплаченное, и срок работы — от него же. См. upgrades.ts.
  */
-export const Upgrade = component('Upgrade', { progress: 0 })
+export const Upgrade = component('Upgrade', { progress: 0, scale: 1 })
 
 /**
  * Исследование, которое ведёт техцентр: topic — тема (см. RESEARCH в research.ts), progress — сколько тиков оно уже

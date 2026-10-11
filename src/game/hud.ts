@@ -393,10 +393,10 @@ export function readHud(scene: Scene): HudState {
       level ??= { level: built.level, max: MAX_LEVEL, gain, factor: levelFactor(built.level), next: null, raising: null }
       const upgrade = world.get(entity, Upgrade)
       if (upgrade) {
-        level.raising ??= { buildings: [], progress: round(Math.min(1, upgrade.progress / upgradeTicks(built.type, built.level, sim.time.step))) }
+        level.raising ??= { buildings: [], progress: round(Math.min(1, upgrade.progress / upgradeTicks(built.type, built.level, sim.time.step, upgrade.scale))) }
         level.raising.buildings.push(entity)
       } else if (isUpgradable(sim, player, entity)) {
-        const price = upgradeCost(built.type, built.level)
+        const price = upgradeCost(built.type, built.level, sim.rules.upgradeScale)
         level.next ??= { buildings: [], level: built.level + 1, factor: levelFactor(built.level + 1), cost: 0, materials: [], lack: null, topic: levelTopic(built.level) }
         level.next.buildings.push(entity)
         level.next.cost += price.credits

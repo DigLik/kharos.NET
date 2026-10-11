@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import {
-  BUILDINGS, Inventory, Off, RESEARCH, Research, Upgrade, canPlace, createSim, creditsOf, hasResearch, isUnlocked, researchOf, stockOf, topicLack, topicPrice, upgradeLack,
+  BUILDINGS, Inventory, Off, RESEARCH, Research, Upgrade, canPlace, createSim, creditsOf, hasResearch, isUnlocked, researchOf, stockOf, topicLack, topicPrice, upgradeCost, upgradeLack, upgradeTicks,
   type BuildingType, type Rules, type Sim,
 } from '../src/sim'
 import { STORES, placeBuilding, storeFor } from '../src/sim/buildings'
@@ -165,4 +165,29 @@ test('темп исследований: правила множат цену и
   expect(creditsOf(sim, 1) - before).toBeLessThan(RESEARCH.beams.cost * 6 + 50)
   expect(stockOf(sim, 1).items.parts).toBe(60 - parts * 2)
   expect(topicPrice(sim, 1, 'beams').cost).toBe(RESEARCH.beams.cost * 2 * 3)
+})
+
+test('срок исследования растягивается отдельно от цены, а уровни зданий дорожают своим правилом; отмена возвращает уплаченное', () => {
+  const { sim, buildings: [plant], stash } = base(['generator', 'techCenter'], { techTree: false, researchScale: 2, researchSlow: 3, upgradeScale: 3 })
+  const { cost, parts, seconds: time } = RESEARCH.armor
+  expect(topicPrice(sim, 1, 'armor')).toEqual({ cost: cost * 2, materials: { parts: parts * 2 }, seconds: time * 6 })
+
+  // Электростанция в матче — 150 кредитов и 10 стройблоков; здесь втрое.
+  expect(upgradeCost('generator', 1, sim.rules.upgradeScale)).toEqual({ credits: 450, materials: { blocks: 30 } })
+  stash({ blocks: 100 })
+  const credits = creditsOf(sim, 1)
+  sim.send(1, { type: 'upgrade', building: plant, builders: [] })
+  sim.advance(TICK)
+  expect(sim.world.get(plant, Upgrade)).toMatchObject({ scale: 3 })
+  expect(Math.round(credits - creditsOf(sim, 1))).toBe(450)
+  expect(stockOf(sim, 1).items.blocks).toBe(70)
+  // Работы строителю — тоже втрое: срок считается из цены.
+  expect(upgradeTicks('generator', 1, TICK, 3)).toBe(upgradeTicks('generator', 1, TICK) * 3)
+  // Правила поменяли посреди улучшения: отмена возвращает то, что было уплачено.
+  sim.rules.upgradeScale = 1
+  sim.send(1, { type: 'cancelUpgrade', building: plant })
+  sim.advance(TICK)
+  expect(sim.world.has(plant, Upgrade)).toBe(false)
+  expect(Math.round(creditsOf(sim, 1) - credits)).toBe(0)
+  expect(stockOf(sim, 1).items.blocks).toBe(100)
 })

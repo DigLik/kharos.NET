@@ -263,16 +263,20 @@ const UPGRADE_PARTS = 60
 
 /**
  * Цена подъёма здания с уровня level на следующий: кредиты и готовое. Стройблоки нужны всегда, с третьего уровня —
- * ещё и компоненты: первый подъём по силам базе с одним цехом, дальше нужна вся цепочка изделий.
+ * ещё и компоненты: первый подъём по силам базе с одним цехом, дальше нужна вся цепочка изделий. scale — во сколько
+ * раз дороже по правилам мира (Rules.upgradeScale); единица — цена матча.
  */
-export function upgradeCost(type: BuildingType, level: number): { credits: number; materials: Amounts } {
+export function upgradeCost(type: BuildingType, level: number, scale = 1): { credits: number; materials: Amounts } {
   const { cost } = buildingSpec(type)
-  const materials: Amounts = { blocks: Math.ceil(cost / UPGRADE_BLOCKS) * level }
-  if (level >= 2) materials.parts = Math.ceil(cost / UPGRADE_PARTS) * (level - 1)
-  return { credits: Math.round(cost * UPGRADE_SHARE * level), materials }
+  const materials: Amounts = { blocks: Math.ceil(Math.ceil(cost / UPGRADE_BLOCKS) * level * scale) }
+  if (level >= 2) materials.parts = Math.ceil(Math.ceil(cost / UPGRADE_PARTS) * (level - 1) * scale)
+  return { credits: Math.round(cost * UPGRADE_SHARE * level * scale), materials }
 }
 
-/** Сколько кредитов вложено в уровни здания сверх его цены. */
+/**
+ * Сколько кредитов вложено в уровни здания сверх его цены — по цене матча, без Rules.upgradeScale: по какой цене
+ * поднимали на самом деле, здание не помнит, а правила между запусками сервера меняются. Разбор возвращает долю этого.
+ */
 export function upgradeSpent(type: BuildingType, level: number) {
   let spent = 0
   for (let below = 1; below < level; below++) spent += upgradeCost(type, below).credits

@@ -13,7 +13,7 @@
  */
 import {
   ASSEMBLE_RATE, BUILDINGS, DEPOSIT_KINDS, Inventory, MAX_LEVEL, PRODUCT_SPECS, REFINE_RATIO, RESEARCH, RESOURCE_SPECS, TOPICS, amountOf, connectAll, createSim,
-  cycleSeconds, depositIn, levelGain, priceAfter, topicSpec, upgradeCost, type BuildingType, type DepositSpot, type Sim, type Topic,
+  cycleSeconds, depositIn, levelGain, priceAfter, topicSpec, upgradeCost, DEFAULT_RULES, type BuildingType, type DepositSpot, type Rules, type Sim, type Topic,
 } from '../../src/sim'
 import { setWorking } from '../../src/sim/assembly'
 import { put } from '../../src/sim/inventory'
@@ -91,11 +91,11 @@ function printMap() {
     }
     const mean = (list: number[]) => list.reduce((sum, value) => sum + value, 0) / list.length
     const parts = mean(totals) / REFINE_RATIO / KHARITE_PER_PART
-    rows.push([`${size}×${size}`, Math.round(all / 3), `${Math.min(...counts)}–${Math.max(...counts)}`, Math.round(parts), round(parts / ladder(SESSION_RULES as Pace).parts, 1)])
+    rows.push([`${size}×${size}`, Math.round(all / 3), `${Math.min(...counts)}–${Math.max(...counts)}`, Math.round(parts), round(parts / ladder(SESSION).parts, 1)])
   }
   printTable(['карта', 'месторожд.', 'из них харит', 'компонентов', 'деревьев'], rows, 12, 13)
   console.log('  компонентов — если весь харит карты пустить в цех; деревьев — сколько полных деревьев исследований')
-  console.log(`  по правилам сервера (×${SESSION_RULES.researchScale}, рост ×${SESSION_RULES.researchGrowth}) это кормит, если харит не продавать и не тратить на технику`)
+  console.log(`  по правилам сервера (×${SESSION.researchScale}, рост ×${SESSION.researchGrowth}) это кормит, если харит не продавать и не тратить на технику`)
   console.log('\nХарит вокруг базы (карта 2048, базы — вдали от края)')
   printTable(
     ['радиус', 'компонентов', 'от–до', 'месторожд.'],
@@ -179,10 +179,9 @@ function measureLine() {
 }
 
 /** Правила темпа исследований. */
-interface Pace {
-  researchScale: number
-  researchGrowth: number
-}
+type Pace = Pick<Rules, 'researchScale' | 'researchGrowth' | 'researchSlow'>
+const SESSION: Rules = { ...DEFAULT_RULES, ...SESSION_RULES }
+const pace = (researchScale: number, researchGrowth: number, researchSlow = 1): Pace => ({ researchScale, researchGrowth, researchSlow })
 
 /** Типовой порядок тем: из доступных — самая дешёвая; что открыто раньше, досталось дешевле. */
 function typicalOrder(): Topic[] {
@@ -240,9 +239,9 @@ function timeline(pace: Pace, scale: Scale, rate: number, move: number) {
 
 /** 4. Лестница: цены ступеней, когда они открываются, и что будет при других правилах. */
 function printLadder(rate: number, first: number) {
-  const session = SESSION_RULES as Pace
+  const session = SESSION
   const whole = ladder(session)
-  console.log(`\nЛестница исследований по правилам сервера: ×${session.researchScale}, каждая следующая тема ×${session.researchGrowth}; порядок — от дешёвых`)
+  console.log(`\nЛестница исследований по правилам сервера: цена ×${session.researchScale}, каждая следующая тема ×${session.researchGrowth}, срок ещё ×${session.researchSlow}; порядок — от дешёвых`)
   printTable(
     ['тема', 'кредиты', 'компон.', 'срок', 'месторожд.'],
     [
@@ -273,21 +272,13 @@ function printLadder(rate: number, first: number) {
   console.log(`  переезд на новое месторождение — ${minutes(move)}; ждёт — чего тема дожидалась последним`)
 
   console.log('\nТо же при других правилах: всё дерево')
-  const paces: Pace[] = [
-    { researchScale: 1, researchGrowth: 1 },
-    session,
-    { researchScale: 10, researchGrowth: 3 },
-    { researchScale: 20, researchGrowth: 2 },
-    { researchScale: 30, researchGrowth: 2 },
-    { researchScale: 20, researchGrowth: 3 },
-    { researchScale: 50, researchGrowth: 2 },
-  ]
+  const paces: Pace[] = [pace(1, 1), pace(10, 2), pace(10, 2, 6), session, pace(10, 2, 24), pace(20, 2), pace(30, 2), pace(10, 3)]
   printTable(
     ['правила', 'кредиты', 'компон.', 'месторожд.', 'техцентр', ...scales.map((scale) => scale.name), 'первая'],
     paces.map((pace) => {
       const tree = ladder(pace)
       return [
-        `×${pace.researchScale}, ×${pace.researchGrowth}`, tree.cost, tree.parts, round(tree.parts / AVERAGE_DEPOSIT, 1), hours(tree.seconds),
+        `×${pace.researchScale}, ×${pace.researchGrowth}, ×${pace.researchSlow}`, tree.cost, tree.parts, round(tree.parts / AVERAGE_DEPOSIT, 1), hours(tree.seconds),
         ...scales.map((scale) => hours(timeline(pace, scale, rate, move).at(-1)!.done)),
         hours(timeline(pace, scales[0], rate, move)[0].done),
       ]
@@ -312,18 +303,18 @@ function printLevels() {
   for (const [type, count] of upgradable) {
     const cells: number[] = []
     for (let level = 1; level < MAX_LEVEL; level++) {
-      const { credits, materials } = upgradeCost(type, level)
+      const { credits, materials } = upgradeCost(type, level, SESSION.upgradeScale)
       cells.push(credits * count, (materials.blocks ?? 0) * count, (materials.parts ?? 0) * count)
     }
     cells.forEach((value, i) => (total[i] += value))
     rows.push([`${type} ×${count}`, ...cells])
   }
   rows.push(['вся база', ...total])
-  const tree = ladder(SESSION_RULES as Pace)
-  console.log(`\nУровни зданий: поднять типовую базу (${upgradable.reduce((sum, [, count]) => sum + count, 0)} зданий) до второго и до третьего уровня`)
+  const tree = ladder(SESSION)
+  console.log(`\nУровни зданий по правилам сервера (×${SESSION.upgradeScale}): поднять типовую базу (${upgradable.reduce((sum, [, count]) => sum + count, 0)} зданий) до второго и до третьего уровня`)
   printTable(['здание', 'кр → 2', 'блоков', 'компон.', 'кр → 3', 'блоков', 'компон.'], rows, 16, 9)
-  console.log(`  обе ступени — ${total[0] + total[3]} кр и ${total[2] + total[5]} компонентов: ${round(((total[0] + total[3]) / tree.cost) * 100, 0)}% кредитов и ${round(((total[2] + total[5]) / tree.parts) * 100, 0)}% компонентов дерева исследований`)
-  console.log(`  по правилам сервера; сами уровни открывают темы levels2 (${tree.steps.find((step) => step.topic === 'levels2')!.parts} компонентов) и levels3 (${tree.steps.find((step) => step.topic === 'levels3')!.parts})`)
+  console.log(`  обе ступени — ${total[0] + total[3]} кр, ${total[1] + total[4]} стройблоков и ${total[2] + total[5]} компонентов: ${round(((total[0] + total[3]) / tree.cost) * 100, 0)}% кредитов и ${round(((total[2] + total[5]) / tree.parts) * 100, 0)}% компонентов дерева исследований`)
+  console.log(`  сами уровни открывают темы levels2 (${tree.steps.find((step) => step.topic === 'levels2')!.parts} компонентов) и levels3 (${tree.steps.find((step) => step.topic === 'levels3')!.parts})`)
 }
 
 export function runResearch() {
