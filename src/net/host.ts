@@ -3,8 +3,8 @@ import type { Entity } from '../ecs'
 import { Terrain, terrainAt, tileBytes } from '../map/terrain'
 import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownBy, sightingOf, spawnStartingUnits, wipePlayer, type Command, type Sim, type Sighting, type SimSave } from '../sim'
 import { Armed, Attached, Blast, Building, Health, Owner, Path, Player, Position, Shot, Unit } from '../sim/components'
-import { motionOf, pathOf, seenBy, sharedWireOf, type Wired } from './wire'
-import { LAND, encodeDelta, type Motion } from './codec'
+import { pathOf, seenBy, sharedWireOf, type Wired } from './wire'
+import { LAND, POSITION, encodeDelta, type Motion, type ShotRecord } from './codec'
 import { deflate } from '../save/file'
 import { DEPOSIT_SIZE, fillDeposits, saveDeposits } from '../sim/deposits'
 import { knownEdits, pristineLand, takeLearned } from '../sim/landMemory'
@@ -91,8 +91,9 @@ const SCREEN_MARGIN_LEAST = 6
 const HOT_TICKS = 20
 /** Корзин в очереди рассылки: по четыре на каждое удвоение приоритета, см. bucketOf. */
 const BUCKETS = 64
-/** Во что кадру обходится запись движения, обёртка записи set и номер в remove, в байтах: для бюджета, на глаз. */
+/** Во что кадру обходится запись движения, выстрел, обёртка записи set и номер в remove, в байтах: для бюджета, на глаз. */
 const MOTION_BYTES = 13
+const SHOT_BYTES = 30
 const SET_BYTES = 10
 const REMOVE_BYTES = 6
 const PATH_KEY = JSON.stringify(Path.key)
@@ -125,8 +126,7 @@ type View = Map<number, Known>
 
 /** Что о сущности нужно очереди рассылки — одно на всех игроков, раз за тик. */
 interface Brief {
-  motion?: Motion
-  /** Есть ли у неё место на карте и где оно, в тайлах. */
+  /** Есть ли у неё место на карте и где оно, в тайлах; у турели на носителе — место носителя. */
   placed: boolean
   x: number
   y: number
@@ -150,6 +150,7 @@ interface Frame {
   unset: [number, string[]][]
   remove: number[]
   motions: [number, Motion, number][]
+  shots: ShotRecord[]
   /** Очередь необязательного: номера сущностей по корзинам, см. bucketOf; bucket и at — докуда она разобрана. */
   queue: number[][]
   bucket: number
@@ -292,8 +293,9 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     const known = shown.get(send)!
     const found: Trace[] = []
     const near = nearOf(send)
+    const sees = sim.vision.seer(player)
     const check = (trace: Trace) => {
-      const seen = sim.vision.sees(player, trace.x, trace.y)
+      const seen = sees(trace.x, trace.y)
       if (seen && !known.has(trace.id)) {
         if (found.length >= (near(trace.x, trace.y) ? most : most / 2)) return
         found.push(trace)
@@ -304,7 +306,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       }
     }
     // Колею, оставленную на глазах у игрока, клиент кладёт сам: он видит того же юнита, см. traces.ts.
-    for (const trace of sim.traces.fresh()) if (trace.kind === 'track' && sim.vision.sees(player, trace.x, trace.y)) known.add(trace.id)
+    for (const trace of sim.traces.fresh()) if (trace.kind === 'track' && sees(trace.x, trace.y)) known.add(trace.id)
     if (!sweep) {
       for (const trace of sim.traces.fresh()) check(trace)
       return found
@@ -744,25 +746,27 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     }
     scanned = { tick: sim.time.tick, ids, sightings, wired: [], briefs: [] }
   }
+  /** Что о сущности нужно очереди. Берётся из её Sighting, где можно: он уже собран, а сущностей тысячи. */
   const briefOf = (at: number) => {
     let brief = scanned.briefs[at]
     if (!brief) {
       const { world } = sim
       const entity = scanned.ids[at] as Entity
-      const place = world.get(entity, Position)
-      const armed = world.get(entity, Armed)
-      const hit = world.get(entity, Health)?.hit ?? -1
-      const shot = world.get(entity, Shot)
-      const fleeting = shot !== undefined || world.has(entity, Blast)
-      brief = {
-        motion: motionOf(world, entity),
-        placed: place !== undefined,
-        x: place?.x ?? 0,
-        y: place?.y ?? 0,
-        hot: fleeting || (armed !== undefined && armed.target >= 0) || (hit >= 0 && scanned.tick - hit < HOT_TICKS),
-        account: world.get(entity, Player)?.id ?? 0,
-        fleeting,
-        aim: shot ? (world.get(shot.target as Entity, Owner)?.player ?? 0) : 0,
+      const sighting = scanned.sightings[at]
+      if (sighting.points) {
+        // Выстрел: его место — последняя точка, если оно есть, см. sightingOf.
+        const { points } = sighting
+        const placed = points.length > 4
+        const shot = world.get(entity, Shot)
+        brief = { placed, x: placed ? points[4] : points[0], y: placed ? points[5] : points[1], hot: true, account: 0, fleeting: true, aim: shot ? (world.get(shot.target as Entity, Owner)?.player ?? 0) : 0 }
+      } else if (sighting.width === 0) {
+        // Без места на карте: счёт игрока, поток в трубе, заказ.
+        brief = { placed: false, x: 0, y: 0, hot: false, account: world.get(entity, Player)?.id ?? 0, fleeting: false, aim: 0 }
+      } else {
+        const armed = world.get(entity, Armed)
+        const hit = world.get(entity, Health)?.hit ?? -1
+        const fleeting = world.has(entity, Blast)
+        brief = { placed: true, x: sighting.x, y: sighting.y, hot: fleeting || (armed !== undefined && armed.target >= 0) || (hit >= 0 && scanned.tick - hit < HOT_TICKS), account: 0, fleeting, aim: 0 }
       }
       scanned.briefs[at] = brief
     }
@@ -806,7 +810,18 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     const path = pathOf(sim.world, entity, player)
     const old = known.get(id)
     let set = ''
-    for (const [key, json] of parts) if (old?.parts.get(key) !== json) set += `${set && ','}${JSON.stringify(key)}:${json}`
+    let shot = false
+    for (const [key, json] of parts) {
+      if (old?.parts.get(key) === json) continue
+      // Выстрел идёт двоичной записью, см. codec.ts: в бою их сотни за тик.
+      if (key === Shot.key) shot = true
+      else set += `${set && ','}${JSON.stringify(key)}:${json}`
+    }
+    if (shot) {
+      const data = sim.world.get(entity, Shot)!
+      frame.shots.push([id, data, tick - data.age])
+      frame.bytes += SHOT_BYTES
+    }
     if (path !== undefined && path !== old?.path) set += `${set && ','}${PATH_KEY}:${path}`
     // Новая сущность получает движение, даже если ничего, кроме него, у неё нет: так клиент узнаёт о ней.
     const moved = motion !== undefined && (!old?.motion || motion[0] !== old.motion[0] || motion[1] !== old.motion[1] || motion[2] !== old.motion[2])
@@ -821,7 +836,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     }
     if (!old) {
       // Сущность, которой в сети нечего показать, клиенту не называется — но помнится, чтобы не собирать её каждый тик.
-      known.set(id, { parts, path, motion, checked: tick, seen: frame.pass, told: !!set || moved })
+      known.set(id, { parts, path, motion, checked: tick, seen: frame.pass, told: !!set || moved || shot })
       return
     }
     let dropped: string[] | undefined
@@ -833,7 +848,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     old.path = path
     old.motion = motion
     old.checked = tick
-    old.told ||= !!set || moved
+    old.told ||= !!set || moved || shot
   }
 
   /**
@@ -854,7 +869,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     const { tick, ids, sightings } = scanned
     const god = editing.has(send)
     const known = sent.get(send)!
-    const frame: Frame = { send, player, god, known, pass: ++passes, set: [], unset: [], remove: [], motions: [], queue: [], bucket: BUCKETS - 1, at: 0, queued: 0, bytes: 0, most: Infinity }
+    const frame: Frame = { send, player, god, known, pass: ++passes, set: [], unset: [], remove: [], motions: [], shots: [], queue: [], bucket: BUCKETS - 1, at: 0, queued: 0, bytes: 0, most: Infinity }
     const box = views.get(send)
     const near = nearOf(send)
     const enqueue = (at: number, priority: number) => {
@@ -889,13 +904,13 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       let weight = 1
       if (box) {
         const { x, y } = brief
-        // Что без места на карте — заказы, потоки в трубах — идёт как ближнее.
+        // Что без места на карте — потоки в трубах — идёт как ближнее.
         if (!brief.placed) weight = NEAR_SCREEN
         else if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) weight = ON_SCREEN
         else if (near(x, y)) weight = NEAR_SCREEN
       }
-      const { motion } = brief
-      if (motion && old.motion && (motion[0] !== old.motion[0] || motion[1] !== old.motion[1] || motion[2] !== old.motion[2])) weight *= MOVING
+      // Едет — место не то, что подключение знает; поворот на месте не в счёт.
+      if (old.motion && (Math.round(brief.x * POSITION) !== old.motion[0] || Math.round(brief.y * POSITION) !== old.motion[1])) weight *= MOVING
       if (brief.hot) weight *= FIGHTING
       enqueue(at, age * weight)
     }
@@ -925,8 +940,8 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
   }
 
   /** Кадр, каким он уходит подключению. */
-  const finish = ({ motions, set, unset, remove }: Frame) =>
-    encodeDelta(sim.time.tick, motions, `{"set":[${set.join(',')}],"unset":${JSON.stringify(unset)},"remove":${JSON.stringify(remove)}}`)
+  const finish = ({ motions, shots, set, unset, remove }: Frame) =>
+    encodeDelta(sim.time.tick, motions, shots, `{"set":[${set.join(',')}],"unset":${JSON.stringify(unset)},"remove":${JSON.stringify(remove)}}`)
 
   /**
    * Весь мир подключения, которое о нём ещё ничего не знает: при входе и когда мир начинается заново. cache — мир
@@ -1020,8 +1035,11 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
    * Месторождения, которые игрок знает: те, что на разведанной им земле. Остальные клиенту не шлются — иначе их видно
    * сквозь туман. cache — слой на игрока за один проход по подключениям.
    */
+  /** Слой месторождений в виде для сети: собирается заново, только когда слой поменялся. */
+  let depositsSaved: { layer: Sim['deposits']; revision: number; save: ReturnType<typeof saveDeposits> } | undefined
   const depositsMessage = (player: number, god = false) => {
-    const { cells, spots } = saveDeposits(sim.deposits)
+    if (depositsSaved?.layer !== sim.deposits || depositsSaved.revision !== sim.deposits.revision) depositsSaved = { layer: sim.deposits, revision: sim.deposits.revision, save: saveDeposits(sim.deposits) }
+    const { cells, spots } = depositsSaved.save
     const known: number[] = []
     for (let i = 0; i + 3 < spots.length; i += 4) {
       if (god || sim.vision.exploredIn(player, spots[i], spots[i + 1], DEPOSIT_SIZE, DEPOSIT_SIZE)) known.push(...spots.slice(i, i + 4))

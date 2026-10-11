@@ -3,6 +3,7 @@ import { DEFAULT_CONFIG } from '../src/map/terrain'
 import { createHost, type Host, type HostSave } from '../src/net/host'
 import { FACING, MOTION_FIELDS, POSITION, SPAN_MOST, decodeDelta, encodeDelta } from '../src/net/codec'
 import { decodeServer } from '../src/net/protocol'
+import type { WeaponType } from '../src/sim/weapons'
 import { createReplica, type Replica } from '../src/net/replica'
 import { Armed, Building, Ghost, Owner, Path, Player, Position, Producer, Unit, createSim, isWalkable, shownTo } from '../src/sim'
 import { SAVED } from '../src/sim/components'
@@ -359,10 +360,25 @@ test('цель приказа выбирает сервер по точке: а�
 })
 
 test('движение в кадре несёт срок: за сколько тиков оно набежало, не больше SPAN_MOST', () => {
-  const bytes = encodeDelta(7, [[5, [256, 512, null], 1], [300, [0, 0, FACING], 9], [2, [1, 1, null], 500]], '{"set":[],"unset":[],"remove":[]}')
+  const bytes = encodeDelta(7, [[5, [256, 512, null], 1], [300, [0, 0, FACING], 9], [2, [1, 1, null], 500]], [], '{"set":[],"unset":[],"remove":[]}')
   const { tick, motion } = decodeDelta(bytes)
   expect(tick).toBe(7)
   expect(motion).toEqual([5, 1, 2, NaN, 1, 300, 0, 0, 1, 9, 2, 1 / POSITION, 1 / POSITION, NaN, SPAN_MOST])
+})
+
+test('выстрел идёт в кадре двоичной записью, а клиенту приходит как set — раньше остального о той же сущности', () => {
+  const shot = { weapon: 'cannon' as WeaponType, player: 3, source: 70000, target: -1, fromX: -12.345, fromY: 300.5, toX: 0.001, toY: -511.999, prevX: 1, prevY: 2, age: 4, life: 130, blocked: true, air: false }
+  const bytes = encodeDelta(900, [], [[41, shot, 896], [42, { ...shot, weapon: 'rifle', target: 5, blocked: false, air: true }, 900]], '{"set":[[41,{"Owner":{"player":3}}]],"unset":[],"remove":[9]}')
+  const { set, remove } = decodeDelta(bytes)
+  const { prevX: _x, prevY: _y, age: _age, ...sent } = shot
+  expect(set).toEqual([
+    [41, { Shot: { ...sent, born: 896 } }],
+    [42, { Shot: { ...sent, weapon: 'rifle', target: 5, blocked: false, air: true, born: 900 } }],
+    [41, { Owner: { player: 3 } }],
+  ])
+  expect(remove).toEqual([9])
+  // Запись — около 30 байт вместо полутора сотен в JSON.
+  expect(bytes.length).toBeLessThan(6 + 2 * 34 + 60)
 })
 
 test('тесный бюджет: новое приходит сразу, что на экране — чаще остального, а отложенное не застревает и догоняет', () => {
