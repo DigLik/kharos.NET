@@ -4,13 +4,15 @@ import type { Sim } from './sim'
 import { playerEntity } from './topics'
 
 /**
- * Союзы игроков. Союз — пара: один предлагает, другой соглашается, выйти может любой и в любой момент. Союзников
- * не атакуют — ни сами, ни по приказу, — их ворота перед ними не закрываются, а разведка у них общая: каждый видит
- * всё, что видит другой (см. vision.ts), и хост шлёт ему базу союзника так же подробно, как хозяину (host.ts).
- * Союз троих — это три пары: союзник союзника сам по себе не союзник.
+ * Союзы игроков. Союз — группа: один предлагает, другой соглашается, и вступивший становится союзником всех её
+ * участников — приняв союз у одного, получаешь и всех, с кем он в союзе. Союзников не атакуют — ни сами, ни по
+ * приказу, — их ворота перед ними не закрываются, а разведка у них общая: каждый видит всё, что видит другой
+ * (см. vision.ts), и хост шлёт ему базу союзника так же подробно, как хозяину (host.ts).
  *
- * Всё лежит в Player обоих: allies — с кем союз, offered — кому игрок предложил и ждёт ответа, asked — кто предложил
- * ему. Запись всегда парная: A в allies у B — значит, и B в allies у A.
+ * Всё лежит в Player каждого: allies — с кем союз, offered — кому игрок предложил и ждёт ответа, asked — кто
+ * предложил ему. Список держится полным: у всякого участника группы в allies все остальные её участники, поэтому
+ * читателям (обзор, бой, ворота, хост) довольно готового массива — обходить связи им не приходится. Разрыв снимает
+ * одну пару и только её: группа распадается не вся, а на две — как в RA2.
  */
 
 /** С кем у игрока союз: то же, что alliesOf, там, где есть только мир, — в обзоре и на клиенте. */
@@ -53,14 +55,85 @@ export function offerAlliance(sim: Sim, from: number, to: number): AllyResult {
   const info = sim.world.get(mine, Player)!
   if (info.allies.includes(to)) return 'already'
   if (info.asked.includes(to)) {
-    update(sim, from, ({ allies, asked, offered }) => ({ allies: [...allies, to], asked: without(asked, to), offered: without(offered, to) }))
-    update(sim, to, ({ allies, asked, offered }) => ({ allies: [...allies, from], asked: without(asked, from), offered: without(offered, from) }))
+    merge(sim, from, to)
     return 'allied'
   }
   if (info.offered.includes(to)) return 'pending'
   update(sim, from, ({ offered }) => ({ offered: [...offered, to] }))
   update(sim, to, ({ asked }) => ({ asked: [...asked, from] }))
   return 'offered'
+}
+
+/**
+ * Союз заключён: группы from и to сливаются, и каждый участник получает в allies всех остальных. Заодно из
+ * предложений уходят записи о своих: предложение, ставшее союзом, ждать больше нечего.
+ */
+function merge(sim: Sim, from: number, to: number) {
+  const group = new Set<number>([from, to])
+  const mine = sim.world.get(playerEntity(sim, from)!, Player)!
+  const theirs = sim.world.get(playerEntity(sim, to)!, Player)!
+  for (const other of [...mine.allies, ...theirs.allies]) group.add(other)
+  // Все друг другу: у каждого в allies группа без него самого.
+  const members = [...group].sort((a, b) => a - b)
+  for (const member of members) {
+    if (playerEntity(sim, member) === undefined) continue
+    update(sim, member, ({ offered, asked }) => ({
+      allies: members.filter((other) => other !== member),
+      offered: offered.filter((other) => !group.has(other)),
+      asked: asked.filter((other) => !group.has(other)),
+    }))
+  }
+}
+
+/**
+ * Списки союзов — полные: у всякого участника группы в allies все её участники. Сохранения прежних версий
+ * держали связи парами (а союз троих — тремя парами), поэтому при загрузке пары достраиваются до групп. Пустой
+ * работы не делает и повторно вызывать себя не боится.
+ */
+export function materializeAlliances(sim: Sim) {
+  const neighbours = new Map<number, Set<number>>()
+  const know = (a: number, b: number) => {
+    if (!neighbours.has(a)) neighbours.set(a, new Set())
+    neighbours.get(a)!.add(b)
+  }
+  for (const [, info] of sim.world.query(Player)) {
+    know(info.id, info.id)
+    // Ребро идёт в обе стороны, но старое сохранение могло донести только одну — связи от этого не теряются.
+    for (const other of info.allies) {
+      know(info.id, other)
+      know(other, info.id)
+    }
+  }
+  const groups: number[][] = []
+  const seen = new Set<number>()
+  for (const [player] of neighbours) {
+    if (seen.has(player)) continue
+    const group: number[] = []
+    const queue = [player]
+    seen.add(player)
+    while (queue.length) {
+      const current = queue.pop()!
+      group.push(current)
+      for (const other of neighbours.get(current)!) {
+        if (!seen.has(other)) {
+          seen.add(other)
+          queue.push(other)
+        }
+      }
+    }
+    if (group.length > 1) groups.push(group.sort((a, b) => a - b))
+  }
+  for (const group of groups) {
+    const members = new Set(group)
+    for (const member of group) {
+      if (playerEntity(sim, member) === undefined) continue
+      update(sim, member, ({ offered, asked }) => ({
+        allies: group.filter((other) => other !== member),
+        offered: offered.filter((other) => members.has(other)),
+        asked: asked.filter((other) => members.has(other)),
+      }))
+    }
+  }
 }
 
 /** Чем кончился разрыв: союз расторгнут, своё предложение отозвано, чужое отклонено — или рвать было нечего. */

@@ -54,7 +54,7 @@ const unitsOf = (sim: Sim, player: number) => {
 
 test('союз — предложение и согласие; выйти может любой, а начавший заново теряет союзы', () => {
   const sim = createSim({ generator: DEFAULT_CONFIG, size: 256 })
-  for (const player of [1, 2, 3]) addCredits(sim, player, 100)
+  for (const player of [1, 2, 3, 4]) addCredits(sim, player, 100)
   sim.advance(STEP)
   const info = (player: number) => {
     for (const [, data] of sim.world.query(Player)) if (data.id === player) return data
@@ -70,22 +70,78 @@ test('союз — предложение и согласие; выйти мож
   expect(allied(sim, 1, 2) && allied(sim, 2, 1)).toBe(true)
   expect(info(1)).toMatchObject({ allies: [2], offered: [], asked: [] })
   expect(offerAlliance(sim, 1, 2)).toBe('already')
-  // Союз — пара: союзник союзника не союзник.
+  // Союз — группа: принявший союз у одного становится союзником всех, с кем тот в союзе.
   offerAlliance(sim, 2, 3)
   offerAlliance(sim, 3, 2)
-  expect(allied(sim, 1, 3)).toBe(false)
+  expect(allied(sim, 1, 3) && allied(sim, 3, 1)).toBe(true)
+  expect(info(1)).toMatchObject({ allies: [2, 3] })
+  expect(info(3).allies).toEqual([1, 2])
+  // Разрыв снимает одну пару: группа распадается, но не вся — оставшиеся связи целы.
   expect(breakAlliance(sim, 3, 2)).toBe('left')
   expect(allied(sim, 2, 3)).toBe(false)
+  expect(allied(sim, 1, 3) && allied(sim, 1, 2)).toBe(true)
+  expect(info(3).allies).toEqual([1])
+  expect(info(2).allies).toEqual([1])
   expect(breakAlliance(sim, 3, 2)).toBe('nothing')
-  offerAlliance(sim, 3, 1)
-  expect(breakAlliance(sim, 1, 3)).toBe('declined')
-  expect(info(3).offered).toEqual([])
+  offerAlliance(sim, 4, 1)
+  expect(breakAlliance(sim, 1, 4)).toBe('declined')
+  expect(info(1).asked).toEqual([])
+  expect(info(4).offered).toEqual([])
   // Начавший заново — новый игрок для всех: союзы и предложения пропадают у обеих сторон.
   offerAlliance(sim, 3, 2)
   wipePlayer(sim, 2)
   expect(allied(sim, 1, 2)).toBe(false)
-  expect(info(1).allies).toEqual([])
+  expect(allied(sim, 3, 2)).toBe(false)
+  expect(info(1).allies).toEqual([3])
   expect(info(3).offered).toEqual([])
+})
+
+test('вступление в группу: принявший союз у одного — союзник и всем остальным, и предложения ждать больше нечего', () => {
+  const sim = createSim({ generator: DEFAULT_CONFIG, size: 256 })
+  for (const player of [1, 2, 3, 4]) addCredits(sim, player, 100)
+  const info = (player: number) => {
+    for (const [, data] of sim.world.query(Player)) if (data.id === player) return data
+    throw new Error('Игрока нет')
+  }
+  offerAlliance(sim, 1, 2)
+  offerAlliance(sim, 2, 1)
+  // Четвёртый предложил первому, а третий — третьему: предложение, ставшее союзом, из списков уходит.
+  offerAlliance(sim, 4, 1)
+  offerAlliance(sim, 3, 2)
+  expect(info(4)).toMatchObject({ offered: [1], asked: [] })
+  expect(info(2).asked).toEqual([3])
+  expect(offerAlliance(sim, 2, 3)).toBe('allied')
+  expect(info(2).allies).toEqual([1, 3])
+  expect(info(3).allies).toEqual([1, 2])
+  expect(info(2)).toMatchObject({ offered: [], asked: [] })
+  // Предложение четвёртого — предложение всей группе: принимает первый, и четвёртый входит в неё целиком.
+  expect(info(1).asked).toEqual([4])
+  expect(offerAlliance(sim, 1, 4)).toBe('allied')
+  expect(info(4).allies).toEqual([1, 2, 3])
+  expect(info(3).allies).toEqual([1, 2, 4])
+})
+
+test('сохранение прежних версий с попарными союзами при загрузке достраивается до групп', () => {
+  const sim = createSim({ generator: DEFAULT_CONFIG, size: 256 })
+  for (const player of [1, 2, 3]) addCredits(sim, player, 100)
+  sim.advance(STEP)
+  const account = (player: number) => {
+    for (const [entity, data] of sim.world.query(Player)) if (data.id === player) return { entity, data }
+    throw new Error('Игрока нет')
+  }
+  // Как в старом сохранении: пары есть, а что союзник союзника тоже союзник — не записано.
+  sim.world.set(account(1).entity, Player, { allies: [2] })
+  sim.world.set(account(2).entity, Player, { allies: [1, 3] })
+  sim.world.set(account(3).entity, Player, { allies: [2] })
+  const loaded = createSim(sim.save())
+  const allies = (player: number) => {
+    for (const [, data] of loaded.world.query(Player)) if (data.id === player) return data.allies
+    throw new Error('Игрока нет')
+  }
+  expect(allies(1)).toEqual([2, 3])
+  expect(allies(2)).toEqual([1, 3])
+  expect(allies(3)).toEqual([1, 2])
+  expect(allied(loaded, 1, 3)).toBe(true)
 })
 
 test('союзников не атакуют — ни сами, ни по приказу, — и ворота перед ними не закрываются', () => {

@@ -8,6 +8,7 @@ import { assemble } from './assembly'
 import { research } from './research'
 import { scan } from './radar'
 import { gates } from './gates'
+import { materializeAlliances } from './allies'
 import { apply, type Command } from './commands'
 import { Building, Carrier, Inventory, Position, SAVED, Site, Unit } from './components'
 import { mountTurrets } from './turrets'
@@ -297,6 +298,7 @@ export function createSim(source: SimOptions | SimSave): Sim {
 
   if ('world' in source) {
     world.restore(source.world, SAVED)
+    materializeAlliances(sim)
     refreshStorage(sim)
     remount(sim)
     adoptLegacyDeposits(sim)
