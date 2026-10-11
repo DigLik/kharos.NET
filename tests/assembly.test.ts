@@ -138,13 +138,17 @@ test('изделия не продаются: космопорт берёт то
   expect(sim.world.has(port, Trade)).toBe(true)
 })
 
-test('турель строится заряженной, тратит патроны на выстрелы и без них молчит', () => {
+test('турель строится пустой, тратит патроны на выстрелы и без них молчит', () => {
   const sim = createSim(options)
   const defense = placeBuilding(sim.world, 'turret', 0, 0, 1)
   const full = BUILDINGS.turret.inventory
-  expect(good(sim, defense, 'ammo')).toBe(full)
+  expect(good(sim, defense, 'ammo')).toBe(0)
 
+  // Пока патронов не подвезли, турель молчит.
   const foe = spawnUnit(sim, 'tank', 2, 4, 0)
+  seconds(sim, 2)
+  expect(sim.world.get(foe, Health)!.value).toBe(1)
+  sim.world.get(defense, Inventory)!.items.ammo = full
   seconds(sim, 2)
   expect(good(sim, defense, 'ammo')).toBeLessThan(full)
   expect(sim.world.get(foe, Health)!.value).toBeLessThan(1)

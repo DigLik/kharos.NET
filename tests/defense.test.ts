@@ -3,7 +3,7 @@ import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, terrainAt } from '../src/map/terrain'
 import {
-  Armed, Building, Carrier, CONTROL_RADIUS, Health, Position, Unit, SAND_DURABILITY, Site, Turret,
+  Armed, Building, Carrier, CONTROL_RADIUS, Health, Inventory, Position, Unit, SAND_DURABILITY, Site, Turret,
   canBuild, canPlace, createSim, durabilityOf, isWalkable, networkOf, siteAt, type BuildingType, type Sim,
 } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
@@ -185,6 +185,8 @@ test('три оборонительные турели получают своё
   for (let i = 0; i < types.length; i++) {
     const [buildingType, turretType] = types[i]
     const building = placeBuilding(sim.world, buildingType, i * 10, 0, 1)
+    // Достроенная турель пуста: патроны ей подвозят.
+    sim.world.get(building, Inventory)!.items.ammo = 100
     const turrets = sim.world.get(building, Carrier)!.turrets as Entity[]
     expect(turrets).toHaveLength(1)
     expect(sim.world.get(turrets[0], Turret)!.type).toBe(turretType)
@@ -278,7 +280,7 @@ test('своя стена своим не мешает: через неё стр
 
 test('турель здания стоит выше стены и бьёт поверх неё — в отличие от пехоты за той же стеной', () => {
   const sim = createSim(options)
-  placeBuilding(sim.world, 'turret', 0, 0, 1)
+  sim.world.get(placeBuilding(sim.world, 'turret', 0, 0, 1), Inventory)!.items.ammo = 100
   const enemyWall = placeBuilding(sim.world, 'wall', 2, 0, 2)
   const foe = spawnUnit(sim, 'builder', 2, 4, 0)
   // Та же стена, но стрелок — пехотинец: его пули в стену и попадут.

@@ -6,6 +6,7 @@ import { BUILDINGS, buildingSpec, isWall, type BuildingType } from './buildings'
 import { NONE, isOwn, onTurn, ownerOf, rectDistance, turnToward, wrap } from './common'
 import { Armed, Blast, Building, Converting, Doomed, Health, Inventory, Off, Owner, Path, Pave, Position, Shot, Site, Tactics, Turret, Unit } from './components'
 import { releaseHauler } from './hauling'
+import { powerSupply } from './income'
 import { amountOf, take } from './inventory'
 import { searchCut, searchedTiles, withSearchQuota } from './path'
 import type { Sim } from './sim'
@@ -19,6 +20,8 @@ import { unitSight } from './vision'
 export const BUILDING_HP = 2
 /** Раз во сколько тиков свободный юнит высматривает врага, а гонящийся за целью прокладывает путь заново. */
 const SCAN_TICKS = 5
+/** На столько тайлов дальше считается цель, которая стрелку навредить не может: сперва бьют тех, кто опасен. */
+const HARMLESS = 1000
 const CHASE_TICKS = 20
 /** На сколько тайлов ближе дальности выстрела подходит гонящийся: с запасом на то, что и он, и цель стоят не в центрах тайлов. */
 const CHASE_MARGIN = 1.5
@@ -80,6 +83,8 @@ interface Mark {
   hp: number
   /** Компонент прочности: урон пишется прямо в него, туда же — тик попадания. */
   health: { value: number; hit: number }
+  /** Чем вооружена, считая турели: бит 1 — бьёт по земле, бит 2 — по воздуху. Считается при первой надобности. */
+  arms?: number
   /** Номер последнего поиска по сетке, нашедшего метку: здание лежит в нескольких ячейках, а найтись должно раз. */
   seen: number
 }
@@ -300,6 +305,33 @@ export function fight(sim: Sim) {
   const canHit = (weapon: WeaponSpec, player: number, mark: Mark) =>
     hostile(player, mark.player) && (mark.air ? weapon.air : !weapon.onlyAir) && !dead.has(mark.entity)
 
+  /** Может ли mark навредить такому стрелку: есть ли у неё или у её турелей оружие, которое по нему бьёт. */
+  const threatens = (mark: Mark, air: boolean) => {
+    if (mark.arms === undefined) {
+      mark.arms = 0
+      for (const gunner of [mark.entity, ...turretsOf(sim, mark.entity)]) {
+        const own = weaponOf(sim, gunner)
+        if (!own || !world.has(gunner, Armed)) continue
+        const spec: WeaponSpec = WEAPONS[own]
+        mark.arms |= (spec.onlyAir ? 0 : 1) | (spec.air ? 2 : 0)
+      }
+    }
+    return (mark.arms & (air ? 2 : 1)) !== 0
+  }
+
+  /** Доля энергии, которая достаётся потребителям каждой зоны; считается, когда выстрелит первый из них. */
+  let supply: Map<Entity, number> | undefined
+  /**
+   * На какую долю скорострельности хватает энергии носителю. Здание-потребитель стреляет энергией зоны: не хватает —
+   * стреляет реже, нет вовсе или стоит вне зоны — молчит. Остальным энергия не нужна.
+   */
+  const powerFor = (carrier: Entity) => {
+    const type = world.get(carrier, Building)?.type
+    if (type === undefined || (buildingSpec(type).power ?? 0) >= 0) return 1
+    supply ??= powerSupply(sim)
+    return supply.get(carrier) ?? 0
+  }
+
   /** Наносит урон. source — кто стрелял: уцелевший свободный юнит отвечает ему огнём. */
   const hit = (mark: Mark, amount: number, weapon: WeaponSpec, source: Entity) => {
     if (dead.has(mark.entity)) return
@@ -317,11 +349,13 @@ export function fight(sim: Sim) {
     const stance = unit ? stanceOf(sim, mark.entity) : 'defensive'
     // Кому велено не стрелять, тот не отвечает.
     if (stance === 'passive') return
-    // Отвечают и сам юнит, и его турели.
+    // Отвечают и сам юнит, и его турели. Занятый целью, которую выбрал сам и которая ему не опасна, бросает её.
     for (const gunner of [mark.entity, ...turretsOf(sim, mark.entity)]) {
       const armed = world.get(gunner, Armed)
       const own = weaponOf(sim, gunner)
-      if (!armed || !own || armed.target !== NONE || !canHit(WEAPONS[own], mark.player, from)) continue
+      if (!armed || !own || !canHit(WEAPONS[own], mark.player, from)) continue
+      const busy = armed.target === NONE ? undefined : marks.get(armed.target as Entity)
+      if (armed.target !== NONE && (armed.ordered || !busy || threatens(busy, mark.air))) continue
       armed.target = source
       // Здание отвечает, только если само достаёт до стрелка: гнаться за ним может лишь носитель-юнит. Держащий
       // позицию тоже не гонится.
@@ -449,6 +483,43 @@ export function fight(sim: Sim) {
     // бьёт всё, что увидел по дороге, и идёт дальше. Приказ атаковать цель — не поход: с ним юнит на других не смотрит.
     const tactics = world.get(carrier, Tactics)
     const patrolling = !!tactics?.patrol.length || (stance === 'aggressive' && !!tactics?.away)
+    // Агрессивный высматривает на всю дальность обзора и гонится за найденным. Турель носителя, едущего по приказу
+    // игрока, — только на выстрел: стреляет на ходу, но носитель за врагом не уводит.
+    const led = moving && !patrolling && !inChase(carrier)
+    const lookout = stance === 'aggressive' && unitCarrier && !led ? Math.max(range, unitSight(unitCarrier.type)) : range
+    /**
+     * Ближайший враг в пределах обзора: сперва те, кто стрелку опасен, потом юниты, потом здания. dangerous —
+     * только опасные.
+     */
+    const look = (dangerous: boolean) => {
+      let found: Mark | undefined
+      let best = Infinity
+      for (const mark of near(self.x, self.y, lookout)) {
+        if (!canHit(weapon, self.player, mark)) continue
+        const danger = threatens(mark, body.air)
+        if (dangerous && !danger) continue
+        const distance = distanceTo(mark, self.x, self.y)
+        if (distance > lookout || distance < (weapon.minRange ?? 0)) continue
+        const order = distance + (mark.armor === 'building' ? range : 0) + (danger ? 0 : HARMLESS)
+        if (order >= best) continue
+        best = order
+        found = mark
+      }
+      return found
+    }
+    // Занятый целью, которую выбрал сам и которая ему не опасна, бросает её ради того, кто опасен.
+    if (target && !armed.ordered && stance !== 'passive' && onTurn(time, entity, SCAN_TICKS) && !threatens(target, body.air)) {
+      const danger = look(true)
+      if (danger) {
+        target = danger
+        armed.target = danger.entity
+        armed.stuck = 0
+        if (distanceTo(danger, self.x, self.y) > range && unitCarrier) {
+          armed.chase = true
+          leaveHome(sim, carrier)
+        }
+      }
+    }
     if (!target) {
       armed.target = NONE
       armed.chase = false
@@ -456,20 +527,9 @@ export function fight(sim: Sim) {
       // Свободный юнит высматривает врага в пределах выстрела: сперва юнитов, потом здания. Идущий по приказу не
       // высматривает, патрульный — высматривает. Кому велено не стрелять — не высматривает вовсе.
       if (stance === 'passive' || (moving && !mounted && !patrolling) || !onTurn(time, entity, SCAN_TICKS)) continue
-      // Агрессивный высматривает на всю дальность обзора и гонится за найденным. Турель носителя, едущего по приказу
-      // игрока, — только на выстрел: стреляет на ходу, но носитель за врагом не уводит.
-      const ordered = moving && !patrolling && !inChase(carrier)
-      const lookout = stance === 'aggressive' && unitCarrier && !ordered ? Math.max(range, unitSight(unitCarrier.type)) : range
-      let best = Infinity
-      for (const mark of near(self.x, self.y, lookout)) {
-        if (!canHit(weapon, self.player, mark)) continue
-        const distance = distanceTo(mark, self.x, self.y)
-        if (distance > lookout || distance < (weapon.minRange ?? 0)) continue
-        const order = distance + (mark.armor === 'building' ? range : 0)
-        if (order >= best) continue
-        best = order
-        target = mark
-      }
+      // В походе и по дороге назад агрессивный отвлекается только на тех, кто ему опасен: безобидное приказу идти
+      // не помеха — иначе от чужих построек его было бы не увести.
+      target = look(moving && !tactics?.patrol.length && !!tactics?.away)
       if (!target) continue
       armed.target = target.entity
       if (distanceTo(target, self.x, self.y) > range) {
@@ -524,9 +584,11 @@ export function fight(sim: Sim) {
     const { body: aimer } = turner
     aimer.facing = turnToward(aimer.facing, wanted, turner.turn * time.step)
     if (armed.cooldown > 0 || Math.abs(wrap(wanted - aimer.facing)) > AIM) continue
-    // Турель здания стреляет боеприпасами с его склада: кончились — молчит, пока не подвезут.
-    if (!spend(carrier, weapon)) continue
-    armed.cooldown = Math.max(1, Math.round(weapon.reload / time.step))
+    // Турель здания стреляет боеприпасами с его склада: кончились — молчит, пока не подвезут. Та, что на энергии, —
+    // энергией зоны: при нехватке перезаряжается дольше, без энергии молчит.
+    const power = powerFor(carrier)
+    if (!power || !spend(carrier, weapon)) continue
+    armed.cooldown = Math.max(1, Math.round(weapon.reload / time.step / power))
 
     // Выстрел — из точки перед стрелком.
     const fromX = self.x + Math.cos(aimer.facing) * turner.radius

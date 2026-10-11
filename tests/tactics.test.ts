@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, terrainAt } from '../src/map/terrain'
-import { Armed, Health, Orders, Path, Position, Tactics, createSim, type Sim } from '../src/sim'
+import { Armed, Carrier, Health, Orders, Path, Position, Tactics, createSim, type Sim } from '../src/sim'
 import { spawnUnit, type UnitType } from '../src/sim/units'
 import { placeBuilding } from '../src/sim/buildings'
 import { searchedTiles } from '../src/sim/path'
@@ -158,8 +158,9 @@ test('поход: агрессивный, посланный идти, бьёт 
   for (const type of ['buggy', 'infantry'] as const) {
     const { sim, x, y } = field()
     const ours = put(sim, type, 1, x + 2, y)
-    // Враг в стороне от пути: в обзоре, но не на выстреле.
-    const foe = put(sim, 'truck', 2, x + 12, y + 3)
+    // Враг в стороне от пути: в обзоре, но не на выстреле. Вооружён, но ему велено не стрелять.
+    const foe = put(sim, 'infantry', 2, x + 12, y + 3)
+    sim.send(2, { type: 'stance', units: [foe], stance: 'passive' })
     sim.send(1, { type: 'stance', units: [ours], stance: 'aggressive' })
     sim.send(1, { type: 'move', units: [ours], x: x + 22, y })
     for (let i = 0; i < 60 * 20 && sim.world.alive(foe); i++) sim.advance(TICK)
@@ -170,6 +171,38 @@ test('поход: агрессивный, посланный идти, бьёт 
     expect(sim.world.get(ours, Tactics)!.away).toBe(false)
     expect(sim.world.has(ours, Path)).toBe(false)
   }
+})
+
+test('поход: безобидное приказу идти не помеха — и тому, кто его уже разбирает, тоже', () => {
+  const { sim, x, y } = field()
+  const ours = put(sim, 'buggy', 1, x + 2, y)
+  const truck = put(sim, 'truck', 2, x + 6, y + 2)
+  sim.send(1, { type: 'stance', units: [ours], stance: 'aggressive' })
+  // Стоя на месте, агрессивный берётся и за безобидного.
+  seconds(sim, 1)
+  expect(hurt(sim, truck)).toBe(true)
+  expect(sim.world.alive(truck)).toBe(true)
+  // Приказ идти — бросает его и уходит, хотя тот всё ещё на виду.
+  sim.send(1, { type: 'move', units: [ours], x: x + 22, y })
+  // Пули, выпущенные до приказа, ещё долетают.
+  seconds(sim, 0.5)
+  const left = sim.world.get(truck, Health)!.value
+  seconds(sim, 30)
+  expect(sim.world.get(truck, Health)!.value).toBe(left)
+  expect(Math.hypot(at(sim, ours).x - (x + 22.5), at(sim, ours).y - (y + 0.5))).toBeLessThan(1.6)
+})
+
+test('опасный важнее безобидного: стрелок бросает безобидную цель, которую выбрал сам, ради того, кто может навредить', () => {
+  const { sim, x, y } = field()
+  const ours = put(sim, 'tank', 1, x + 2, y)
+  const truck = put(sim, 'truck', 2, x + 5, y)
+  seconds(sim, 1)
+  expect(sim.world.get(sim.world.get(ours, Carrier)!.turrets[0] as Entity, Armed)!.target).toBe(truck)
+  // Пехотинец дальше грузовика, но он вооружён.
+  const foe = put(sim, 'infantry', 2, x + 7, y + 2)
+  sim.send(2, { type: 'stance', units: [foe], stance: 'passive' })
+  seconds(sim, 1)
+  expect(sim.world.get(sim.world.get(ours, Carrier)!.turrets[0] as Entity, Armed)!.target).toBe(foe)
 })
 
 test('поход — только в агрессивной стойке и только по приказу идти: в обороне и с приказом атаки на других не смотрят', () => {

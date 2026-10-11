@@ -8,7 +8,8 @@ const newSim = () => createSim({ generator: DEFAULT_SETTINGS.generator, size: DE
 
 test('ракетная турель достаёт штурмовика дальше его собственного выстрела', () => {
   const sim = newSim()
-  placeBuilding(sim.world, 'rocketTurret', 0, 0, 1)
+  const tower = placeBuilding(sim.world, 'rocketTurret', 0, 0, 1)
+  sim.world.get(tower, Inventory)!.items.ammo = 100
   // Дальше дальности ракетницы штурмовика, но в пределах надбавки турели.
   const away = WEAPONS.launcher.range + TOWER_RANGE / 2
   spawnUnit(sim, 'gunship', TRAINING_PLAYER, Math.floor(0.5 + away), 0)
@@ -32,11 +33,19 @@ test('главное здание бьёт по всей своей зоне, и
   expect(hurt('buggy', -14, 1)).toBe(false)
 })
 
-test('лазерная турель бьёт танк без всяких патронов, на дальности лазера с надбавкой здания', () => {
-  const sim = newSim()
-  const tower = placeBuilding(sim.world, 'laserTurret', 0, 0, 1)
-  expect(sim.world.has(tower, Inventory)).toBe(false)
-  const tank = spawnUnit(sim, 'tank', TRAINING_PLAYER, 9, 0)
-  for (let i = 0; i < 20 * 5; i++) sim.advance(0.05)
-  expect(!sim.world.alive(tank) || sim.world.get(tank, Health)!.value < 1).toBe(true)
+test('лазерная турель бьёт танк без всяких патронов, на дальности лазера с надбавкой здания, — но только на энергии зоны', () => {
+  const hurt = (powered: boolean) => {
+    const sim = newSim()
+    // Главное здание даёт зону, но стоит так, чтобы его собственная пушка до танка не доставала.
+    placeBuilding(sim.world, 'command', 0, 10, 1)
+    if (powered) placeBuilding(sim.world, 'generator', 4, 10, 1)
+    const tower = placeBuilding(sim.world, 'laserTurret', 0, 0, 1)
+    expect(sim.world.has(tower, Inventory)).toBe(false)
+    const tank = spawnUnit(sim, 'tank', TRAINING_PLAYER, 9, 0)
+    for (let i = 0; i < 20 * 5; i++) sim.advance(0.05)
+    return !sim.world.alive(tank) || sim.world.get(tank, Health)!.value < 1
+  }
+  expect(hurt(true)).toBe(true)
+  // Без электростанции лазеру стрелять нечем.
+  expect(hurt(false)).toBe(false)
 })

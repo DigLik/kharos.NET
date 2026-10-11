@@ -1,8 +1,8 @@
 import type { Entity, World } from '../ecs'
 import { Terrain, isBuildable, isCliffFoot, terrainAt, tileKey } from '../map/terrain'
 import { isOwn } from './common'
-import { Assembly, Building, Health, Inventory, Repair, Owner, Position, Producer, Site } from './components'
-import { equipStorage, put, type BeamSpec } from './inventory'
+import { Assembly, Building, Health, Repair, Owner, Position, Producer, Site } from './components'
+import { equipStorage, type BeamSpec } from './inventory'
 import { ORE_SPECS, PRODUCT_SPECS, WARES, stockedFor, type Amounts, type Good, type Ore, type Product } from './resources'
 import type { Sim } from './sim'
 import { mountTurrets, type MountSpec } from './turrets'
@@ -60,7 +60,7 @@ export interface BuildingSpec {
   assembles?: Product
   /**
    * Турели здания стреляют боеприпасами с его склада: каждый выстрел тратит WeaponSpec.ammo, пустой склад —
-   * турель молчит. Склад здание заказывает у зоны само. Достроенное здание заряжено полностью.
+   * турель молчит. Склад здание заказывает у зоны само; достроенное стоит пустым, пока не подвезут.
    */
   ammo?: boolean
   /** Транспортный луч: им здание отдаёт ресурсы со своего склада или забирает на него. См. inventory.ts. */
@@ -389,9 +389,6 @@ export function equip(world: World, entity: Entity, type: BuildingType) {
     equipStorage(world, entity, { inventory: PRODUCER_HOLD })
   }
   equipStorage(world, entity, spec)
-  // Достроенная турель заряжена: оборона работает сразу, а подвоз нужен, когда она отстреляется.
-  const store = world.get(entity, Inventory)
-  if (spec.ammo && store) put(store, 'ammo', store.capacity)
   // Завод изделий стоит выключенным, пока игрок его не включит: иначе он сразу съел бы сырьё зоны.
   if (spec.assembles) world.add(entity, Assembly({ recipe: spec.assembles }))
   mountTurrets(world, entity)

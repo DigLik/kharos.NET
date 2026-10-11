@@ -235,7 +235,8 @@ test('летающие летят по прямой над зданиями, а 
   seconds(sim, 1)
   expect(gunTarget(sim, tank)).toBe(-1)
 
-  // Ракетчик достаёт.
+  // Ракетчик достаёт. Дрону велено не стрелять: иначе он бросил бы безобидный танк ради того, кто ему опасен.
+  sim.send(1, { type: 'stance', units: [drone], stance: 'passive' })
   spawnUnit(sim, 'rocketeer', 2, x + 12, y + 3)
   seconds(sim, 12)
   expect(alive(sim, drone)).toBe(false)
