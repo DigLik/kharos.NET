@@ -124,6 +124,11 @@ export interface HudState {
     /** buy — это закупка: деньги уже отданы, корабль летит с грузом. */
     order: { resource: Resource; wanted: number; delivered: number; price: number; flight: number | null; buy: boolean } | null
   } | null
+  /**
+   * Резерв выбранных своих хранилищ: кому слать, сколько не выдаётся у первого из них и сколько они вмещают
+   * (наименьшее из всех).
+   */
+  reserve: { buildings: number[]; amount: number; capacity: number } | null
   /** Груз выбранных грузовиков вместе; bound — сколько из них привязано к шахте, busy — сколько заняты работой. */
   cargo: { items: Stack[]; capacity: number; bound: number; busy: number } | null
   /**
@@ -248,6 +253,7 @@ export function readHud(scene: Scene): HudState {
   let demolish: HudState['demolish'] = null
   let deposit: HudState['deposit'] = null
   let stored: HudState['stored'] = null
+  let reserve: HudState['reserve'] = null
   let refinery: HudState['refinery'] = null
   let assembly: HudState['assembly'] = null
   let switchable: HudState['switchable'] = null
@@ -327,6 +333,11 @@ export function readHud(scene: Scene): HudState {
         ? inventory.accepts.map((good) => ({ resource: good, amount: Math.floor(amountOf(inventory, good)), of: inventory.limits[good]! }))
         : null
       stored = { items: stacksOf(inventory.items), capacity: inventory.capacity, store: !!spec!.stores, buffer, slots }
+    }
+    if (ready && inventory && spec!.stores && isOwn(sim, player, entity)) {
+      reserve ??= { buildings: [], amount: inventory.reserve, capacity: inventory.capacity }
+      reserve.buildings.push(entity)
+      reserve.capacity = Math.min(reserve.capacity, inventory.capacity)
     }
     if (ready && spec!.refines) refinery = { ore: spec!.refines, intake: REFINE_RATE }
     const digging = world.get(entity, Harvester)
@@ -454,6 +465,7 @@ export function readHud(scene: Scene): HudState {
     deposit,
     stock: stock.capacity ? { items: stacksOf(stock.items), capacity: stock.capacity } : null,
     stored,
+    reserve,
     refinery,
     assembly,
     switchable,

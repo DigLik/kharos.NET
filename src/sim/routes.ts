@@ -4,7 +4,7 @@ import { NONE, isOwn, onTurn } from './common'
 import { Converting, Hauler, Harvester, Inventory, Owner, Path, Unit } from './components'
 import { amountOf, beamFor, reaches, roomFor, transfer } from './inventory'
 import { releaseHauler, seekBeam, seekDue } from './hauling'
-import { acceptsDelivery, offersOf, spareOf } from './logistics'
+import { acceptsDelivery, givenBy, offersOf } from './logistics'
 import { GOODS, type Good } from './resources'
 import type { Sim } from './sim'
 
@@ -32,7 +32,7 @@ export const carries = (filter: readonly Good[], resource: Good) => !filter.leng
  */
 function pickFor(sim: Sim, player: number, filter: readonly Good[], from: Entity, to: Entity, except?: Good): Good | undefined {
   for (const resource of offersOf(sim, from)) {
-    if (resource === except || !carries(filter, resource) || spareOf(sim, from, resource) <= EPSILON) continue
+    if (resource === except || !carries(filter, resource) || givenBy(sim, from, resource) <= EPSILON) continue
     if (acceptsDelivery(sim, player, to, resource)) return resource
   }
   return undefined
@@ -175,8 +175,8 @@ export function runRoutes(sim: Sim) {
     const unloaded = hauler.amount > 0 ? hauler.resource : undefined
     const wanted = carried ?? pickFor(sim, player, hauler.filter, here, next, unloaded)
     let moved = 0
-    if (wanted && wanted !== unloaded && roomFor(cargo, wanted) > EPSILON && offersOf(sim, here).includes(wanted) && spareOf(sim, here, wanted) > EPSILON && acceptsDelivery(sim, player, next, wanted)) {
-      moved = transfer(sim, here, truck, wanted, Math.min(roomFor(cargo, wanted), spareOf(sim, here, wanted)))
+    if (wanted && wanted !== unloaded && roomFor(cargo, wanted) > EPSILON && offersOf(sim, here).includes(wanted) && givenBy(sim, here, wanted) > EPSILON && acceptsDelivery(sim, player, next, wanted)) {
+      moved = transfer(sim, here, truck, wanted, Math.min(roomFor(cargo, wanted), givenBy(sim, here, wanted)))
     }
     hauler.loading = moved > 0
     if (moved > 0) continue

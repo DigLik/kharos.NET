@@ -3,7 +3,7 @@ import { BUILDINGS, buildingSpec } from './buildings'
 import { NONE } from './common'
 import { Assembly, Batch, Building, Inventory, Owner, Position, Site } from './components'
 import { amountOf, put, roomFor, take } from './inventory'
-import { flowsOf, offersOf, requestsOf, spareOf } from './logistics'
+import { flowsOf, givenBy, offersOf, requestsOf, spareOf } from './logistics'
 import { isProduct, type Good } from './resources'
 import type { Sim } from './sim'
 import { isStore } from './trade'
@@ -205,7 +205,7 @@ export function pipeFlow(sim: Sim) {
         const length = routes.dist.get(source)
         if (source === request.to || length === undefined || length >= bestLength) continue
         if (!offersOf(sim, source).includes(request.resource)) continue
-        const available = spareOf(sim, source, request.resource)
+        const available = givenBy(sim, source, request.resource, request.sale)
         if (available < Math.min(request.amount, MIN_BATCH) - EPSILON) continue
         best = source
         bestLength = length

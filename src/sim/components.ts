@@ -149,9 +149,10 @@ export const Hauler = component('Hauler', () => ({
  * Склад: груз, который лежит в здании или едет в юните. items — сколько какого груза, вместе с рудой; capacity —
  * сколько помещается всего, любого груза вместе; accepts — какой груз сюда кладут, пусто — любой; limits — сколько
  * каждого груза помещается самое большее: так стройка принимает ровно свои материалы, а переработка — буфер руды.
+ * reserve — резерв хранилища: столько груза оно не выдаёт никому, кроме продажи, см. givenBy в logistics.ts.
  * Между складами груз переносит транспортный луч: см. Beam и inventory.ts.
  */
-export const Inventory = component('Inventory', () => ({ items: {} as Amounts, capacity: 0, accepts: [] as readonly Good[], limits: {} as Amounts }))
+export const Inventory = component('Inventory', () => ({ items: {} as Amounts, capacity: 0, accepts: [] as readonly Good[], limits: {} as Amounts, reserve: 0 }))
 
 /**
  * Транспортный луч: переносит груз между своим складом и чужим, если между их краями не больше radius тайлов.

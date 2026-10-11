@@ -22,7 +22,7 @@ const TRADE = 8
 const LIST = 8
 
 /** Страница сетки строителя: корень с разделами или сами здания раздела. */
-export type Page = 'root' | 'economy' | 'storage' | 'industry' | 'military' | 'defense' | 'paving' | 'logistics' | 'filter' | 'sell' | 'buy'
+export type Page = 'root' | 'economy' | 'storage' | 'industry' | 'military' | 'defense' | 'paving' | 'logistics' | 'filter' | 'reserve' | 'sell' | 'buy'
 
 /** Разделы строителя: в какой странице какое здание. Остальное — хозяйство: энергия, добыча, торговля. */
 const SECTIONS: Partial<Record<Page, BuildingType[]>> = {
@@ -293,6 +293,29 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
       })
       slots[WARES.length] = { label: t('grid.ore'), good: ORES[0], active: has(ORES), title: t('grid.oreTip'), run: () => toggle(ORES) }
       slots[CANCEL] = { label: t('grid.all'), active: !filter.length, title: t('grid.allTip'), run: () => send({ type: 'filter', units, goods: [] }) }
+      slots[BACK] = { label: t('common.back'), run: () => open('root') }
+    }
+  }
+
+  const { reserve } = state
+  if (reserve && !construction && !haul) {
+    const { buildings, amount, capacity } = reserve
+    const set = (next: number) => send({ type: 'reserve', buildings, amount: Math.max(0, Math.min(capacity, next)) })
+    if (page === 'root') {
+      slots[0] = {
+        label: amount > 0 ? t('grid.reserveCount', { amount }) : t('grid.reserve'),
+        active: amount > 0,
+        title: t('grid.reserveTip'),
+        run: () => open('reserve'),
+      }
+    } else if (page === 'reserve') {
+      // Верхний ряд — прибавить, второй — убавить: по 10 и по 50.
+      ;[10, 50].forEach((step, i) => {
+        slots[i] = { label: `+${step}`, disabled: amount >= capacity, title: t('grid.reserveCount', { amount }), run: () => set(amount + step) }
+        slots[i + 4] = { label: `−${step}`, disabled: amount <= 0, title: t('grid.reserveCount', { amount }), run: () => set(amount - step) }
+      })
+      slots[2] = { label: t('grid.reserveAll'), active: amount >= capacity, title: t('grid.reserveAllTip'), run: () => set(capacity) }
+      slots[CANCEL] = { label: t('grid.reserveNone'), active: amount <= 0, title: t('grid.reserveNoneTip'), run: () => set(0) }
       slots[BACK] = { label: t('common.back'), run: () => open('root') }
     }
   }

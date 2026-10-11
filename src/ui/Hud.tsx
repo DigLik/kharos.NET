@@ -470,6 +470,7 @@ function Info({ state, lookAtSelection, narrow }: { state: HudState; lookAtSelec
             {state.stored.buffer ? t('hud.orderMaterials') : state.stored.store ? t('hud.storage') : t('hud.stock')}: <Stacks items={state.stored.items} />
             {state.stored.items.length === 0 && t('common.empty')}
             {!state.stored.buffer && t('hud.holds', { capacity: state.stored.capacity })}
+            {state.reserve && state.reserve.amount > 0 && t('hud.reserve', { amount: state.reserve.amount })}
           </div>
         )}
         {state.refinery && (
