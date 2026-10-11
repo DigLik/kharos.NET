@@ -42,16 +42,29 @@ interface HudProps {
 
 const percent = (value: number) => `${Math.round(value * 100)}%`
 
+/** Строка списка игроков, см. HudState. */
+type PlayerRow = HudState['players'][number]
+
 /**
- * Кнопки союза в списке игроков: что можно сделать с этим игроком прямо сейчас, см. allies.ts. Команды те же,
- * что набираются в чате: кнопка их просто посылает.
+ * Кнопки союза в списке игроков: что можно сделать с этим игроком прямо сейчас, см. allies.ts. Союзом распоряжается
+ * глава: он исключает рядовых, а рядовой может только выйти сам — это кнопка в своей строке. Приглашать и отвечать
+ * согласием тоже может лишь глава или одиночка, поэтому у рядового таких кнопок нет; чужого рядового он не видит и
+ * получит отказ хоста. Команды те же, что набираются в чате: кнопка их просто посылает.
  */
-function allyActions(name: string, relation: HudState['players'][number]['relation']): { label: Key; command: string }[] {
-  const quoted = quoteName(name)
-  if (relation === 'ally') return [{ label: 'hud.allyLeave', command: `/unally ${quoted}` }]
-  if (relation === 'allyAsked') return [{ label: 'hud.allyAccept', command: `/ally ${quoted}` }, { label: 'hud.allyDecline', command: `/unally ${quoted}` }]
-  if (relation === 'allyOffered') return [{ label: 'hud.allyWithdraw', command: `/unally ${quoted}` }]
-  return [{ label: 'hud.allyOffer', command: `/ally ${quoted}` }]
+function allyActions(row: PlayerRow, self: PlayerRow | undefined): { label: Key; command: string }[] {
+  const quoted = quoteName(row.name)
+  const leads = !!self && (self.head < 0 || self.head === self.player)
+  if (row.own) {
+    if (row.head < 0) return []
+    return [{ label: row.head === row.player ? 'hud.allyDissolve' : 'hud.allyExit', command: '/unally' }]
+  }
+  if (row.relation === 'ally') return leads && row.head === self!.player ? [{ label: 'hud.allyKick', command: `/unally ${quoted}` }] : []
+  if (row.relation === 'allyAsked') {
+    const decline: { label: Key; command: string } = { label: 'hud.allyDecline', command: `/unally ${quoted}` }
+    return leads ? [{ label: 'hud.allyAccept', command: `/ally ${quoted}` }, decline] : [decline]
+  }
+  if (row.relation === 'allyOffered') return [{ label: 'hud.allyWithdraw', command: `/unally ${quoted}` }]
+  return leads ? [{ label: 'hud.allyOffer', command: `/ally ${quoted}` }] : []
 }
 
 /** Значок груза цвета груза и количество; название — во всплывающей подсказке. */
@@ -723,6 +736,8 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
   const { trade } = state
   // Союзники — справа над панелью, всегда на виду: у кого союз, тот и в списке.
   const allies = state.players.filter(({ own, relation }) => !own && relation === 'ally')
+  // Своя строка: по ней кнопки союза понимают, глава мы, рядовой или одиночка, см. allyActions.
+  const self = state.players.find(({ own }) => own)
   const dealing = trade && !trade.order && deal && (page === 'sell' || page === 'buy') ? dealOf(trade, state.credits, page === 'buy', deal) : null
 
   const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, patrol, open: setPage, pick: setDeal, draft: setFerry }, deal, ferry) : []
@@ -777,25 +792,29 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
         >
           <h2>{t('hud.roster', { online: state.players.filter(({ online }) => online).length })}</h2>
           <ul>
-            {state.players.map(({ name, own, online, safe, relation }) => (
-              <li class={own ? 'is-own' : online ? undefined : 'is-away'}>
-                <span>
-                  {name}
-                  {safe && <em>{t('hud.sheltered')}</em>}
-                  {relation && <em class={relation === 'ally' ? 'is-ally' : undefined}>{t(`hud.${relation}`)}</em>}
-                </span>
-                {!own && online && (
-                  <span class="roster__acts">
-                    {allyActions(name, relation).map(({ label, command }) => (
-                      <button key={label} onClick={() => say(command)}>
-                        {t(label)}
-                      </button>
-                    ))}
+            {state.players.map((row) => {
+              const acts = allyActions(row, self)
+              return (
+                <li key={row.player} class={row.own ? 'is-own' : row.online ? undefined : 'is-away'}>
+                  <span>
+                    {row.name}
+                    {row.safe && <em>{t('hud.sheltered')}</em>}
+                    {row.head === row.player && <em class="is-ally">{t('hud.allyHead')}</em>}
+                    {row.relation && <em class={row.relation === 'ally' ? 'is-ally' : undefined}>{t(`hud.${row.relation}`)}</em>}
                   </span>
-                )}
-                <small>{own ? t('hud.you') : online ? t('hud.online') : t('hud.offline')}</small>
-              </li>
-            ))}
+                  {acts.length > 0 && (row.own || row.online) && (
+                    <span class="roster__acts">
+                      {acts.map(({ label, command }) => (
+                        <button key={label} onClick={() => say(command)}>
+                          {t(label)}
+                        </button>
+                      ))}
+                    </span>
+                  )}
+                  <small>{row.own ? t('hud.you') : row.online ? t('hud.online') : t('hud.offline')}</small>
+                </li>
+              )
+            })}
           </ul>
         </section>
       )}
@@ -825,7 +844,7 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
 
       {allies.length > 0 && (
         <section class="hud hud--allies" aria-label={t('hud.friends')}>
-          {allies.map(({ name, online, credits, base }) => (
+          {allies.map(({ name, online, credits, base, player, head }) => (
             <button
               key={name}
               class={online ? 'hud__ally' : 'hud__ally is-away'}
@@ -834,6 +853,7 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
             >
               <em class="is-ally" />
               {name}
+              {head === player && <b>{t('hud.allyHead')}</b>}
               <small>{credits}</small>
             </button>
           ))}

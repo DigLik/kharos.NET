@@ -3,7 +3,7 @@ import { DEFAULT_CONFIG } from '../src/map/terrain'
 import { createHost, type Host } from '../src/net/host'
 import { decodeServer } from '../src/net/protocol'
 import { createReplica, type Replica } from '../src/net/replica'
-import { Armed, Batch, Health, Owner, Path, Player, Position, Unit, allied, alliesOf, breakAlliance, canAttack, createSim, isOpenGate, offerAlliance, wipePlayer, type Sim } from '../src/sim'
+import { Armed, Batch, Health, Owner, Path, Player, Position, Unit, allied, alliesOf, allyHeadOf, breakAlliance, canAttack, createSim, exitAlliance, isOpenGate, offerAlliance, wipePlayer, type Sim } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
 import { Repair } from '../src/sim/components'
 import { addCredits } from '../src/sim/economy'
@@ -52,7 +52,7 @@ const unitsOf = (sim: Sim, player: number) => {
   return units
 }
 
-test('союз — предложение и согласие; выйти может любой, а начавший заново теряет союзы', () => {
+test('союз — предложение и согласие; главой становится предложивший, и он один распоряжается союзом', () => {
   const sim = createSim({ generator: DEFAULT_CONFIG, size: 256 })
   for (const player of [1, 2, 3, 4]) addCredits(sim, player, 100)
   sim.advance(STEP)
@@ -65,38 +65,58 @@ test('союз — предложение и согласие; выйти мож
   expect(offerAlliance(sim, 1, 2)).toBe('pending')
   expect(info(2).asked).toEqual([1])
   expect(allied(sim, 1, 2)).toBe(false)
-  // Встречное предложение — согласие.
+  // Встречное предложение — согласие, и главой становится тот, кто предложил первым.
   expect(offerAlliance(sim, 2, 1)).toBe('allied')
   expect(allied(sim, 1, 2) && allied(sim, 2, 1)).toBe(true)
-  expect(info(1)).toMatchObject({ allies: [2], offered: [], asked: [] })
+  expect(info(1)).toMatchObject({ allies: [2], head: 1, offered: [], asked: [] })
+  expect(allyHeadOf(sim, 1)).toBe(1)
+  expect(allyHeadOf(sim, 2)).toBe(1)
   expect(offerAlliance(sim, 1, 2)).toBe('already')
-  // Союз — группа: принявший союз у одного становится союзником всех, с кем тот в союзе.
-  offerAlliance(sim, 2, 3)
-  offerAlliance(sim, 3, 2)
-  expect(allied(sim, 1, 3) && allied(sim, 3, 1)).toBe(true)
-  expect(info(1)).toMatchObject({ allies: [2, 3] })
-  expect(info(3).allies).toEqual([1, 2])
-  // Разрыв снимает одну пару: группа распадается, но не вся — оставшиеся связи целы.
-  expect(breakAlliance(sim, 3, 2)).toBe('left')
-  expect(allied(sim, 2, 3)).toBe(false)
-  expect(allied(sim, 1, 3) && allied(sim, 1, 2)).toBe(true)
-  expect(info(3).allies).toEqual([1])
+  // Союз — группа: принявший союз у главы становится союзником всех, а главой остаётся глава группы.
+  expect(offerAlliance(sim, 1, 3)).toBe('offered')
+  expect(offerAlliance(sim, 3, 1)).toBe('allied')
+  expect(allied(sim, 3, 2) && allied(sim, 2, 3)).toBe(true)
+  expect(info(1)).toMatchObject({ allies: [2, 3], head: 1 })
+  expect(info(3)).toMatchObject({ allies: [1, 2], head: 1 })
+  // Рядовой союзом не распоряжается: ни приглашать, ни отвечать чужому рядовому, ни исключать.
+  expect(offerAlliance(sim, 2, 4)).toBe('fromMember')
+  expect(offerAlliance(sim, 4, 2)).toBe('toMember')
+  expect(breakAlliance(sim, 2, 1)).toBe('notHead')
+  // Глава исключает рядового — тот покидает союз целиком, а связи оставшихся целы.
+  expect(breakAlliance(sim, 1, 3)).toBe('kicked')
+  expect(info(3)).toMatchObject({ allies: [], head: -1 })
+  expect(info(1).allies).toEqual([2])
   expect(info(2).allies).toEqual([1])
-  expect(breakAlliance(sim, 3, 2)).toBe('nothing')
+  // Рядовой выходит сам — и тоже целиком: с ним рвутся все его связи, и он снова одиночка.
+  expect(exitAlliance(sim, 2)).toBe('left')
+  expect(info(2)).toMatchObject({ allies: [], head: -1 })
+  expect(info(1)).toMatchObject({ allies: [], head: -1 })
+  expect(exitAlliance(sim, 2)).toBe('nothing')
+  // Глава уходит — союз распускается: без главы он не живёт.
+  offerAlliance(sim, 1, 3)
+  expect(offerAlliance(sim, 3, 1)).toBe('allied')
+  offerAlliance(sim, 1, 4)
+  expect(offerAlliance(sim, 4, 1)).toBe('allied')
+  expect(info(3).allies).toEqual([1, 4])
+  expect(exitAlliance(sim, 1)).toBe('dissolved')
+  expect(info(1)).toMatchObject({ allies: [], head: -1 })
+  expect(info(3)).toMatchObject({ allies: [], head: -1 })
+  expect(info(4)).toMatchObject({ allies: [], head: -1 })
+  // Отозвать своё предложение и отклонить чужое может всякий: союза тут ещё нет.
   offerAlliance(sim, 4, 1)
   expect(breakAlliance(sim, 1, 4)).toBe('declined')
   expect(info(1).asked).toEqual([])
   expect(info(4).offered).toEqual([])
+  expect(breakAlliance(sim, 1, 4)).toBe('nothing')
   // Начавший заново — новый игрок для всех: союзы и предложения пропадают у обеих сторон.
   offerAlliance(sim, 3, 2)
   wipePlayer(sim, 2)
-  expect(allied(sim, 1, 2)).toBe(false)
-  expect(allied(sim, 3, 2)).toBe(false)
-  expect(info(1).allies).toEqual([3])
+  expect(allied(sim, 2, 3)).toBe(false)
   expect(info(3).offered).toEqual([])
+  expect(info(2).allies).toEqual([])
 })
 
-test('вступление в группу: принявший союз у одного — союзник и всем остальным, и предложения ждать больше нечего', () => {
+test('вступление в группу: принявший союз у главы — союзник и всем остальным, и предложения ждать больше нечего', () => {
   const sim = createSim({ generator: DEFAULT_CONFIG, size: 256 })
   for (const player of [1, 2, 3, 4]) addCredits(sim, player, 100)
   const info = (player: number) => {
@@ -105,23 +125,24 @@ test('вступление в группу: принявший союз у од�
   }
   offerAlliance(sim, 1, 2)
   offerAlliance(sim, 2, 1)
-  // Четвёртый предложил первому, а третий — третьему: предложение, ставшее союзом, из списков уходит.
+  // Четвёртый и третий предложили главе: предложение, ставшее союзом, из списков уходит.
   offerAlliance(sim, 4, 1)
-  offerAlliance(sim, 3, 2)
+  offerAlliance(sim, 3, 1)
   expect(info(4)).toMatchObject({ offered: [1], asked: [] })
-  expect(info(2).asked).toEqual([3])
-  expect(offerAlliance(sim, 2, 3)).toBe('allied')
+  expect(info(1).asked).toEqual([4, 3])
+  expect(offerAlliance(sim, 1, 3)).toBe('allied')
   expect(info(2).allies).toEqual([1, 3])
   expect(info(3).allies).toEqual([1, 2])
   expect(info(2)).toMatchObject({ offered: [], asked: [] })
-  // Предложение четвёртого — предложение всей группе: принимает первый, и четвёртый входит в неё целиком.
+  // Предложение четвёртого — предложение всей группе: принимает глава, и четвёртый входит в неё целиком.
   expect(info(1).asked).toEqual([4])
   expect(offerAlliance(sim, 1, 4)).toBe('allied')
   expect(info(4).allies).toEqual([1, 2, 3])
   expect(info(3).allies).toEqual([1, 2, 4])
+  expect(info(4).head).toBe(1)
 })
 
-test('сохранение прежних версий с попарными союзами при загрузке достраивается до групп', () => {
+test('сохранение прежних версий с попарными союзами достраивается до групп, а главой становится младший', () => {
   const sim = createSim({ generator: DEFAULT_CONFIG, size: 256 })
   for (const player of [1, 2, 3]) addCredits(sim, player, 100)
   sim.advance(STEP)
@@ -129,19 +150,26 @@ test('сохранение прежних версий с попарными с�
     for (const [entity, data] of sim.world.query(Player)) if (data.id === player) return { entity, data }
     throw new Error('Игрока нет')
   }
-  // Как в старом сохранении: пары есть, а что союзник союзника тоже союзник — не записано.
+  // Как в старом сохранении: пары есть, главы нет, а что союзник союзника тоже союзник — не записано.
   sim.world.set(account(1).entity, Player, { allies: [2] })
-  sim.world.set(account(2).entity, Player, { allies: [1, 3] })
+  sim.world.set(account(2).entity, Player, { allies: [1, 3], offered: [3, 4], asked: [4] })
   sim.world.set(account(3).entity, Player, { allies: [2] })
   const loaded = createSim(sim.save())
-  const allies = (player: number) => {
-    for (const [, data] of loaded.world.query(Player)) if (data.id === player) return data.allies
+  const data = (player: number) => {
+    for (const [, info] of loaded.world.query(Player)) if (info.id === player) return info
     throw new Error('Игрока нет')
   }
-  expect(allies(1)).toEqual([2, 3])
-  expect(allies(2)).toEqual([1, 3])
-  expect(allies(3)).toEqual([1, 2])
+  expect(data(1).allies).toEqual([2, 3])
+  expect(data(2).allies).toEqual([1, 3])
+  expect(data(3).allies).toEqual([1, 2])
   expect(allied(loaded, 1, 3)).toBe(true)
+  // Глава записанной группы — младший номер: у всех троих он один.
+  expect(data(1).head).toBe(1)
+  expect(data(2).head).toBe(1)
+  expect(data(3).head).toBe(1)
+  // Предложение внутрь группы ждать больше нечего, а чужому (четвёртому) — по-прежнему ждёт ответа.
+  expect(data(2).offered).toEqual([4])
+  expect(data(2).asked).toEqual([4])
 })
 
 test('союзников не атакуют — ни сами, ни по приказу, — и ворота перед ними не закрываются', () => {
@@ -158,8 +186,8 @@ test('союзников не атакуют — ни сами, ни по при
   expect(sim.world.get(own, Armed)!.target).toBe(-1)
   expect(isOpenGate(sim, gate)).toBe(true)
   expect(unitsOf(sim, 1).length + unitsOf(sim, 2).length).toBe(2)
-  // Союз расторгнут — снова враги.
-  breakAlliance(sim, 2, 1)
+  // Союзник вышел из союза — снова враги.
+  expect(exitAlliance(sim, 2)).toBe('left')
   for (let i = 0; i < 10; i++) sim.advance(STEP)
   expect(canAttack(sim, 1, other)).toBe(true)
   expect(sim.world.get(own, Armed)!.target).toBe(other)
@@ -194,11 +222,54 @@ test('разведка у союзников общая: после /ally каж
   expect(first.sim.world.has(builder as never, Repair)).toBe(true)
   expect(wireOf(host.sim.world, builder as never, 3, 0).parts.has(Repair.key)).toBe(false)
 
-  second.say('/unally Вася')
+  // Рядовой выходит из союза сам: имя не нужно — /unally без него.
+  second.say('/unally')
   expect(first.chat).toContain('allyLeftBy')
   run(host, all, 0.5)
   expect(unitsOf(first.sim, 2)).toEqual([])
   expect(first.sim.vision.sees(1, at.x, at.y)).toBe(false)
+})
+
+test('союзом распоряжается глава: рядовой не зовёт и не исключает, выходит сам, а уходит глава — союз распущен', () => {
+  const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 256 }))
+  const first = join(host, 'Вася')
+  const second = join(host, 'Петя')
+  const third = join(host, 'Коля')
+  const all = [first, second, third]
+  run(host, all, 0.5)
+  first.say('/ally Петя')
+  second.say('/ally Вася')
+  expect(first.chat).toContain('allyFormed')
+  // Рядовой зовёт третьего — отказ: приглашать может только глава. И исключать — тоже.
+  second.say('/ally Коля')
+  expect(second.chat).toContain('allyNotHead')
+  second.say('/unally Вася')
+  expect(second.chat).toContain('allyKickNotHead')
+  expect(alliesOf(host.sim, 1)).toEqual([2])
+  // Глава исключает рядового — тот покидает союз целиком.
+  first.say('/unally Петя')
+  expect(first.chat).toContain('allyKicked')
+  expect(second.chat).toContain('allyKickedBy')
+  expect(alliesOf(host.sim, 2)).toEqual([])
+  expect(allyHeadOf(host.sim, 2)).toBe(-1)
+  // Одиночке выходить неоткуда — и он слышит об этом.
+  third.say('/unally')
+  expect(third.chat).toContain('allyNoAlliance')
+  // Глава предложил, третий принял — и вышел сам: главе весть, сам он снова один.
+  first.say('/ally Коля')
+  third.say('/ally Вася')
+  expect(third.chat).toContain('allyFormed')
+  third.say('/unally')
+  expect(third.chat).toContain('allyExited')
+  expect(first.chat).toContain('allyLeftBy')
+  expect(alliesOf(host.sim, 1)).toEqual([])
+  // Глава уходит сам — союз распускается целиком.
+  first.say('/ally Коля')
+  third.say('/ally Вася')
+  first.say('/unally')
+  expect(first.chat).toContain('allyDissolved')
+  expect(third.chat).toContain('allyDissolvedBy')
+  expect(alliesOf(host.sim, 3)).toEqual([])
 })
 
 test('союзнику идут счёт игрока и потоки в его трубах, а третьему — нет', () => {

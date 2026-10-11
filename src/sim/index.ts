@@ -56,7 +56,7 @@ export type { Armor, ShotKind, UnitClass, WeaponSpec, WeaponType } from './weapo
 export type { UnitSpec, UnitType } from './units'
 export { SCAN_EVERY, scanRadius } from './radar'
 export { GATE_CLOSE, GATE_OPEN } from './gates'
-export { allied, alliesIn, alliesOf, breakAlliance, offerAlliance, type AllyResult, type BreakResult } from './allies'
+export { allied, alliesIn, alliesOf, allyHeadIn, allyHeadOf, breakAlliance, exitAlliance, offerAlliance, type AllyResult, type BreakResult, type ExitResult } from './allies'
 export { giftable, handOver } from './gift'
 export { canFerry, coreOf, sendFerry, takeFromStores, TRANSFER_CAPACITY, TRANSFER_SECONDS } from './ferry'
 export { isOpenGate } from './buildings'

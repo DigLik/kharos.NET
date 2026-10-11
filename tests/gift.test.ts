@@ -43,8 +43,8 @@ test('отдать юнитов можно только союзнику и то
   expect(sim.world.get(truck, Owner)!.player).toBe(1)
   ally(sim, 1, 2)
   expect(handOver(sim, 1, 1, [truck])).toBe(0)
-  // Чужой юнит не отдать, даже если оба — союзники: юнит не его.
-  ally(sim, 2, 3)
+  // Чужой юнит не отдать, даже если оба — союзники: юнит не его. Третьего зовёт глава — двойка уже рядовая.
+  ally(sim, 1, 3)
   expect(handOver(sim, 3, 2, [truck])).toBe(0)
   expect(sim.world.get(truck, Owner)!.player).toBe(1)
   expect(handOver(sim, 1, 2, [truck])).toBe(1)

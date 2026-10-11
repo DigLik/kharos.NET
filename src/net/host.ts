@@ -1,7 +1,7 @@
 import { applyEdit, type EditOp } from '../sim/editOps'
 import type { Entity } from '../ecs'
 import { Terrain, terrainAt, tileBytes } from '../map/terrain'
-import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownBy, sightingOf, allied, alliesOf, breakAlliance, offerAlliance, giftable, spawnStartingUnits, wipePlayer, type Command, type Sim, type Sighting, type SimSave } from '../sim'
+import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownBy, sightingOf, allied, alliesOf, breakAlliance, exitAlliance, offerAlliance, giftable, spawnStartingUnits, wipePlayer, type Command, type Sim, type Sighting, type SimSave } from '../sim'
 import { Armed, Attached, Blast, Building, Health, Owner, Path, Player, Position, Shot, Transfer, Unit } from '../sim/components'
 import { pathOf, seenBy, sharedWireOf, type Wired } from './wire'
 import { LAND, POSITION, encodeDelta, type Motion, type ShotRecord } from './codec'
@@ -489,24 +489,49 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       const from = caller.player!
       const result = offerAlliance(sim, from, to)
       if (result === 'refused') return caller.reply(hostText(from === to ? 'allySelf' : 'noPlayer', { name: nameOf(to) }))
+      if (result === 'fromMember') return caller.reply(hostText('allyNotHead'))
+      if (result === 'toMember') return caller.reply(hostText('allyToMember', { name: nameOf(to) }))
       if (result === 'already') return caller.reply(hostText('allyAlready', { name: nameOf(to) }))
       if (result === 'pending') return caller.reply(hostText('allyPending', { name: nameOf(to) }))
       tell(from, hostText(result === 'allied' ? 'allyFormed' : 'allyOffered', { name: nameOf(to) }))
       tell(to, hostText(result === 'allied' ? 'allyFormed' : 'allyAsked', { name: nameOf(from) }))
     },
   })
+  /** Союзом распоряжается глава: он исключает рядовых. Выйти можно и самому — /unally без имени. */
   add({
     name: 'unally',
     args: [PLAYER_ARG],
     game: true,
     run(args, _rest, caller) {
-      const to = findPlayer(args.join(' '), caller.admin)
-      if (to === undefined) return caller.reply(args.length ? hostText('noPlayer', { name: args.join(' ') }) : usage(this))
       const from = caller.player!
+      const to = findPlayer(args.join(' '), caller.admin)
+      if (args.length && to === undefined) return caller.reply(hostText('noPlayer', { name: args.join(' ') }))
+      // Без имени (и по своему имени) — выйти из союза самому: рядовой выходит, глава распускает союз.
+      if (to === undefined || to === from) {
+        const group = alliesOf(sim, from)
+        const result = exitAlliance(sim, from)
+        if (result === 'nothing') return caller.reply(hostText('allyNoAlliance'))
+        if (result === 'left') {
+          tell(from, hostText('allyExited'))
+          for (const member of group) tell(member, hostText('allyLeftBy', { name: nameOf(from) }))
+        } else {
+          tell(from, hostText('allyDissolved'))
+          for (const member of group) tell(member, hostText('allyDissolvedBy', { name: nameOf(from) }))
+        }
+        return
+      }
+      // Кого исключение касается: глава и его рядовые — им весть об исключённом, самому исключённому — своя.
+      const group = [from, ...alliesOf(sim, from)].filter((who) => who !== to)
       const result = breakAlliance(sim, from, to)
       if (result === 'nothing') return caller.reply(hostText('allyNothing', { name: nameOf(to) }))
-      tell(from, hostText(result === 'left' ? 'allyLeft' : result === 'withdrawn' ? 'allyWithdrawn' : 'allyDeclined', { name: nameOf(to) }))
-      if (result !== 'withdrawn') tell(to, hostText(result === 'left' ? 'allyLeftBy' : 'allyDeclinedBy', { name: nameOf(from) }))
+      if (result === 'notHead') return caller.reply(hostText('allyKickNotHead'))
+      if (result === 'kicked') {
+        for (const member of group) tell(member, hostText('allyKicked', { name: nameOf(to) }))
+        tell(to, hostText('allyKickedBy', { name: nameOf(from) }))
+        return
+      }
+      tell(from, hostText(result === 'withdrawn' ? 'allyWithdrawn' : 'allyDeclined', { name: nameOf(to) }))
+      if (result !== 'withdrawn') tell(to, hostText('allyDeclinedBy', { name: nameOf(from) }))
     },
   })
   /** Союзникам — делиться: деньги приходят сразу, груз везёт корабль, см. ferry.ts. Юнитов отдают из меню юнитов. */

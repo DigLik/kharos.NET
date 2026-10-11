@@ -9,7 +9,7 @@ import {
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   RESEARCH, Research, TOPICS, isLab, levelTopic, missingResearch, topicLack, topicPrice, type Topic, type TopicPrice, type TopicLack,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
-  Off, Owner, Player, Position, Tactics, Transfer, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
+  Off, Owner, Player, Position, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
 import { paveStrokeOf } from './placing'
 import type { PaveTool, Scene } from './scene'
@@ -35,9 +35,11 @@ export interface HudState {
   /**
    * relation — что между игроком и нами: союз, он предложил союз или мы ему, см. allies.ts. credits — счёт союзника
    * (свой и союзнический хост шлёт целиком), base — где его главное здание: туда ведёт клик по панели союзников.
-   * player — номер игрока: по нему команда ferry называет получателя подарка.
+   * player — номер игрока: по нему команда ferry называет получателя подарка. head — глава его союза: он сам, если
+   * он глава, иначе его глава, и -1, если игрок ни с кем. По head кнопки союза понимают, кто вправе исключать;
+   * чужих, не союзников, клиент не видит и считает одиночками — отказ скажет хост, см. host.ts.
    */
-  players: { player: number; name: string; own: boolean; online: boolean; safe: boolean; relation: 'ally' | 'allyAsked' | 'allyOffered' | null; credits: number; base: { x: number; y: number } | null }[]
+  players: { player: number; name: string; own: boolean; online: boolean; safe: boolean; relation: 'ally' | 'allyAsked' | 'allyOffered' | null; credits: number; base: { x: number; y: number } | null; head: number }[]
   /** Сколько осталось своей защиты новичка, «м:сс» десятками секунд; пусто — её нет. */
   protection: string
   /** Чат сетевой игры: сообщения и когда пришли (мс, performance.now); null — игра локальная, чата нет. */
@@ -571,6 +573,7 @@ export function readHud(scene: Scene): HudState {
           relation: relationWith(sim, scene.player, player),
           credits: creditsOf(sim, player),
           base: bases.get(player) ?? null,
+          head: allyHeadIn(sim.world, player),
         }))
       : [],
     protection: protectionOf(scene),

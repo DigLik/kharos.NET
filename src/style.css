@@ -372,6 +372,13 @@ body {
   font-size: 12px;
 }
 
+/* Метка главы союза в чипе: золотая, как счёт рядом, — видно, кто распоряжается союзом, см. allies.ts. */
+.hud__ally b {
+  color: #f0c95a;
+  font-size: 11px;
+  font-weight: normal;
+}
+
 .hud__ally.is-away {
   opacity: 0.45;
 }
