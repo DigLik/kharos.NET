@@ -129,6 +129,8 @@ export function createReplica(welcome: Extract<ServerMessage, { type: 'welcome' 
     // Пока не пришла карта мира, местность — по генератору; правки, пришедшие раньше карты, ждут её.
     replica.land = createLand(options.generator, areaOf(replica.bounds))
     replica.deposits.cells.clear()
+    // Пусто в слое потому, что он в пути, а не потому, что игрок ничего не знает: уведомления по нему не судят.
+    replica.deposits.pending = true
     replica.deposits.revision++
     landWait++
     earlyEdits = []

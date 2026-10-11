@@ -99,7 +99,9 @@ export function createAlerts(scene: Scene, audio: Audio | null) {
       // Месторождения игрок знает только разведанные: хост шлёт слой заново, когда он узнал новые.
       const layer = scene.sim.deposits
       const generation = (scene.sim as { generation?: number }).generation
-      if (layer.complete && (deposits?.sim !== scene.sim || deposits.generation !== generation || deposits.revision !== layer.revision)) {
+      // Слой в пути (мир только принят, хост ещё шлёт) пуст не по незнанию игрока: судить по нему не о чем — иначе
+      // каждый перезаход объявил бы находкой всё, что игрок знал и раньше.
+      if (layer.complete && !layer.pending && (deposits?.sim !== scene.sim || deposits.generation !== generation || deposits.revision !== layer.revision)) {
         const known = new Set<number>()
         let fresh: { x: number; y: number } | undefined
         // Тот же мир, что в прошлый раз: чего в нём не было, то найдено сейчас. Новый мир — всё в нём уже знакомо.

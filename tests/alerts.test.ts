@@ -3,7 +3,8 @@ import { createAlerts } from '../src/game/alerts'
 import type { Scene } from '../src/game/scene'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { tileKey } from '../src/map/terrain'
-import { Health, Shot, createSim } from '../src/sim'
+import { DEPOSIT_TYPES, Health, Shot, createSim } from '../src/sim'
+import { loadDeposits } from '../src/sim/deposits'
 import { spawnUnit } from '../src/sim/units'
 
 /** Уведомления над миром без отрисовки: им нужны только мир и номер игрока. */
@@ -92,4 +93,23 @@ test('о найденном месторождении сообщают, ког�
   learn(140, 10)
   alerts.update(0.1)
   expect(kinds()).toEqual(['found', 'found'])
+})
+
+test('слой в пути не выдаёт знакомое месторождение за находку: иначе пиликает каждый перезаход', () => {
+  const { sim, alerts, kinds } = setup()
+  // Мир принят (replica.meet): слой этого мира ещё шлётся, а в нём пусто — и пусто не по незнанию игрока.
+  sim.deposits.complete = true
+  sim.deposits.pending = true
+  alerts.update(0.1)
+  expect(kinds()).toEqual([])
+  // Слой дошёл: месторождение игрок разведал ещё в прошлый заход — оно знакомо, находкой не объявляется.
+  const kind = DEPOSIT_TYPES.indexOf('kharite')
+  loadDeposits(sim.deposits, { cells: [], spots: [60, 10, kind, 300] })
+  expect(sim.deposits.pending).toBe(false)
+  alerts.update(0.1)
+  expect(kinds()).toEqual([])
+  // А разведанное уже в этом заходе — по-прежнему находка, и именно оно, а не знакомое.
+  loadDeposits(sim.deposits, { cells: [], spots: [60, 10, kind, 300, 140, 10, kind, 300] })
+  alerts.update(0.1)
+  expect(alerts.current()).toMatchObject([{ kind: 'found', text: 'oreFound', x: 141, y: 11 }])
 })

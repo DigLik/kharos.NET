@@ -73,6 +73,11 @@ export interface DepositLayer {
   cells: Map<number, DepositSpot[]>
   /** Слой полный: клетки, которой в нём нет, генератор не считает — она пуста. Так у клиента: слой шлёт хост. */
   complete: boolean
+  /**
+   * Слой этого мира ещё не пришёл: у клиента — от приветствия и до сообщения хоста. Пусто в нём потому, что шлётся, а
+   * не потому, что игрок ничего не знает: уведомления по такому слою не судят о находках.
+   */
+  pending: boolean
   /** Номер правки: растёт с каждой. По нему хост узнаёт, что слой пора разослать заново. */
   revision: number
 }
@@ -84,7 +89,7 @@ export interface DepositsSave {
 }
 
 export function createDeposits(save?: DepositsSave, complete = false): DepositLayer {
-  const layer: DepositLayer = { cells: new Map(), complete, revision: 0 }
+  const layer: DepositLayer = { cells: new Map(), complete, pending: false, revision: 0 }
   if (save) loadDeposits(layer, save)
   return layer
 }
@@ -99,6 +104,7 @@ export function loadDeposits(layer: DepositLayer, save: DepositsSave) {
     if (!layer.cells.has(key)) layer.cells.set(key, [])
     layer.cells.get(key)!.push({ x, y, kind: DEPOSIT_TYPES[kind] ?? 'metal', reserve })
   }
+  layer.pending = false
   layer.revision++
 }
 
