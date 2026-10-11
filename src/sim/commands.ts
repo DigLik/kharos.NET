@@ -107,7 +107,8 @@ export type Command = (
   /** Протянуть наземную трубу по тайлам (x и y подряд, по порядку) и послать к ней своих строителей. */
   | { type: 'pipes'; tiles: number[]; builders: number[] }
   /** Протянуть стену по тайлам (x и y подряд, по порядку) и послать к ней своих строителей. */
-  | { type: 'walls'; tiles: number[]; builders: number[] }
+  /** Стена протяжкой; gate — не стена, а ворота, см. gates.ts. */
+  | { type: 'walls'; tiles: number[]; builders: number[]; gate?: boolean }
   /** Заложить колодец (x, y) или пару — концы подземной трубы (x, y первого и второго) — и послать к ним своих строителей. */
   | { type: 'wells'; tiles: number[]; builders: number[] }
   /** Снять своё покрытие с тайлов (x и y подряд) своими строителями: недостроенное — сразу с возвратом, готовое разберут. */
@@ -178,7 +179,7 @@ function lay(sim: Sim, player: number, command: Extract<Command, { tiles: number
   const done =
     command.type === 'pave' ? orderPave(sim, player, command.kind, tiles, free) > 0
     : command.type === 'pipes' ? orderPipes(sim, player, tiles, free) > 0
-    : command.type === 'walls' ? orderWalls(sim, player, tiles, free) > 0
+    : command.type === 'walls' ? orderWalls(sim, player, tiles, free, command.gate === true ? 'gate' : 'wall') > 0
     : command.type === 'wells' ? orderWells(sim, player, tiles, free)
     : removePave(sim, player, tiles, builders, free)
   if (!done) return false

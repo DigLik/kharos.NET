@@ -1159,6 +1159,63 @@ const wall: BuildingArt = {
   },
 }
 
+/** Бит вида ворот поверх битов соседей (WALL_CONNECTION): плита опущена. */
+export const GATE_OPEN_VARIANT = 16
+
+/**
+ * Ворота: плита, выезжающая из земли. Поднятая — та же секция стены с предупредительными полосами: рукава тянутся
+ * к соседним секциям ворот и к стене. Опущенная — люк вровень с землёй: рама, щель и зелёные огни по углам;
+ * соседние люки сливаются в одну полосу.
+ */
+const gate: BuildingArt = {
+  ...BUILDINGS.gate,
+  variants: 32,
+  draw(g, t, light, variant = 0) {
+    const north = !!(variant & WALL_CONNECTION.north)
+    const east = !!(variant & WALL_CONNECTION.east)
+    const south = !!(variant & WALL_CONNECTION.south)
+    const west = !!(variant & WALL_CONNECTION.west)
+    // Одиночная секция и секция в ряду слева направо лежат поперёк; в ряду сверху вниз — вдоль.
+    const upright = (north || south) && !east && !west
+    const left = west ? 0 : 2
+    const right = east ? 16 : 14
+    const top = north ? 0 : 2
+    const bottom = south ? 16 : 14
+    if (variant & GATE_OPEN_VARIANT) {
+      // Люк: рама до края тайла со стороны соседа, внутри — тёмная крышка со щелью, куда ушла плита.
+      const [x, y, width, height] = upright ? [3, top, 10, bottom - top] : [left, 3, right - left, 10]
+      g.rect(x, y, width, height, INK)
+      g.rect(x + (upright ? 1 : west ? 0 : 1), y + (upright ? (north ? 0 : 1) : 1), width - (upright ? 2 : (west ? 0 : 1) + (east ? 0 : 1)), height - (upright ? (north ? 0 : 1) + (south ? 0 : 1) : 2), STEEL[0])
+      if (upright) {
+        g.rect(7, top, 2, bottom - top, INK)
+        for (let mark = top + 2; mark + 1 < bottom; mark += 4) g.rect(4, mark, 2, 1, HAZARD[1]), g.rect(10, mark, 2, 1, HAZARD[1])
+      } else {
+        g.rect(left, 7, right - left, 2, INK)
+        for (let mark = left + 2; mark + 1 < right; mark += 4) g.rect(mark, 4, 1, 2, HAZARD[1]), g.rect(mark, 10, 1, 2, HAZARD[1])
+      }
+      g.rect(7, 7, 2, 2, 0x5fe08a)
+      light(8, 8, 1.5, 0.3)
+      return
+    }
+    // Поднятая плита: как секция стены, но сплошная и в полосах.
+    const [x, y, width, height] = upright ? [4, top, 9, bottom - top] : [left, 4, right - left, 9]
+    g.rect(x, y, width, height, INK)
+    if (upright) {
+      g.rect(5, top, 6, bottom - top, IRON[1])
+      g.rect(5, top, 1, bottom - top, IRON[3])
+      g.rect(11, top, 1, bottom - top, IRON[0])
+      for (let mark = top + 1; mark + 2 < bottom; mark += 4) g.rect(6, mark, 4, 2, HAZARD[1])
+    } else {
+      g.rect(left, 5, right - left, 6, IRON[1])
+      g.rect(left, 5, right - left, 1, IRON[3])
+      g.rect(left, 11, right - left, 1, IRON[0])
+      for (let mark = left + 1; mark + 2 < right; mark += 4) g.rect(mark, 7, 2, 3, HAZARD[1])
+    }
+    g.rect(7, 7, 2, 2, FIRE[2])
+    light(8, 8, 1.5, 0.45 + 0.3 * pulse(t))
+  },
+}
+
 /**
  * Наземная труба: рукава к соседям по сторонам (трубам и зданиям сети), биты — как у стены (WALL_CONNECTION).
  * Одиночная — короткий обрубок с фланцами.
@@ -1300,6 +1357,7 @@ export const BUILDING_ART = {
   partsLocker,
   spaceport,
   wall,
+  gate,
   pipe: pipeArt,
   well: wellArt,
   turret,

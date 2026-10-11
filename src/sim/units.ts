@@ -2,6 +2,7 @@ import type { Entity } from '../ecs'
 import { Biome, Terrain, biomeAt, isCliffFoot, isPassable, terrainAt, tileKey } from '../map/terrain'
 import { FOUNDATION_SPEED, ROAD_SPEED, isPaved } from './paved'
 import { isOwn } from './common'
+import { isOpenGate } from './buildings'
 import { Armed, Converting, Hauler, Harvester, Health, Owner, Repair, Path, Pave, Position, Producer, Unit } from './components'
 import { unitSight } from './vision'
 import { STARTING_CREDITS, addCredits } from './economy'
@@ -166,13 +167,15 @@ export const INFANTRY_REGEN = 0.02
 const STARTING_UNITS: UnitType[] = ['mcv', 'builder', 'builder', 'infantry', 'infantry', 'infantry']
 
 /**
- * Может ли наземный юнит находиться в тайле: внутри карты, на песке или скале, не в здании и не у подножия обрыва —
+ * Может ли наземный юнит находиться в тайле: внутри карты, на песке или скале, не в здании (открытые ворота не в счёт) и не у подножия обрыва —
  * туда можно только пехоте (foot), и то медленно, см. terrainSpeed. Без foot — правила техники: так ищут место
  * для всех, кто может оказаться там, а не только для пехоты.
  */
 export function isWalkable(sim: Sim, x: number, y: number, foot = false) {
   if (!inBounds(sim, x, y)) return false
-  return isPassable(terrainAt(sim.land, x, y)) && (foot || !isCliffFoot(sim.land, x, y)) && sim.occupancy.at(x, y) === undefined
+  if (!isPassable(terrainAt(sim.land, x, y)) || (!foot && isCliffFoot(sim.land, x, y))) return false
+  const building = sim.occupancy.at(x, y)
+  return building === undefined || isOpenGate(sim, building)
 }
 
 /**

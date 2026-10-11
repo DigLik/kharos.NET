@@ -91,7 +91,7 @@ export function paveStrokeOf(scene: Scene): PaveStroke | null {
   const from = scene.paveFrom ?? tile
   const tiles: number[] = []
   if (tool === 'well') return wellStrokeOf(scene, from, tile)
-  if (tool === 'road' || tool === 'pipe' || tool === 'wall') {
+  if (tool === 'road' || tool === 'pipe' || tool === 'wall' || tool === 'gate') {
     const horizontal = Math.abs(tile.x - from.x) >= Math.abs(tile.y - from.y)
     const corner = horizontal ? { x: tile.x, y: from.y } : { x: from.x, y: tile.y }
     const walk = (a: { x: number; y: number }, b: { x: number; y: number }, skipFirst: boolean) => {
@@ -114,11 +114,11 @@ export function paveStrokeOf(scene: Scene): PaveStroke | null {
   // Кредиты списываются по тайлу в том же порядке: на что не хватит, то и не ляжет.
   const credits = creditsOf(sim, player)
   let cost = 0
-  if (tool === 'pipe' || tool === 'wall') {
+  if (tool === 'pipe' || tool === 'wall' || tool === 'gate') {
     // Труба и стена тянутся цепочкой: на чём кончились кредиты, дальше уже не лягут, см. orderPipes и orderWalls.
     const price = BUILDINGS[tool].cost
     let broke = false
-    for (const ok of tool === 'pipe' ? pipeStroke(sim, player, tiles) : wallStroke(sim, player, tiles)) {
+    for (const ok of tool === 'pipe' ? pipeStroke(sim, player, tiles) : wallStroke(sim, player, tiles, tool)) {
       const affordable = ok && !broke && cost + price <= credits
       if (ok && !affordable) broke = true
       allowed.push(affordable)

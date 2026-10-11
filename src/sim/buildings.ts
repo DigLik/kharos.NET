@@ -1,7 +1,7 @@
 import type { Entity, World } from '../ecs'
 import { Terrain, isBuildable, isCliffFoot, terrainAt, tileKey } from '../map/terrain'
 import { isOwn } from './common'
-import { Assembly, Building, Health, Inventory, Repair, Owner, Position, Producer, Site } from './components'
+import { Assembly, Building, Gate, Health, Inventory, Repair, Owner, Position, Producer, Site } from './components'
 import { equipStorage, type BeamSpec } from './inventory'
 import { ORE_SPECS, PRODUCT_SPECS, WARES, stockedFor, type Amounts, type Good, type Ore, type Product } from './resources'
 import type { Sim } from './sim'
@@ -32,6 +32,8 @@ export interface BuildingSpec {
   mounts?: MountSpec[]
   /** Сколько тайлов от центра видит готовое здание; без поля — на BUILDING_SIGHT от края. См. vision.ts. */
   sight?: number
+  /** Ворота: открыты, пока рядом нет чужих, см. gates.ts. */
+  gate?: boolean
   /** На сколько тайлов от центра здание разведывает вспышками, см. radar.ts; с уровнем радиус растёт. */
   scan?: number
   /** Энергия: больше нуля — вырабатывает, меньше — потребляет. */
@@ -204,6 +206,7 @@ export const BUILDINGS = {
   spaceport: { width: 3, height: 3, cost: 450, power: -5, materials: { metal: 20 }, trades: true, inventory: 400, accepts: WARES },
   // Дешёвая стена не расширяет зону: иначе цепочкой стен можно было бы бесплатно протянуть контроль через карту.
   wall: { width: 1, height: 1, cost: 30, hp: 400, defense: true, expand: 0, isolated: true },
+  gate: { width: 1, height: 1, cost: 90, hp: 400, defense: true, expand: 0, isolated: true, gate: true },
   // Трубы связывают здания в сеть: по ним идут груз и энергия. Наземная дешёвая и хрупкая и перекрывает проезд,
   // как стена; колодцы ведут подземный отрезок, под которым ездят и строят, а уязвимы только сами колодцы.
   pipe: { width: 1, height: 1, cost: 5, hp: 60, expand: PIPE_REACH, sight: 1, pipe: 'surface' },
@@ -232,7 +235,7 @@ export const BUILDING_TYPES = Object.keys(BUILDINGS) as BuildingType[]
 export const BUILDABLE: BuildingType[] = [
   'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'blockPlant', 'ammoPlant', 'partsPlant',
   'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker', 'spaceport', 'barracks', 'factory', 'airfield', 'techCenter',
-  'radar', 'wall', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret',
+  'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret',
 ]
 
 /** Выше этого уровня здания не улучшают. */
@@ -309,6 +312,7 @@ export const isPipe = (type: BuildingType) => !!buildingSpec(type).pipe
 export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = {
   generator: ['command'],
   wall: ['command'],
+  gate: ['command'],
   turret: ['radar'],
   matter: ['generator'],
   mine: ['generator'],
@@ -392,8 +396,14 @@ export function createOccupancy(world: World): Occupancy {
 export const isReady = (sim: Sim, player: number, building: Entity) =>
   sim.world.has(building, Building) && !sim.world.has(building, Site) && isOwn(sim, player, building)
 
-/** Стена ли это здание: только стены укрывают от выстрелов. См. wallOnPath в combat.ts. */
-export const isWall = (sim: Sim, entity: Entity) => sim.world.get(entity, Building)?.type === 'wall'
+/** Открытые ли это ворота: готовые и с поднятой створкой. Через такие ходят, и выстрел они не держат. См. gates.ts. */
+export const isOpenGate = (sim: Sim, building: Entity) => sim.world.get(building, Gate)?.open === true && !sim.world.has(building, Site)
+
+/** Стена ли это здание: только стены и закрытые ворота укрывают от выстрелов. См. wallOnPath в combat.ts. */
+export const isWall = (sim: Sim, entity: Entity) => {
+  const type = sim.world.get(entity, Building)?.type
+  return type === 'wall' || (type === 'gate' && !isOpenGate(sim, entity))
+}
 
 /** Площадка, основание которой накрывает тайл (x, y), или undefined. Площадок мало, поэтому простой перебор. */
 export function siteAt(sim: Sim, x: number, y: number): Entity | undefined {

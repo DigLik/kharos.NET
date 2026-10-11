@@ -31,7 +31,7 @@ const SECTIONS: Partial<Record<Page, BuildingType[]>> = {
   storage: ['metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker'],
   industry: ['smelter', 'siliconWorks', 'distillery', 'enricher', 'blockPlant', 'ammoPlant', 'partsPlant'],
   military: ['barracks', 'factory', 'airfield', 'techCenter'],
-  defense: ['wall', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'radar'],
+  defense: ['wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'radar'],
 }
 /** Описание здания для карточки: что делает и какие здания открывает. */
 function aboutOf(building: BuildingType) {
@@ -144,9 +144,10 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
         place(construction.placing === building ? null : building)
       },
     })
-    /** Стену не ставят по одной, а тянут мышью линией, как трубу: её кнопка включает инструмент протяжки. */
+    /** Стену и ворота не ставят по одной, а тянут мышью линией, как трубу: их кнопка включает инструмент протяжки. */
     const wallSlot = (option: (typeof construction.options)[number]): Slot => {
-      const active = construction.paving?.tool === 'wall'
+      const tool = option.building === 'gate' ? 'gate' : 'wall'
+      const active = construction.paving?.tool === tool
       return {
         ...buildingSlot(option),
         cost: active && construction.paving!.tiles > 1 ? construction.paving!.cost : option.cost,
@@ -154,7 +155,7 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
         title: option.affordable ? t('grid.wallTip') : t('grid.noCredits'),
         run: () => {
           place(null)
-          pave(active ? null : 'wall')
+          pave(active ? null : tool)
         },
       }
     }
@@ -213,7 +214,7 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
       }
     } else {
       const wanted = construction.options.filter(({ building }) => sectionOf(building) === page)
-      wanted.slice(0, BACK).forEach((option, i) => (slots[i] = option.building === 'wall' ? wallSlot(option) : buildingSlot(option)))
+      wanted.slice(0, BACK).forEach((option, i) => (slots[i] = option.building === 'wall' || option.building === 'gate' ? wallSlot(option) : buildingSlot(option)))
       slots[BACK] = {
         label: t('common.back'),
         title: t('grid.backFromPlacing'),

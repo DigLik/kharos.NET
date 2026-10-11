@@ -5,10 +5,10 @@ import { Pixmap } from '../../render/pixmap'
 import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'
 import type { Entity } from '../../ecs'
-import { Assembly, BUILDING_TYPES, Building, Inventory, Owner, Position, Site, amountOf, buildingSpec, isPipe, siteTicks, type BuildingType } from '../../sim'
+import { Assembly, BUILDING_TYPES, Building, Inventory, Owner, Position, Site, amountOf, buildingSpec, isOpenGate, isPipe, siteTicks, type BuildingType } from '../../sim'
 import { placementOf } from '../placing'
 import type { Scene } from '../scene'
-import { ART_FRAMES, ART_TILE, BUILDING_ART, WALL_CONNECTION, type BuildingArt } from './buildingArt'
+import { ART_FRAMES, ART_TILE, BUILDING_ART, GATE_OPEN_VARIANT, WALL_CONNECTION, type BuildingArt } from './buildingArt'
 
 /** Поля вокруг основания в пикселях спрайта: место для высоких частей. */
 const PAD = ART_TILE
@@ -136,10 +136,10 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene): P
       // И готовая стена, и ещё не начатая соседняя площадка участвуют в соединении: чертёж сразу показывает итог.
       const walls = new Set<number>()
       for (const [, position, building] of world.query(Position, Building)) {
-        if (building.type === 'wall') walls.add(tileKey(position.x, position.y))
+        if (building.type === 'wall' || building.type === 'gate') walls.add(tileKey(position.x, position.y))
       }
       for (const [, position, site] of world.query(Position, Site)) {
-        if (site.type === 'wall') walls.add(tileKey(position.x, position.y))
+        if (site.type === 'wall' || site.type === 'gate') walls.add(tileKey(position.x, position.y))
       }
       // Труба соединяется со всем, что у неё сбоку и входит в сеть: с трубами и зданиями, кроме стен, и с площадками труб.
       const pipes = new Set<number>()
@@ -150,7 +150,8 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene): P
         const type = other === undefined ? undefined : world.get(other, Building)?.type
         return type !== undefined && !buildingSpec(type).isolated
       }
-      const wallVariant = (position: { x: number; y: number }, type: BuildingType) => {
+      const wallVariant = (position: { x: number; y: number }, type: BuildingType, entity?: Entity) => {
+
         if (isPipe(type)) {
           let variant = 0
           if (joins(position.x, position.y - 1)) variant |= WALL_CONNECTION.north
@@ -159,16 +160,17 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene): P
           if (joins(position.x - 1, position.y)) variant |= WALL_CONNECTION.west
           return variant
         }
-        if (type !== 'wall') return 0
-        let variant = 0
+        if (type !== 'wall' && type !== 'gate') return 0
+        // Опущенная плита ворот — свой вид; соседи у ворот те же, что у стены.
+        let variant = type === 'gate' && entity !== undefined && isOpenGate(scene.sim, entity) ? GATE_OPEN_VARIANT : 0
         if (walls.has(tileKey(position.x, position.y - 1))) variant |= WALL_CONNECTION.north
         if (walls.has(tileKey(position.x + 1, position.y))) variant |= WALL_CONNECTION.east
         if (walls.has(tileKey(position.x, position.y + 1))) variant |= WALL_CONNECTION.south
         if (walls.has(tileKey(position.x - 1, position.y))) variant |= WALL_CONNECTION.west
         return variant
       }
-      const see = (position: { x: number; y: number }, type: BuildingType, phase: number, built: number, working = false, neutral = false) => {
-        const sheet = sheets.get(type)![wallVariant(position, type)]
+      const see = (position: { x: number; y: number }, type: BuildingType, phase: number, built: number, working = false, neutral = false, entity?: Entity) => {
+        const sheet = sheets.get(type)![wallVariant(position, type, entity)]
         if (position.x + sheet.art.width < camera.x - halfWidth || position.x > camera.x + halfWidth) return
         if (position.y + sheet.art.height < camera.y - halfHeight || position.y > camera.y + halfHeight) return
         const frame = ((step + phase) % ART_FRAMES) + (working && sheet.art.working ? ART_FRAMES : 0)
@@ -187,7 +189,7 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene): P
           activity.set(entity, state)
           working = time < state.until
         }
-        see(position, building.type, building.phase, site ? site.progress / siteTicks(site.type, simTime.step) : 1, working, !world.get(entity, Owner)?.player)
+        see(position, building.type, building.phase, site ? site.progress / siteTicks(site.type, simTime.step) : 1, working, !world.get(entity, Owner)?.player, entity)
       }
       // Площадки, к которым строитель ещё не приступил: здания на них пока нет.
       for (const [entity, position, site] of world.query(Position, Site)) {

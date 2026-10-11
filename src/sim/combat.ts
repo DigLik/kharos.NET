@@ -158,7 +158,7 @@ function collectMarks(sim: Sim) {
     const { width, height } = BUILDINGS[building.type]
     marks.set(entity, {
       entity, player: owner.player, x: position.x + width / 2, y: position.y + height / 2, left: position.x, top: position.y, width, height,
-      radius: 0, air: false, armor: 'building', wall: building.type === 'wall', hp: buildingHp(building.type), health, seen: 0,
+      radius: 0, air: false, armor: 'building', wall: isWall(sim, entity), hp: buildingHp(building.type), health, seen: 0,
     })
   }
   return marks
