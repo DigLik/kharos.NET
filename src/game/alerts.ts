@@ -1,6 +1,6 @@
 import type { Audio } from '../audio/audio'
 import type { Entity } from '../ecs'
-import { Building, Health, Owner, Position, Shot, Unit, buildingSpec } from '../sim'
+import { Building, Health, Owner, Position, Shot, Unit, alliesIn, buildingSpec } from '../sim'
 import { tileKey } from '../map/terrain'
 import { DEPOSIT_SIZE } from '../sim/deposits'
 import type { Scene } from './scene'
@@ -81,8 +81,10 @@ export function createAlerts(scene: Scene, audio: Audio | null) {
 
       const nextFoes = new Set<Entity>()
       let spotted: Entity | undefined
+      // Союзник — не противник: о его юнитах не предупреждают, см. allies.ts.
+      const allies = alliesIn(world, player)
       for (const [entity, , owner] of world.query(Unit, Owner)) {
-        if (owner.player === player || owner.player === 0) continue
+        if (owner.player === player || owner.player === 0 || allies.includes(owner.player)) continue
         nextFoes.add(entity)
         if (!foes.has(entity)) spotted ??= entity
       }

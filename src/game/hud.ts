@@ -9,7 +9,7 @@ import {
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   RESEARCH, Research, TOPICS, isLab, levelTopic, missingResearch, topicLack, topicPrice, type Topic, type TopicPrice, type TopicLack,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
-  Off, Owner, Position, Tactics, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType,
+  Off, Owner, Player, Position, Tactics, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
 import { paveStrokeOf } from './placing'
 import type { PaveTool, Scene } from './scene'
@@ -32,7 +32,8 @@ export interface HudState {
   clock: string
   storm: boolean
   /** Кто ещё на сервере: ники, свой ли, подключён ли. Пусто в локальной игре. */
-  players: { name: string; own: boolean; online: boolean; safe: boolean }[]
+  /** relation — что между игроком и нами: союз, он предложил союз или мы ему, см. allies.ts. */
+  players: { name: string; own: boolean; online: boolean; safe: boolean; relation: 'ally' | 'allyAsked' | 'allyOffered' | null }[]
   /** Сколько осталось своей защиты новичка, «м:сс» десятками секунд; пусто — её нет. */
   protection: string
   /** Чат сетевой игры: сообщения и когда пришли (мс, performance.now); null — игра локальная, чата нет. */
@@ -533,7 +534,7 @@ export function readHud(scene: Scene): HudState {
     admin: 'admin' in sim && (sim as Replica).admin,
     editor: 'editor' in sim && (sim as Replica).editor,
     picking: !!(scene.routing || scene.serving),
-    players: 'players' in sim ? (sim as Replica).players.map(({ player, name, online, safe }) => ({ name, own: player === scene.player, online, safe: !!safe })) : [],
+    players: 'players' in sim ? (sim as Replica).players.map(({ player, name, online, safe }) => ({ name, own: player === scene.player, online, safe: !!safe, relation: relationWith(sim, scene.player, player) })) : [],
     protection: protectionOf(scene),
     income: round(economyOf(sim, player).income),
     power,
@@ -627,4 +628,13 @@ function pavingOf(scene: Scene): NonNullable<HudState['construction']>['paving']
   if (!scene.paving) return null
   const stroke = paveStrokeOf(scene)
   return { tool: scene.paving, cost: stroke?.cost ?? 0, tiles: stroke ? stroke.allowed.filter(Boolean).length : 0, short: stroke ? stroke.short.filter(Boolean).length : 0 }
+}
+
+/** Что между игроком other и нами — для списка игроков. */
+function relationWith(sim: Sim, player: number, other: number) {
+  for (const [, info] of sim.world.query(Player)) {
+    if (info.id !== player) continue
+    return info.allies.includes(other) ? 'ally' as const : info.asked.includes(other) ? 'allyAsked' as const : info.offered.includes(other) ? 'allyOffered' as const : null
+  }
+  return null
 }

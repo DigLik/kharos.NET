@@ -56,6 +56,7 @@ export type { Armor, ShotKind, UnitClass, WeaponSpec, WeaponType } from './weapo
 export type { UnitSpec, UnitType } from './units'
 export { SCAN_EVERY, scanRadius } from './radar'
 export { GATE_CLOSE, GATE_OPEN } from './gates'
+export { allied, alliesIn, alliesOf, breakAlliance, offerAlliance, type AllyResult, type BreakResult } from './allies'
 export { isOpenGate } from './buildings'
 export { SCAN_SIZE, SCAN_TICKS, buildingSight, createVision, shownBy, shownTo, sightingOf, unitSight, type Sighting, type Vision } from './vision'
 export { DEFAULT_WEATHER, weatherAt, weatherOptionsOf, type Weather, type WeatherOptions } from './weather'

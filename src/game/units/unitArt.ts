@@ -17,10 +17,11 @@ export const UNIT_DIRECTIONS = 64
 
 /** Цвета игрока на юните: тёмный, основной и светлый. */
 export type TeamColors = readonly [number, number, number]
-/** Свои юниты — синие, чужие — красные. */
+/** Свои юниты — синие, чужие — красные, союзники — зелёные, см. allies.ts. */
 export const TEAMS = {
   own: [0x1f63d8, 0x5aa9ff, 0xe4f4ff],
   foe: [0xb3261e, 0xff6b5a, 0xffe9e4],
+  ally: [0x1f7a3c, 0x4ec973, 0xe8fff0],
 } satisfies Record<string, TeamColors>
 export type Team = keyof typeof TEAMS
 

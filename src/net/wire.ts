@@ -101,19 +101,22 @@ export function motionOf(world: World, entity: Entity): Motion | undefined {
 }
 
 /**
- * JSON пути сущности для игрока viewer или undefined. Путь — только своему: чужой клиенту не нужен и выдал бы,
- * куда идёт враг; из пути — только точки, по ним рисуется дорожка выбранного.
+ * JSON пути сущности для игрока viewer, его союзника или undefined. Путь — только своим: чужой клиенту не нужен и
+ * выдал бы, куда идёт враг; из пути — только точки, по ним рисуется дорожка выбранного. friends — союзники viewer,
+ * см. allies.ts.
  */
-export function pathOf(world: World, entity: Entity, viewer: number) {
+export function pathOf(world: World, entity: Entity, viewer: number, friends: readonly number[] = []) {
   const path = world.get(entity, Path)
-  if (!path || world.get(entity, Owner)?.player !== viewer) return undefined
+  if (!path) return undefined
+  const owner = world.get(entity, Owner)?.player
+  if (owner !== viewer && !(owner !== undefined && friends.includes(owner))) return undefined
   return JSON.stringify({ points: path.points }, round)
 }
 
-/** Сущность, какой она уходит игроку viewer: общее для всех и его путь. */
-export function wireOf(world: World, entity: Entity, viewer: number, tick: number): Wired {
+/** Сущность, какой она уходит игроку viewer: общее для всех и его путь (свой или союзника, см. allies.ts). */
+export function wireOf(world: World, entity: Entity, viewer: number, tick: number, friends: readonly number[] = []): Wired {
   const shared = seenBy(sharedWireOf(world, entity, tick), viewer)
-  const path = pathOf(world, entity, viewer)
+  const path = pathOf(world, entity, viewer, friends)
   if (path === undefined) return shared
   return { parts: new Map(shared.parts).set(Path.key, path), motion: shared.motion }
 }

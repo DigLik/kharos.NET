@@ -1,4 +1,4 @@
-import { complete } from '../net/chatCommands'
+import { complete, quoteName } from '../net/chatCommands'
 import type { ComponentChildren } from 'preact'
 import type { HudState, Stack } from '../game/hud'
 import { MINIMAP_SIZE, type Minimap } from '../game/minimap'
@@ -8,7 +8,7 @@ import { goodIcon } from '../game/goodIcons'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { REWARDS, resourceOf, type UnitType, type BuildingType, type Command, type Good, type Reward } from '../sim'
 import { GRID_KEYS, commandsOf, dealOf, keyLabel, type Deal, type Page, type Slot } from './commands'
-import { rich, t } from '../i18n'
+import { rich, t, type Key } from '../i18n'
 
 interface HudProps {
   state: HudState
@@ -41,6 +41,18 @@ interface HudProps {
 }
 
 const percent = (value: number) => `${Math.round(value * 100)}%`
+
+/**
+ * Кнопки союза в списке игроков: что можно сделать с этим игроком прямо сейчас, см. allies.ts. Команды те же,
+ * что набираются в чате: кнопка их просто посылает.
+ */
+function allyActions(name: string, relation: HudState['players'][number]['relation']): { label: Key; command: string }[] {
+  const quoted = quoteName(name)
+  if (relation === 'ally') return [{ label: 'hud.allyLeave', command: `/unally ${quoted}` }]
+  if (relation === 'allyAsked') return [{ label: 'hud.allyAccept', command: `/ally ${quoted}` }, { label: 'hud.allyDecline', command: `/unally ${quoted}` }]
+  if (relation === 'allyOffered') return [{ label: 'hud.allyWithdraw', command: `/unally ${quoted}` }]
+  return [{ label: 'hud.allyOffer', command: `/ally ${quoted}` }]
+}
 
 /** Значок груза цвета груза и количество; название — во всплывающей подсказке. */
 function Res({ resource, amount, of }: { resource: Good; amount?: number; of?: number }) {
@@ -707,13 +719,15 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // Список игроков сервера — пока зажат Tab.
+  // Список игроков сервера — пока зажат Tab. Отпустив Tab, он остаётся, пока мышь на нём: так видно,
+  // что кнопки союза не исчезают из-под руки.
   const [roster, setRoster] = useState(false)
+  const overRoster = useRef(false)
   useEffect(() => {
     const toggle = (shown: boolean) => (event: KeyboardEvent) => {
       if (event.code !== 'Tab' || event.target instanceof HTMLInputElement) return
       event.preventDefault()
-      setRoster(shown)
+      setRoster(shown || overRoster.current)
     }
     const down = toggle(true)
     const up = toggle(false)
@@ -731,15 +745,30 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
   return (
     <>
       {roster && state.players.length > 0 && (
-        <section class="hud roster" aria-label={t('hud.players')}>
+        <section
+          class="hud roster"
+          aria-label={t('hud.players')}
+          onMouseEnter={() => (overRoster.current = true)}
+          onMouseLeave={() => (overRoster.current = false)}
+        >
           <h2>{t('hud.roster', { online: state.players.filter(({ online }) => online).length })}</h2>
           <ul>
-            {state.players.map(({ name, own, online, safe }) => (
+            {state.players.map(({ name, own, online, safe, relation }) => (
               <li class={own ? 'is-own' : online ? undefined : 'is-away'}>
                 <span>
                   {name}
                   {safe && <em>{t('hud.sheltered')}</em>}
+                  {relation && <em class={relation === 'ally' ? 'is-ally' : undefined}>{t(`hud.${relation}`)}</em>}
                 </span>
+                {!own && online && (
+                  <span class="roster__acts">
+                    {allyActions(name, relation).map(({ label, command }) => (
+                      <button key={label} onClick={() => say(command)}>
+                        {t(label)}
+                      </button>
+                    ))}
+                  </span>
+                )}
                 <small>{own ? t('hud.you') : online ? t('hud.online') : t('hud.offline')}</small>
               </li>
             ))}

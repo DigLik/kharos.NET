@@ -5,7 +5,7 @@ import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'
 import type { Entity } from '../../ecs'
 import {
-  Armed, Attached, Building, Ghost, Owner, Position, TURN, TURRET_TYPES, Turret, UNIT_TYPES, Unit, WEAPONS, flies, weaponOf, wrap, type ShotKind, type TurretType,
+  Armed, Attached, Building, Ghost, Owner, Position, TURN, TURRET_TYPES, Turret, UNIT_TYPES, Unit, WEAPONS, alliesOf, flies, weaponOf, wrap, type ShotKind, type TurretType,
   type UnitType,
 } from '../../sim'
 import type { Scene } from '../scene'
@@ -143,6 +143,8 @@ export function createUnitsPasses(gl: WebGL2RenderingContext, scene: Scene): { g
     return {
       draw({ camera, width, height, view, lights }) {
         const { world, time } = scene.sim
+        // Союзники — зелёные, см. allies.ts: своих от союзников на карте видно с одного взгляда.
+        const friends = alliesOf(scene.sim, scene.player)
         const halfWidth = width / 2 / camera.zoom + LIGHT_REACH
         const halfHeight = height / 2 / camera.zoom + LIGHT_REACH
 
@@ -175,7 +177,7 @@ export function createUnitsPasses(gl: WebGL2RenderingContext, scene: Scene): { g
             if (!ghost) lights.beam(snap(x + beam.along * forwardX), snap(y + beam.along * forwardY), facing, beam.length, beam.near, beam.spread, beam.level)
 
             const direction = directionOf(facing)
-            const team: Team = owner.player === scene.player || !owner.player ? 'own' : 'foe'
+            const team: Team = !owner.player || owner.player === scene.player ? 'own' : friends.includes(owner.player) ? 'ally' : 'foe'
             const batch = owner.player ? sprites : neutral
             const phase = phaseOf(entity, unit.type, x, y)
             const { u, v, width: frameWidth, height: frameHeight } = framesOf(team, unit.type, phase)[direction]
@@ -192,7 +194,7 @@ export function createUnitsPasses(gl: WebGL2RenderingContext, scene: Scene): { g
           if (!mountedOnBuilding && (!carrier || flies(carrier.type) !== air)) continue
           const { x, y } = drawnPosition(position, turret, time.alpha)
           if (Math.abs(x - camera.x) > halfWidth || Math.abs(y - camera.y) > halfHeight) continue
-          const team: Team = owner.player === scene.player || !owner.player ? 'own' : 'foe'
+          const team: Team = !owner.player || owner.player === scene.player ? 'own' : friends.includes(owner.player) ? 'ally' : 'foe'
           // Поворот турели — относительно носителя: оба сглаживаются по отдельности, как в симуляции.
           const facing = (carrier ? drawnFacing(carrier, time.alpha) : 0) + turret.prevAngle + wrap(turret.angle - turret.prevAngle) * time.alpha
           const { u, v, width: frameWidth, height: frameHeight } = turretFramesOf(team, turret.type)[directionOf(facing)]

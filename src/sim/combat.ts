@@ -1,3 +1,4 @@
+import { allied, alliances } from './allies'
 import type { Entity } from '../ecs'
 import { Biome, Terrain, biomeAt, terrainAt, tileKey } from '../map/terrain'
 import { isPaved } from './paved'
@@ -166,9 +167,10 @@ function collectMarks(sim: Sim) {
 
 /**
  * Первая чужая стена на отрезке выстрела и точка, где снаряд в неё входит; undefined — путь свободен.
- * Своя стена не мешает: через неё стреляют, как через бруствер. Отрезок задан в тайлах, от стрелка к цели.
+ * Своя стена не мешает: через неё стреляют, как через бруствер. Стена союзника — тоже своя, см. allies.ts:
+ * friends — союзники стрелка, уже собранные на этот тик. Отрезок задан в тайлах, от стрелка к цели.
  */
-function wallOnPath(sim: Sim, player: number, x0: number, y0: number, x1: number, y1: number) {
+function wallOnPath(sim: Sim, player: number, x0: number, y0: number, x1: number, y1: number, friends: readonly number[] | undefined) {
   const dx = x1 - x0
   const dy = y1 - y0
   if (!dx && !dy) return undefined
@@ -188,7 +190,7 @@ function wallOnPath(sim: Sim, player: number, x0: number, y0: number, x1: number
   // Отрезок короткий: снаряд за тик пролетает тайл-другой. Запас нужен лишь на вырожденный случай.
   for (let tile = 0; tile < 64; tile++) {
     const building = sim.occupancy.at(tileX, tileY)
-    if (building !== undefined && isWall(sim, building) && !isOwn(sim, player, building)) {
+    if (building !== undefined && isWall(sim, building) && !isOwn(sim, player, building) && !friends?.includes(sim.world.get(building, Owner)?.player ?? 0)) {
       return { wall: building, x: x0 + dx * t, y: y0 + dy * t }
     }
     if (tileX === lastX && tileY === lastY) return undefined
@@ -231,13 +233,13 @@ export const weaponOf = (sim: Sim, entity: Entity): WeaponType | undefined => {
   return turret && (TURRETS[turret] as { weapon?: WeaponType }).weapon
 }
 
-/** Может ли игрок приказать своим юнитам атаковать это: чужой юнит или чужое здание. */
+/** Может ли игрок приказать своим юнитам атаковать это: чужой юнит или чужое здание — не союзника, см. allies.ts. */
 export function canAttack(sim: Sim, player: number, target: Entity) {
   const { world } = sim
   if (!world.has(target, Position) || (!world.has(target, Unit) && !world.has(target, Building))) return false
   const owner = ownerOf(sim, target)
   // Новичка под защитой не атакуют, см. shelter.ts.
-  return hostile(player, owner) && protectionLeft(sim, owner) === 0
+  return hostile(player, owner) && !allied(sim, player, owner) && protectionLeft(sim, owner) === 0
 }
 
 /**
@@ -309,8 +311,10 @@ export function fight(sim: Sim) {
 
   /** Игроки под защитой новичка: в них не попасть, и сами они не стреляют. */
   const safe = protectedPlayers(sim)
+  /** Союзников не бьют — ни прицелом, ни взрывом рядом. */
+  const friends = alliances(sim)
   const canHit = (weapon: WeaponSpec, player: number, mark: Mark) =>
-    hostile(player, mark.player) && !safe.has(player) && !safe.has(mark.player) && (mark.air ? weapon.air : !weapon.onlyAir) && !dead.has(mark.entity)
+    hostile(player, mark.player) && !friends.get(player)?.includes(mark.player) && !safe.has(player) && !safe.has(mark.player) && (mark.air ? weapon.air : !weapon.onlyAir) && !dead.has(mark.entity)
 
   /** Может ли mark навредить такому стрелку: есть ли у неё или у её турелей оружие, которое по нему бьёт. */
   const threatens = (mark: Mark, air: boolean) => {
@@ -604,7 +608,7 @@ export function fight(sim: Sim) {
     // Стена на линии огня принимает выстрел на себя: за ней укрытие. Турели зданий стоят выше стены и бьют поверх;
     // летающего стена не укрывает, и летающий стреляет поверх неё.
     const overWall = world.has(carrier, Building) || body.air || target.air || !STOPS_AT_WALL[weapon.shot] || !!weapon.lob
-    const wall = overWall ? undefined : wallOnPath(sim, self.player, self.x, self.y, target.x, target.y)
+    const wall = overWall ? undefined : wallOnPath(sim, self.player, self.x, self.y, target.x, target.y, friends.get(self.player))
     const hitX = wall ? wall.x : target.x
     const hitY = wall ? wall.y : target.y
     if (weapon.speed) {

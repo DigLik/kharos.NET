@@ -4,11 +4,12 @@ import { buildingSpec } from './buildings'
 import { Building, Gate, Owner, Position, Site, Unit } from './components'
 import type { Sim } from './sim'
 import { flies } from './units'
+import { alliances } from './allies'
 
 /**
  * Ворота — плиты, которые выезжают из земли. Каждая занимает тайл; их тянут линией, как стену, и секции, стоящие
  * вплотную, — одни ворота любой ширины. Обычно плиты опущены: через них ходят и ездят все, выстрелы летят поверху.
- * Когда к воротам подходит чужой наземный юнит (ближе GATE_CLOSE тайлов до любой секции), плиты поднимаются
+ * Когда к воротам подходит чужой наземный юнит — не союзник хозяина, см. allies.ts (ближе GATE_CLOSE тайлов до любой секции), плиты поднимаются
  * и становятся стеной — и для своих тоже. Опускаются, когда чужих не осталось ближе GATE_OPEN: запас между порогами
  * не даёт им хлопать. Секция, на которой кто-то стоит, не поднимается, пока он не съедет: врага, который успел
  * въехать, она уже не остановит, а своего не подбросит; остальные секции тех же ворот поднимаются. Летающим ворота
@@ -39,6 +40,7 @@ export function gates(sim: Sim, time: Time) {
     if (cell) cell.push(gate)
     else cells.set(key, [gate])
   }
+  const friends = alliances(sim)
   for (const [, unit, owner, position] of world.query(Unit, Owner, Position)) {
     if (flies(unit.type)) continue
     const cx = cellOf(position.x)
@@ -51,7 +53,8 @@ export function gates(sim: Sim, time: Time) {
           const distance = Math.hypot(position.x - gate.x, position.y - gate.y)
           // В проёме — тот, чей центр в тайле ворот.
           if (Math.abs(position.x - gate.x) < 0.5 && Math.abs(position.y - gate.y) < 0.5) gate.held = true
-          if (owner.player !== gate.player && owner.player !== 0 && distance < gate.foe) gate.foe = distance
+          // Чужой — не хозяин, не ничей и не союзник хозяина.
+          if (owner.player !== gate.player && owner.player !== 0 && distance < gate.foe && !friends.get(gate.player)?.includes(owner.player)) gate.foe = distance
         }
       }
     }

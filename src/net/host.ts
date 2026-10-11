@@ -1,7 +1,7 @@
 import { applyEdit, type EditOp } from '../sim/editOps'
 import type { Entity } from '../ecs'
 import { Terrain, terrainAt, tileBytes } from '../map/terrain'
-import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownBy, sightingOf, spawnStartingUnits, wipePlayer, type Command, type Sim, type Sighting, type SimSave } from '../sim'
+import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownBy, sightingOf, alliesOf, breakAlliance, offerAlliance, spawnStartingUnits, wipePlayer, type Command, type Sim, type Sighting, type SimSave } from '../sim'
 import { Armed, Attached, Blast, Building, Health, Owner, Path, Player, Position, Shot, Unit } from '../sim/components'
 import { pathOf, seenBy, sharedWireOf, type Wired } from './wire'
 import { LAND, POSITION, encodeDelta, type Motion, type ShotRecord } from './codec'
@@ -146,6 +146,8 @@ interface Frame {
   god: boolean
   known: View
   pass: number
+  /** Союзники игрока: их сущности идут ему целиком, как свои. */
+  friends: readonly number[]
   set: string[]
   unset: [number, string[]][]
   remove: number[]
@@ -472,6 +474,40 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       if (![...peers.values()].includes(to) || (hidden.has(to) && !caller.admin)) caller.reply(hostText('notOnline', { name: nameOf(to) }))
     },
   })
+  /** Тем вкладкам игрока, что сейчас в игре: ответ хоста только ему. */
+  const tell = (who: number, text: Text) => {
+    for (const [peer, owner] of peers) if (owner === who) reply(peer)(text)
+  }
+  add({
+    name: 'ally',
+    args: [PLAYER_ARG],
+    game: true,
+    run(args, _rest, caller) {
+      const to = findPlayer(args.join(' '), caller.admin)
+      if (to === undefined) return caller.reply(args.length ? hostText('noPlayer', { name: args.join(' ') }) : usage(this))
+      const from = caller.player!
+      const result = offerAlliance(sim, from, to)
+      if (result === 'refused') return caller.reply(hostText(from === to ? 'allySelf' : 'noPlayer', { name: nameOf(to) }))
+      if (result === 'already') return caller.reply(hostText('allyAlready', { name: nameOf(to) }))
+      if (result === 'pending') return caller.reply(hostText('allyPending', { name: nameOf(to) }))
+      tell(from, hostText(result === 'allied' ? 'allyFormed' : 'allyOffered', { name: nameOf(to) }))
+      tell(to, hostText(result === 'allied' ? 'allyFormed' : 'allyAsked', { name: nameOf(from) }))
+    },
+  })
+  add({
+    name: 'unally',
+    args: [PLAYER_ARG],
+    game: true,
+    run(args, _rest, caller) {
+      const to = findPlayer(args.join(' '), caller.admin)
+      if (to === undefined) return caller.reply(args.length ? hostText('noPlayer', { name: args.join(' ') }) : usage(this))
+      const from = caller.player!
+      const result = breakAlliance(sim, from, to)
+      if (result === 'nothing') return caller.reply(hostText('allyNothing', { name: nameOf(to) }))
+      tell(from, hostText(result === 'left' ? 'allyLeft' : result === 'withdrawn' ? 'allyWithdrawn' : 'allyDeclined', { name: nameOf(to) }))
+      if (result !== 'withdrawn') tell(to, hostText(result === 'left' ? 'allyLeftBy' : 'allyDeclinedBy', { name: nameOf(from) }))
+    },
+  })
   add({
     name: 'admin',
     args: [],
@@ -777,14 +813,14 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
    * Что игрок видит: места сущностей в scanned. Вкладки одного игрока смотрят на одно и то же. В редакторе (god) —
    * весь мир, со складами и целями чужих: администратор правит всё. В кэше такой список — под номером -player.
    */
-  const visible = (player: number, cache?: Map<number, number[]>, god = false) => {
+  const visible = (player: number, friends: readonly number[], cache?: Map<number, number[]>, god = false) => {
     const slot = god ? -player : player
     let found = cache?.get(slot)
     if (found === undefined) {
       found = []
       const { sightings } = scanned
       const sees = sim.vision.seer(player)
-      for (let at = 0; at < sightings.length; at++) if (god || shownBy(player, sees, sightings[at])) found.push(at)
+      for (let at = 0; at < sightings.length; at++) if (god || shownBy(player, sees, sightings[at], friends)) found.push(at)
       cache?.set(slot, found)
     }
     return found
@@ -806,8 +842,9 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     const id = scanned.ids[at]
     const entity = id as Entity
     const shared = (scanned.wired[at] ??= sharedWireOf(sim.world, entity, tick))
-    const { parts, motion } = frame.god ? shared : seenBy(shared, player)
-    const path = pathOf(sim.world, entity, player)
+    // Союзнику — как хозяину: склады, очереди и цели, см. allies.ts.
+    const { parts, motion } = frame.god || (shared.owner !== undefined && frame.friends.includes(shared.owner)) ? shared : seenBy(shared, player)
+    const path = pathOf(sim.world, entity, player, frame.friends)
     const old = known.get(id)
     let set = ''
     let shot = false
@@ -869,14 +906,14 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     const { tick, ids, sightings } = scanned
     const god = editing.has(send)
     const known = sent.get(send)!
-    const frame: Frame = { send, player, god, known, pass: ++passes, set: [], unset: [], remove: [], motions: [], shots: [], queue: [], bucket: BUCKETS - 1, at: 0, queued: 0, bytes: 0, most: Infinity }
+    const frame: Frame = { send, player, god, known, pass: ++passes, friends: alliesOf(sim, player), set: [], unset: [], remove: [], motions: [], shots: [], queue: [], bucket: BUCKETS - 1, at: 0, queued: 0, bytes: 0, most: Infinity }
     const box = views.get(send)
     const near = nearOf(send)
     const enqueue = (at: number, priority: number) => {
       ;(frame.queue[bucketOf(priority)] ??= []).push(at)
       frame.queued++
     }
-    for (const at of visible(player, cache, god)) {
+    for (const at of visible(player, frame.friends, cache, god)) {
       const old = known.get(ids[at])
       if (!old) {
         const brief = briefOf(at)
@@ -897,7 +934,8 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       // Сверена в этом же тике: мир подключению ушёл сразу при входе.
       if (age <= 0) continue
       const brief = briefOf(at)
-      if (brief.account === player) {
+      // Счёт союзника — как свой, см. allies.ts: игроку видно, сколько у того кредитов и что он исследует.
+      if (brief.account === player || frame.friends.includes(brief.account)) {
         check(frame, at)
         continue
       }

@@ -1,3 +1,4 @@
+import { forgetAlliances } from './allies'
 import type { Entity } from '../ecs'
 import { CORE } from './buildings'
 import { Attached, Building, Doomed, Owner, Pave, Player, Position, Site, Unit } from './components'
@@ -31,6 +32,7 @@ export function wipePlayer(sim: Sim, player: number) {
   for (const entity of gone) if (world.alive(entity)) dropCargo(sim, entity)
   for (const entity of gone) if (world.alive(entity)) world.destroy(entity)
   for (const [entity, info] of world.query(Player)) if (info.id === player) world.set(entity, Player, { credits: 0, earned: 0 })
+  forgetAlliances(sim, player)
 }
 
 /** За сколько секунд волна взрывов при сдаче доходит от главного здания на тайл дальше. */
