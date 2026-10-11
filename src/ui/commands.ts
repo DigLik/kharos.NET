@@ -1,7 +1,7 @@
 import type { HudState, Stack } from '../game/hud'
 import type { PaveIcon } from '../game/portraits'
 import type { PaveTool } from '../game/scene'
-import { BRIDGE_COST, BUILDINGS, UNDERGROUND_REACH, BUILDING_TYPES, DEPOSIT_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, WARES, type Stance, type BuildingType, type Command, type DepositKind, type Good } from '../sim'
+import { BRIDGE_COST, BUILDINGS, UNDERGROUND_REACH, BUILDING_TYPES, DEPOSIT_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, WARES, type Stance, type BuildingType, type Command, type DepositKind, type Good, type Resource } from '../sim'
 import { t } from '../i18n'
 
 /** Клавиши ячеек сетки команд по порядку: три ряда по четыре, как на клавиатуре, справа от WASD. */
@@ -74,6 +74,8 @@ interface Actions {
   serve: (start: boolean) => void
   patrol: (start: boolean) => void
   open: (page: Page) => void
+  /** Набрать сделку космопорта или бросить её (null). */
+  pick: (deal: Deal | null) => void
 }
 
 /** Стойки по порядку кнопок. */
@@ -94,8 +96,31 @@ const PIPE_TOOLS: { tool: GridTool; cost: number }[] = [
   { tool: 'well', cost: BUILDINGS.well.cost },
 ]
 
-/** Сетка команд для выбранного: GRID_SIZE ячеек, пустые — null. */
-export function commandsOf(state: HudState, page: Page, { send, place, pave, route, serve, patrol, open }: Actions): (Slot | null)[] {
+/** Сделка, которую игрок набирает у космопорта: что продать или купить и сколько. */
+export interface Deal {
+  resource: Resource
+  amount: number
+}
+/** Шаги количества в сделке и с какого числа она начинается. */
+const DEAL_STEPS = [10, 50, 100]
+const DEAL_START = 50
+
+/**
+ * Сделка в пределах возможного: количество — не больше max (продажа — сколько есть в запасе, закупка — на сколько
+ * хватает кредитов и места в трюме, room), и почём единица. null — такого ресурса космопорт сейчас не предлагает.
+ */
+export function dealOf(trade: NonNullable<HudState['trade']>, credits: number, buying: boolean, deal: Deal) {
+  const purchase = trade.purchases.find(({ resource }) => resource === deal.resource)
+  const offer = trade.offers.find(({ resource }) => resource === deal.resource)
+  const price = (buying ? purchase : offer)?.price
+  if (price === undefined) return null
+  const room = purchase?.room ?? 0
+  const max = buying ? Math.max(0, Math.min(room, Math.floor(credits / price))) : offer!.available
+  return { resource: deal.resource, amount: Math.max(0, Math.min(max, Math.floor(deal.amount) || 0)), price, max, room }
+}
+
+/** Сетка команд для выбранного: GRID_SIZE ячеек, пустые — null. deal — набираемая сделка космопорта, см. Deal. */
+export function commandsOf(state: HudState, page: Page, { send, place, pave, route, serve, patrol, open, pick }: Actions, deal: Deal | null = null): (Slot | null)[] {
   const slots: (Slot | null)[] = Array(GRID_SIZE).fill(null)
   const list = (items: Slot[]) => items.slice(0, LIST).forEach((slot, i) => (slots[i] = slot))
   const { construction, production, conversion, assembly, trade, site, demolish, credits } = state
@@ -376,47 +401,48 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
         title: order ? t('grid.buyBusyTip') : t('grid.buyTip'),
         run: () => open('buy'),
       }
-    } else if (!order && page === 'buy') {
-      // Закупка: верхний ряд — по 10, второй — по 50; столбец на каждый ресурс.
-      trade.purchases.slice(0, 4).forEach(({ resource, price, room }, i) => {
-        for (const [row, amount] of [[0, 10], [1, 50]] as const) {
-          const cost = amount * price
-          slots[i + row * 4] = {
-            label: `${t(`goods.${resource}`)} ×${amount}`,
-            good: resource,
-            cost,
-            disabled: credits < cost || room < amount,
-            title: room < amount ? t('grid.noRoom') : credits < cost ? t('grid.noCredits') : t('grid.buyPrice', { price }),
-            run: () => send({ type: 'buy', port, resource, amount }),
-          }
-        }
-      })
-      slots[BACK] = { label: t('common.back'), run: () => open('root') }
-    } else if (!order) {
-      // Верхний ряд — продать полсотни, второй — всё, что есть: столбец на каждый ресурс.
-      trade.offers.slice(0, 4).forEach(({ resource, available, price }, i) => {
-        const part = Math.min(50, available)
-        slots[i] = {
-          label: `${t(`goods.${resource}`)} ×${part}`,
+    } else if (!order && (page === 'buy' || page === 'sell')) {
+      const buying = page === 'buy'
+      const picked = deal && dealOf(trade, credits, buying, deal)
+      if (!picked) {
+        // Сначала — что продать или купить: ячейка на ресурс. Количество — на следующем шаге.
+        list(
+          (buying ? trade.purchases : trade.offers).map(({ resource, price }): Slot => {
+            const limit = dealOf(trade, credits, buying, { resource, amount: DEAL_START })!
+            return {
+              label: buying ? t(`goods.${resource}`) : `${t(`goods.${resource}`)} ×${limit.max}`,
+              good: resource,
+              disabled: limit.max < 1,
+              title: limit.max >= 1 ? t(buying ? 'grid.buyPrice' : 'grid.sellPrice', { price }) : limit.room < 1 ? t('grid.noRoom') : t('grid.noCredits'),
+              run: () => pick({ resource, amount: limit.amount }),
+            }
+          }),
+        )
+        slots[BACK] = { label: t('common.back'), run: () => open('root') }
+      } else {
+        // Верхний ряд — прибавить, второй — убавить; «Всё» — сколько есть в запасе или на сколько хватает кредитов и трюма.
+        const { resource, amount, price, max } = picked
+        const set = (next: number) => pick({ resource, amount: Math.max(0, Math.min(max, next)) })
+        DEAL_STEPS.forEach((step, i) => {
+          slots[i] = { label: `+${step}`, disabled: amount >= max, run: () => set(amount + step) }
+          slots[i + 4] = { label: `−${step}`, disabled: amount <= 0, run: () => set(amount - step) }
+        })
+        slots[DEAL_STEPS.length] = { label: t('grid.all'), active: amount >= max, title: `×${max}`, run: () => set(max) }
+        slots[TRADE] = {
+          label: `${t(buying ? 'grid.buy' : 'grid.sell')} ×${amount}`,
           good: resource,
-          cost: part * price,
-          gain: true,
-          title: t('grid.sellPrice', { price }),
-          run: () => send({ type: 'sell', port, resource, amount: part }),
+          cost: amount * price,
+          gain: !buying,
+          disabled: amount < 1,
+          title: t(buying ? 'grid.buyPrice' : 'grid.sellPrice', { price }),
+          run: () => {
+            send({ type: buying ? 'buy' : 'sell', port, resource, amount })
+            pick(null)
+          },
         }
-        if (available > part) {
-          slots[i + 4] = {
-            label: t('grid.sellAll', { name: t(`goods.${resource}`) }),
-            good: resource,
-            cost: available * price,
-            gain: true,
-            title: t('grid.sellAllTip', { amount: available, price }),
-            run: () => send({ type: 'sell', port, resource, amount: available }),
-          }
-        }
-      })
-      slots[BACK] = { label: t('common.back'), run: () => open('root') }
-    } else {
+        slots[BACK] = { label: t('common.back'), run: () => pick(null) }
+      }
+    } else if (order) {
       if (order.flight === null) {
         slots[CANCEL] = {
           label: order.delivered > 0 ? t('grid.send') : t('grid.dropSale'),

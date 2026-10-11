@@ -775,6 +775,17 @@ body {
   font-size: 12px;
 }
 
+/* Количество в сделке космопорта: его можно вписать с клавиатуры. */
+.hud__amount {
+  width: 64px;
+  padding: 1px 4px;
+  border: 1px solid #4a6079;
+  outline: none;
+  color: #fff;
+  font: inherit;
+  background: rgb(0 0 0 / 0.4);
+}
+
 .hud button small {
   color: #f0c95a;
 }

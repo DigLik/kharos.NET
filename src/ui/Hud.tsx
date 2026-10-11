@@ -7,7 +7,7 @@ import { buildingPortrait, pavePortrait, unitPortrait } from '../game/portraits'
 import { goodIcon } from '../game/goodIcons'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { REWARDS, resourceOf, type UnitType, type BuildingType, type Command, type Good, type Reward } from '../sim'
-import { GRID_KEYS, commandsOf, keyLabel, type Page, type Slot } from './commands'
+import { GRID_KEYS, commandsOf, dealOf, keyLabel, type Deal, type Page, type Slot } from './commands'
 import { rich, t } from '../i18n'
 
 interface HudProps {
@@ -401,7 +401,15 @@ function CommandGrid({ slots }: { slots: (Slot | null)[] }) {
 }
 
 /** Сведения о выбранном: портрет, название, прочность и всё, что здание или отряд делает сейчас. */
-function Info({ state, lookAtSelection, narrow }: { state: HudState; lookAtSelection: () => void; narrow: HudProps['narrow'] }) {
+function Info({ state, lookAtSelection, narrow, deal, setAmount, confirm }: {
+  state: HudState
+  lookAtSelection: () => void
+  narrow: HudProps['narrow']
+  /** Набираемая сделка космопорта: количество можно вписать с клавиатуры, Enter — отправить. */
+  deal: (NonNullable<ReturnType<typeof dealOf>> & { buying: boolean }) | null
+  setAmount: (amount: number) => void
+  confirm: () => void
+}) {
   const { units, building, deposit, site, construction, conversion, production, assembly, trade } = state
   const many = units.length > 1 || (units[0]?.count ?? 0) > 1
   const health = building !== null ? (state.health ?? 1) : (state.army?.health ?? 1)
@@ -562,6 +570,25 @@ function Info({ state, lookAtSelection, narrow }: { state: HudState; lookAtSelec
                 ? t('hud.shipping', { name: t(`goods.${trade.order.resource}`), wanted: trade.order.wanted, total: trade.order.wanted * trade.order.price })
                 : t('hud.hauling', { name: t(`goods.${trade.order.resource}`), delivered: trade.order.delivered, wanted: trade.order.wanted })}
             </Progress>
+          ) : deal ? (
+            <div class="hud__hint">
+              {t(deal.buying ? 'grid.buy' : 'grid.sell')}: <Res resource={deal.resource} amount={deal.amount} />{' '}
+              <input
+                class="hud__amount"
+                type="number"
+                min={0}
+                max={deal.max}
+                value={deal.amount}
+                onInput={(event) => setAmount(Math.max(0, Math.min(deal.max, Math.floor(Number(event.currentTarget.value)) || 0)))}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') confirm()
+                  if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur()
+                }}
+              />
+              {deal.buying
+                ? t('hud.dealBuy', { total: deal.amount * deal.price, room: deal.room - deal.amount })
+                : t('hud.dealSell', { total: deal.amount * deal.price, left: deal.max - deal.amount })}
+            </div>
           ) : (
             <div class="hud__hint">
               {trade.offers.length ? t('hud.sellHint') : t('hud.nothingToSell')}
@@ -638,8 +665,13 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
   const [page, setPage] = useState<Page>('root')
   const selectionKey = `${state.building}:${state.units.map(({ type, count }) => `${type}${count}`).join()}`
   useEffect(() => setPage(state.construction?.placing || state.construction?.paving ? page : 'root'), [selectionKey])
+  // Сделка космопорта: что и сколько игрок набирает на странице продажи или закупки. С уходом со страницы бросается.
+  const [deal, setDeal] = useState<Deal | null>(null)
+  useEffect(() => setDeal(null), [selectionKey, page])
+  const { trade } = state
+  const dealing = trade && !trade.order && deal && (page === 'sell' || page === 'buy') ? dealOf(trade, state.credits, page === 'buy', deal) : null
 
-  const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, patrol, open: setPage }) : []
+  const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, patrol, open: setPage, pick: setDeal }, deal) : []
 
   // Клавиши сетки. Читаются из ref, чтобы не переподписываться на каждое обновление.
   const slotsRef = useRef(slots)
@@ -764,7 +796,18 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
       <section class={`hud bar${state.editor ? ' is-editor' : ''}`}>
         <MinimapView minimap={minimap} lookAt={lookAt} moveSelected={moveSelected} />
         {state.editor ? null : selected ? (
-          <Info state={state} lookAtSelection={lookAtSelection} narrow={narrow} />
+          <Info
+            state={state}
+            lookAtSelection={lookAtSelection}
+            narrow={narrow}
+            deal={dealing && { ...dealing, buying: page === 'buy' }}
+            setAmount={(amount) => deal && setDeal({ ...deal, amount })}
+            confirm={() => {
+              if (!trade || !dealing || dealing.amount < 1) return
+              send({ type: page === 'buy' ? 'buy' : 'sell', port: trade.port, resource: dealing.resource, amount: dealing.amount })
+              setDeal(null)
+            }}
+          />
         ) : (
           <div class="bar__info bar__info--empty">
             {t('hud.nothingSelected')}
