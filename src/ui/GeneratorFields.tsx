@@ -1,55 +1,58 @@
+import { t, type Key } from '../i18n'
 import { PEAK_RADIUS_LIMIT, type GeneratorConfig } from '../map/terrain'
 
 interface Field<T> {
   key: keyof T
-  label: string
+  /** Ключ подписи в словаре. */
+  label: Key
   min: number
   max: number
   step: number
 }
 
 interface Group<T> {
-  title: string
+  /** Ключ заголовка в словаре. */
+  title: Key
   fields: Field<T>[]
 }
 
 const biomeFields = (prefix: 'salt' | 'red' | 'marsh'): Field<GeneratorConfig>[] => [
-  { key: `${prefix}SwampShift`, label: 'Больше болот', min: -0.2, max: 0.2, step: 0.005 },
-  { key: `${prefix}RockShift`, label: 'Меньше скал', min: -0.2, max: 0.2, step: 0.005 },
-  { key: `${prefix}PeakFactor`, label: 'Гор, раз', min: 0, max: 4, step: 0.1 },
+  { key: `${prefix}SwampShift`, label: 'generator.fields.swampShift', min: -0.2, max: 0.2, step: 0.005 },
+  { key: `${prefix}RockShift`, label: 'generator.fields.rockShift', min: -0.2, max: 0.2, step: 0.005 },
+  { key: `${prefix}PeakFactor`, label: 'generator.fields.peakFactor', min: 0, max: 4, step: 0.1 },
 ]
 
 export const GENERATOR_GROUPS: Group<GeneratorConfig>[] = [
   {
-    title: 'Зоны',
+    title: 'generator.groups.zones',
     fields: [
-      { key: 'biomeScale', label: 'Размер биомов', min: 40, max: 600, step: 10 },
-      { key: 'zoneScale', label: 'Размер зон', min: 16, max: 160, step: 1 },
-      { key: 'zoneWarp', label: 'Изрезанность', min: 0, max: 80, step: 1 },
-      { key: 'swampLevel', label: 'Уровень болот', min: 0, max: 1, step: 0.005 },
-      { key: 'rockLevel', label: 'Уровень скал', min: 0, max: 1, step: 0.005 },
+      { key: 'biomeScale', label: 'generator.fields.biomeScale', min: 40, max: 600, step: 10 },
+      { key: 'zoneScale', label: 'generator.fields.zoneScale', min: 16, max: 160, step: 1 },
+      { key: 'zoneWarp', label: 'generator.fields.zoneWarp', min: 0, max: 80, step: 1 },
+      { key: 'swampLevel', label: 'generator.fields.swampLevel', min: 0, max: 1, step: 0.005 },
+      { key: 'rockLevel', label: 'generator.fields.rockLevel', min: 0, max: 1, step: 0.005 },
     ],
   },
   {
-    title: 'Горы',
+    title: 'generator.groups.peaks',
     fields: [
-      { key: 'peakChance', label: 'Частота', min: 0, max: 1, step: 0.01 },
-      { key: 'peakMinRadius', label: 'Мин. радиус', min: 0.5, max: PEAK_RADIUS_LIMIT, step: 0.05 },
-      { key: 'peakMaxRadius', label: 'Макс. радиус', min: 0.5, max: PEAK_RADIUS_LIMIT, step: 0.05 },
-      { key: 'doubleChance', label: 'Доля двойных', min: 0, max: 1, step: 0.01 },
-      { key: 'tripleChance', label: 'Доля тройных', min: 0, max: 1, step: 0.01 },
+      { key: 'peakChance', label: 'generator.fields.chance', min: 0, max: 1, step: 0.01 },
+      { key: 'peakMinRadius', label: 'generator.fields.peakMinRadius', min: 0.5, max: PEAK_RADIUS_LIMIT, step: 0.05 },
+      { key: 'peakMaxRadius', label: 'generator.fields.peakMaxRadius', min: 0.5, max: PEAK_RADIUS_LIMIT, step: 0.05 },
+      { key: 'doubleChance', label: 'generator.fields.doubleChance', min: 0, max: 1, step: 0.01 },
+      { key: 'tripleChance', label: 'generator.fields.tripleChance', min: 0, max: 1, step: 0.01 },
     ],
   },
   {
-    title: 'Месторождения',
+    title: 'generator.groups.deposits',
     fields: [
-      { key: 'depositChance', label: 'Частота', min: 0, max: 1, step: 0.01 },
-      { key: 'depositRichness', label: 'Запас, раз', min: 0.1, max: 5, step: 0.1 },
+      { key: 'depositChance', label: 'generator.fields.chance', min: 0, max: 1, step: 0.01 },
+      { key: 'depositRichness', label: 'generator.fields.depositRichness', min: 0.1, max: 5, step: 0.1 },
     ],
   },
-  { title: 'Биом: солончаки', fields: biomeFields('salt') },
-  { title: 'Биом: красные пустоши', fields: biomeFields('red') },
-  { title: 'Биом: топи', fields: biomeFields('marsh') },
+  { title: 'generator.groups.salt', fields: biomeFields('salt') },
+  { title: 'generator.groups.red', fields: biomeFields('red') },
+  { title: 'generator.groups.marsh', fields: biomeFields('marsh') },
 ]
 
 interface GroupsProps<T> {
@@ -62,10 +65,10 @@ interface GroupsProps<T> {
 export function Groups<T extends object>({ groups, values, onChange }: GroupsProps<T>) {
   return groups.map((group) => (
     <fieldset key={group.title} class="panel__group">
-      <legend>{group.title}</legend>
+      <legend>{t(group.title)}</legend>
       {group.fields.map((field) => (
         <label key={String(field.key)} class="panel__row">
-          <span>{field.label}</span>
+          <span>{t(field.label)}</span>
           <input
             type="range"
             min={field.min}

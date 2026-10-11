@@ -8,6 +8,7 @@ import { Hud } from './Hud'
 import { Settings } from './Menu'
 import { PasswordRequired } from '../net/connect'
 import { startSession, type PlayLaunch } from './launch'
+import { t } from '../i18n'
 
 /** Как часто интерфейс сверяется с игрой, в миллисекундах. */
 const HUD_INTERVAL = 100
@@ -118,8 +119,8 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
           moveSelected={(x, y) => gameRef.current?.moveSelected(x, y)}
           say={(text) => gameRef.current?.say(text)}
           menu={
-            <button data-tip="Меню игры" onClick={() => setPaused(true)}>
-              Меню
+            <button data-tip={t('game.menuTip')} onClick={() => setPaused(true)}>
+              {t('game.menu')}
             </button>
           }
         />
@@ -132,11 +133,11 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
           remote
           // Ответ хоста приходит в чат: здесь правка всегда «ушла».
           apply={(edit) => void gameRef.current?.edit(edit)}
-          title="Редактор мира"
-          subtitle={launch.kind === 'server' ? 'на сервере' : 'живой мир'}
+          title={t('editor.worldTitle')}
+          subtitle={launch.kind === 'server' ? t('editor.onServer') : t('editor.liveWorld')}
           names={new Map(((gameRef.current.scene.sim as Partial<Replica>).players ?? []).map(({ player, name }) => [player, name]))}
         >
-          <button onClick={() => gameRef.current?.say('/editor')}>Выйти из редактора</button>
+          <button onClick={() => gameRef.current?.say('/editor')}>{t('editor.leave')}</button>
         </EditorPanel>
       )}
       {paused && hud && error === null && (
@@ -145,10 +146,10 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
             <Settings back={() => setSettingsOpen(false)} onSound={() => gameRef.current?.refreshSound()} />
           ) : (
             <section class="menu__window">
-              <h2 class="menu__title">Меню</h2>
+              <h2 class="menu__title">{t('game.menu')}</h2>
               <nav class="menu__list">
                 <button autoFocus onClick={() => setPaused(false)}>
-                  Продолжить
+                  {t('common.resume')}
                 </button>
                 {(launch.kind === 'battle' || launch.kind === 'sandbox') && (
                   <button
@@ -157,22 +158,22 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
                       setPaused(false)
                     }}
                   >
-                    {launch.kind === 'battle' ? 'Новый бой' : 'Заново'}
+                    {launch.kind === 'battle' ? t('game.newBattle') : t('game.restart')}
                   </button>
                 )}
-                <button onClick={() => setSettingsOpen(true)}>Настройки</button>
+                <button onClick={() => setSettingsOpen(true)}>{t('common.settings')}</button>
                 {real && !hud.defeated && (
                   <button
                     onClick={() => {
-                      if (!confirm('Сдаться? Все ваши юниты и здания взорвутся.')) return
+                      if (!confirm(t('game.surrenderConfirm'))) return
                       gameRef.current?.send({ type: 'surrender' })
                       setPaused(false)
                     }}
                   >
-                    Сдаться
+                    {t('game.surrender')}
                   </button>
                 )}
-                <button onClick={exit}>{launch.kind === 'save' ? 'Сохранить и выйти' : 'Выйти в главное меню'}</button>
+                <button onClick={exit}>{launch.kind === 'save' ? t('game.saveAndExit') : t('game.exitToMenu')}</button>
               </nav>
             </section>
           )}
@@ -180,20 +181,20 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
       )}
       {real && hud?.defeated && !hud.editor && error === null && (
         <div class="game__defeat" role="alert">
-          <strong>Поражение</strong>
-          <span>{launch.kind === 'server' ? 'Не осталось ни зданий, ни MCV. Можно начать заново в новом месте этого мира.' : 'Не осталось ни зданий, ни MCV.'}</span>
+          <strong>{t('game.defeat')}</strong>
+          <span>{launch.kind === 'server' ? t('game.defeatServer') : t('game.defeatLocal')}</span>
           <div class="game__actions">
-            <button onClick={exit}>В меню</button>
-            <button onClick={() => gameRef.current?.respawn()}>Начать заново</button>
+            <button onClick={exit}>{t('common.toMenu')}</button>
+            <button onClick={() => gameRef.current?.respawn()}>{t('game.startOver')}</button>
           </div>
         </div>
       )}
       {connecting && launch.kind === 'server' && error === null && (
         <div class="game__error" role="status">
-          <strong>Подключение к серверу…</strong>
+          <strong>{t('game.connecting')}</strong>
           <span>{launch.url}</span>
           <div class="game__actions">
-            <button onClick={exit}>Отмена</button>
+            <button onClick={exit}>{t('common.cancel')}</button>
           </div>
         </div>
       )}
@@ -206,25 +207,25 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
             connectRef.current(password)
           }}
         >
-          <strong>{asking.wrong ? 'Неверный пароль' : 'Сервер закрыт паролем'}</strong>
-          <input class="game__password" type="password" autoFocus value={password} placeholder="Пароль" onInput={(event) => setPassword(event.currentTarget.value)} />
+          <strong>{asking.wrong ? t('game.wrongPassword') : t('game.passwordNeeded')}</strong>
+          <input class="game__password" type="password" autoFocus value={password} placeholder={t('game.password')} onInput={(event) => setPassword(event.currentTarget.value)} />
           <div class="game__actions">
             <button type="button" onClick={exit}>
-              Отмена
+              {t('common.cancel')}
             </button>
             <button type="submit" disabled={!password}>
-              Подключиться
+              {t('common.connect')}
             </button>
           </div>
         </form>
       )}
       {error !== null && (
         <div class="game__error" role="alert">
-          <strong>Игра остановилась</strong>
+          <strong>{t('game.stopped')}</strong>
           <pre>{error instanceof Error ? error.message : String(error)}</pre>
           <div class="game__actions">
-            <button onClick={exit}>В меню</button>
-            <button onClick={() => location.reload()}>{launch.kind === 'server' ? 'Переподключиться' : 'Перезагрузить'}</button>
+            <button onClick={exit}>{t('common.toMenu')}</button>
+            <button onClick={() => location.reload()}>{launch.kind === 'server' ? t('game.reconnect') : t('game.reload')}</button>
           </div>
         </div>
       )}

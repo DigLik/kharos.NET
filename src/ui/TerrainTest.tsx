@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { Scene } from '../game/scene'
+import { t } from '../i18n'
 import { createLandWindow, minZoom, type LandWindow } from '../map/landWindow'
 import { DEFAULT_SETTINGS } from '../map/settings'
 import { createLand } from '../map/terrain'
@@ -83,7 +84,7 @@ export function TerrainTest() {
       last = now
       frames++
       if (now - measured > 500) {
-        if (statsRef.current) statsRef.current.textContent = `${((now - measured) / frames).toFixed(1)} мс · зум ${camera.zoom.toFixed(1)}`
+        if (statsRef.current) statsRef.current.textContent = t('game.terrainStats', { milliseconds: ((now - measured) / frames).toFixed(1), zoom: camera.zoom.toFixed(1) })
         frames = 0
         measured = now
       }
@@ -111,7 +112,7 @@ export function TerrainTest() {
   return (
     <main class="game">
       <canvas ref={canvasRef} class="game__canvas" />
-      <div class="terrain-test"><span ref={statsRef} /> · зерно {seed} · мышь, колесо, WASD · R — новое зерно · G — сетка</div>
+      <div class="terrain-test"><span ref={statsRef} />{t('game.terrainHelp', { seed })}</div>
     </main>
   )
 }

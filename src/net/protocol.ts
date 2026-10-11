@@ -4,19 +4,14 @@ import type { DepositsSave } from '../sim/deposits'
 import type { Trace } from '../sim/traces'
 import type { CommandInfo } from './chatCommands'
 import { LAND, decodeDelta } from './codec'
+import type { Text } from '../i18n'
 
 /**
  * Версия сетевой игры. Клиент и сервер играют вместе, только если она у них одна: копия мира у клиента собирается
  * из тех же компонентов и правил, что у сервера. Поднимай её при каждом изменении протокола, компонентов из SAVED
  * или симуляции, которое меняет то, что видит клиент.
  */
-export const PROTOCOL_VERSION = 16
-
-/** Почему сервер не пустил клиента другой версии: текст для игрока. */
-export function versionMismatch(server: number, client: number) {
-  const fix = client < server ? 'обновите страницу' : 'сервер старее клиента, его нужно обновить'
-  return `Версии не совпадают: у сервера ${server}, у вас ${client} — ${fix}`
-}
+export const PROTOCOL_VERSION = 17
 
 /** Порт сервера по умолчанию. */
 export const DEFAULT_PORT = 8787
@@ -34,9 +29,9 @@ export type ServerMessage =
   | { type: 'players'; players: PlayerInfo[] }
   /**
    * Сервер не пускает клиента — например, другой версии, см. PROTOCOL_VERSION, — и закрывает соединение. password —
-   * дело в пароле: его нет или он не тот.
+   * дело в пароле: его нет или он не тот. reason — сообщение хоста: клиент читает его на своём языке, см. HostText.
    */
-  | { type: 'refused'; reason: string; password?: boolean }
+  | { type: 'refused'; reason: Text; password?: boolean }
   /**
    * Мир после тика tick — только то, что поменялось с прошлого сообщения в том, что игрок видит. set — новые сущности
    * целиком и поменявшиеся компоненты остальных, unset — снятые компоненты, remove — сущности, которых игрок больше
@@ -71,7 +66,8 @@ export type ServerMessage =
 export interface ChatLine {
   player: number
   name: string
-  text: string
+  /** Что написал игрок — как есть; что пишет сам хост — ключом словаря, и каждый читает это на своём языке, см. HostText. */
+  text: Text
   /** Сообщение самого сервера: кто зашёл, вышел, проиграл. name у него — о ком оно; пустой name — ответ на команду. */
   system?: true
   /** Личное сообщение, /msg: ник того, кому оно. Приходит только ему и автору. */

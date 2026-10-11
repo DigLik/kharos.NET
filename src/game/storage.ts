@@ -1,6 +1,7 @@
 import type { GeneratorConfig } from '../map/terrain'
 import type { SimSave, WeatherOptions } from '../sim'
 import { decodeSave, encodeSave, readJson } from '../save/file'
+import { t } from '../i18n'
 
 /**
  * Сохранения локальной игры в браузере. Их несколько, у каждого своё место (слот): список с названиями и
@@ -195,7 +196,7 @@ export async function exportSave(id: string): Promise<Uint8Array | null> {
 export async function importSave(file: Uint8Array): Promise<SaveSlot> {
   const { save, sections } = await decodeSave(file)
   const name = readJson<unknown>(sections.get('NAME'))
-  const slot = createSlot(typeof name === 'string' && name ? name : 'Загруженная игра', save.size, save.generator.seed, undefined, undefined, save.height)
+  const slot = createSlot(typeof name === 'string' && name ? name : t('menu.importedName'), save.size, save.generator.seed, undefined, undefined, save.height)
   await storeSave(slot.id, save)
   return listSaves().find((other) => other.id === slot.id) ?? slot
 }

@@ -78,10 +78,10 @@ export const storeVolume = (value: number) => {
 
 /** Группы звука со своей громкостью: каждая ещё и под общей. */
 export const CHANNELS = [
-  { channel: 'music', label: 'Музыка' },
-  { channel: 'battle', label: 'Бой' },
-  { channel: 'world', label: 'Мир' },
-  { channel: 'interface', label: 'Интерфейс' },
+  { channel: 'music' },
+  { channel: 'battle' },
+  { channel: 'world' },
+  { channel: 'interface' },
 ] as const
 export type Channel = (typeof CHANNELS)[number]['channel']
 const LEVEL_KEY = 'kharos.level.'

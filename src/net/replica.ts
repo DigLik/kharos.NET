@@ -15,6 +15,7 @@ import { Armed, Attached, Ghost, Position, SAVED, Turret, Unit } from '../sim/co
 import { placeTurret } from '../sim/turrets'
 import { SAVE_VERSION, type SimSave } from '../sim/sim'
 import type { ChatLine, ClientMessage, PlayerInfo, PlayerView, ServerMessage, ViewBox } from './protocol'
+import { t, textOf } from '../i18n'
 
 /** Из чего собираются призраки: сохраняемое и метка призрака. */
 const REMEMBERED = [...SAVED, Ghost]
@@ -322,13 +323,13 @@ export function createReplica(welcome: Extract<ServerMessage, { type: 'welcome' 
         const at = performance.now()
         replica.chat = [...replica.chat, ...message.lines.map((line) => ({ ...line, at }))].slice(-CHAT_KEPT)
       }
-      else if (message.type === 'land') receiveLand(message.data).catch((error) => replica.fail(`Карта мира не читается: ${error instanceof Error ? error.message : error}`))
+      else if (message.type === 'land') receiveLand(message.data).catch((error) => replica.fail(t('errors.landFailed', { reason: error instanceof Error ? error.message : String(error) })))
       else if (message.type === 'deposits') loadDeposits(replica.deposits, message.deposits)
       else if (message.type === 'tiles') {
         if (earlyEdits) earlyEdits.push(message.edits)
         else applyEdits(replica.land, message.edits)
       }
-      else if (message.type === 'refused') replica.fail(message.reason)
+      else if (message.type === 'refused') replica.fail(textOf(message.reason))
       else {
         meet(message)
         replica.generation++

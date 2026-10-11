@@ -20,9 +20,12 @@ const VOLUME = 0.7
 
 export type AlertKind = 'attacked' | 'spotted'
 
+/** Что сказать об уведомлении: ключ строки в разделе hud.alerts словаря. */
+export type AlertText = 'spotted' | 'baseAttacked' | 'unitsAttacked'
+
 export interface Alert {
   kind: AlertKind
-  text: string
+  text: AlertText
   /** Где это случилось, в тайлах. */
   x: number
   y: number
@@ -48,7 +51,7 @@ export function createAlerts(scene: Scene, audio: Audio | null) {
   /** Куда недавно падали чужие выстрелы: номер выстрела — место и когда его заметили. */
   const impacts = new Map<Entity, { x: number; y: number; at: number }>()
 
-  const raise = (kind: AlertKind, text: string, x: number, y: number) => {
+  const raise = (kind: AlertKind, text: AlertText, x: number, y: number) => {
     alerts.push({ kind, text, x, y, at: clock })
     if (alerts.length > MAX_ALERTS) alerts.shift()
     audio?.play(kind, VOLUME, 0)
@@ -80,7 +83,7 @@ export function createAlerts(scene: Scene, audio: Audio | null) {
       if (spotted !== undefined && clock - spottedAt >= SPOTTED_GAP) {
         spottedAt = clock
         const { x, y } = world.get(spotted, Position)!
-        raise('spotted', 'Замечен противник', x, y)
+        raise('spotted', 'spotted', x, y)
       }
 
       for (const [entity, shot] of world.query(Shot)) {
@@ -116,7 +119,7 @@ export function createAlerts(scene: Scene, audio: Audio | null) {
         const position = world.get(hurt, Position)
         if (position) {
           const { x, y } = centerOf(hurt, position)
-          raise('attacked', world.has(hurt, Building) ? 'Атакована база' : 'Атакованы наши юниты', x, y)
+          raise('attacked', world.has(hurt, Building) ? 'baseAttacked' : 'unitsAttacked', x, y)
         }
       }
       while (alerts.length && clock - alerts[0].at > ALERT_SECONDS) alerts.shift()

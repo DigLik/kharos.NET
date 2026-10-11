@@ -61,7 +61,8 @@ test('поток сообщений: лишнее отбрасывается, а
   expect(closed).toBe(0)
   for (let i = 0; i < 1000; i++) flooder.receive(view)
   expect(closed).toBe(1)
-  expect(sent.at(-1)).toContain('Слишком много сообщений')
+  // Причина идёт ключом словаря: клиент прочтёт её на своём языке.
+  expect(sent.at(-1)).toContain('"flood"')
   expect(logged.some((line) => line.includes('слишком много сообщений'))).toBe(true)
   // Слишком длинное сообщение не читается вовсе.
   quiet.receive(JSON.stringify({ type: 'chat', text: 'x'.repeat(100_000) }))

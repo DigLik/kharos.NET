@@ -3,15 +3,19 @@ import { DEFAULT_CONFIG } from '../src/map/terrain'
 import { createHost } from '../src/net/host'
 import { CHAT_LENGTH, decodeServer, type ChatLine } from '../src/net/protocol'
 import { complete } from '../src/net/chatCommands'
+import { textOf, type Text } from '../src/i18n'
 import { Owner, Player, Unit, createSim } from '../src/sim'
 
-/** Подключение к хосту, которое копит пришедшие сообщения чата: игроков — в lines, сервера — в notices. */
+/**
+ * Подключение к хосту, которое копит пришедшие сообщения чата: игроков — в lines, сервера — в notices. Сообщения
+ * хоста идут ключами словаря; здесь они уже текстом, как их прочтёт игрок.
+ */
 function connect(host: ReturnType<typeof createHost>, name: string) {
   const lines: ChatLine[] = []
   const notices: ChatLine[] = []
   const peer = host.join((data) => {
     const message = decodeServer(data)
-    if (message.type === 'chat') for (const line of message.lines) (line.system ? notices : lines).push(line)
+    if (message.type === 'chat') for (const line of message.lines) (line.system ? notices : lines).push({ ...line, text: textOf(line.text) })
   }, undefined, name)
   return { peer, lines, notices, say: (text: string) => peer.receive(JSON.stringify({ type: 'chat', text })) }
 }
@@ -98,17 +102,17 @@ test('консоль: /msg уходит только адресату, /kick о�
   const out: string[] = []
   let closed = 0
   const four = host.join(() => {}, undefined, 'Четвёртый', () => closed++)
-  host.command('kick Четвёртый', { admin: true, reply: (text) => out.push(text) })
+  host.command('kick Четвёртый', { admin: true, reply: (text) => out.push(textOf(text)) })
   expect(closed).toBe(1)
-  host.command('nope', { admin: true, reply: (text) => out.push(text) })
+  host.command('nope', { admin: true, reply: (text) => out.push(textOf(text)) })
   expect(out.at(-1)).toContain('Нет команды')
   void four
 })
 
 test('дополнение: команды по началу, ники в кавычках, если в них пробел', () => {
   const commands = [
-    { name: 'msg', args: ['<игрок>', '<текст>'], help: '' },
-    { name: 'me', args: ['<действие>'], help: '' },
+    { name: 'msg', args: ['<player>', '<text>'], help: '' },
+    { name: 'me', args: ['<action>'], help: '' },
   ]
   expect(complete('/m', commands, []).map((item) => item.text)).toEqual(['/msg ', '/me '])
   expect(complete('/msg иг', commands, ['Игрок 2', 'Вася']).map((item) => item.text)).toEqual(['/msg "Игрок 2" '])
@@ -121,7 +125,7 @@ test('админ: spawn у базы, killunits, heal, reset и reveal', () => {
   const host = createHost(sim)
   const one = connect(host, 'Первый')
   const out: string[] = []
-  const admin = { admin: true, reply: (text: string) => out.push(text) }
+  const admin = { admin: true, reply: (text: Text) => out.push(textOf(text)) }
   const units = () => {
     let count = 0
     for (const [entity, owner] of sim.world.query(Owner)) if (owner.player === one.peer.player && sim.world.has(entity, Unit)) count++
@@ -155,7 +159,7 @@ test('редактор живого мира: только после /editor, �
   const peer = host.join((data) => {
     const message = decodeServer(data)
     if (message.type === 'welcome') welcomes.push({ editor: message.editor, fog: message.options.fog })
-    if (message.type === 'chat') for (const line of message.lines) if (!line.name) replies.push(line.text)
+    if (message.type === 'chat') for (const line of message.lines) if (!line.name) replies.push(textOf(line.text))
   }, undefined, 'Админ')
   const other = connect(host, 'Другой')
   const tell = (message: object) => peer.receive(JSON.stringify(message))

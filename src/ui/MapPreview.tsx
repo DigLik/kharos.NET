@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { PALETTE } from '../game/minimap'
+import { t } from '../i18n'
 import { Terrain, sampleTerrain, type GeneratorConfig } from '../map/terrain'
 
 /** Сторона предпросмотра в пикселях холста. */
@@ -81,10 +82,11 @@ export function MapPreview({ config, size, height = size }: { config: GeneratorC
     <figure class="preview">
       <canvas ref={canvas} class={ready ? 'preview__map' : 'preview__map is-busy'} width={PREVIEW_SIZE} height={PREVIEW_SIZE} />
       <figcaption>
-        {size}×{height} тайлов
+        {t('menu.previewSize', { width: size, height })}
         {shares && (
           <>
-            {' · '}скалы {Math.round(shares.rock * 100)}% · болота {Math.round(shares.swamp * 100)}%
+            {' · '}
+            {t('menu.previewShares', { rock: Math.round(shares.rock * 100), swamp: Math.round(shares.swamp * 100) })}
           </>
         )}
       </figcaption>

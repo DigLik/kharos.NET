@@ -49,51 +49,48 @@ import {
   type BrushShape,
 } from '../sim/editor'
 import type { EditOp, EditResult } from '../sim/editOps'
-import { STANCE_SLOTS } from './commands'
-import { BUILDING_NAMES, RESOURCE_NAMES, UNIT_NAMES, goodName } from './names'
+import { hasText, t, textOf, hostText, type Key } from '../i18n'
+import { stanceSlots } from './commands'
 
 /** Как часто панель сверяется с миром, в миллисекундах. */
 const PANEL_INTERVAL = 150
 
 type Tool = 'select' | 'paint' | 'building' | 'unit' | 'deposit'
-const TOOLS: [Tool, string][] = [
-  ['select', 'Выбор'],
-  ['paint', 'Карта'],
-  ['building', 'Здания'],
-  ['unit', 'Юниты'],
-  ['deposit', 'Ресурсы'],
+const TOOLS: Tool[] = ['select', 'paint', 'building', 'unit', 'deposit']
+/** Варианты кисти: значение и ключ его названия в словаре. */
+const TERRAINS: [Terrain | undefined, Key][] = [
+  [undefined, 'common.asIs'],
+  [Terrain.Rock, 'editor.terrains.rock'],
+  [Terrain.Sand, 'editor.terrains.sand'],
+  [Terrain.Swamp, 'editor.terrains.swamp'],
+  [Terrain.Mountain, 'editor.terrains.mountain'],
 ]
-const TERRAINS: [Terrain | undefined, string][] = [
-  [undefined, 'как есть'],
-  [Terrain.Rock, 'скала'],
-  [Terrain.Sand, 'песок'],
-  [Terrain.Swamp, 'болото'],
-  [Terrain.Mountain, 'гора'],
+const DUNES: [Dunes | undefined, Key][] = [
+  [undefined, 'common.asIs'],
+  [DUNES_OF.Natural, 'editor.dunes.natural'],
+  [DUNES_OF.None, 'editor.dunes.none'],
+  [DUNES_OF.Many, 'editor.dunes.many'],
 ]
-const DUNES: [Dunes | undefined, string][] = [
-  [undefined, 'как есть'],
-  [DUNES_OF.Natural, 'природные'],
-  [DUNES_OF.None, 'убрать'],
-  [DUNES_OF.Many, 'насыпать'],
+const BIOMES: [Biome | undefined, Key][] = [
+  [undefined, 'common.asIs'],
+  [Biome.Erg, 'editor.biomes.erg'],
+  [Biome.SaltFlats, 'editor.biomes.saltFlats'],
+  [Biome.RedWastes, 'editor.biomes.redWastes'],
+  [Biome.Marsh, 'editor.biomes.marsh'],
 ]
-const BIOMES: [Biome | undefined, string][] = [
-  [undefined, 'как есть'],
-  [Biome.Erg, 'эрг'],
-  [Biome.SaltFlats, 'солончаки'],
-  [Biome.RedWastes, 'красные пустоши'],
-  [Biome.Marsh, 'топи'],
-]
-const SHAPES: [BrushShape, string][] = [
-  ['square', 'квадрат'],
-  ['circle', 'круг'],
-  ['spray', 'разброс'],
+const SHAPES: [BrushShape, Key][] = [
+  ['square', 'editor.shapes.square'],
+  ['circle', 'editor.shapes.circle'],
+  ['spray', 'editor.shapes.spray'],
 ]
 const TIERS: (number | undefined)[] = [undefined, 0, 1, 2, 3]
-const CLIFFS: [boolean | undefined, string][] = [
-  [undefined, 'как есть'],
-  [true, 'обрыв'],
-  [false, 'пологий'],
+const CLIFFS: [boolean | undefined, Key][] = [
+  [undefined, 'common.asIs'],
+  [true, 'editor.cliff'],
+  [false, 'editor.gentle'],
 ]
+/** Варианты на текущем языке: то, что показывает Choice. */
+const named = <T,>(options: [T, Key][]): [T, string][] => options.map(([value, key]) => [value, t(key)])
 
 export interface EditorPanelProps {
   /** Мир, по которому панель показывает, что есть: у сетевого редактора — копия мира с хоста. */
@@ -146,7 +143,7 @@ export function EditorPanel({ sim, game, apply, remote = false, title, subtitle,
   /** Правка: ответ — в строку состояния; удалась — панель помечает её. */
   const edit = (op: EditOp) => {
     const failed = apply(op)
-    if (failed) setStatus(failed)
+    if (failed) setStatus(textOf(hostText(failed)))
     else {
       setStatus('')
       changed?.()
@@ -374,7 +371,7 @@ export function EditorPanel({ sim, game, apply, remote = false, title, subtitle,
       for (const command of ordersAt(scene, units, point, queue)) orders.push({ op: 'order', player: owner, command })
     }
     scene.player = viewer
-    if (!orders.length) setStatus('Приказ не принят')
+    if (!orders.length) setStatus(t('host.order'))
     for (const order of orders) edit(order)
   }
 
@@ -411,9 +408,9 @@ export function EditorPanel({ sim, game, apply, remote = false, title, subtitle,
       </header>
 
       <section class="editor__section">
-        <h3>Игрок</h3>
+        <h3>{t('editor.player')}</h3>
         <div class="editor__chips">
-          <button class={player === 0 ? 'is-active' : ''} title="Ничьё: здания и юниты без владельца" onClick={() => setPlayer(0)}>
+          <button class={player === 0 ? 'is-active' : ''} title={t('editor.nobodyTip')} onClick={() => setPlayer(0)}>
             0
           </button>
           {players.map((id) => (
@@ -422,7 +419,7 @@ export function EditorPanel({ sim, game, apply, remote = false, title, subtitle,
             </button>
           ))}
           <button
-            title="Новый игрок"
+            title={t('editor.newPlayer')}
             onClick={() => {
               const next = Math.max(0, ...players) + 1
               if (edit({ op: 'addPlayer' })) setPlayer(next)
@@ -434,25 +431,25 @@ export function EditorPanel({ sim, game, apply, remote = false, title, subtitle,
         {player > 0 && (
           <div class="editor__chips">
             <button
-              title="Где у игрока камера в начале игры: рамка на карте; тянуть за край — двигать, за угол — масштаб"
+              title={t('editor.cameraTip')}
               onClick={() => {
                 const { camera } = game.scene
                 edit({ op: 'camera', player, camera: { ...camera.focus, zoom: camera.zoom } })
               }}
             >
-              {playerCamera(sim, player) ? 'Камера игрока — сюда' : 'Задать камеру игрока'}
+              {playerCamera(sim, player) ? t('editor.cameraHere') : t('editor.setCamera')}
             </button>
             {playerCamera(sim, player) && (
               <>
-                <button onClick={() => game.lookAt(playerCamera(sim, player)!.x, playerCamera(sim, player)!.y)}>К ней</button>
-                <button onClick={() => edit({ op: 'camera', player })}>Убрать</button>
+                <button onClick={() => game.lookAt(playerCamera(sim, player)!.x, playerCamera(sim, player)!.y)}>{t('editor.toCamera')}</button>
+                <button onClick={() => edit({ op: 'camera', player })}>{t('editor.dropCamera')}</button>
               </>
             )}
           </div>
         )}
         {player > 0 && (
           <label class="editor__field">
-            Кредиты
+            {t('common.credits')}
             <NumberField min={0} step={100} value={creditsOf(sim, player)} set={(amount) => edit({ op: 'credits', player, amount })} />
           </label>
         )}
@@ -460,27 +457,27 @@ export function EditorPanel({ sim, game, apply, remote = false, title, subtitle,
 
       <section class="editor__section">
         <div class="editor__tabs">
-          {TOOLS.map(([id, label]) => (
+          {TOOLS.map((id) => (
             <button key={id} class={tool === id ? 'is-active' : ''} onClick={() => setTool(id)}>
-              {label}
+              {t(`editor.tools.${id}`)}
             </button>
           ))}
         </div>
         {tool === 'paint' && (
           <div class="editor__options">
-            <Choice label="Земля" options={TERRAINS} value={brush.terrain} set={(terrain) => setBrush({ ...brush, terrain })} />
-            <Choice label="Биом" options={BIOMES} value={brush.biome} set={(biome) => setBrush({ ...brush, biome })} />
-            <Choice label="Ярус" options={TIERS.map((tier) => [tier, tier === undefined ? 'как есть' : String(tier)])} value={brush.tier} set={(tier) => setBrush({ ...brush, tier })} />
-            <Choice label="Кромка" options={CLIFFS} value={brush.cliff} set={(cliff) => setBrush({ ...brush, cliff })} />
-            <Choice label="Барханы на песке" options={DUNES} value={brush.dunes} set={(dunes) => setBrush({ ...brush, dunes })} />
-            <Choice label="Форма" options={SHAPES} value={brush.shape ?? 'square'} set={(shape) => setBrush({ ...brush, shape })} />
+            <Choice label={t('editor.ground')} options={named(TERRAINS)} value={brush.terrain} set={(terrain) => setBrush({ ...brush, terrain })} />
+            <Choice label={t('editor.biome')} options={named(BIOMES)} value={brush.biome} set={(biome) => setBrush({ ...brush, biome })} />
+            <Choice label={t('editor.tier')} options={TIERS.map((tier) => [tier, tier === undefined ? t('common.asIs') : String(tier)])} value={brush.tier} set={(tier) => setBrush({ ...brush, tier })} />
+            <Choice label={t('editor.edge')} options={named(CLIFFS)} value={brush.cliff} set={(cliff) => setBrush({ ...brush, cliff })} />
+            <Choice label={t('editor.dunesOnSand')} options={named(DUNES)} value={brush.dunes} set={(dunes) => setBrush({ ...brush, dunes })} />
+            <Choice label={t('editor.shape')} options={named(SHAPES)} value={brush.shape ?? 'square'} set={(shape) => setBrush({ ...brush, shape })} />
             <label class="editor__field">
-              Кисть {size}×{size}
+              {t('editor.brush', { size })}
               <input type="range" min={1} max={15} step={2} value={size} onInput={(event) => setSize(Number(event.currentTarget.value))} />
             </label>
             <p class="editor__note">
-              Гора встаёт одной вершиной в середине кисти, размером с кисть (не больше {Math.round(MAX_PEAK_RADIUS * 2)} тайлов). Горы рядом стыкуются грядой; гору, задетую другой землёй, кисть стирает целиком. Барханы
-              ложатся только на песок.{remote ? ' Игроки увидят правку, когда она окажется у них на виду.' : ' Правка карты сразу видна всем игрокам.'}
+              {t('editor.paintNote', { tiles: Math.round(MAX_PEAK_RADIUS * 2) })}
+              {remote ? t('editor.paintNoteRemote') : t('editor.paintNoteLocal')}
             </p>
           </div>
         )}
@@ -488,7 +485,7 @@ export function EditorPanel({ sim, game, apply, remote = false, title, subtitle,
           <div class="editor__list">
             {BUILDING_TYPES.map((type) => (
               <button key={type} class={building === type ? 'is-active' : ''} onClick={() => setBuilding(type)}>
-                {BUILDING_NAMES[type]}
+                {t(`buildings.${type}`)}
               </button>
             ))}
           </div>
@@ -497,39 +494,39 @@ export function EditorPanel({ sim, game, apply, remote = false, title, subtitle,
           <div class="editor__list">
             {UNIT_TYPES.map((type) => (
               <button key={type} class={unit === type ? 'is-active' : ''} onClick={() => setUnit(type)}>
-                {UNIT_NAMES[type]}
+                {t(`units.${type}`)}
               </button>
             ))}
           </div>
         )}
         {tool === 'deposit' && (
           <div class="editor__options">
-            <Choice label="Новое месторождение" options={DEPOSIT_TYPES.map((type) => [type, RESOURCE_NAMES[type]])} value={kind} set={(type) => (setKind(type), setReserve(DEPOSIT_KINDS[type].max))} />
+            <Choice label={t('editor.newDeposit')} options={DEPOSIT_TYPES.map((type) => [type, t(`goods.${type}`)])} value={kind} set={(type) => (setKind(type), setReserve(DEPOSIT_KINDS[type].max))} />
             <label class="editor__field">
-              Запас
+              {t('editor.reserve')}
               <input type="number" min={0} step={100} value={reserve} onChange={(event) => setReserve(Number(event.currentTarget.value) || 0)} />
             </label>
-            <p class="editor__note">Щелчок кладёт месторождение там, где призрак. Выбрать, перенести и поменять — в «Выборе».</p>
+            <p class="editor__note">{t('editor.depositNote')}</p>
           </div>
         )}
         {tool === 'select' && (
           <p class="editor__note">
-            Щелчок — выбрать, рамка — юниты, здания и месторождения вместе, Shift — добавить или снять. Выбранное тащится мышью разом. Правый щелчок или Delete — снести.
+            {t('editor.selectNote')}
           </p>
         )}
       </section>
 
       {tool === 'select' && spots.length > 0 && (
         <section class="editor__section">
-          <h3>{spots.length === 1 ? `${RESOURCE_NAMES[spots[0].kind]} · ${spots[0].x}, ${spots[0].y}` : `Месторождений: ${spots.length}`}</h3>
+          <h3>{spots.length === 1 ? `${t(`goods.${spots[0].kind}`)} · ${spots[0].x}, ${spots[0].y}` : t('editor.deposits', { count: spots.length })}</h3>
           <Choice
-            label="Вид"
-            options={DEPOSIT_TYPES.map((type) => [type, RESOURCE_NAMES[type]])}
+            label={t('editor.kind')}
+            options={DEPOSIT_TYPES.map((type) => [type, t(`goods.${type}`)])}
             value={spots.every((spot) => spot.kind === spots[0].kind) ? spots[0].kind : undefined}
             set={(type) => edit({ op: 'setDeposit', spots: spotsOf(spots), kind: type! })}
           />
           <label class="editor__field">
-            Осталось{spots.length > 1 && ' в каждом'}
+            {spots.length > 1 ? t('editor.leftEach') : t('editor.left')}
             <NumberField min={0} step={100} value={reserveLeft(sim, spots[0].x, spots[0].y)} set={(left) => edit({ op: 'setDeposit', spots: spotsOf(spots), left })} />
           </label>
         </section>
@@ -538,13 +535,13 @@ export function EditorPanel({ sim, game, apply, remote = false, title, subtitle,
       {tool === 'select' && selected.length > 0 && <Inspector sim={sim} entities={selected} edit={edit} label={label} ordering={ordering} order={setOrdering} />}
       {(selected.length > 0 || spots.length > 0) && tool === 'select' && (
         <button class="menu__danger" onClick={eraseSelection}>
-          Снести выбранное
+          {t('editor.eraseSelected')}
         </button>
       )}
 
       <footer class="editor__foot">
         <small class="editor__status">
-          {tile && hover ? `${hover.x}, ${hover.y} · ${terrainName(tile.terrain)} · ${BIOMES.find(([biome]) => biome === tile.biome)?.[1] ?? ''}${tile.tier === undefined ? '' : ` · ярус ${tile.tier}`}${tile.cliff ? ' · обрыв' : ''}${tile.foot ? ' · подножие' : ''}` : ''}
+          {tile && hover ? `${hover.x}, ${hover.y} · ${nameIn(TERRAINS, tile.terrain)} · ${nameIn(BIOMES, tile.biome)}${tile.tier === undefined ? '' : ` · ${t('editor.tierOf', { tier: tile.tier })}`}${tile.cliff ? ` · ${t('editor.cliff')}` : ''}${tile.foot ? ` · ${t('editor.foot')}` : ''}` : ''}
           {status && <span> · {status}</span>}
         </small>
         <div class="editor__actions">{children}</div>
@@ -583,7 +580,11 @@ function NumberField({ value, set, min, max, step }: { value: number; set(value:
   )
 }
 
-const terrainName = (terrain: Terrain) => ({ [Terrain.Swamp]: 'болото', [Terrain.Sand]: 'песок', [Terrain.Rock]: 'скала', [Terrain.Mountain]: 'гора' })[terrain] ?? '—'
+/** Название значения из вариантов кисти; нет такого — прочерк. */
+const nameIn = <T,>(options: [T | undefined, Key][], value: T) => {
+  const key = options.find(([option]) => option === value)?.[1]
+  return key ? t(key) : '—'
+}
 
 function Choice<T>({ label, options, value, set }: { label: string; options: [T, string][]; value: T; set(value: T): void }) {
   return (
@@ -609,49 +610,40 @@ function tasksOf(sim: Sim, entity: Entity): string[] {
   const nameOf = (target: number) => {
     const unit = world.get(target as Entity, Unit)?.type
     const building = world.get(target as Entity, Building)?.type ?? world.get(target as Entity, Site)?.type
-    return unit ? UNIT_NAMES[unit] : building ? BUILDING_NAMES[building] : `#${target}`
+    return unit ? t(`units.${unit}`) : building ? t(`buildings.${building}`) : `#${target}`
   }
   const converting = world.get(entity, Converting)
-  if (converting) tasks.push(world.has(entity, Unit) ? 'Разворачивается в главное здание' : 'Сворачивается в MCV')
+  if (converting) tasks.push(world.has(entity, Unit) ? t('editor.task.deploying') : t('editor.task.packing'))
   const producer = world.get(entity, Producer)
-  if (producer?.queue.length) tasks.push(`Производит: ${producer.queue.map((type) => UNIT_NAMES[type]).join(', ')}`)
+  if (producer?.queue.length) tasks.push(t('editor.task.produces', { list: producer.queue.map((type) => t(`units.${type}`)).join(', ') }))
   const builds = world.get(entity, Builds)
-  if (builds && world.alive(builds.site as Entity)) tasks.push(`${world.has(builds.site as Entity, Site) ? 'Строит' : 'Чинит'}: ${nameOf(builds.site)}`)
+  if (builds && world.alive(builds.site as Entity)) tasks.push(t(world.has(builds.site as Entity, Site) ? 'editor.task.builds' : 'editor.task.repairs', { name: nameOf(builds.site) }))
   const armed = world.get(entity, Armed)
-  if (armed && armed.target >= 0 && world.alive(armed.target as Entity)) tasks.push(`Атакует: ${nameOf(armed.target)}`)
+  if (armed && armed.target >= 0 && world.alive(armed.target as Entity)) tasks.push(t('editor.task.attacks', { name: nameOf(armed.target) }))
   const harvester = world.get(entity, Harvester)
-  if (harvester?.picked) tasks.push(`Копает месторождение ${harvester.x}, ${harvester.y}`)
-  else if (harvester?.seek) tasks.push(`Ищет месторождение: ${harvester.seek === 'any' ? 'любое' : RESOURCE_NAMES[harvester.seek]}`)
+  if (harvester?.picked) tasks.push(t('editor.task.digs', { x: harvester.x, y: harvester.y }))
+  else if (harvester?.seek) tasks.push(t('editor.task.seeks', { what: harvester.seek === 'any' ? t('editor.task.any') : t(`goods.${harvester.seek}`) }))
   const hauler = world.get(entity, Hauler)
   if (hauler && !harvester) {
-    if (hauler.mine >= 0) tasks.push(`Возит из шахты #${hauler.mine}`)
-    if (hauler.route.length) tasks.push(`Маршрут: ${hauler.route.map(nameOf).join(' → ')}`)
-    if (hauler.supply >= 0) tasks.push(`Обеспечивает: ${nameOf(hauler.supply)}`)
-    if (hauler.pickup >= 0) tasks.push('Вывозит дроп')
-    if (hauler.serve.length) tasks.push(`Обслуживает: ${hauler.serve.map(nameOf).join(', ')}`)
-    if (hauler.from >= 0) tasks.push(`Везёт ${goodName(hauler.resource)}: ${nameOf(hauler.from)} → ${hauler.to >= 0 ? nameOf(hauler.to) : '?'}`)
+    if (hauler.mine >= 0) tasks.push(t('editor.task.haulsFrom', { mine: hauler.mine }))
+    if (hauler.route.length) tasks.push(t('editor.task.route', { stops: hauler.route.map(nameOf).join(' → ') }))
+    if (hauler.supply >= 0) tasks.push(t('editor.task.supplies', { name: nameOf(hauler.supply) }))
+    if (hauler.pickup >= 0) tasks.push(t('editor.task.pickup'))
+    if (hauler.serve.length) tasks.push(t('editor.task.serves', { list: hauler.serve.map(nameOf).join(', ') }))
+    if (hauler.from >= 0) tasks.push(t('editor.task.carries', { good: t(`goods.${hauler.resource}`), from: nameOf(hauler.from), to: hauler.to >= 0 ? nameOf(hauler.to) : '?' }))
   }
   const tactics = world.get(entity, Tactics)
-  if (tactics?.patrol.length) tasks.push(`Патруль: ${tactics.patrol.length / 2} точ.`)
+  if (tactics?.patrol.length) tasks.push(t('editor.task.patrol', { points: tactics.patrol.length / 2 }))
   const path = world.get(entity, Path)
-  if (path) tasks.push(`Едет к ${path.goalX}, ${path.goalY}`)
-  for (const { command } of world.get(entity, Orders)?.list ?? []) tasks.push(`В очереди: ${COMMAND_NAMES[command.type] ?? command.type}`)
+  if (path) tasks.push(t('editor.task.goes', { x: path.goalX, y: path.goalY }))
+  for (const { command } of world.get(entity, Orders)?.list ?? []) tasks.push(t('editor.task.queued', { what: orderName(command.type) }))
   return tasks
 }
 
-const COMMAND_NAMES: Partial<Record<Command['type'], string>> = {
-  move: 'ехать',
-  attack: 'атаковать',
-  assist: 'строить',
-  harvest: 'копать',
-  haul: 'возить из шахты',
-  pickup: 'вывезти дроп',
-  supply: 'обеспечить',
-  patrol: 'патруль',
-  build: 'заложить здание',
-  pave: 'класть покрытие',
-  unpave: 'снять покрытие',
-  demolish: 'разобрать',
+/** Название приказа из очереди; у приказа без названия в словаре — его ключ. */
+const orderName = (type: Command['type']) => {
+  const key = `editor.orders.${type}`
+  return hasText(key) ? t(key) : type
 }
 
 /** Выбранное: владелец, прочность, поворот, задания, склад. Если выбрано несколько — правится каждое. */
@@ -660,7 +652,7 @@ function Inspector({ sim, entities, edit, label, ordering, order }: { sim: Sim; 
   const first = entities[0]
   const type = world.get(first, Unit)?.type
   const kind = world.get(first, Building)?.type
-  const name = type ? UNIT_NAMES[type] : kind ? BUILDING_NAMES[kind] : '—'
+  const name = type ? t(`units.${type}`) : kind ? t(`buildings.${kind}`) : '—'
   const health = world.get(first, Health)
   const inventory = world.get(first, Inventory)
   const owner = world.get(first, Owner)?.player ?? 0
@@ -676,10 +668,10 @@ function Inspector({ sim, entities, edit, label, ordering, order }: { sim: Sim; 
     <section class="editor__section">
       <h3>
         {name}
-        {entities.length > 1 && ` и ещё ${entities.length - 1}`}
+        {entities.length > 1 && t('editor.andMore', { count: entities.length - 1 })}
       </h3>
       <div class="editor__choice">
-        <span>Владелец</span>
+        <span>{t('editor.owner')}</span>
         <div class="editor__chips">
           {players.map((id) => (
             <button key={id} class={owner === id ? 'is-active' : ''} onClick={() => edit({ op: 'owner', entities, player: id })}>
@@ -690,36 +682,36 @@ function Inspector({ sim, entities, edit, label, ordering, order }: { sim: Sim; 
       </div>
       {health && (
         <label class="editor__field">
-          Прочность {Math.round((health.value / health.max) * 100)}%
+          {t('editor.health', { percent: Math.round((health.value / health.max) * 100) })}
           <input type="range" min={1} max={100} value={Math.round((health.value / health.max) * 100)} onInput={(event) => edit({ op: 'health', entities, share: Number(event.currentTarget.value) / 100 })} />
         </label>
       )}
       {facing !== undefined && (
         <label class="editor__field">
-          Корпус {Math.round(facing / DEGREE)}°
+          {t('editor.hull', { degrees: Math.round(facing / DEGREE) })}
           <input type="range" min={-180} max={180} step={15} value={Math.round(facing / DEGREE)} onInput={(event) => edit({ op: 'facing', entities, angle: Number(event.currentTarget.value) * DEGREE })} />
         </label>
       )}
       {turrets.length > 0 &&
         turrets.map((angle, index) => (
           <label key={index} class="editor__field">
-            {turrets.length > 1 ? `Турель ${index + 1}` : 'Турель'} {Math.round(angle / DEGREE)}°
+            {turrets.length > 1 ? t('editor.turretOf', { index: index + 1, degrees: Math.round(angle / DEGREE) }) : t('editor.turret', { degrees: Math.round(angle / DEGREE) })}
             <input type="range" min={-180} max={180} step={15} value={Math.round(angle / DEGREE)} onInput={(event) => edit({ op: 'turret', entities, angle: Number(event.currentTarget.value) * DEGREE, index })} />
           </label>
         ))}
       {entities.length > 1 && turretAt !== undefined && (
         <label class="editor__field">
-          Турели {Math.round(turretAt / DEGREE)}°
+          {t('editor.turrets', { degrees: Math.round(turretAt / DEGREE) })}
           <input type="range" min={-180} max={180} step={15} value={Math.round(turretAt / DEGREE)} onInput={(event) => edit({ op: 'turret', entities, angle: Number(event.currentTarget.value) * DEGREE })} />
         </label>
       )}
       {units.length > 0 && (
         <div class="editor__stock">
-          <span>Задания</span>
-          {entities.length === 1 && (tasks.length ? tasks.map((task) => <small key={task}>{task}</small>) : <small class="editor__note">нет — стоит</small>)}
+          <span>{t('editor.tasks')}</span>
+          {entities.length === 1 && (tasks.length ? tasks.map((task) => <small key={task}>{task}</small>) : <small class="editor__note">{t('editor.idle')}</small>)}
           {stance && (
             <div class="editor__chips">
-              {STANCE_SLOTS.map((slot) => (
+              {stanceSlots().map((slot) => (
                 <button
                   key={slot.stance}
                   title={slot.title}
@@ -734,19 +726,19 @@ function Inspector({ sim, entities, edit, label, ordering, order }: { sim: Sim; 
             </div>
           )}
           <div class="editor__chips">
-            <button class={ordering ? 'is-active' : ''} title="Следующий щелчок по карте — приказ, как правой кнопкой в игре; с Shift — в очередь" onClick={() => order(!ordering)}>
-              Приказ мышью
+            <button class={ordering ? 'is-active' : ''} title={t('editor.mouseOrderTip')} onClick={() => order(!ordering)}>
+              {t('editor.mouseOrder')}
             </button>
-            <button onClick={() => edit({ op: 'clearTasks', entities })}>Снять задания</button>
+            <button onClick={() => edit({ op: 'clearTasks', entities })}>{t('editor.clearTasks')}</button>
           </div>
         </div>
       )}
       {inventory && entities.length === 1 && (
         <div class="editor__stock">
-          <span>Склад · объём {inventory.capacity}</span>
+          <span>{t('editor.stock', { capacity: inventory.capacity })}</span>
           {GOODS.map((good: Good) => (
             <label key={good} class="editor__field">
-              {goodName(good)}
+              {t(`goods.${good}`)}
               <NumberField
                 min={0}
                 value={inventory.items[good] ?? 0}

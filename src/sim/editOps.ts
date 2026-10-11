@@ -52,8 +52,8 @@ export type EditOp =
   | { op: 'camera'; player: number; camera?: { x: number; y: number; zoom: number } }
   | { op: 'addPlayer' }
 
-/** Что сказать о правке, которая не удалась; undefined — удалась. */
-export type EditResult = string | undefined
+/** Почему правка не удалась — ключ сообщения хоста, см. раздел host словаря; undefined — удалась. */
+export type EditResult = 'building' | 'unit' | 'deposit' | 'move' | 'order' | undefined
 
 /**
  * Применяет правку к миру. Ничего не проверяет о том, кто её прислал: это дело хоста. Негодные номера сущностей и
@@ -68,11 +68,11 @@ export function applyEdit(sim: Sim, edit: EditOp): EditResult {
       paint(sim, edit.x, edit.y, edit.size, edit.brush)
       return
     case 'building':
-      return putBuilding(sim, edit.type, edit.x, edit.y, edit.player) === undefined ? 'Здание сюда не встанет' : undefined
+      return putBuilding(sim, edit.type, edit.x, edit.y, edit.player) === undefined ? 'building' : undefined
     case 'unit':
-      return putUnit(sim, edit.type, edit.x, edit.y, edit.player) === undefined ? 'Юнит здесь не встанет' : undefined
+      return putUnit(sim, edit.type, edit.x, edit.y, edit.player) === undefined ? 'unit' : undefined
     case 'deposit':
-      return putDeposit(sim, edit.x, edit.y, edit.kind, edit.reserve) ? undefined : 'Месторождение ложится на скалу не у подножия обрыва и не внахлёст с другим'
+      return putDeposit(sim, edit.x, edit.y, edit.kind, edit.reserve) ? undefined : 'deposit'
     case 'setDeposit':
       for (const spot of spots(edit.spots)) setDeposit(sim, spot, edit.kind ?? spot.kind, edit.left ?? reserveLeft(sim, spot.x, spot.y))
       return
@@ -83,7 +83,7 @@ export function applyEdit(sim: Sim, edit: EditOp): EditResult {
       for (const entity of alive(edit.entities)) erase(sim, entity)
       return
     case 'move':
-      return moveGroup(sim, alive(edit.entities), edit.dx, edit.dy, spots(edit.deposits)) ? undefined : 'Сюда не сдвинуть'
+      return moveGroup(sim, alive(edit.entities), edit.dx, edit.dy, spots(edit.deposits)) ? undefined : 'move'
     case 'owner':
       for (const entity of alive(edit.entities)) setOwner(sim, entity, edit.player)
       return
@@ -103,7 +103,7 @@ export function applyEdit(sim: Sim, edit: EditOp): EditResult {
       for (const entity of alive(edit.entities)) clearTasks(sim, entity)
       return
     case 'order':
-      return orderNow(sim, edit.player, edit.command) ? undefined : 'Приказ не принят'
+      return orderNow(sim, edit.player, edit.command) ? undefined : 'order'
     case 'credits':
       setCredits(sim, edit.player, edit.amount)
       return

@@ -1,6 +1,6 @@
 import type { BattleConfig } from '../map/settings'
 import { createSim, driveBattle, openSpawn, randomArmy, spawnBattle, spawnSandbox, spawnStartingUnits, type Sim, type SimOptions, type SimSave } from '../sim'
-import { createHost, type Host, type Peer } from './host'
+import { createHost, type Host, type HostNames, type Peer } from './host'
 
 /**
  * Во что играют: обычная игра; показательный бой — две случайные армии сходятся снова и снова, каждый раз в новом
@@ -24,6 +24,8 @@ export interface LocalSetup {
   mode: GameMode
   battle: BattleConfig
   save: SimSave | null
+  /** Как хост подписывает игрока без ника и свои сообщения: на языке вкладки, которая завела мир. */
+  names?: HostNames
 }
 
 /**
@@ -110,7 +112,7 @@ export function createLocalServer(): LocalServer {
             const resumed = save && rest.mode === 'play' ? createSim({ ...save, rules: rest.options.rules }) : null
             const sim = resumed ?? createWorld(rest.options, rest.mode, rest.battle)
             if (host) host.replace(sim)
-            else host = createHost(sim, LOCAL_PLAYER)
+            else host = createHost(sim, LOCAL_PLAYER, undefined, { names: rest.names })
           }
           ports.add(port)
           peer = host.join((text) => port.postMessage(text))

@@ -10,6 +10,7 @@ import { slotWorker, type Launch } from './launch'
 import { reloadLocal } from '../net/connect'
 import { EditorPanel } from './EditorPanel'
 import { download } from './Menu'
+import { t } from '../i18n'
 
 type EditorLaunch = Extract<Launch, { kind: 'editor' }>
 
@@ -22,7 +23,7 @@ interface Opened {
 async function open(launch: EditorLaunch): Promise<Opened> {
   if ('slot' in launch) {
     const save = await loadSave(launch.slot.id)
-    if (!save) throw new Error('Мир этого слота ещё не сохранён')
+    if (!save) throw new Error(t('menu.notSavedYet'))
     return { save }
   }
   return decodeSave(launch.file)
@@ -78,7 +79,7 @@ export function EditorView({ launch, settings, exit }: { launch: EditorLaunch; s
         await storeSave(launch.slot.id, save)
         // Если в слот играют в другой вкладке, её мир — поправленный: иначе автосохранение игры затёрло бы правки.
         reloadLocal(slotWorker(launch.slot.id), save)
-        setStatus('Сохранено в слот')
+        setStatus(t('editor.savedToSlot'))
       } else {
         // Свои разделы файла (игроки сервера, имя слота) пишутся обратно как были.
         const extras: Record<string, unknown> = {}
@@ -86,7 +87,7 @@ export function EditorView({ launch, settings, exit }: { launch: EditorLaunch; s
           if (!['META', 'WRLD', 'LAND', 'EXPL'].includes(tag)) extras[tag] = readJson(opened.sections!.get(tag))
         }
         download(launch.name.endsWith('.kharos') ? launch.name : `${launch.name}.kharos`, await encodeSave(save, extras))
-        setStatus('Файл скачан')
+        setStatus(t('editor.fileDownloaded'))
       }
       setDirty(false)
     } catch (reason) {
@@ -103,30 +104,30 @@ export function EditorView({ launch, settings, exit }: { launch: EditorLaunch; s
           sim={sim}
           game={game}
           apply={(edit) => applyEdit(sim, edit)}
-          title="Редактор"
+          title={t('editor.title')}
           subtitle={`${'slot' in launch ? launch.slot.name : launch.name}${status ? ` · ${status}` : ''}`}
           changed={() => (setDirty(true), setStatus(''))}
         >
           <button
             onClick={() => {
-              if (dirty && !confirm('Выйти без сохранения? Правки пропадут.')) return
+              if (dirty && !confirm(t('editor.exitConfirm'))) return
               exit()
             }}
           >
-            Выйти
+            {t('editor.exit')}
           </button>
           <button class="menu__primary" onClick={save}>
-            {'slot' in launch ? 'Сохранить' : 'Скачать файл'}
+            {'slot' in launch ? t('editor.save') : t('editor.downloadFile')}
             {dirty ? ' •' : ''}
           </button>
         </EditorPanel>
       )}
       {error !== null && (
         <div class="game__error" role="alert">
-          <strong>Редактор не открылся</strong>
+          <strong>{t('editor.failed')}</strong>
           <pre>{error instanceof Error ? error.message : String(error)}</pre>
           <div class="game__actions">
-            <button onClick={exit}>В меню</button>
+            <button onClick={exit}>{t('common.toMenu')}</button>
           </div>
         </div>
       )}

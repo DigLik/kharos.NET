@@ -1,8 +1,9 @@
 import type { CommandInfo } from '../net/chatCommands'
-import type { AlertKind } from './alerts'
+import type { AlertKind, AlertText } from './alerts'
 import type { Replica } from '../net/replica'
 import { knownReserve } from './knownReserve'
 import type { Entity } from '../ecs'
+import { textOf } from '../i18n'
 import {
   Assembly, Harvester, BUILDABLE, isUnlocked, buyPrice, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
@@ -15,7 +16,7 @@ import type { PaveTool, Scene } from './scene'
 export interface HudState {
   credits: number
   /** Уведомления, от старых к новым: at — когда, по нему строка узнаётся между опросами. */
-  alerts: { kind: AlertKind; text: string; x: number; y: number; at: number }[]
+  alerts: { kind: AlertKind; text: AlertText; x: number; y: number; at: number }[]
   /**
    * Месторождение под указателем мыши на карте: что в нём, сколько осталось и где указатель на экране,
    * чтобы подсказка встала рядом. null — указатель не над месторождением.
@@ -434,7 +435,7 @@ export function readHud(scene: Scene): HudState {
     storm: scene.weather.precipitation > 0.05,
     alerts: (scene.alerts?.current() ?? []).map(({ kind, text, x, y, at }) => ({ kind, text, x, y, at })),
     // Список игроков есть только у копии мира с сервера.
-    chat: 'say' in sim ? (sim as Replica).chat.map(({ player, name, text, at, system, whisper }) => ({ name, own: player === scene.player, text, at, system: !!system, whisper })) : null,
+    chat: 'say' in sim ? (sim as Replica).chat.map(({ player, name, text, at, system, whisper }) => ({ name, own: player === scene.player, text: textOf(text), at, system: !!system, whisper })) : null,
     commands: 'commands' in sim ? (sim as Replica).commands : [],
     admin: 'admin' in sim && (sim as Replica).admin,
     editor: 'editor' in sim && (sim as Replica).editor,

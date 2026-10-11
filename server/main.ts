@@ -2,7 +2,8 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { createHost, type HostSave, type Peer } from '../src/net/host'
 import { clientAddress, createGate } from '../src/net/limits'
-import { PROTOCOL_VERSION, versionMismatch, type ServerMessage } from '../src/net/protocol'
+import { LANGS, hostText, loadLang, t, textOf, type Text } from '../src/i18n'
+import { PROTOCOL_VERSION, type ServerMessage } from '../src/net/protocol'
 import { createSim } from '../src/sim'
 import { decodeSave, encodeSave, readJson } from '../src/save/file'
 import { defaultSettings, mergeSettings, type ServerSettings } from './settings'
@@ -30,6 +31,8 @@ function readSettings(): ServerSettings {
 }
 
 const settings = readSettings()
+// Словарь догружается: до него сервер не может ни ответить в консоль, ни подписать игрока.
+await loadLang(LANGS.some(({ lang }) => lang === settings.lang) ? settings.lang : 'ru')
 // Переменные окружения сильнее файла: так удобнее в docker и systemd.
 const port = Number(process.env.PORT) || settings.port
 const SAVE_PATH = process.env.SAVE || settings.save
@@ -78,6 +81,7 @@ const { generator, size, fog, weather, rules } = settings
 const host = createHost(saved ? createSim({ ...saved.sim, rules }) : createSim({ generator, size, fog, weather, rules }), undefined, saved, {
   admin: settings.admin,
   log: (text) => console.log(text),
+  names: { player: t('server.player'), server: t('server.name') },
 })
 if (saved) console.log(`мир загружен из ${SAVE_PATH}: тик ${saved.sim.tick}, игроков ${Object.keys(saved.players).length}`)
 else console.log(`новый мир ${size}×${size}, seed ${generator.seed}`)
@@ -118,22 +122,22 @@ const listen = (certificate?: Certificate) => Bun.serve<SocketData>({
       gate.opened(socket.data.address)
       // Клиент другой версии собрал бы мир не так, как сервер: его не пускают, но говорят почему.
       if (socket.data.version !== PROTOCOL_VERSION) {
-        const reason = versionMismatch(PROTOCOL_VERSION, socket.data.version)
+        const reason = hostText(socket.data.version < PROTOCOL_VERSION ? 'versionOld' : 'versionNew', { server: PROTOCOL_VERSION, client: socket.data.version })
         socket.send(JSON.stringify({ type: 'refused', reason } satisfies ServerMessage))
         socket.close(1008, 'version')
         console.log(`× клиент версии ${socket.data.version}`)
         return
       }
       if (!passwordOk(socket.data.password)) {
-        const reason = socket.data.password ? 'Неверный пароль' : 'Сервер закрыт паролем'
+        const reason = hostText(socket.data.password ? 'wrongPassword' : 'passwordNeeded')
         socket.send(JSON.stringify({ type: 'refused', reason, password: true } satisfies ServerMessage))
         socket.close(1008, 'password')
-        console.log(`× ${reason.toLowerCase()}`)
+        console.log(`× ${textOf(reason).toLowerCase()}`)
         return
       }
       // Новый игрок занимает место на карте: с одного адреса их заводится немного.
       if (!host.knows(socket.data.id) && !gate.newcomer(socket.data.address)) {
-        socket.send(JSON.stringify({ type: 'refused', reason: 'С вашего адреса заведено слишком много новых игроков, попробуйте позже' } satisfies ServerMessage))
+        socket.send(JSON.stringify({ type: 'refused', reason: hostText('tooManyNewcomers') } satisfies ServerMessage))
         socket.close(1008, 'newcomers')
         console.log(`× слишком много новых игроков с ${socket.data.address}`)
         return
@@ -215,18 +219,17 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, stop)
 host.addCommand({
   name: 'save',
   args: [],
-  help: 'сохранить мир сейчас',
   console: true,
   run: async (_args, _rest, caller) => {
     await store()
-    caller.reply(`мир сохранён в ${SAVE_PATH}`)
+    caller.reply(hostText('worldSaved', { path: SAVE_PATH }))
   },
 })
-host.addCommand({ name: 'stop', args: [], help: 'сохранить мир и остановить сервер', console: true, run: () => void stop() })
+host.addCommand({ name: 'stop', args: [], console: true, run: () => void stop() })
 
 // Консоль сервера: строка stdin — команда, как в чате, но без «/» и всегда от администратора. Под pm2 stdin
 // закрыт, и цикл просто кончается.
-const operator = { admin: true, reply: (text: string) => console.log(text) }
+const operator = { admin: true, reply: (text: Text) => console.log(textOf(text)) }
 void (async () => {
   for await (const line of console) if (line.trim()) host.command(line.trim(), operator)
 })()

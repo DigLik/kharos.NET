@@ -8,7 +8,8 @@ import { DEFAULT_CONFIG, type GeneratorConfig } from '../map/terrain'
 import { DEFAULT_WEATHER, createSim } from '../sim'
 import { GENERATOR_GROUPS, Groups } from './GeneratorFields'
 import { NAME_LENGTH, PROTOCOL_VERSION, cleanName } from '../net/protocol'
-import { INSECURE_HINT, isInsecure } from '../net/connect'
+import { isInsecure } from '../net/connect'
+import { LANGS, chooseLang, currentLang, t, type Key } from '../i18n'
 import { forgetServer, lastLaunch, localServerUrl, recentServers, type Launch } from './launch'
 import { MapPreview } from './MapPreview'
 
@@ -17,12 +18,7 @@ const TICKS_PER_SECOND = 20
 /** Какой стороны бывает карта новой игры, в тайлах. */
 const MAP_SIZES = [512, 1024, 2048]
 /** Сколько длятся сутки новой игры, в секундах; 0 — время стоит. */
-const DAY_LENGTHS = [
-  { seconds: 600, label: '10 мин' },
-  { seconds: 1200, label: '20 мин' },
-  { seconds: 2400, label: '40 мин' },
-  { seconds: 0, label: 'Стоят' },
-]
+const DAY_LENGTHS = [600, 1200, 2400, 0]
 const clock = (hour: number) => `${String(Math.floor(hour)).padStart(2, '0')}:${String(Math.floor((hour % 1) * 60)).padStart(2, '0')}`
 const SERVER_KEY = 'kharos.server'
 
@@ -41,10 +37,10 @@ const randomSeed = () => Math.floor(Math.random() * 2 ** 31)
 
 const playtime = (tick: number) => {
   const minutes = Math.floor(tick / TICKS_PER_SECOND / 60)
-  return minutes < 60 ? `${minutes} мин` : `${Math.floor(minutes / 60)} ч ${minutes % 60} мин`
+  return minutes < 60 ? t('menu.minutes', { minutes }) : t('menu.hours', { hours: Math.floor(minutes / 60), minutes: minutes % 60 })
 }
 
-const date = (time: number) => new Date(time).toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+const date = (time: number) => new Date(time).toLocaleString(currentLang(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
 function loadServer() {
   try {
@@ -76,7 +72,7 @@ function Window({ title, back, children, wide }: { title: string; back?: () => v
       {children}
       {back && (
         <div class="menu__footer">
-          <button onClick={back}>Назад</button>
+          <button onClick={back}>{t('common.back')}</button>
         </div>
       )}
     </section>
@@ -94,7 +90,7 @@ export function Menu({ play }: MenuProps) {
   const home = () => setScreen('main')
   // Считается заново при каждом показе: слот могли удалить в «Сохранениях».
   const last = lastLaunch()
-  const lastTitle = !last ? undefined : last.kind === 'save' ? `${last.slot.name} — ${playtime(last.slot.tick)}` : last.kind === 'server' ? `Сервер ${last.url}` : undefined
+  const lastTitle = !last ? undefined : last.kind === 'save' ? `${last.slot.name} — ${playtime(last.slot.tick)}` : last.kind === 'server' ? t('menu.lastServer', { url: last.url }) : undefined
   // Музыка звучит, пока открыто меню, и стихает, когда начинается игра.
   const music = useRef<MenuMusic | null>(null)
   useEffect(() => {
@@ -109,23 +105,23 @@ export function Menu({ play }: MenuProps) {
         KHAROS
       </h1>
       {screen === 'main' && (
-        <Window title="Главное меню">
+        <Window title={t('menu.title')}>
           <nav class="menu__list">
             <button disabled={!last} title={lastTitle} onClick={() => last && play(last)}>
-              Продолжить
+              {t('common.resume')}
             </button>
-            <button onClick={() => setScreen('new')}>Новая игра</button>
+            <button onClick={() => setScreen('new')}>{t('menu.newGame')}</button>
             <button
               onClick={() => {
                 refresh()
                 setScreen('saves')
               }}
             >
-              Сохранения
+              {t('menu.saves')}
             </button>
-            <button onClick={() => setScreen('network')}>Сетевая игра</button>
-            <button onClick={() => setScreen('settings')}>Настройки</button>
-            <button onClick={() => setScreen('about')}>Об игре</button>
+            <button onClick={() => setScreen('network')}>{t('menu.network')}</button>
+            <button onClick={() => setScreen('settings')}>{t('common.settings')}</button>
+            <button onClick={() => setScreen('about')}>{t('menu.about')}</button>
           </nav>
           <a class="menu__link" href={REPOSITORY} target="_blank" rel="noopener noreferrer">
             GitHub
@@ -144,9 +140,7 @@ export function Menu({ play }: MenuProps) {
 
 /** Ползунок местности для человека: t от 0 до 1 переводится в параметр генератора и обратно. */
 interface Knob {
-  key: keyof GeneratorConfig
-  label: string
-  title: string
+  key: 'rockLevel' | 'swampLevel' | 'zoneScale' | 'zoneWarp' | 'biomeScale' | 'peakChance'
   from: number
   to: number
 }
@@ -155,65 +149,53 @@ const KNOBS: Knob[] = [
   // Чем ниже уровень скал, тем их больше: ползунок «больше» вправо.
   {
     key: 'rockLevel',
-    label: 'Скалы',
-    title: 'Сколько скал: на них строят, на них лежит руда',
     from: 0.75,
     to: 0.45,
   },
   {
     key: 'swampLevel',
-    label: 'Болота',
-    title: 'Сколько болот: по ним не проехать',
     from: 0.2,
     to: 0.5,
   },
   {
     key: 'zoneScale',
-    label: 'Размер зон',
-    title: 'Крупные плато и пустыни или мелкая мозаика',
     from: 24,
     to: 120,
   },
   {
     key: 'zoneWarp',
-    label: 'Изрезанность',
-    title: 'Округлые пятна или рваные края',
     from: 0,
     to: 80,
   },
   {
     key: 'biomeScale',
-    label: 'Размер биомов',
-    title: 'Как далеко тянутся солончаки, красные пустоши и топи',
     from: 80,
     to: 600,
   },
   {
     key: 'peakChance',
-    label: 'Горы',
-    title: 'Сколько гор на скалах: сквозь них не проехать и не построить',
     from: 0,
     to: 1,
   },
 ]
 
 /** Готовые местности: отличия от генератора по умолчанию. */
-const PRESETS: { label: string; generator: Partial<GeneratorConfig> }[] = [
-  { label: 'Обычная', generator: {} },
+const PRESETS: { label: Key; generator: Partial<GeneratorConfig> }[] = [
+  { label: 'menu.presets.normal', generator: {} },
   {
-    label: 'Скалистая',
+    label: 'menu.presets.rocky',
     generator: { rockLevel: 0.5, swampLevel: 0.3, peakChance: 0.5 },
   },
   {
-    label: 'Пустыня',
+    label: 'menu.presets.desert',
     generator: { rockLevel: 0.68, swampLevel: 0.25, zoneScale: 80 },
   },
   {
-    label: 'Болота',
+    label: 'menu.presets.swamps',
     generator: { rockLevel: 0.62, swampLevel: 0.46, zoneWarp: 50 },
   },
   {
-    label: 'Острова',
+    label: 'menu.presets.islands',
     generator: { rockLevel: 0.6, swampLevel: 0.5, zoneScale: 40, zoneWarp: 10 },
   },
 ]
@@ -228,7 +210,7 @@ function generatorChanges(config: GeneratorConfig) {
 }
 
 function NewGame({ back, play, count }: { back(): void; play(launch: Launch): void; count: number }) {
-  const [name, setName] = useState(`Игра ${count + 1}`)
+  const [name, setName] = useState(() => t('menu.gameName', { number: count + 1 }))
   const [size, setSize] = useState(DEFAULT_SETTINGS.world.size)
   const [weather, setWeather] = useState(DEFAULT_WEATHER)
   const [generator, setGenerator] = useState<GeneratorConfig>(() => ({
@@ -241,7 +223,7 @@ function NewGame({ back, play, count }: { back(): void; play(launch: Launch): vo
     return Object.keys(changes).length === Object.keys(preset.generator).length && Object.entries(preset.generator).every(([key, value]) => changes[key as keyof GeneratorConfig] === value)
   })
   return (
-    <Window title="Новая игра" back={back} wide>
+    <Window title={t('menu.newGame')} back={back} wide>
       <form
         class="menu__setup"
         onSubmit={(event) => {
@@ -249,26 +231,26 @@ function NewGame({ back, play, count }: { back(): void; play(launch: Launch): vo
           const changes = generatorChanges(generator)
           play({
             kind: 'save',
-            slot: createSlot(name.trim() || `Игра ${count + 1}`, size, generator.seed, weather, Object.keys(changes).length ? changes : undefined),
+            slot: createSlot(name.trim() || t('menu.gameName', { number: count + 1 }), size, generator.seed, weather, Object.keys(changes).length ? changes : undefined),
           })
         }}
       >
         <div class="menu__form">
           <label class="menu__field">
-            <span>Название</span>
+            <span>{t('menu.name')}</span>
             <input value={name} maxLength={40} onInput={(event) => setName(event.currentTarget.value)} />
           </label>
           <label class="menu__field">
-            <span>Зерно карты</span>
+            <span>{t('menu.seed')}</span>
             <span class="menu__inline">
               <input type="number" value={generator.seed} onInput={(event) => setSeed(Math.floor(Number(event.currentTarget.value)) || 0)} />
-              <button type="button" title="Другая случайная местность с теми же настройками" onClick={() => setSeed(randomSeed())}>
-                Случайно
+              <button type="button" title={t('menu.randomTip')} onClick={() => setSeed(randomSeed())}>
+                {t('menu.random')}
               </button>
             </span>
           </label>
           <div class="menu__field">
-            <span>Размер карты</span>
+            <span>{t('menu.mapSize')}</span>
             <span class="menu__inline">
               {MAP_SIZES.map((option) => (
                 <button type="button" key={option} class={option === size ? 'is-active' : undefined} onClick={() => setSize(option)}>
@@ -278,7 +260,7 @@ function NewGame({ back, play, count }: { back(): void; play(launch: Launch): vo
             </span>
           </div>
           <div class="menu__field">
-            <span>Местность</span>
+            <span>{t('menu.terrain')}</span>
             <span class="menu__inline">
               {PRESETS.map((option) => (
                 <button
@@ -293,14 +275,14 @@ function NewGame({ back, play, count }: { back(): void; play(launch: Launch): vo
                     })
                   }
                 >
-                  {option.label}
+                  {t(option.label)}
                 </button>
               ))}
             </span>
           </div>
           {KNOBS.map((knob) => (
-            <label key={knob.key} class="menu__field menu__field--slider" title={knob.title}>
-              <span>{knob.label}</span>
+            <label key={knob.key} class="menu__field menu__field--slider" title={t(`menu.knobTips.${knob.key}`)}>
+              <span>{t(`menu.knobs.${knob.key}`)}</span>
               <input
                 type="range"
                 min={0}
@@ -319,21 +301,21 @@ function NewGame({ back, play, count }: { back(): void; play(launch: Launch): vo
             </label>
           ))}
           <details class="menu__more">
-            <summary>Тонкая настройка местности</summary>
+            <summary>{t('menu.fineTuning')}</summary>
             <Groups groups={GENERATOR_GROUPS} values={generator} onChange={setGenerator} />
           </details>
           <div class="menu__field">
-            <span>Сутки длятся</span>
+            <span>{t('menu.dayLasts')}</span>
             <span class="menu__inline">
-              {DAY_LENGTHS.map(({ seconds, label }) => (
+              {DAY_LENGTHS.map((seconds) => (
                 <button type="button" key={seconds} class={seconds === weather.dayLength ? 'is-active' : undefined} onClick={() => setWeather({ ...weather, dayLength: seconds })}>
-                  {label}
+                  {seconds ? t('menu.minutes', { minutes: seconds / 60 }) : t('menu.dayStands')}
                 </button>
               ))}
             </span>
           </div>
           <label class="menu__field menu__field--slider">
-            <span>Начальное время</span>
+            <span>{t('menu.startHour')}</span>
             <input
               type="range"
               min={0}
@@ -351,13 +333,13 @@ function NewGame({ back, play, count }: { back(): void; play(launch: Launch): vo
           </label>
           <label class="menu__check">
             <input type="checkbox" checked={weather.changes} onChange={(event) => setWeather({ ...weather, changes: event.currentTarget.checked })} />
-            Погода меняется: ветер, дожди и бури
+            {t('menu.weatherChanges')}
           </label>
         </div>
         <div class="menu__aside">
           <MapPreview config={generator} size={size} />
           <button type="submit" class="menu__primary">
-            Начать
+            {t('menu.start')}
           </button>
         </div>
       </form>
@@ -374,7 +356,7 @@ const WORLD_MAX = 2048
  * редакторе. Мир сразу сохраняется в слот, без игроков: их стартовые наборы ставит игра или редактор.
  */
 function NewWorld({ back, play, count }: { back(): void; play(launch: Launch): void; count: number }) {
-  const [name, setName] = useState(`Карта ${count + 1}`)
+  const [name, setName] = useState(() => t('menu.mapName', { number: count + 1 }))
   const [width, setWidth] = useState(256)
   const [height, setHeight] = useState(256)
   const [blank, setBlank] = useState(false)
@@ -385,46 +367,46 @@ function NewWorld({ back, play, count }: { back(): void; play(launch: Launch): v
     setBusy(true)
     const config: GeneratorConfig = { ...generator, ...(blank && { blank: true }) }
     const changes = generatorChanges(config)
-    const slot = createSlot(name.trim() || `Карта ${count + 1}`, width, config.seed, undefined, Object.keys(changes).length ? changes : undefined, height)
+    const slot = createSlot(name.trim() || t('menu.mapName', { number: count + 1 }), width, config.seed, undefined, Object.keys(changes).length ? changes : undefined, height)
     // В редактор — мир без игроков, сохранённый сразу; в игру — его заведёт воркер со стартовым набором.
     if (edit) await storeSave(slot.id, createSim({ generator: config, size: width, height }).save())
     play({ kind: edit ? 'editor' : 'save', slot: listSaves().find((other) => other.id === slot.id) ?? slot } as Launch)
   }
   const groups = blank ? [] : GENERATOR_GROUPS
   return (
-    <Window title="Новая карта" back={back} wide>
+    <Window title={t('menu.newMap')} back={back} wide>
       <div class="menu__setup">
         <div class="menu__form">
           <label class="menu__field">
-            <span>Название</span>
+            <span>{t('menu.name')}</span>
             <input value={name} maxLength={40} onInput={(event) => setName(event.currentTarget.value)} />
           </label>
           <div class="menu__field">
-            <span>Размер, тайлов</span>
+            <span>{t('menu.sizeTiles')}</span>
             <span class="menu__inline">
-              <input type="number" min={WORLD_MIN} max={WORLD_MAX} step={16} value={width} title="Ширина" onChange={(event) => setWidth(side(Number(event.currentTarget.value)))} />
+              <input type="number" min={WORLD_MIN} max={WORLD_MAX} step={16} value={width} title={t('menu.width')} onChange={(event) => setWidth(side(Number(event.currentTarget.value)))} />
               ×
-              <input type="number" min={WORLD_MIN} max={WORLD_MAX} step={16} value={height} title="Высота" onChange={(event) => setHeight(side(Number(event.currentTarget.value)))} />
+              <input type="number" min={WORLD_MIN} max={WORLD_MAX} step={16} value={height} title={t('menu.height')} onChange={(event) => setHeight(side(Number(event.currentTarget.value)))} />
             </span>
           </div>
           <div class="menu__field">
-            <span>Местность</span>
+            <span>{t('menu.terrain')}</span>
             <span class="menu__inline">
               <button type="button" class={!blank ? 'is-active' : undefined} onClick={() => setBlank(false)}>
-                Генератор
+                {t('menu.generator')}
               </button>
-              <button type="button" class={blank ? 'is-active' : undefined} title="Ровный песок без скал, болот, гор и месторождений" onClick={() => setBlank(true)}>
-                Чистая пустыня
+              <button type="button" class={blank ? 'is-active' : undefined} title={t('menu.blankTip')} onClick={() => setBlank(true)}>
+                {t('menu.blank')}
               </button>
             </span>
           </div>
           {!blank && (
             <label class="menu__field">
-              <span>Зерно карты</span>
+              <span>{t('menu.seed')}</span>
               <span class="menu__inline">
                 <input type="number" value={generator.seed} onInput={(event) => setGenerator({ ...generator, seed: Math.floor(Number(event.currentTarget.value)) || 0 })} />
                 <button type="button" onClick={() => setGenerator({ ...generator, seed: randomSeed() })}>
-                  Случайно
+                  {t('menu.random')}
                 </button>
               </span>
             </label>
@@ -434,10 +416,10 @@ function NewWorld({ back, play, count }: { back(): void; play(launch: Launch): v
         <div class="menu__aside">
           <MapPreview config={{ ...generator, ...(blank && { blank: true }) }} size={width} height={height} />
           <button type="button" class="menu__primary" disabled={busy} onClick={() => create(true)}>
-            В редактор
+            {t('menu.toEditor')}
           </button>
           <button type="button" disabled={busy} onClick={() => create(false)}>
-            Играть
+            {t('common.play')}
           </button>
         </div>
       </div>
@@ -469,44 +451,44 @@ function Saves({ back, saves, refresh, play, create }: { back(): void; saves: Sa
     input.click()
   }
   return (
-    <Window title="Сохранения" back={back} wide>
-      {saves.length === 0 && <p class="menu__note">Сохранений нет. Начните новую игру или загрузите файл.</p>}
+    <Window title={t('menu.saves')} back={back} wide>
+      {saves.length === 0 && <p class="menu__note">{t('menu.noSaves')}</p>}
       <ul class="menu__saves">
         {saves.map((slot) => (
           <li key={slot.id} class="menu__save">
             <div class="menu__save-info">
               <strong>{slot.name}</strong>
               <small>
-                {date(slot.updated)} · {playtime(slot.tick)} · карта {slot.size}
-                {slot.height && slot.height !== slot.size ? `×${slot.height}` : ''} · зерно {slot.seed}
+                {date(slot.updated)} · {playtime(slot.tick)} · {t('menu.mapOf', { size: slot.height && slot.height !== slot.size ? `${slot.size}×${slot.height}` : slot.size })} ·{' '}
+                {t('menu.seedOf', { seed: slot.seed })}
               </small>
             </div>
             <span class="menu__inline">
               <button class="menu__primary" onClick={() => play({ kind: 'save', slot })}>
-                Играть
+                {t('common.play')}
               </button>
-              <button title="Править мир: карту, базы, юнитов, деньги и склады" disabled={slot.updated === slot.created} onClick={() => play({ kind: 'editor', slot })}>
-                Редактор
+              <button title={t('menu.editorTip')} disabled={slot.updated === slot.created} onClick={() => play({ kind: 'editor', slot })}>
+                {t('menu.editor')}
               </button>
               <button
                 onClick={() => {
-                  const name = prompt('Новое название', slot.name)?.trim()
+                  const name = prompt(t('menu.renamePrompt'), slot.name)?.trim()
                   if (!name) return
                   renameSave(slot.id, name)
                   refresh()
                 }}
               >
-                Имя
+                {t('menu.rename')}
               </button>
               <button
-                title="Скачать файл сохранения"
+                title={t('menu.fileTip')}
                 onClick={async () => {
                   const file = await exportSave(slot.id)
                   if (file) download(`${slot.name}.kharos`, file)
-                  else setError('Мир этого слота ещё не сохранён')
+                  else setError(t('menu.notSavedYet'))
                 }}
               >
-                Файл
+                {t('menu.file')}
               </button>
               {confirming === slot.id ? (
                 <button
@@ -517,10 +499,10 @@ function Saves({ back, saves, refresh, play, create }: { back(): void; saves: Sa
                     refresh()
                   }}
                 >
-                  Точно?
+                  {t('menu.sure')}
                 </button>
               ) : (
-                <button onClick={() => setConfirming(slot.id)}>Удалить</button>
+                <button onClick={() => setConfirming(slot.id)}>{t('menu.remove')}</button>
               )}
             </span>
           </li>
@@ -528,12 +510,12 @@ function Saves({ back, saves, refresh, play, create }: { back(): void; saves: Sa
       </ul>
       {error && <p class="menu__error">{error}</p>}
       <div class="menu__inline">
-        <button class="menu__primary" title="Карта с точными размерами: по генератору или чистая пустыня" onClick={create}>
-          Новый
+        <button class="menu__primary" title={t('menu.newWorldTip')} onClick={create}>
+          {t('menu.newWorld')}
         </button>
-        <button onClick={() => pick(false)}>Загрузить файл</button>
-        <button title="Править файл сохранения, не заводя слот: например, мир сервера" onClick={() => pick(true)}>
-          Файл в редактор
+        <button onClick={() => pick(false)}>{t('menu.loadFile')}</button>
+        <button title={t('menu.fileToEditorTip')} onClick={() => pick(true)}>
+          {t('menu.fileToEditor')}
         </button>
       </div>
     </Window>
@@ -552,10 +534,10 @@ function Network({ back, play }: { back(): void; play(launch: Launch): void }) {
     play({ kind: 'server', ...target, name: cleanName(target.name) })
   }
   return (
-    <Window title="Сетевая игра" back={back}>
+    <Window title={t('menu.network')} back={back}>
       {recent.length > 0 && (
         <>
-          <h3 class="menu__subtitle">Недавние серверы</h3>
+          <h3 class="menu__subtitle">{t('menu.recentServers')}</h3>
           <ul class="menu__saves">
             {recent.map((item) => (
               <li key={item.url} class="menu__save">
@@ -568,10 +550,10 @@ function Network({ back, play }: { back(): void; play(launch: Launch): void }) {
                 </div>
                 <span class="menu__inline">
                   <button class="menu__primary" onClick={() => join({ ...server, url: item.url, name: server.name || item.name })}>
-                    Играть
+                    {t('common.play')}
                   </button>
                   <button
-                    title="Убрать из списка"
+                    title={t('menu.forget')}
                     onClick={() => {
                       forgetServer(item.url)
                       setRecent(recentServers())
@@ -593,16 +575,16 @@ function Network({ back, play }: { back(): void; play(launch: Launch): void }) {
         }}
       >
         <label class="menu__field">
-          <span>Ник</span>
+          <span>{t('menu.nick')}</span>
           <input
             value={server.name}
             maxLength={NAME_LENGTH}
-            placeholder="Как вас увидят другие"
+            placeholder={t('menu.nickHint')}
             onInput={(event) => setServer({ ...server, name: event.currentTarget.value })}
           />
         </label>
         <label class="menu__field">
-          <span>Адрес сервера</span>
+          <span>{t('menu.serverAddress')}</span>
           <input
             value={server.url}
             placeholder="ws://host:port"
@@ -613,17 +595,17 @@ function Network({ back, play }: { back(): void; play(launch: Launch): void }) {
           />
         </label>
         <label class="menu__field">
-          <span>Задержка, мс</span>
+          <span>{t('menu.lag')}</span>
           <input
             type="number"
             min={0}
             value={server.lag}
-            title="Отладка: искусственная задержка в каждую сторону, чтобы почувствовать плохую сеть"
+            title={t('menu.lagTip')}
             onInput={(event) => setServer({ ...server, lag: Math.max(0, Number(event.currentTarget.value) || 0) })}
           />
         </label>
-        {isInsecure(server.url) && <p class="menu__note is-warn">{INSECURE_HINT}</p>}
-        <p class="menu__note">На сервере мир один на всех: его не начать заново и не сохранить у себя.</p>
+        {isInsecure(server.url) && <p class="menu__note is-warn">{t('errors.insecure')}</p>}
+        <p class="menu__note">{t('menu.sharedWorld')}</p>
         <span class="menu__inline">
           <button
             type="button"
@@ -631,10 +613,10 @@ function Network({ back, play }: { back(): void; play(launch: Launch): void }) {
               setServer({ ...server, url: localServerUrl() })
             }}
           >
-            Этот компьютер
+            {t('menu.thisComputer')}
           </button>
           <button type="submit" class="menu__primary" disabled={!/^wss?:\/\/./.test(server.url)}>
-            Подключиться
+            {t('common.connect')}
           </button>
         </span>
       </form>
@@ -654,9 +636,17 @@ export function Settings({ back, onSound }: SettingsProps) {
   const [volume, setVolume] = useState(loadVolume)
   const [levels, setLevels] = useState(() => Object.fromEntries(CHANNELS.map(({ channel }) => [channel, loadLevel(channel)])) as Record<Channel, number>)
   return (
-    <Window title="Настройки" back={back}>
+    <Window title={t('common.settings')} back={back}>
       <div class="menu__form">
-        <h3 class="menu__group">Звук</h3>
+        <h3 class="menu__group">{t('menu.language')}</h3>
+        <span class="menu__inline">
+          {LANGS.map(({ lang, name }) => (
+            <button type="button" key={lang} class={lang === currentLang() ? 'is-active' : undefined} onClick={() => void chooseLang(lang)}>
+              {name}
+            </button>
+          ))}
+        </span>
+        <h3 class="menu__group">{t('menu.sound')}</h3>
         <label class="menu__check">
           <input
             type="checkbox"
@@ -667,10 +657,10 @@ export function Settings({ back, onSound }: SettingsProps) {
               onSound()
             }}
           />
-          Звук и музыка
+          {t('menu.soundAndMusic')}
         </label>
         <label class="menu__field menu__field--slider">
-          <span>Общая</span>
+          <span>{t('menu.master')}</span>
           <input
             type="range"
             min={0}
@@ -687,9 +677,9 @@ export function Settings({ back, onSound }: SettingsProps) {
           <output>{Math.round(volume * 100)}%</output>
         </label>
         {/* Громкость групп — доля общей. */}
-        {CHANNELS.map(({ channel, label }) => (
+        {CHANNELS.map(({ channel }) => (
           <label key={channel} class="menu__field menu__field--slider">
-            <span>{label}</span>
+            <span>{t(`menu.channels.${channel}`)}</span>
             <input
               type="range"
               min={0}
@@ -715,13 +705,12 @@ export function Settings({ back, onSound }: SettingsProps) {
 /** Об игре: что это, кто делает, где код. */
 function About({ back }: { back(): void }) {
   return (
-    <Window title="Об игре" back={back}>
+    <Window title={t('menu.about')} back={back}>
       <div class="menu__form">
         <p class="menu__about">
-          Многопользовательская браузерная RTS: машина-основатель, процедурная карта, добыча и переработка руды, грузовая
-          логистика и оборона базы.
+          {t('menu.aboutText')}
         </p>
-        <h3 class="menu__group">Авторы</h3>
+        <h3 class="menu__group">{t('menu.authors')}</h3>
         <ul class="menu__authors">
           {AUTHORS.map((author) => (
             <li key={author.name}>
@@ -731,11 +720,11 @@ function About({ back }: { back(): void }) {
             </li>
           ))}
         </ul>
-        <h3 class="menu__group">Исходный код</h3>
+        <h3 class="menu__group">{t('menu.sourceCode')}</h3>
         <a class="menu__link" href={REPOSITORY} target="_blank" rel="noopener noreferrer">
           github.com/vicimpa/kharos
         </a>
-        <p class="menu__note">Версия протокола {PROTOCOL_VERSION}</p>
+        <p class="menu__note">{t('menu.protocolVersion', { version: PROTOCOL_VERSION })}</p>
       </div>
     </Window>
   )

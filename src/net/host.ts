@@ -13,6 +13,7 @@ import { TRACE_CELL, type Trace } from '../sim/traces'
 import { createBucket } from './limits'
 import { cleanChat, cleanName, type ChatLine, type PlayerInfo, type PlayerView, type ServerMessage, type ViewBox } from './protocol'
 import { PLAYER_ARG, parseCommand, type CommandInfo } from './chatCommands'
+import { hostText, type Text } from '../i18n'
 import { erase, putUnit, setCredits, setHealth } from '../sim/editor'
 import { freeTilesNear } from '../sim/units'
 
@@ -45,8 +46,15 @@ const FLOOD_RATE = 1
 const SPAWN_MOST = 50
 /** Сколько мс после неверного пароля администратора подключение не может попробовать снова. */
 const ADMIN_LOCK = 3000
-/** Имя, которым подписаны сообщения администратора и консоли сервера, /say. */
-export const SERVER_NAME = '[Сервер]'
+/**
+ * Чем хост подписывает то, что пишет сам: player — игрок без ника, с номером на месте «{number}»; server — имя, которым
+ * подписаны сообщения администратора и консоли, /say. Это язык хоста: ник видят все игроки одинаково.
+ */
+export interface HostNames {
+  player: string
+  server: string
+}
+const DEFAULT_NAMES: HostNames = { player: 'Игрок {number}', server: '[Сервер]' }
 /** Сколько игроков помещается на круге появления; следующие встают на круг шире. */
 const SPAWN_SLOTS = 8
 
@@ -68,14 +76,17 @@ export interface Peer {
 export interface Caller {
   player?: number
   admin: boolean
-  reply(text: string): void
+  /** Ответ: сообщение хоста ключом словаря (его читают на своём языке, см. textOf) или готовый текст. */
+  reply(text: Text): void
 }
 
 /**
  * Команда хоста. admin — только администратору (консоль им считается всегда); game — только из игры, не из
  * консоли; console — только из консоли, клиенту её не видно. args — слова после команды, rest(n) — текст после n слов.
  */
-export interface HostCommand extends CommandInfo {
+export interface HostCommand extends Omit<CommandInfo, 'help'> {
+  /** Что делает команда — для команд не из словаря; у своих команд хоста описание клиент берёт по имени. */
+  help?: string
   admin?: boolean
   game?: boolean
   console?: boolean
@@ -87,6 +98,8 @@ export interface HostOptions {
   admin?: string
   /** Куда писать, что делают администраторы: консоль сервера. */
   log?(text: string): void
+  /** Подписи хоста; нет — русские. */
+  names?: HostNames
 }
 
 export interface Host {
@@ -218,7 +231,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     for (const peer of peers.keys()) peer(out)
   }
   /** Сообщение сервера о игроке: «<ник> text». */
-  const notice = (about: number, text: string) => broadcast([{ player: about, name: names.get(about) ?? `Игрок ${about}`, text, system: true }])
+  const notice = (about: number, text: Text) => broadcast([{ player: about, name: nameOf(about), text, system: true }])
   const online = (who: number) => [...peers.values()].includes(who)
   /** Подключения в режиме администратора. */
   const admins = new Set<Send>()
@@ -245,8 +258,9 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
   /** Как закрыть подключение: им администратор выгоняет игрока. */
   const closers = new Map<Send, () => void>()
   /** Ответ на команду только этому подключению. */
-  const reply = (send: Send) => (text: string) => send(JSON.stringify({ type: 'chat', lines: [{ player: 0, name: '', text, system: true }] } satisfies ServerMessage))
-  const nameOf = (who: number) => names.get(who) ?? `Игрок ${who}`
+  const reply = (send: Send) => (text: Text) => send(JSON.stringify({ type: 'chat', lines: [{ player: 0, name: '', text, system: true }] } satisfies ServerMessage))
+  const defaultName = (who: number) => (options.names ?? DEFAULT_NAMES).player.replace('{number}', String(who))
+  const nameOf = (who: number): string => names.get(who) ?? defaultName(who)
   /** Игрок по номеру или нику без учёта регистра; не нашёлся — undefined. */
   const findPlayer = (text: string | undefined, admin = true) => {
     if (!text) return undefined
@@ -266,39 +280,41 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     [...commands.values()]
       .filter((command) => !command.console && (admin || !command.admin))
       // Локальной игре пароль не нужен, и клиент не спросит его.
-      .map(({ name, args, help, secret, choices }) => ({ name, args, help, ...(choices && { choices }), ...(secret && player === undefined && { secret }) }))
+      .map(({ name, args, help = '', secret, choices }) => ({ name, args, help, ...(choices && { choices }), ...(secret && player === undefined && { secret }) }))
   const sendCommands = (send: Send) => send(JSON.stringify({ type: 'commands', commands: commandsFor(admins.has(send)), admin: admins.has(send) } satisfies ServerMessage))
-  const serverSay = (text: string) => broadcast([{ player: 0, name: SERVER_NAME, text, system: true }])
+  const serverName = (options.names ?? DEFAULT_NAMES).server
+  const serverSay = (text: string) => broadcast([{ player: 0, name: serverName, text, system: true }])
   /** Подключение по его reply: команде из игры нужно знать, кто её прислал. */
   const callers = new WeakMap<Caller, Send>()
-  const usage = (command: HostCommand) => `Как: /${[command.name, ...command.args].join(' ')}`
+  const usage = (command: HostCommand) => hostText('usage', { command: `/${[command.name, ...command.args].join(' ')}` })
   const add = (command: HostCommand) => commands.set(command.name, command)
 
   add({
     name: 'help',
     args: [],
-    help: 'список команд',
     run(_args, _rest, caller) {
       for (const command of commands.values()) {
         if (command.admin && !caller.admin) continue
         if (caller.player === undefined ? command.game : command.console) continue
-        caller.reply(`/${[command.name, ...command.args].join(' ')} — ${command.help}`)
+        caller.reply(hostText('help', { command: `/${[command.name, ...command.args].join(' ')}`, name: command.name, help: command.help ?? '' }))
       }
     },
   })
   add({
     name: 'list',
     args: [],
-    help: 'кто сейчас в игре',
     run(_args, _rest, caller) {
-      const here = [...new Set(peers.values())].filter((who) => caller.admin || !hidden.has(who)).map((who) => (hidden.has(who) ? `${nameOf(who)} (скрыт)` : nameOf(who)))
-      caller.reply(here.length ? `В игре ${here.length}: ${here.join(', ')}` : 'В игре никого')
+      const present = [...new Set(peers.values())]
+      const here = present.filter((who) => !hidden.has(who)).map(nameOf)
+      caller.reply(here.length ? hostText('list', { count: here.length, names: here.join(', ') }) : hostText('listEmpty'))
+      // Скрытых видит только администратор.
+      const unseen = present.filter((who) => hidden.has(who)).map(nameOf)
+      if (caller.admin && unseen.length) caller.reply(hostText('listHidden', { names: unseen.join(', ') }))
     },
   })
   add({
     name: 'me',
-    args: ['<действие>'],
-    help: 'написать о себе от третьего лица',
+    args: ['<action>'],
     game: true,
     run(_args, rest, caller) {
       const text = rest(0)
@@ -307,49 +323,46 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
   })
   add({
     name: 'msg',
-    args: [PLAYER_ARG, '<текст>'],
-    help: 'личное сообщение',
+    args: [PLAYER_ARG, '<text>'],
     game: true,
     run(args, rest, caller) {
       const to = findPlayer(args[0], caller.admin)
       const text = rest(1)
-      if (to === undefined) return caller.reply(`Нет игрока «${args[0] ?? ''}»`)
+      if (to === undefined) return caller.reply(hostText('noPlayer', { name: args[0] ?? '' }))
       if (!text) return caller.reply(usage(this))
       const out = JSON.stringify({ type: 'chat', lines: [{ player: caller.player!, name: nameOf(caller.player!), text, whisper: nameOf(to) }] } satisfies ServerMessage)
       const self = callers.get(caller)
       for (const [peer, owner] of peers) if (owner === to || owner === caller.player || peer === self) peer(out)
-      if (![...peers.values()].includes(to) || (hidden.has(to) && !caller.admin)) caller.reply(`${nameOf(to)} сейчас не в игре`)
+      if (![...peers.values()].includes(to) || (hidden.has(to) && !caller.admin)) caller.reply(hostText('notOnline', { name: nameOf(to) }))
     },
   })
   add({
     name: 'admin',
     args: [],
-    help: 'режим администратора',
     secret: true,
     game: true,
     run(args, _rest, caller) {
       const send = callers.get(caller)!
       // В локальной игре мир свой, и пароль не нужен.
       const local = player !== undefined
-      if (!local && !options.admin) return caller.reply('Режима администратора на этом сервере нет')
-      if (admins.has(send)) return caller.reply('Вы уже администратор')
+      if (!local && !options.admin) return caller.reply(hostText('noAdminMode'))
+      if (admins.has(send)) return caller.reply(hostText('alreadyAdmin'))
       const now = Date.now()
-      if (now < (adminLocked.get(send) ?? 0)) return caller.reply('Подождите немного')
+      if (now < (adminLocked.get(send) ?? 0)) return caller.reply(hostText('wait'))
       if (!local && args.join(' ') !== options.admin) {
         adminLocked.set(send, now + ADMIN_LOCK)
         options.log?.(`! неверный пароль администратора от ${nameOf(caller.player!)}`)
-        return caller.reply('Неверный пароль')
+        return caller.reply(hostText('wrongPassword'))
       }
       admins.add(send)
       sendCommands(send)
       options.log?.(`! ${nameOf(caller.player!)} — администратор`)
-      caller.reply('Режим администратора включён: /help — что теперь можно')
+      caller.reply(hostText('adminOn'))
     },
   })
   add({
     name: 'logout',
     args: [],
-    help: 'выйти из режима администратора',
     admin: true,
     game: true,
     run(_args, _rest, caller) {
@@ -357,13 +370,12 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       admins.delete(send)
       if (editing.delete(send)) resync(send, caller.player!, true)
       sendCommands(send)
-      caller.reply('Режим администратора выключен')
+      caller.reply(hostText('adminOff'))
     },
   })
   add({
     name: 'editor',
     args: [],
-    help: 'редактор живого мира: вся карта без тумана, правки сразу видны всем; ещё раз — выйти',
     admin: true,
     game: true,
     run(_args, _rest, caller) {
@@ -372,26 +384,25 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       if (on) editing.add(send)
       else editing.delete(send)
       resync(send, caller.player!, true)
-      caller.reply(on ? 'Редактор: правки сразу видны всем. /editor — выйти' : 'Редактор закрыт')
+      caller.reply(hostText(on ? 'editorOn' : 'editorOff'))
       options.log?.(`! ${nameOf(caller.player!)} ${on ? 'открыл' : 'закрыл'} редактор`)
     },
   })
   add({
     name: 'hide',
     args: [],
-    help: 'исчезнуть для игроков: нет в списке, вход и выход не объявляются; ещё раз — появиться',
     admin: true,
     game: true,
     run(_args, _rest, caller) {
       const who = caller.player!
       // Для остальных — как будто вышел или зашёл.
       if (hidden.delete(who)) {
-        notice(who, 'заходит в игру')
-        caller.reply('Вас снова видно')
+        notice(who, hostText('joins'))
+        caller.reply(hostText('shown'))
       } else {
-        notice(who, 'выходит из игры')
+        notice(who, hostText('leaves'))
         hidden.add(who)
-        caller.reply('Вас не видно: /hide — появиться')
+        caller.reply(hostText('hidden'))
       }
       announce()
       options.log?.(`! ${nameOf(who)} ${hidden.has(who) ? 'скрылся' : 'появился'}`)
@@ -399,25 +410,23 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
   })
   add({
     name: 'say',
-    args: ['<текст>'],
-    help: 'написать всем от имени сервера',
+    args: ['<text>'],
     admin: true,
     run(_args, rest, caller) {
       const text = cleanChat(rest(0))
       if (!text) return caller.reply(usage(this))
       serverSay(text)
-      options.log?.(`${SERVER_NAME} ${text}`)
+      options.log?.(`${serverName} ${text}`)
     },
   })
   add({
     name: 'kick',
     args: [PLAYER_ARG],
-    help: 'отключить игрока; его база остаётся',
     admin: true,
     run(args, _rest, caller) {
       const who = findPlayer(args.join(' '))
-      if (who === undefined) return caller.reply(`Нет игрока «${args.join(' ')}»`)
-      const out = JSON.stringify({ type: 'refused', reason: 'Вас отключил администратор' } satisfies ServerMessage)
+      if (who === undefined) return caller.reply(hostText('noPlayer', { name: args.join(' ') }))
+      const out = JSON.stringify({ type: 'refused', reason: hostText('kickedYou') } satisfies ServerMessage)
       let count = 0
       for (const [peer, owner] of [...peers]) {
         if (owner !== who) continue
@@ -425,24 +434,23 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
         closers.get(peer)?.()
         count++
       }
-      if (!count) return caller.reply(`${nameOf(who)} сейчас не в игре`)
-      notice(who, 'отключён администратором')
+      if (!count) return caller.reply(hostText('notOnline', { name: nameOf(who) }))
+      notice(who, hostText('kicked'))
       options.log?.(`! ${nameOf(who)} отключён`)
     },
   })
   add({
     name: 'credits',
-    args: [PLAYER_ARG, '<сумма>'],
-    help: 'поставить игроку кредиты; +N и -N — прибавить и убавить',
+    args: [PLAYER_ARG, '<amount>'],
     admin: true,
     run(args, _rest, caller) {
       const who = findPlayer(args[0])
       const amount = Number(args[1])
-      if (who === undefined) return caller.reply(`Нет игрока «${args[0] ?? ''}»`)
+      if (who === undefined) return caller.reply(hostText('noPlayer', { name: args[0] ?? '' }))
       if (!Number.isFinite(amount)) return caller.reply(usage(this))
       const relative = /^[+-]/.test(args[1])
       setCredits(sim, who, relative ? creditsOf(sim, who) + amount : amount)
-      caller.reply(`У ${nameOf(who)} теперь ${creditsOf(sim, who)} кредитов`)
+      caller.reply(hostText('creditsNow', { name: nameOf(who), credits: creditsOf(sim, who) }))
       options.log?.(`! кредиты ${nameOf(who)}: ${creditsOf(sim, who)}`)
     },
   })
@@ -453,7 +461,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
    */
   const target = (arg: string | undefined, caller: Caller) => {
     const who = arg === undefined ? caller.player : findPlayer(arg)
-    if (who === undefined) caller.reply(arg === undefined ? 'Укажите игрока' : `Нет игрока «${arg}»`)
+    if (who === undefined) caller.reply(arg === undefined ? hostText('needPlayer') : hostText('noPlayer', { name: arg }))
     return who
   }
   /** Своё у игрока: юниты и здания, без турелей — они уходят вместе с носителем. */
@@ -478,31 +486,29 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
   add({
     name: 'players',
     args: [],
-    help: 'все игроки мира: номер, в сети ли, кредиты, юниты и здания',
     admin: true,
     run(_args, _rest, caller) {
       const here = new Set(peers.values())
       for (const [who, name] of names) {
         const { units, buildings } = ownedBy(who)
-        const state = isDefeated(sim, who) ? 'побеждён' : here.has(who) ? 'в сети' : 'не в сети'
-        caller.reply(`#${who} ${name} — ${state}, ${creditsOf(sim, who)} кр., юнитов ${units.length}, зданий ${buildings.length}`)
+        const state = isDefeated(sim, who) ? 'playerDefeated' : here.has(who) ? 'playerOnline' : 'playerOffline'
+        caller.reply(hostText(state, { number: who, name, credits: creditsOf(sim, who), units: units.length, buildings: buildings.length }))
       }
     },
   })
   add({
     name: 'spawn',
-    args: ['<юнит>', '[кол-во]', `[${PLAYER_ARG.slice(1, -1)}]`],
+    args: ['<unit>', '[count]', `[${PLAYER_ARG.slice(1, -1)}]`],
     choices: [UNIT_TYPES, null, null],
-    help: 'поставить юнитов у базы игрока (себе — без ника)',
     admin: true,
     run(args, _rest, caller) {
       const type = args[0] as UnitType
-      if (!UNIT_TYPES.includes(type)) return caller.reply(`Юниты: ${UNIT_TYPES.join(', ')}`)
+      if (!UNIT_TYPES.includes(type)) return caller.reply(hostText('unitTypes', { list: UNIT_TYPES.join(', ') }))
       const count = Math.min(SPAWN_MOST, Math.max(1, Math.floor(Number(args[1] ?? 1)) || 1))
       const who = target(args[2], caller)
       if (who === undefined) return
       const base = baseOf(who)
-      if (!base) return caller.reply(`У ${nameOf(who)} нет базы: /reset ${who}`)
+      if (!base) return caller.reply(hostText('noBase', { name: nameOf(who), number: who }))
       const tiles = freeTilesNear(sim, base.x, base.y, count, 2, undefined, flies(type))
       let made = 0
       for (let i = 0; i + 1 < tiles.length; i += 2) if (putUnit(sim, type, tiles[i], tiles[i + 1], who)) made++
@@ -513,7 +519,6 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
   add({
     name: 'killunits',
     args: [`${PLAYER_ARG.slice(0, -1)}|all>`],
-    help: 'убрать все юниты игрока или всех (all); здания остаются',
     admin: true,
     run(args, _rest, caller) {
       const all = args[0]?.toLowerCase() === 'all'
@@ -522,40 +527,37 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       const units = all ? [...names.keys()].flatMap((each) => ownedBy(each).units) : ownedBy(who!).units
       for (const entity of units) erase(sim, entity)
       const count = units.length
-      caller.reply(`Убрано юнитов: ${count}`)
+      caller.reply(hostText('unitsRemoved', { count }))
       options.log?.(`! killunits ${all ? 'all' : nameOf(who!)}: ${count}`)
     },
   })
   add({
     name: 'heal',
     args: [PLAYER_ARG],
-    help: 'вся техника и здания игрока целы',
     admin: true,
     run(args, _rest, caller) {
       const who = target(args[0], caller)
       if (who === undefined) return
       const { units, buildings } = ownedBy(who)
       for (const entity of [...units, ...buildings]) setHealth(sim, entity, 1)
-      caller.reply(`${nameOf(who)}: починено ${units.length + buildings.length}`)
+      caller.reply(hostText('healed', { name: nameOf(who), count: units.length + buildings.length }))
     },
   })
   add({
     name: 'reset',
     args: [PLAYER_ARG],
-    help: 'снести всё у игрока и дать ему новый стартовый набор',
     admin: true,
     run(args, _rest, caller) {
       const who = target(args[0], caller)
       if (who === undefined) return
       restart(who)
-      caller.reply(`${nameOf(who)} начинает заново`)
+      caller.reply(hostText('restarted', { name: nameOf(who) }))
       options.log?.(`! reset ${nameOf(who)}`)
     },
   })
   add({
     name: 'reveal',
     args: [PLAYER_ARG],
-    help: 'открыть игроку всю карту',
     admin: true,
     run(args, _rest, caller) {
       const who = target(args[0], caller)
@@ -563,7 +565,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       // Один отрезок «разведано» длиннее любой карты: explore обрежет его по её краю.
       sim.vision.explore(who, [0, 2 ** 31])
       for (const [peer, owner] of peers) if (owner === who) peer(explored(who))
-      caller.reply(`${nameOf(who)} видит всю карту`)
+      caller.reply(hostText('revealed', { name: nameOf(who) }))
     },
   })
 
@@ -573,7 +575,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     const command = commands.get(parsed.name)
     const fromGame = caller.player !== undefined
     if (!command || (command.admin && !caller.admin) || (fromGame ? command.console : command.game)) {
-      return caller.reply(`Нет команды /${parsed.name}: /help — список`)
+      return caller.reply(hostText('noCommand', { name: parsed.name }))
     }
     command.run(parsed.args, parsed.rest, caller)
   }
@@ -582,7 +584,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
   const restart = (who: number) => {
     wipePlayer(sim, who)
     defeated.delete(who)
-    if (player === undefined && !hidden.has(who)) notice(who, 'начинает заново')
+    if (player === undefined && !hidden.has(who)) notice(who, hostText('restarts'))
     sim.vision.forget(who)
     place(who)
     // Вкладки игрока начинают как в новом мире: туман закрыт, камера встаёт на новый стартовый набор.
@@ -822,9 +824,9 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       } else id = undefined
       const joined = own
       const nick = cleanName(name ?? '')
-      if (nick || !names.has(joined)) names.set(joined, nick || `Игрок ${joined}`)
+      if (nick || !names.has(joined)) names.set(joined, nick || defaultName(joined))
       // О входе — только когда игрок появился: вторая вкладка того же игрока не в счёт. Локальной игре не нужно.
-      if (player === undefined && !online(joined) && !hidden.has(joined)) notice(joined, 'заходит в игру')
+      if (player === undefined && !online(joined) && !hidden.has(joined)) notice(joined, hostText('joins'))
       peers.set(send, joined)
       // У локальной игры клиент свой, и считать его сообщения незачем.
       if (player === undefined) floods.set(send, { messages: createBucket(MESSAGE_RATE, MESSAGE_BURST), strikes: createBucket(FLOOD_RATE, FLOOD_BURST) })
@@ -846,7 +848,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
             if (flood.strikes.take()) return
             floods.delete(send)
             options.log?.(`! ${nameOf(joined)} отключён: слишком много сообщений`)
-            send(JSON.stringify({ type: 'refused', reason: 'Слишком много сообщений' } satisfies ServerMessage))
+            send(JSON.stringify({ type: 'refused', reason: hostText('flood') } satisfies ServerMessage))
             closers.get(send)?.()
             return
           }
@@ -870,7 +872,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
               runCommand(clean, caller)
               return
             }
-            const line: ChatLine = { player: joined, name: names.get(joined) ?? `Игрок ${joined}`, text: clean }
+            const line: ChatLine = { player: joined, name: nameOf(joined), text: clean }
             broadcast([line])
             return
           }
@@ -893,9 +895,9 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
             if (typeof edit !== 'object' || edit === null) return
             try {
               const failed = applyEdit(sim, edit)
-              if (failed) reply(send)(failed)
+              if (failed) reply(send)(hostText(failed))
             } catch {
-              reply(send)('Правка не применилась')
+              reply(send)(hostText('editFailed'))
             }
             return
           }
@@ -919,7 +921,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
           adminLocked.delete(send)
           closers.delete(send)
           sent.delete(send)
-          if (player === undefined && !online(joined) && !hidden.has(joined)) notice(joined, 'выходит из игры')
+          if (player === undefined && !online(joined) && !hidden.has(joined)) notice(joined, hostText('leaves'))
           announce()
         },
       }
@@ -964,7 +966,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
           for (const who of names.keys()) {
             if (defeated.has(who) || !isDefeated(sim, who)) continue
             defeated.add(who)
-            if (!hidden.has(who)) notice(who, 'терпит поражение')
+            if (!hidden.has(who)) notice(who, hostText('defeated'))
           }
         }
         const expired = sim.traces.expired()

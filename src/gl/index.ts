@@ -1,3 +1,5 @@
+import { t } from '../i18n'
+
 export { createProgram } from './program'
 export type { Program, Uniforms, UniformValue } from './program'
 export { SCREEN_VERTEX, createQuads, drawQuad, forgetContext } from './quads'
@@ -8,7 +10,7 @@ export type { Target, Texture, TextureOptions } from './texture'
 /** Контекст WebGL 2 без сглаживания и буфера глубины: порядок отрисовки задают проходы. */
 export function createContext(canvas: HTMLCanvasElement) {
   const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false })
-  if (!gl) throw new Error('Браузер не поддерживает WebGL 2')
+  if (!gl) throw new Error(t('errors.noWebgl'))
   return gl
 }
 

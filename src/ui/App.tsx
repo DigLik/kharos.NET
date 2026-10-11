@@ -6,12 +6,15 @@ import { launchFromAddress, recallLaunch, rememberLast, rememberLaunch, type Lau
 import { Menu } from './Menu'
 import { Showcase } from './Showcase'
 import { TerrainTest, isTerrainTest } from './TerrainTest'
+import { useLang } from './useLang'
 
 /**
  * Страница: главное меню над слайдами симуляции или сама игра. Игра, заданная адресной строкой (?server,
  * ?battle, ?sandbox), открывается сразу, минуя меню; после перезагрузки вкладка возвращается в свою игру.
  */
 export function App() {
+  // Язык поменялся — вся страница перерисовывается с новыми строками.
+  useLang()
   if (isTerrainTest()) return <TerrainTest />
   return <Game />
 }

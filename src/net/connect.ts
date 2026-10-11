@@ -3,6 +3,7 @@ import type { SimOptions, SimSave } from '../sim'
 import type { LocalControl, LocalNotice, LocalSetup } from './local'
 import { PROTOCOL_VERSION, decodeServer } from './protocol'
 import { createReplica, type Replica } from './replica'
+import { t, textOf } from '../i18n'
 
 /**
  * Игра на хосте: копия его симуляции и номер игрока, которого хост выдал этому клиенту. local — управление
@@ -54,12 +55,6 @@ export class PasswordRequired extends Error {
 /** Страница открыта по https, а сервер — по незащищённому ws://: браузер такое соединение блокирует. */
 export const isInsecure = (url: string) => location.protocol === 'https:' && /^ws:\/\//i.test(url.trim())
 
-/** Что сказать, если до незащищённого сервера не достучаться со страницы по https. */
-export const INSECURE_HINT =
-  'Страница открыта по https, а сервер — по незащищённому ws://, и браузер блокирует такое соединение. ' +
-  'Разрешите его: значок слева от адреса → «Настройки сайтов» → «Небезопасный контент» → «Разрешить», затем перезагрузите вкладку. ' +
-  'Либо подключайтесь к серверу по wss://.'
-
 /** Пароль, с которым на сервер url уже пускали. */
 export const savedPassword = (url: string) => loadByUrl(PASSWORDS_KEY)[url] ?? ''
 
@@ -95,17 +90,18 @@ export function connect(url: string, lag = 0, name = '', password = '', signal?:
       socket.close()
       reject(error)
     }
-    const timer = setTimeout(() => fail(new Error(`Сервер ${url} не ответил за ${CONNECT_TIMEOUT / 1000} секунд`)), CONNECT_TIMEOUT)
-    signal?.addEventListener('abort', () => !sim && fail(new DOMException('Подключение отменено', 'AbortError')))
+    const timer = setTimeout(() => fail(new Error(t('errors.noReply', { url, seconds: CONNECT_TIMEOUT / 1000 }))), CONNECT_TIMEOUT)
+    signal?.addEventListener('abort', () => !sim && fail(new DOMException(t('errors.cancelled'), 'AbortError')))
 
     socket.onmessage = (event) => {
       delayed(() => {
         const message = decodeServer(event.data as string | ArrayBuffer)
         if (message.type === 'refused') {
-          refused = message.password ? `${message.reason}: переподключитесь и введите пароль` : message.reason
+          const reason = textOf(message.reason)
+          refused = message.password ? t('errors.enterPassword', { reason }) : reason
           if (message.password) storeByUrl(PASSWORDS_KEY, url, undefined)
           if (sim) sim.fail(refused)
-          else reject(message.password ? new PasswordRequired(message.reason, Boolean(password)) : new Error(refused))
+          else reject(message.password ? new PasswordRequired(reason, Boolean(password)) : new Error(refused))
           return
         }
         if (sim) return sim.receive(message)
@@ -124,8 +120,8 @@ export function connect(url: string, lag = 0, name = '', password = '', signal?:
     socket.onclose = () => {
       clearTimeout(timer)
       if (refused) return
-      if (sim) sim.fail('Соединение с сервером потеряно')
-      else reject(new Error(`Не удалось подключиться к серверу ${url}${isInsecure(url) ? `\n\n${INSECURE_HINT}` : ''}`))
+      if (sim) sim.fail(t('errors.lost'))
+      else reject(new Error(`${t('errors.cannotConnect', { url })}${isInsecure(url) ? `\n\n${t('errors.insecure')}` : ''}`))
     }
   })
 }
@@ -177,6 +173,7 @@ export function connectLocal(setup: LocalSetup, onSave: (save: SimSave) => void,
     }
     // Закрытую вкладку воркер должен забыть: иначе слал бы мир в никуда.
     window.addEventListener('pagehide', leave)
-    control({ type: 'start', ...setup })
+    // Чем хост подписывает игрока без ника и свои сообщения — на языке игрока: воркер словаря не знает.
+    control({ type: 'start', ...setup, names: { player: t('server.player'), server: t('server.name') } })
   })
 }

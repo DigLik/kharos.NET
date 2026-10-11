@@ -2,7 +2,7 @@ import type { HudState, Stack } from '../game/hud'
 import type { PaveIcon } from '../game/portraits'
 import type { PaveTool } from '../game/scene'
 import { BRIDGE_COST, BUILDINGS, UNDERGROUND_REACH, BUILDING_TYPES, DEPOSIT_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, WARES, type Stance, type BuildingType, type Command, type DepositKind, type Good } from '../sim'
-import { BUILDING_INFO, BUILDING_NAMES, RESOURCE_NAMES, UNIT_NAMES, goodName } from './names'
+import { t } from '../i18n'
 
 /** Клавиши ячеек сетки команд по порядку: три ряда по четыре, как на клавиатуре, справа от WASD. */
 export const GRID_KEYS = ['KeyT', 'KeyY', 'KeyU', 'KeyI', 'KeyG', 'KeyH', 'KeyJ', 'KeyK', 'KeyB', 'KeyN', 'KeyM', 'Comma'] as const
@@ -34,7 +34,8 @@ const SECTIONS: Partial<Record<Page, BuildingType[]>> = {
 /** Описание здания для карточки: что делает и какие здания открывает. */
 function aboutOf(building: BuildingType) {
   const opens = BUILDING_TYPES.filter((type) => REQUIRES[type]?.includes(building))
-  return opens.length ? `${BUILDING_INFO[building]}. Открывает: ${opens.map((type) => BUILDING_NAMES[type]).join(', ')}` : BUILDING_INFO[building]
+  const info = t(`buildingInfo.${building}`)
+  return opens.length ? t('grid.unlocks', { info, list: opens.map((type) => t(`buildings.${type}`)).join(', ') }) : info
 }
 
 const sectionOf = (building: BuildingType): Page =>
@@ -75,28 +76,23 @@ interface Actions {
   open: (page: Page) => void
 }
 
-/** Кнопки стоек: подпись и подсказка. */
-export const STANCE_SLOTS: { stance: Stance; label: string; title: string }[] = [
-  { stance: 'aggressive', label: 'Агрессивно', title: 'Идти на любого врага, которого видно, и гнаться за ним; посланные идти бьют по дороге тех, кто опасен, и идут дальше' },
-  { stance: 'defensive', label: 'Оборона', title: `Бить тех, кого достаёт; на огонь отвечать погоней не дальше ${LEASH} тайлов и возвращаться на место` },
-  { stance: 'hold', label: 'Держать позицию', title: 'С места не сходить: бить только тех, кого достаёт, и под огнём тоже' },
-  { stance: 'passive', label: 'Не стрелять', title: 'Огонь не открывать и не отвечать: стрелять только по приказу атаки' },
-]
+/** Стойки по порядку кнопок. */
+const STANCES: Stance[] = ['aggressive', 'defensive', 'hold', 'passive']
+/** Кнопки стоек: подпись и подсказка на текущем языке. */
+export const stanceSlots = () => STANCES.map((stance) => ({ stance, label: t(`grid.stances.${stance}`), title: t(`grid.stanceTips.${stance}`, { leash: LEASH }) }))
 
-/** Инструменты раздела «Покрытие»: подпись, цена тайла и подсказка. */
-const PAVE_TOOLS: { tool: PaveTool; label: string; cost?: number; title: string }[] = [
-  { tool: 'foundation', label: 'Фундамент', cost: FOUNDATION_COST, title: 'Здания на нём строятся вдвое быстрее, на песке он разрешает стройку. Взрывы его разбивают. Тяни мышью прямоугольник' },
-  { tool: 'road', label: 'Дорога', cost: ROAD_COST, title: `Наземные едут быстрее; по болоту — мост за ${BRIDGE_COST} за тайл. Тяни мышью линию` },
+type GridTool = 'foundation' | 'road' | 'pipe' | 'well'
+/** Инструменты раздела «Покрытие» и цена тайла; подпись и подсказка — в словаре. */
+const PAVE_TOOLS: { tool: GridTool; cost: number }[] = [
+  { tool: 'foundation', cost: FOUNDATION_COST },
+  { tool: 'road', cost: ROAD_COST },
 ]
 
 /** Инструменты раздела «Логистика»: трубы и колодцы. */
-const PIPE_TOOLS: { tool: PaveTool; label: string; cost?: number; title: string }[] = [
-  { tool: 'pipe', label: 'Труба', cost: BUILDINGS.pipe.cost, title: 'Связывает здания в сеть: по трубам идут груз и энергия, они расширяют зону. Перекрывает проезд — под проездом веди колодцами. Своя зона не нужна. Тяни мышью линию' },
-  { tool: 'well', label: 'Колодцы', cost: BUILDINGS.well.cost, title: `Колодцы — концы подземной трубы: щелчок ставит один (свяжется с колодцем по прямой), протяжка — пару, до ${UNDERGROUND_REACH} тайлов. Над ней ездят и строят, уязвимы только колодцы. Своя зона не нужна` },
+const PIPE_TOOLS: { tool: GridTool; cost: number }[] = [
+  { tool: 'pipe', cost: BUILDINGS.pipe.cost },
+  { tool: 'well', cost: BUILDINGS.well.cost },
 ]
-
-/** Подсказка инструмента «Разобрать». */
-const REMOVE_TITLE = 'Строители разберут своё в рамке: покрытие, трубы с колодцами и здания, целиком попавшие в неё (за трубы и здания вернут половину цены); недостроенное отменится с возвратом кредитов. Тяни мышью прямоугольник'
 
 /** Сетка команд для выбранного: GRID_SIZE ячеек, пустые — null. */
 export function commandsOf(state: HudState, page: Page, { send, place, pave, route, serve, patrol, open }: Actions): (Slot | null)[] {
@@ -107,7 +103,7 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
   if (construction) {
     /** Кнопка здания из списка строителя. */
     const buildingSlot = ({ building, cost, affordable, power, materials }: (typeof construction.options)[number]): Slot => ({
-      label: BUILDING_NAMES[building],
+      label: t(`buildings.${building}`),
       building,
       cost,
       power,
@@ -115,7 +111,7 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
       active: construction.placing === building,
       about: aboutOf(building),
       disabled: !affordable,
-      title: affordable ? undefined : 'Не хватает кредитов',
+      title: affordable ? undefined : t('grid.noCredits'),
       run: () => {
         pave(null)
         place(construction.placing === building ? null : building)
@@ -128,7 +124,7 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
         ...buildingSlot(option),
         cost: active && construction.paving!.tiles > 1 ? construction.paving!.cost : option.cost,
         active,
-        title: option.affordable ? 'Тяни мышью линию; щелчок ставит одну' : 'Не хватает кредитов',
+        title: option.affordable ? t('grid.wallTip') : t('grid.noCredits'),
         run: () => {
           place(null)
           pave(active ? null : 'wall')
@@ -138,31 +134,37 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
     if (page === 'root') {
       // Раздел появляется, когда в нём открыто хоть одно здание; покрытие доступно всегда.
       const opened = (page: Page) => construction.options.some(({ building }) => sectionOf(building) === page)
+      const section = (page: 'economy' | 'storage' | 'industry' | 'military' | 'defense' | 'paving' | 'logistics') => ({
+        page,
+        label: t(`grid.sections.${page}`),
+        title: t(`grid.sectionTips.${page}`),
+        run: () => open(page),
+      })
       const sections: (Slot & { page: Page })[] = [
-        { page: 'economy', label: 'Хозяйство', building: 'generator', title: 'Энергия, добыча и торговля', run: () => open('economy') },
-        { page: 'storage', label: 'Склады', building: 'metalYard', title: 'Хранилища ресурсов и изделий', run: () => open('storage') },
-        { page: 'industry', label: 'Переработка', building: 'smelter', title: 'Переработка руды и заводы изделий', run: () => open('industry') },
-        { page: 'military', label: 'Военное', building: 'factory', title: 'Казармы, заводы, аэродром и техцентр', run: () => open('military') },
-        { page: 'defense', label: 'Оборона', building: 'wall', title: 'Стены, турели и радар', run: () => open('defense') },
+        { ...section('economy'), building: 'generator' },
+        { ...section('storage'), building: 'metalYard' },
+        { ...section('industry'), building: 'smelter' },
+        { ...section('military'), building: 'factory' },
+        { ...section('defense'), building: 'wall' },
       ]
       // У каждого раздела своё место: закрытый оставляет пустую ячейку, и кнопки не сдвигаются, когда открываются новые.
       const count = (page: Page) => construction.options.filter(({ building }) => sectionOf(building) === page).length
       sections.forEach((section, i) => (slots[i] = opened(section.page) ? { ...section, group: count(section.page) } : null))
-      slots[sections.length] = { label: 'Покрытие', pave: 'road', group: PAVE_TOOLS.length, title: 'Фундамент, дороги и мосты', run: () => open('paving') }
-      slots[sections.length + 1] = { label: 'Логистика', building: 'pipe', group: PIPE_TOOLS.length, title: 'Трубы и колодцы: связывают здания в сеть', run: () => open('logistics') }
+      slots[sections.length] = { ...section('paving'), pave: 'road', group: PAVE_TOOLS.length }
+      slots[sections.length + 1] = { ...section('logistics'), building: 'pipe', group: PIPE_TOOLS.length }
       // Разбор — сразу инструмент, без раздела.
       const active = construction.paving?.tool === 'remove'
-      slots[sections.length + 2] = { label: 'Разобрать', pave: 'remove', active, title: REMOVE_TITLE, run: () => pave(active ? null : 'remove') }
+      slots[sections.length + 2] = { label: t('grid.remove'), pave: 'remove', active, title: t('grid.removeTip'), run: () => pave(active ? null : 'remove') }
     } else if (page === 'paving' || page === 'logistics') {
-      ;(page === 'paving' ? PAVE_TOOLS : PIPE_TOOLS).forEach(({ tool, label, cost, title }, i) => {
+      ;(page === 'paving' ? PAVE_TOOLS : PIPE_TOOLS).forEach(({ tool, cost }, i) => {
         const active = construction.paving?.tool === tool
         slots[i] = {
-          label,
-          ...(tool === 'pipe' || tool === 'well' || tool === 'wall' ? { building: tool } : { pave: tool }),
+          label: t(`grid.tools.${tool}`),
+          ...(tool === 'pipe' || tool === 'well' ? { building: tool } : { pave: tool }),
           cost: active && construction.paving!.tiles > 1 ? construction.paving!.cost : cost,
           active,
-          disabled: tool !== 'remove' && cost !== undefined && credits < cost,
-          title,
+          disabled: credits < cost,
+          title: t(`grid.toolTips.${tool}`, { bridge: BRIDGE_COST, reach: UNDERGROUND_REACH }),
           run: () => {
             place(null)
             pave(active ? null : tool)
@@ -174,8 +176,8 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
         construction.options.filter(({ building }) => sectionOf(building) === page).forEach((option, i) => (slots[PIPE_TOOLS.length + i] = buildingSlot(option)))
       }
       slots[BACK] = {
-        label: 'Назад',
-        title: 'К разделам; Esc отменяет укладку',
+        label: t('common.back'),
+        title: t('grid.backFromPaving'),
         run: () => {
           pave(null)
           place(null)
@@ -186,8 +188,8 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
       const wanted = construction.options.filter(({ building }) => sectionOf(building) === page)
       wanted.slice(0, BACK).forEach((option, i) => (slots[i] = option.building === 'wall' ? wallSlot(option) : buildingSlot(option)))
       slots[BACK] = {
-        label: 'Назад',
-        title: 'К разделам; Esc отменяет выбор места',
+        label: t('common.back'),
+        title: t('grid.backFromPlacing'),
         run: () => {
           pave(null)
           place(null)
@@ -201,21 +203,21 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
   if (production && page === 'root') {
     list(
       production.options.map(({ unit, cost, affordable, materials, missing }) => ({
-        label: UNIT_NAMES[unit],
+        label: t(`units.${unit}`),
         unit,
         cost,
         materials,
         disabled: !affordable || production.full || missing.length > 0,
         title: missing.length
-          ? `Нужно построить: ${missing.map((type) => BUILDING_NAMES[type]).join(', ')}`
-          : production.full ? 'Очередь заполнена' : affordable ? undefined : 'Не хватает кредитов',
+          ? t('grid.needs', { list: missing.map((type) => t(`buildings.${type}`)).join(', ') })
+          : production.full ? t('grid.queueFull') : affordable ? undefined : t('grid.noCredits'),
         run: () => send({ type: 'produce', producer: production.producer, unit }),
       })),
     )
     if (production.queue.length) {
       slots[trade ? BACK : CANCEL] = {
-        label: 'Отменить заказ',
-        title: 'Последний в очереди; кредиты вернутся',
+        label: t('grid.cancelOrder'),
+        title: t('grid.cancelOrderTip'),
         run: () => send({ type: 'cancelProduction', producer: production.busiest }),
       }
     }
@@ -224,29 +226,29 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
   if (conversion) {
     if (conversion.progress === null) {
       slots[CONVERT] = {
-        label: conversion.kind === 'deploy' ? 'Развернуть' : 'Свернуть в MCV',
+        label: conversion.kind === 'deploy' ? t('grid.deploy') : t('grid.pack'),
         building: 'command',
-        about: conversion.kind === 'deploy' ? BUILDING_INFO.command : undefined,
+        about: conversion.kind === 'deploy' ? t('buildingInfo.command') : undefined,
         disabled: !conversion.possible,
-        title: conversion.possible ? undefined : 'Нужна свободная скала или фундамент 3×3 под машиной',
+        title: conversion.possible ? undefined : t('grid.deployBlocked'),
         run: () => send(conversion.command),
       }
     } else if (conversion.cancel) {
       const cancel = conversion.cancel
-      slots[CANCEL] = { label: 'Отменить', run: () => send(cancel) }
+      slots[CANCEL] = { label: t('grid.cancel'), run: () => send(cancel) }
     }
   }
 
   const { tactics } = state
   if (tactics && !construction && page === 'root') {
     const { units } = tactics
-    STANCE_SLOTS.forEach(({ stance, label, title }, i) => {
+    stanceSlots().forEach(({ stance, label, title }, i) => {
       slots[i] = { label, active: tactics.stance === stance, title, run: () => send({ type: 'stance', units, stance }) }
     })
     slots[4] = {
-      label: 'Патруль',
+      label: t('grid.patrol'),
       active: tactics.picking || tactics.patrolling > 0,
-      title: 'P, потом щелчок по карте — бойцы ходят между своим местом и точкой; Shift+щелчок — ещё точка к патрулю',
+      title: t('grid.patrolTip'),
       run: () => patrol(!tactics.picking),
     }
   }
@@ -256,28 +258,28 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
     const { units, filter } = haul
     if (page === 'root') {
       slots[0] = {
-        label: haul.routing === null ? 'Маршрут' : `Маршрут: ${haul.routing}`,
+        label: haul.routing === null ? t('grid.route') : t('grid.routeStops', { stops: haul.routing }),
         active: haul.routing !== null,
-        title: 'Щёлкай по своим зданиям со складом по порядку; правая кнопка или Enter — готово, Esc — отмена',
+        title: t('grid.routeTip'),
         run: () => route(haul.routing === null),
       }
       if (haul.routed > 0) {
-        slots[1] = { label: 'Снять маршрут', title: 'Грузовики вернутся к заявкам зон', run: () => send({ type: 'route', units, stops: [] }) }
+        slots[1] = { label: t('grid.dropRoute'), title: t('grid.backToRequests'), run: () => send({ type: 'route', units, stops: [] }) }
       }
       slots[2] = {
-        label: filter.length ? `Фильтр: ${filter.length}` : 'Фильтр',
+        label: filter.length ? t('grid.filterCount', { count: filter.length }) : t('grid.filter'),
         active: filter.length > 0,
-        title: 'Какие грузы возить по заявкам и маршруту',
+        title: t('grid.filterTip'),
         run: () => open('filter'),
       }
       slots[3] = {
-        label: haul.serving === null ? 'Обслуживать' : `Обслуживать: ${haul.serving}`,
+        label: haul.serving === null ? t('grid.serve') : t('grid.serveCount', { count: haul.serving }),
         active: haul.serving !== null,
-        title: 'Щёлкай по своим зданиям: грузовики будут возить только по их заявкам, а груз брать в любой своей зоне. Правая кнопка или Enter — готово, Esc — отмена',
+        title: t('grid.serveTip'),
         run: () => serve(haul.serving === null),
       }
       if (haul.served > 0) {
-        slots[4] = { label: 'Снять назначение', title: 'Грузовики вернутся к заявкам зон', run: () => send({ type: 'serve', units, buildings: [] }) }
+        slots[4] = { label: t('grid.dropServe'), title: t('grid.backToRequests'), run: () => send({ type: 'serve', units, buildings: [] }) }
       }
     } else if (page === 'filter') {
       /** Руда в фильтре — вся сразу: по видам её различает месторождение, а не игрок. */
@@ -287,11 +289,11 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
         send({ type: 'filter', units, goods: next })
       }
       WARES.forEach((ware, i) => {
-        slots[i] = { label: goodName(ware), good: ware, active: has([ware]), title: 'Возить или нет', run: () => toggle([ware]) }
+        slots[i] = { label: t(`goods.${ware}`), good: ware, active: has([ware]), title: t('grid.carryOrNot'), run: () => toggle([ware]) }
       })
-      slots[WARES.length] = { label: 'Руда', good: ORES[0], active: has(ORES), title: 'Возить руду или нет', run: () => toggle(ORES) }
-      slots[CANCEL] = { label: 'Всё', active: !filter.length, title: 'Снять фильтр: возить любые грузы', run: () => send({ type: 'filter', units, goods: [] }) }
-      slots[BACK] = { label: 'Назад', run: () => open('root') }
+      slots[WARES.length] = { label: t('grid.ore'), good: ORES[0], active: has(ORES), title: t('grid.oreTip'), run: () => toggle(ORES) }
+      slots[CANCEL] = { label: t('grid.all'), active: !filter.length, title: t('grid.allTip'), run: () => send({ type: 'filter', units, goods: [] }) }
+      slots[BACK] = { label: t('common.back'), run: () => open('root') }
     }
   }
 
@@ -299,13 +301,13 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
   if (harvest && page === 'root') {
     // Поиск месторождения: любого или своего вида, по столбцу на вид.
     const seek = (kind: DepositKind | 'any') => send({ type: 'seek', units: harvest.units, kind })
-    slots[0] = { label: 'Искать любое', active: harvest.seek === 'any' && !harvest.parked, title: 'Ближайшее найденное месторождение; нет — разведать', run: () => seek('any') }
+    slots[0] = { label: t('grid.seekAny'), active: harvest.seek === 'any' && !harvest.parked, title: t('grid.seekAnyTip'), run: () => seek('any') }
     DEPOSIT_TYPES.forEach((kind, i) => {
       slots[1 + i] = {
-        label: `Искать: ${RESOURCE_NAMES[kind].toLowerCase()}`,
+        label: t('grid.seek', { name: t(`goods.${kind}`) }),
         good: kind,
         active: harvest.seek === kind && !harvest.parked,
-        title: 'Ближайшее найденное месторождение этого вида; нет — разведать',
+        title: t('grid.seekTip'),
         run: () => seek(kind),
       }
     })
@@ -313,12 +315,12 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
 
   if (assembly) {
     slots[0] = {
-      label: assembly.on ? 'Выключить' : 'Включить',
+      label: assembly.on ? t('common.turnOff') : t('common.turnOn'),
       good: assembly.recipe,
       active: assembly.on,
       title: assembly.on
-        ? 'Завод встанет и перестанет брать энергию; начатая сборка подождёт включения, сырьё увезут в хранилища'
-        : 'Завод начнёт заказывать сырьё у зоны и собирать до нормы',
+        ? t('grid.plantOffTip')
+        : t('grid.plantOnTip'),
       run: () => send({ type: 'work', building: assembly.plant, on: !assembly.on }),
     }
   }
@@ -326,9 +328,9 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
   const { switchable } = state
   if (switchable && page === 'root' && !slots[SWITCH]) {
     slots[SWITCH] = {
-      label: switchable.on ? 'Выключить' : 'Включить',
+      label: switchable.on ? t('common.turnOff') : t('common.turnOn'),
       active: switchable.on,
-      title: switchable.on ? 'Перестанет брать энергию у зоны и работать' : 'Снова возьмёт энергию у зоны и заработает',
+      title: switchable.on ? t('grid.switchOffTip') : t('grid.switchOnTip'),
       run: () => switchable.buildings.forEach((building) => send({ type: 'work', building, on: !switchable.on })),
     }
   }
@@ -338,17 +340,17 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
     // Продажа и закупка — каждая на своей странице: верхний ряд корня космопорта занят заказом техники.
     if (page === 'root') {
       slots[TRADE] = {
-        label: 'Продажа',
+        label: t('grid.sell'),
         building: 'spaceport',
         active: !!order,
-        title: order ? 'Идёт продажа: открыть заявку' : 'Продать ресурсы с орбиты',
+        title: order ? t('grid.sellingTip') : t('grid.sellTip'),
         run: () => open('sell'),
       }
       slots[TRADE + 1] = {
-        label: 'Закупка',
+        label: t('grid.buy'),
         building: 'spaceport',
         disabled: !!order,
-        title: order ? 'Космопорт занят продажей' : 'Заказать ресурсы с орбиты втрое дороже цены продажи',
+        title: order ? t('grid.buyBusyTip') : t('grid.buyTip'),
         run: () => open('buy'),
       }
     } else if (!order && page === 'buy') {
@@ -357,64 +359,64 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
         for (const [row, amount] of [[0, 10], [1, 50]] as const) {
           const cost = amount * price
           slots[i + row * 4] = {
-            label: `${RESOURCE_NAMES[resource]} ×${amount}`,
+            label: `${t(`goods.${resource}`)} ×${amount}`,
             good: resource,
             cost,
             disabled: credits < cost || room < amount,
-            title: room < amount ? 'Не помещается в склад космопорта' : credits < cost ? 'Не хватает кредитов' : `По ${price} за единицу, корабль прилетит через 20 с`,
+            title: room < amount ? t('grid.noRoom') : credits < cost ? t('grid.noCredits') : t('grid.buyPrice', { price }),
             run: () => send({ type: 'buy', port, resource, amount }),
           }
         }
       })
-      slots[BACK] = { label: 'Назад', run: () => open('root') }
+      slots[BACK] = { label: t('common.back'), run: () => open('root') }
     } else if (!order) {
       // Верхний ряд — продать полсотни, второй — всё, что есть: столбец на каждый ресурс.
       trade.offers.slice(0, 4).forEach(({ resource, available, price }, i) => {
         const part = Math.min(50, available)
         slots[i] = {
-          label: `${RESOURCE_NAMES[resource]} ×${part}`,
+          label: `${t(`goods.${resource}`)} ×${part}`,
           good: resource,
           cost: part * price,
           gain: true,
-          title: `По ${price} за единицу`,
+          title: t('grid.sellPrice', { price }),
           run: () => send({ type: 'sell', port, resource, amount: part }),
         }
         if (available > part) {
           slots[i + 4] = {
-            label: `${RESOURCE_NAMES[resource]}: всё`,
+            label: t('grid.sellAll', { name: t(`goods.${resource}`) }),
             good: resource,
             cost: available * price,
             gain: true,
-            title: `${available} по ${price}`,
+            title: t('grid.sellAllTip', { amount: available, price }),
             run: () => send({ type: 'sell', port, resource, amount: available }),
           }
         }
       })
-      slots[BACK] = { label: 'Назад', run: () => open('root') }
+      slots[BACK] = { label: t('common.back'), run: () => open('root') }
     } else {
       if (order.flight === null) {
         slots[CANCEL] = {
-          label: order.delivered > 0 ? 'Отправить' : 'Снять заявку',
-          title: order.delivered > 0 ? 'Корабль улетит с тем, что уже привезли' : undefined,
+          label: order.delivered > 0 ? t('grid.send') : t('grid.dropSale'),
+          title: order.delivered > 0 ? t('grid.sendTip') : undefined,
           run: () => send({ type: 'closeSale', port }),
         }
       }
-      slots[BACK] = { label: 'Назад', run: () => open('root') }
+      slots[BACK] = { label: t('common.back'), run: () => open('root') }
     }
   }
 
   if (site) {
     slots[DEMOLISH] = {
-      label: site.demolish ? 'Отменить разбор' : 'Отменить стройку',
+      label: site.demolish ? t('grid.cancelDemolish') : t('grid.cancelBuild'),
       run: () => send({ type: 'cancelBuild', site: site.entity }),
     }
   }
   if (demolish && page === 'root') {
     slots[DEMOLISH] = {
-      label: 'Разобрать',
+      label: t('grid.remove'),
       cost: demolish.refund,
       gain: true,
-      title: 'Здание разберут строители; когда закончат, вернётся половина цены',
+      title: t('grid.demolishTip'),
       run: () => demolish.buildings.forEach((building) => send({ type: 'demolish', building, builders: [] })),
     }
   }

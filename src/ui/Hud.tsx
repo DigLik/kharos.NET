@@ -8,7 +8,7 @@ import { goodIcon } from '../game/goodIcons'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { REWARDS, resourceOf, type UnitType, type BuildingType, type Command, type Good, type Reward } from '../sim'
 import { GRID_KEYS, commandsOf, keyLabel, type Page, type Slot } from './commands'
-import { BUILDING_NAMES, PRODUCT_NAMES, RESOURCE_NAMES, REWARD_NAMES, UNIT_NAMES, goodName } from './names'
+import { rich, t } from '../i18n'
 
 interface HudProps {
   state: HudState
@@ -45,7 +45,7 @@ const percent = (value: number) => `${Math.round(value * 100)}%`
 /** Значок груза цвета груза и количество; название — во всплывающей подсказке. */
 function Res({ resource, amount, of }: { resource: Good; amount?: number; of?: number }) {
   return (
-    <span class="hud__res" data-tip={goodName(resource)}>
+    <span class="hud__res" data-tip={t(`goods.${resource}`)}>
       <img src={goodIcon(resource)} alt="" />
       {amount !== undefined && (of !== undefined ? `${amount}/${of}` : amount)}
     </span>
@@ -250,7 +250,7 @@ function Chat({ lines, picking, commands, admin, names, say }: ChatProps) {
           class={`chat__input${admin ? ' is-admin' : ''}`}
           // Типы Preact не дают выбрать type выражением: "text" и "password" у них в разных перегрузках.
           type={(password ? 'password' : 'text') as 'password'}
-          placeholder={password ? 'Пароль администратора' : admin ? 'режим администратора' : undefined}
+          placeholder={password ? t('hud.adminPassword') : admin ? t('hud.adminMode') : undefined}
           value={draft}
           maxLength={200}
           onInput={(event) => edit(event.currentTarget.value)}
@@ -409,9 +409,9 @@ function Info({ state, lookAtSelection, narrow }: { state: HudState; lookAtSelec
   const title =
     building !== null
       ? state.buildings > 1
-        ? state.mixed ? `Зданий: ${state.buildings}` : `${BUILDING_NAMES[building]} ×${state.buildings}`
-        : `${site ? (site.demolish ? 'Разбор: ' : 'Стройка: ') : ''}${BUILDING_NAMES[building]}`
-      : units.map(({ type, count }) => (count > 1 ? `${UNIT_NAMES[type]} ×${count}` : UNIT_NAMES[type])).join(', ')
+        ? state.mixed ? t('hud.buildingsCount', { count: state.buildings }) : `${t(`buildings.${building}`)} ×${state.buildings}`
+        : site ? t(site.demolish ? 'hud.demolition' : 'hud.construction', { name: t(`buildings.${building}`) }) : t(`buildings.${building}`)
+      : units.map(({ type, count }) => (count > 1 ? `${t(`units.${type}`)} ×${count}` : t(`units.${type}`))).join(', ')
 
   return (
     <div class="bar__info">
@@ -421,7 +421,7 @@ function Info({ state, lookAtSelection, narrow }: { state: HudState; lookAtSelec
             <button
               key={type}
               class="bar__unit"
-              data-tip={`${UNIT_NAMES[type]}: щелчок — оставить только их, Shift — убрать из выделения`}
+              data-tip={t('hud.narrowTip', { name: t(`units.${type}`) })}
               onClick={(event) => narrow(type, event.shiftKey)}
             >
               <img src={unitPortrait(type)} alt="" />
@@ -430,7 +430,7 @@ function Info({ state, lookAtSelection, narrow }: { state: HudState; lookAtSelec
           ))}
         </div>
       ) : (
-        <button class="bar__portrait" data-tip="Показать на карте" onClick={lookAtSelection}>
+        <button class="bar__portrait" data-tip={t('hud.showOnMap')} onClick={lookAtSelection}>
           <img src={building !== null ? buildingPortrait(building) : unitPortrait(units[0].type)} alt="" />
           <span class="bar__health" style={{ width: percent(health) }} data-low={health < 0.35 || undefined} />
         </button>
@@ -441,25 +441,25 @@ function Info({ state, lookAtSelection, narrow }: { state: HudState; lookAtSelec
 
         {state.power && (
           <div class={state.power.demand > state.power.produced ? 'hud__hint hud__power is-short' : 'hud__hint hud__power'}>
-            ⚡ Энергия зоны: потребляется {state.power.demand} из {state.power.produced}
-            {state.power.demand > state.power.produced && ' — перегруз, станции разрушаются'}
+            {t('hud.zonePower', { demand: state.power.demand, produced: state.power.produced })}
+            {state.power.demand > state.power.produced && t('hud.overloaded')}
           </div>
         )}
-        {state.coreless && <div class="hud__hint is-short">Денег не приносит: в зоне нет главного здания</div>}
-        {state.unlinked && <div class="hud__hint is-short">Не подключено к сети: протяни трубу — без этого ресурсы не придут и не уйдут</div>}
-        {state.starved && <div class="hud__hint hud__power is-short">⚡ Не хватает энергии: здание работает медленнее или стоит</div>}
-        {state.switchable && !state.switchable.on && <div class="hud__hint is-short">Выключено: энергию не берёт и не работает; включи в сетке справа</div>}
+        {state.coreless && <div class="hud__hint is-short">{t('hud.coreless')}</div>}
+        {state.unlinked && <div class="hud__hint is-short">{t('hud.unlinked')}</div>}
+        {state.starved && <div class="hud__hint hud__power is-short">{t('hud.starved')}</div>}
+        {state.switchable && !state.switchable.on && <div class="hud__hint is-short">{t('hud.switchedOff')}</div>}
         {state.health !== null && (
-          <div class="hud__hint">Прочность: {percent(state.health)}. Починка стоит {state.repair}: выбери строителей и щёлкни по зданию правой кнопкой</div>
+          <div class="hud__hint">{t('hud.health', { percent: percent(state.health), repair: state.repair })}</div>
         )}
-        {state.army && state.army.health < 1 && <div class="hud__hint">Прочность: {percent(state.army.health)}. Технику чинят строители, пехота поправляется сама</div>}
+        {state.army && state.army.health < 1 && <div class="hud__hint">{t('hud.armyHealth', { percent: percent(state.army.health) })}</div>}
         {state.army && state.army.armed > 0 && !construction && (
-          <div class="hud__hint">Сами стреляют по врагам в пределах выстрела. Правый щелчок по врагу — атаковать</div>
+          <div class="hud__hint">{t('hud.armed')}</div>
         )}
 
         {state.stored?.slots && (
           <div class="hud__hint">
-            Склад:{' '}
+            {t('hud.stock')}:{' '}
             {state.stored.slots.map(({ resource, amount, of }) => (
               <Res key={resource} resource={resource} amount={amount} of={of} />
             ))}
@@ -467,156 +467,162 @@ function Info({ state, lookAtSelection, narrow }: { state: HudState; lookAtSelec
         )}
         {state.stored && !state.stored.slots && (
           <div class="hud__hint">
-            {state.stored.buffer ? 'Материалы заказа' : state.stored.store ? 'Хранилище' : 'Склад'}: <Stacks items={state.stored.items} />
-            {state.stored.items.length === 0 && 'пусто'}
-            {!state.stored.buffer && ` — вмещает ${state.stored.capacity}`}
+            {state.stored.buffer ? t('hud.orderMaterials') : state.stored.store ? t('hud.storage') : t('hud.stock')}: <Stacks items={state.stored.items} />
+            {state.stored.items.length === 0 && t('common.empty')}
+            {!state.stored.buffer && t('hud.holds', { capacity: state.stored.capacity })}
           </div>
         )}
         {state.refinery && (
           <div class="hud__hint">
-            Перерабатывает <Res resource={state.refinery.ore} /> {goodName(state.refinery.ore).toLowerCase()} в{' '}
-            <Res resource={resourceOf(state.refinery.ore)} /> {goodName(resourceOf(state.refinery.ore)).toLowerCase()},{' '}
-            {state.refinery.intake} в секунду. Руду везут грузовики из шахт и харвестеры, готовое свободные грузовики развозят
-            по хранилищам
+            {rich<ComponentChildren>('hud.refines', {
+              ore: <Res resource={state.refinery.ore} />,
+              oreName: t(`goods.${state.refinery.ore}`),
+              product: <Res resource={resourceOf(state.refinery.ore)} />,
+              productName: t(`goods.${resourceOf(state.refinery.ore)}`),
+              intake: state.refinery.intake,
+            })}
           </div>
         )}
         {state.harvest && (
           <div class="hud__hint">
-            {state.harvest.kind ? (
-              <>
-                Копает <Res resource={state.harvest.kind} /> {goodName(state.harvest.kind).toLowerCase()} и везёт на переработку.{' '}
-              </>
-            ) : state.harvest.parked ? (
-              'Стоит и ждёт команды. '
-            ) : state.harvest.seek && state.harvest.seek !== 'any' ? (
-              <>
-                Ищет <Res resource={state.harvest.seek} /> {goodName(state.harvest.seek).toLowerCase()}: среди найденных, а нет — разведывает.{' '}
-              </>
-            ) : (
-              'Ищет месторождение: среди найденных, а нет — разведывает. '
-            )}
-            Правый щелчок по найденному месторождению — копать там
+            {state.harvest.kind
+              ? rich<ComponentChildren>('hud.digs', { icon: <Res resource={state.harvest.kind} />, name: t(`goods.${state.harvest.kind}`) })
+              : state.harvest.parked
+                ? t('hud.parked')
+                : state.harvest.seek && state.harvest.seek !== 'any'
+                  ? rich<ComponentChildren>('hud.seeks', { icon: <Res resource={state.harvest.seek} />, name: t(`goods.${state.harvest.seek}`) })
+                  : t('hud.seeksAny')}
+            {t('hud.harvestTip')}
           </div>
         )}
         {state.ammo && (
           <div class={state.ammo.have <= 0 ? 'hud__hint is-short' : 'hud__hint'}>
-            Боеприпасы: <Res resource="ammo" amount={state.ammo.have} of={state.ammo.capacity} />
-            {state.ammo.have <= 0 ? ' — пусто, турель молчит, пока не подвезут' : '. Расстреляет четверть — грузовики подвезут из хранилищ зоны'}
+            {t('hud.ammo')}: <Res resource="ammo" amount={state.ammo.have} of={state.ammo.capacity} />
+            {state.ammo.have <= 0 ? t('hud.ammoEmpty') : t('hud.ammoTip')}
           </div>
         )}
         {assembly && (
           <>
             <div class="hud__hint">
-              <Stacks items={assembly.inputs} /> → <Res resource={assembly.recipe} amount={assembly.yield} /> за {assembly.seconds} с
+              {rich<ComponentChildren>('hud.recipe', {
+                inputs: <Stacks items={assembly.inputs} />,
+                output: <Res resource={assembly.recipe} amount={assembly.yield} />,
+                seconds: assembly.seconds,
+              })}
             </div>
             <Progress value={assembly.progress}>
-              {PRODUCT_NAMES[assembly.recipe]} в зоне: {assembly.have} —{' '}
-              {!assembly.on
-                ? assembly.progress > 0
-                  ? 'выключен, доделывает сборку'
-                  : 'выключен'
-                : assembly.progress > 0
-                  ? 'собирает'
-                  : assembly.full
-                    ? 'хранилища полны, ждёт'
-                    : 'ждёт сырья'}
+              {t('hud.assembly', {
+                name: t(`goods.${assembly.recipe}`),
+                have: assembly.have,
+                state: t(
+                  `hud.assemblyStates.${!assembly.on ? (assembly.progress > 0 ? 'offFinishing' : 'off') : assembly.progress > 0 ? 'working' : assembly.full ? 'full' : 'waiting'}`,
+                ),
+              })}
             </Progress>
-            {!assembly.on && <div class="hud__hint is-short">Завод выключен: включи его в сетке справа</div>}
+            {!assembly.on && <div class="hud__hint is-short">{t('hud.plantOff')}</div>}
           </>
         )}
         {state.materials && (
           <div class={state.materials.waiting ? 'hud__hint is-short' : 'hud__hint'}>
-            Материалы:{' '}
+            {t('hud.materials')}:{' '}
             {state.materials.items.map(({ resource, have, need }) => (
               <Res key={resource} resource={resource} amount={have} of={need} />
             ))}
-            {state.materials.waiting && ' — ждёт подвоза из хранилищ зоны'}
+            {state.materials.waiting && t('hud.materialsWaiting')}
           </div>
         )}
         {state.cargo && (
           <div class="hud__hint">
-            Груз: <Stacks items={state.cargo.items} />
-            {state.cargo.items.length === 0 && 'пусто'} из {state.cargo.capacity}.{' '}
+            {rich<ComponentChildren>('hud.cargo', {
+              items: state.cargo.items.length ? <Stacks items={state.cargo.items} /> : t('common.empty'),
+              capacity: state.cargo.capacity,
+            })}
             {state.haul?.routing !== null && state.haul?.routing !== undefined
-              ? `Набор маршрута: остановок ${state.haul.routing}. Щёлкай по своим зданиям со складом; правая кнопка или Enter — готово, Esc — отмена`
+              ? t('hud.routing', { stops: state.haul.routing })
               : state.haul?.serving !== null && state.haul?.serving !== undefined
-              ? `Выбор зданий: ${state.haul.serving}. Щёлкай по своим зданиям, повторный щелчок убирает; правая кнопка или Enter — готово, Esc — отмена`
+              ? t('hud.serving', { count: state.haul.serving })
               : state.cargo.bound > 0
-              ? 'Возит руду из шахты на переработку'
+              ? t('hud.haulsOre')
               : state.haul && state.haul.served > 0
-                ? 'Обслуживает назначенные здания: возит только по их заявкам, груз берёт в любой своей зоне'
+                ? t('hud.serves')
               : state.haul && state.haul.routed > 0
-                ? 'Ездит по маршруту: на каждой остановке сгружает, что там принимают, и берёт для следующей'
+                ? t('hud.onRoute')
               : state.cargo.busy > 0
-                ? 'Везёт по заявке зоны'
-                : 'Свободен: сам берёт заявки зон. Правый щелчок по шахте — возить только из неё'}
+                ? t('hud.onRequest')
+                : t('hud.free')}
           </div>
         )}
         {trade &&
           (trade.order ? (
             <Progress value={trade.order.flight ?? trade.order.delivered / trade.order.wanted}>
               {trade.order.buy
-                ? `Закупка летит: ${RESOURCE_NAMES[trade.order.resource].toLowerCase()} ×${trade.order.wanted}, оплачено ${trade.order.wanted * trade.order.price}`
+                ? t('hud.buying', { name: t(`goods.${trade.order.resource}`), wanted: trade.order.wanted, paid: trade.order.wanted * trade.order.price })
                 : trade.order.flight !== null
-                ? `Корабль в пути: ${RESOURCE_NAMES[trade.order.resource].toLowerCase()} ×${trade.order.wanted} за ${trade.order.wanted * trade.order.price}`
-                : `Грузовики везут ${RESOURCE_NAMES[trade.order.resource].toLowerCase()}: ${trade.order.delivered} из ${trade.order.wanted}`}
+                ? t('hud.shipping', { name: t(`goods.${trade.order.resource}`), wanted: trade.order.wanted, total: trade.order.wanted * trade.order.price })
+                : t('hud.hauling', { name: t(`goods.${trade.order.resource}`), delivered: trade.order.delivered, wanted: trade.order.wanted })}
             </Progress>
           ) : (
             <div class="hud__hint">
-              {trade.offers.length ? 'Продажа из хранилищ зоны: верхний ряд — по 50, второй — всё' : 'Продавать нечего: хранилища зоны пусты'}.
-              Закупка с орбиты — втрое дороже продажи, привезённое грузовики развезут по хранилищам
+              {trade.offers.length ? t('hud.sellHint') : t('hud.nothingToSell')}
+              {t('hud.buyHint')}
             </div>
           ))}
         {deposit && (
           <div class="hud__hint">
-            <Res resource={deposit.kind} /> {RESOURCE_NAMES[deposit.kind]}: {deposit.left > 0 ? `осталось ${deposit.left}` : 'месторождение выработано'}
+            {rich<ComponentChildren>('hud.depositLeft', {
+              icon: <Res resource={deposit.kind} />,
+              name: t(`goods.${deposit.kind}`),
+              left: deposit.left > 0 ? t('hud.left', { amount: deposit.left }) : t('hud.depositDepleted'),
+            })}
           </div>
         )}
         {site && (
           <Progress value={site.progress}>
             {site.demolish
               ? site.progress < 1
-                ? `Разбирается — осталось ${percent(site.progress)}`
-                : 'Ждёт строителя: выбери его и щёлкни по зданию правой кнопкой'
+                ? t('hud.demolishing', { percent: percent(site.progress) })
+                : t('hud.waitsToDemolish')
               : site.started
-                ? `Строится — ${percent(site.progress)}`
+                ? t('hud.building', { percent: percent(site.progress) })
                 : site.blocked
-                  ? 'Место занято юнитами'
-                  : 'Ждёт строителя'}
+                  ? t('hud.blocked')
+                  : t('hud.waitsBuilder')}
           </Progress>
         )}
         {conversion && conversion.progress !== null && (
           <Progress value={conversion.progress}>
-            {conversion.blocked ? 'Место занято юнитами' : conversion.kind === 'deploy' ? 'Разворачивается' : 'Сворачивается'}
+            {conversion.blocked ? t('hud.blocked') : conversion.kind === 'deploy' ? t('hud.deploying') : t('hud.packing')}
           </Progress>
         )}
         {production && production.queue.length > 0 && (
           <>
-            <Progress value={production.progress}>{UNIT_NAMES[production.queue[0]]}</Progress>
+            <Progress value={production.progress}>{t(`units.${production.queue[0]}`)}</Progress>
             <div class="bar__queue">
               {production.queue.map((unit, i) => (
-                <img key={i} src={unitPortrait(unit)} alt={UNIT_NAMES[unit]} data-tip={UNIT_NAMES[unit]} />
+                <img key={i} src={unitPortrait(unit)} alt={t(`units.${unit}`)} data-tip={t(`units.${unit}`)} />
               ))}
             </div>
           </>
         )}
         {production?.building && (
           <div class="hud__hint">
-            {production.rally ? 'Готовые едут к флажку; правый щелчок по карте — перенести' : 'Правый щелчок по карте — точка сбора готовых'}
+            {production.rally ? t('hud.rallySet') : t('hud.rallyTip')}
           </div>
         )}
         {state.tactics?.picking && (
-          <div class="hud__hint">Щелчок — патруль до точки; Shift+щелчок — ещё точка к патрулю; правая кнопка или Esc — отмена</div>
+          <div class="hud__hint">{t('hud.patrolPick')}</div>
         )}
         {construction?.paving && (
           <div class="hud__hint">
-            {construction.paving.tool === 'remove' ? 'Тяни левой кнопкой, что снять' : `Тяни левой кнопкой: ${construction.paving.tiles} тайл., ${construction.paving.cost} кредитов${construction.paving.short ? `; на ${construction.paving.short} тайл. не хватает кредитов (жёлтые)` : ''}`}; правая или Esc — хватит
+            {construction.paving.tool === 'remove' ? t('hud.pavingRemove') : t('hud.paving', { tiles: construction.paving.tiles, cost: construction.paving.cost })}
+            {construction.paving.tool !== 'remove' && construction.paving.short ? t('hud.pavingShort', { short: construction.paving.short }) : null}
+            {t('hud.pavingEnd')}
           </div>
         )}
         {construction && !construction.placing && !construction.paving && (
-          <div class="hud__hint">Строит здания и чинит своё: правый щелчок по стройке или повреждённому. Здания — в сетке справа</div>
+          <div class="hud__hint">{t('hud.builderTip')}</div>
         )}
-        {construction?.placing && <div class="hud__hint">Левая кнопка — заложить, можно ещё и ещё; правая или Esc — хватит</div>}
+        {construction?.placing && <div class="hud__hint">{t('hud.placingTip')}</div>}
       </div>
     </div>
   )
@@ -674,33 +680,33 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
   return (
     <>
       {roster && state.players.length > 0 && (
-        <section class="hud roster" aria-label="Игроки">
-          <h2>Игроки · {state.players.filter(({ online }) => online).length} в сети</h2>
+        <section class="hud roster" aria-label={t('hud.players')}>
+          <h2>{t('hud.roster', { online: state.players.filter(({ online }) => online).length })}</h2>
           <ul>
             {state.players.map(({ name, own, online }) => (
               <li class={own ? 'is-own' : online ? undefined : 'is-away'}>
                 <span>{name}</span>
-                <small>{own ? 'вы' : online ? 'в сети' : 'не в сети'}</small>
+                <small>{own ? t('hud.you') : online ? t('hud.online') : t('hud.offline')}</small>
               </li>
             ))}
           </ul>
         </section>
       )}
       <header class="hud hud--top">
-        <span class="hud--credits" data-tip="Кредиты">
+        <span class="hud--credits" data-tip={t('common.credits')}>
           <span class="hud__coin" />
           {state.credits}
-          {state.income > 0 && <small>+{state.income}/с</small>}
+          {state.income > 0 && <small>{t('hud.perSecond', { amount: state.income })}</small>}
         </span>
         {state.stock && (
-          <span class="hud__stock" data-tip={`Запас в хранилищах; всего помещается ${state.stock.capacity}`}>
+          <span class="hud__stock" data-tip={t('hud.stockTip', { capacity: state.stock.capacity })}>
             <Stacks items={state.stock.items} />
-            {state.stock.items.length === 0 && <span class="hud__res">хранилища пусты</span>}
+            {state.stock.items.length === 0 && <span class="hud__res">{t('hud.storesEmpty')}</span>}
           </span>
         )}
-        <span class="hud__clock" data-tip={state.storm ? 'Время суток; идёт непогода' : 'Время суток'}>
+        <span class="hud__clock" data-tip={state.storm ? t('hud.clockStorm') : t('hud.clock')}>
           {state.clock}
-          {state.storm && ' · непогода'}
+          {state.storm && t('hud.storm')}
         </span>
         <span class="hud__menu">{menu}</span>
       </header>
@@ -716,18 +722,18 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
         />}
       {state.hover && (
         <div class="hud tip" style={{ left: `${state.hover.x + 16}px`, top: `${state.hover.y + 16}px` }}>
-          <Res resource={state.hover.kind} /> Месторождение: {RESOURCE_NAMES[state.hover.kind].toLowerCase()}
-          <small>{state.hover.left === null ? 'остаток неизвестен' : state.hover.left > 0 ? `осталось ${state.hover.left}` : 'выработано'}</small>
+          <Res resource={state.hover.kind} /> {t('hud.depositTip', { name: t(`goods.${state.hover.kind}`) })}
+          <small>{state.hover.left === null ? t('hud.leftUnknown') : state.hover.left > 0 ? t('hud.left', { amount: state.hover.left }) : t('hud.depleted')}</small>
         </div>
       )}
 
       {state.pipeHover && (
         <div class="hud tip" style={{ left: `${state.pipeHover.x + 16}px`, top: `${state.pipeHover.y + 16}px` }}>
-          Сеть: зданий {state.pipeHover.buildings}
+          {t('hud.network', { buildings: state.pipeHover.buildings })}
           <small>
             {state.pipeHover.stock.length
               ? state.pipeHover.stock.map(({ resource, amount }) => <Res key={resource} resource={resource} amount={amount} />)
-              : state.pipeHover.capacity ? 'хранилища пусты' : 'хранилищ нет'}
+              : state.pipeHover.capacity ? t('hud.storesEmpty') : t('hud.noStores')}
           </small>
         </div>
       )}
@@ -735,8 +741,8 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
       {state.alerts.length > 0 && !state.editor && (
         <div class="hud hud--alerts" role="status">
           {state.alerts.map(({ kind, text, x, y, at }) => (
-            <button key={at} class={`hud__alert is-${kind}`} data-tip="Показать место" onClick={() => flyTo(x, y)}>
-              {text}
+            <button key={at} class={`hud__alert is-${kind}`} data-tip={t('hud.showPlace')} onClick={() => flyTo(x, y)}>
+              {t(`hud.alerts.${text}`)}
             </button>
           ))}
         </div>
@@ -747,7 +753,7 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
           {fresh.map((key) => (
             <div key={key} class="hud__reward">
               <span class="hud__coin" />
-              <strong>+{REWARDS[key as Reward]}</strong> {REWARD_NAMES[key as Reward]}
+              <strong>+{REWARDS[key as Reward]}</strong> {t(`rewards.${key as Reward}`)}
             </div>
           ))}
         </div>
@@ -760,8 +766,7 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
           <Info state={state} lookAtSelection={lookAtSelection} narrow={narrow} />
         ) : (
           <div class="bar__info bar__info--empty">
-            Ничего не выбрано. Левая кнопка — выбрать, рамка — несколько юнитов, правая — приказ. Ctrl+цифра — запомнить
-            группу, цифра — выбрать её
+            {t('hud.nothingSelected')}
           </div>
         )}
         {!state.editor && <CommandGrid slots={selected ? slots : Array(GRID_KEYS.length).fill(null)} />}

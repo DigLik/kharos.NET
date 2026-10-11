@@ -1,5 +1,6 @@
 import { DEFAULT_CONFIG, type GeneratorConfig } from '../src/map/terrain'
 import { DEFAULT_LIMITS, type ConnectLimits } from '../src/net/limits'
+import type { Lang } from '../src/i18n'
 import { DEFAULT_PORT } from '../src/net/protocol'
 import { DEFAULT_RULES, type Rules } from '../src/sim'
 import { DEFAULT_WEATHER, type WeatherOptions } from '../src/sim/weather'
@@ -8,6 +9,8 @@ import { DEFAULT_TLS, type TlsSettings } from './tls'
 /** Настройки сервера из settings.json. */
 export interface ServerSettings {
   port: number
+  /** Язык самого сервера: ответы в его консоли, «Игрок N» и подпись /say. Сообщения в чате каждый игрок читает на своём. */
+  lang: Lang
   /** Пароль на вход; пустой — заходит кто угодно. */
   password: string
   /** Пароль режима администратора, /admin в чате; пустой — режима нет. */
@@ -31,6 +34,7 @@ export interface ServerSettings {
 /** Настройки по умолчанию; seed у каждого нового сервера свой. */
 export const defaultSettings = (): ServerSettings => ({
   port: DEFAULT_PORT,
+  lang: 'ru',
   password: '',
   admin: '',
   save: 'save.kharos',

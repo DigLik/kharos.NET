@@ -1,4 +1,5 @@
 import { SAVE_VERSION, type SimSave } from '../sim'
+import { t } from '../i18n'
 
 /**
  * Двоичный файл сохранения: один формат для браузера, воркера и сервера.
@@ -69,18 +70,18 @@ export async function packSections(sections: Sections, version = SAVE_VERSION): 
 
 /** Разбирает файл на разделы и поднимает их до текущей версии. Бросает ошибку, если это не сохранение или оно не читается. */
 export async function unpackSections(file: Uint8Array): Promise<Sections> {
-  if (file.length < 6 || decoder.decode(file.subarray(0, 4)) !== MAGIC) throw new Error('Это не файл сохранения')
+  if (file.length < 6 || decoder.decode(file.subarray(0, 4)) !== MAGIC) throw new Error(t('errors.notSave'))
   let version = new DataView(file.buffer, file.byteOffset, file.byteLength).getUint16(4, true)
-  if (version < FIRST_BINARY_VERSION) throw new Error('Сохранение слишком старой версии игры')
-  if (version > SAVE_VERSION) throw new Error('Сохранение из более новой версии игры')
+  if (version < FIRST_BINARY_VERSION) throw new Error(t('errors.saveTooOld'))
+  if (version > SAVE_VERSION) throw new Error(t('errors.saveTooNew'))
   const body = await pipe(file.subarray(6), new DecompressionStream('deflate-raw'))
   const view = new DataView(body.buffer)
   const sections: Sections = new Map()
   for (let at = 0; at < body.length; ) {
-    if (at + 8 > body.length) throw new Error('Файл сохранения повреждён')
+    if (at + 8 > body.length) throw new Error(t('errors.saveCorrupted'))
     const tag = decoder.decode(body.subarray(at, at + 4))
     const length = view.getUint32(at + 4, true)
-    if (at + 8 + length > body.length) throw new Error('Файл сохранения повреждён')
+    if (at + 8 + length > body.length) throw new Error(t('errors.saveCorrupted'))
     sections.set(tag, body.subarray(at + 8, at + 8 + length))
     at += 8 + length
   }
@@ -113,7 +114,7 @@ export async function decodeSave(file: Uint8Array): Promise<{ save: SimSave; sec
   const meta = readJson<Meta>(sections.get('META'))
   const world = readJson<SimSave['world']>(sections.get('WRLD'))
   const land = sections.get('LAND')
-  if (!meta || !world || !land) throw new Error('Файл сохранения повреждён')
+  if (!meta || !world || !land) throw new Error(t('errors.saveCorrupted'))
   const explored = readJson<SimSave['explored']>(sections.get('EXPL'))
   // Копия: раздел — вид на тело файла, а карта живёт дольше него.
   return { save: { version: SAVE_VERSION, ...meta, world, ...(explored && { explored }), land: land.slice() }, sections }
