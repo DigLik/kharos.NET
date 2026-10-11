@@ -1,6 +1,6 @@
 import type { Entity } from '../ecs'
-import { buildingSpec, isReady } from './buildings'
-import { Building, Inventory, Owner, Trade } from './components'
+import { buildingSpec, isReady, levelFactor, levelOf } from './buildings'
+import { Building, Inventory, Owner, Trade, Transfer } from './components'
 import { addCredits, pay } from './economy'
 import { amountOf, put, roomFor, take } from './inventory'
 import { incomingTo } from './logistics'
@@ -17,6 +17,9 @@ export const SELL_SECONDS = 20
 export const BUY_MARKUP = 3
 /** Сколько секунд летит корабль с закупкой: столько же, сколько с продажей. */
 export const BUY_SECONDS = SELL_SECONDS
+
+/** Сколько тиков летит корабль этого космопорта: с уровнем рейс короче во столько же раз, во сколько больше трюм. */
+export const flightTicks = (sim: Sim, port: Entity, seconds: number) => Math.round(seconds / levelFactor(levelOf(sim.world, port)) / sim.time.step)
 
 /** Сколько стоит купить единицу ресурса с орбиты. */
 export const buyPrice = (resource: Resource) => RESOURCE_SPECS[resource].price * BUY_MARKUP
@@ -65,8 +68,11 @@ function isPort(sim: Sim, player: number, port: Entity) {
   return type !== undefined && !!buildingSpec(type).trades && isReady(sim, player, port)
 }
 
-/** Может ли игрок продавать и покупать через это здание: это его готовый космопорт, и он не занят прошлым рейсом. */
-export const canSell = (sim: Sim, player: number, port: Entity) => isPort(sim, player, port) && !sim.world.has(port, Trade)
+/**
+ * Может ли игрок продавать и покупать через это здание: это его готовый космопорт, и он не занят — ни прошлым
+ * рейсом, ни кораблём с подарком союзнику (см. ferry.ts): корабль у космопорта один.
+ */
+export const canSell = (sim: Sim, player: number, port: Entity) => isPort(sim, player, port) && !sim.world.has(port, Trade) && !sim.world.has(port, Transfer)
 
 /**
  * Закупка с орбиты: amount единиц ресурса за buyPrice каждая, кредиты списываются сразу. Корабль прилетает через
@@ -80,7 +86,7 @@ export function buy(sim: Sim, player: number, port: Entity, resource: Resource, 
   const hold = sim.world.get(port, Inventory)
   const wanted = Math.min(Math.floor(amount), Math.floor(hold ? roomFor(hold, resource) : 0))
   if (wanted < 1 || !pay(sim, player, wanted * buyPrice(resource))) return false
-  const ticks = Math.round(BUY_SECONDS / sim.time.step)
+  const ticks = flightTicks(sim, port, BUY_SECONDS)
   sim.world.add(port, Trade({ resource, wanted, left: ticks, total: ticks, buy: true }))
   return true
 }
@@ -135,13 +141,13 @@ export function closeSale(sim: Sim, player: number, port: Entity) {
 
 /** Раз в тик: корабли с полным грузом улетают, а за долетевшие платят. */
 export function trade(sim: Sim) {
-  const { world, time } = sim
+  const { world } = sim
   const done: { port: Entity; player: number }[] = []
   for (const [entity, order, owner] of world.query(Trade, Owner)) {
     if (order.total > 0) {
       if (--order.left <= 0) done.push({ port: entity, player: owner.player })
     } else if (deliveredTo(sim, entity) >= order.wanted - 1e-9) {
-      order.left = order.total = Math.round(SELL_SECONDS / time.step)
+      order.left = order.total = flightTicks(sim, entity, SELL_SECONDS)
     }
   }
   // Корабль улетает с товаром заявки; остальное в складе космопорта остаётся. Закупка — наоборот, выгружается.

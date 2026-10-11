@@ -1,4 +1,4 @@
-import { complete } from '../net/chatCommands'
+import { complete, quoteName } from '../net/chatCommands'
 import type { ComponentChildren } from 'preact'
 import type { HudState, Stack } from '../game/hud'
 import { MINIMAP_SIZE, type Minimap } from '../game/minimap'
@@ -7,8 +7,8 @@ import { buildingPortrait, pavePortrait, unitPortrait } from '../game/portraits'
 import { goodIcon } from '../game/goodIcons'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { REWARDS, resourceOf, type UnitType, type BuildingType, type Command, type Good, type Reward } from '../sim'
-import { GRID_KEYS, commandsOf, keyLabel, type Page, type Slot } from './commands'
-import { rich, t } from '../i18n'
+import { GRID_KEYS, commandsOf, dealOf, keyLabel, type Deal, type FerryDraft, type Page, type Slot } from './commands'
+import { rich, t, type Key } from '../i18n'
 
 interface HudProps {
   state: HudState
@@ -41,6 +41,18 @@ interface HudProps {
 }
 
 const percent = (value: number) => `${Math.round(value * 100)}%`
+
+/**
+ * Кнопки союза в списке игроков: что можно сделать с этим игроком прямо сейчас, см. allies.ts. Команды те же,
+ * что набираются в чате: кнопка их просто посылает.
+ */
+function allyActions(name: string, relation: HudState['players'][number]['relation']): { label: Key; command: string }[] {
+  const quoted = quoteName(name)
+  if (relation === 'ally') return [{ label: 'hud.allyLeave', command: `/unally ${quoted}` }]
+  if (relation === 'allyAsked') return [{ label: 'hud.allyAccept', command: `/ally ${quoted}` }, { label: 'hud.allyDecline', command: `/unally ${quoted}` }]
+  if (relation === 'allyOffered') return [{ label: 'hud.allyWithdraw', command: `/unally ${quoted}` }]
+  return [{ label: 'hud.allyOffer', command: `/ally ${quoted}` }]
+}
 
 /** Значок груза цвета груза и количество; название — во всплывающей подсказке. */
 function Res({ resource, amount, of }: { resource: Good; amount?: number; of?: number }) {
@@ -400,9 +412,27 @@ function CommandGrid({ slots }: { slots: (Slot | null)[] }) {
   )
 }
 
+/** Что уже набрано в подарок союзнику: груз по видам и деньги — как это видно в панели сведений. */
+function listOfDraft(ferry: FerryDraft) {
+  const parts = (Object.entries(ferry.goods) as [Good, number][]).map(([resource, amount]) => `${t(`goods.${resource}`)} ×${Math.floor(amount)}`)
+  if (ferry.credits > 0) parts.push(`${ferry.credits} ${t('hud.cr')}`)
+  return parts.join(', ')
+}
+
 /** Сведения о выбранном: портрет, название, прочность и всё, что здание или отряд делает сейчас. */
-function Info({ state, lookAtSelection, narrow }: { state: HudState; lookAtSelection: () => void; narrow: HudProps['narrow'] }) {
+function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm }: {
+  state: HudState
+  lookAtSelection: () => void
+  narrow: HudProps['narrow']
+  /** Набираемая сделка космопорта: количество можно вписать с клавиатуры, Enter — отправить. */
+  deal: (NonNullable<ReturnType<typeof dealOf>> & { buying: boolean }) | null
+  /** Набираемый подарок союзнику: кому и что уже положено в корабль. */
+  ferry: FerryDraft | null
+  setAmount: (amount: number) => void
+  confirm: () => void
+}) {
   const { units, building, deposit, site, construction, conversion, production, assembly, trade } = state
+  const nameOf = (player: number) => state.players.find((one) => one.player === player)?.name ?? ''
   const many = units.length > 1 || (units[0]?.count ?? 0) > 1
   const health = building !== null ? (state.health ?? 1) : (state.army?.health ?? 1)
 
@@ -470,6 +500,7 @@ function Info({ state, lookAtSelection, narrow }: { state: HudState; lookAtSelec
             {state.stored.buffer ? t('hud.orderMaterials') : state.stored.store ? t('hud.storage') : t('hud.stock')}: <Stacks items={state.stored.items} />
             {state.stored.items.length === 0 && t('common.empty')}
             {!state.stored.buffer && t('hud.holds', { capacity: state.stored.capacity })}
+            {state.reserve && state.reserve.amount > 0 && t('hud.reserve', { amount: state.reserve.amount })}
           </div>
         )}
         {state.refinery && (
@@ -561,12 +592,40 @@ function Info({ state, lookAtSelection, narrow }: { state: HudState; lookAtSelec
                 ? t('hud.shipping', { name: t(`goods.${trade.order.resource}`), wanted: trade.order.wanted, total: trade.order.wanted * trade.order.price })
                 : t('hud.hauling', { name: t(`goods.${trade.order.resource}`), delivered: trade.order.delivered, wanted: trade.order.wanted })}
             </Progress>
+          ) : trade.transfer ? (
+            <Progress value={trade.transfer.flight}>
+              {t('hud.ferrying', { name: nameOf(trade.transfer.to), percent: percent(trade.transfer.flight) })}
+            </Progress>
+          ) : deal ? (
+            <div class="hud__hint">
+              {t(deal.buying ? 'grid.buy' : 'grid.sell')}: <Res resource={deal.resource} amount={deal.amount} />{' '}
+              <input
+                class="hud__amount"
+                type="number"
+                min={0}
+                max={deal.max}
+                value={deal.amount}
+                onInput={(event) => setAmount(Math.max(0, Math.min(deal.max, Math.floor(Number(event.currentTarget.value)) || 0)))}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') confirm()
+                  if (event.key === 'Enter' || event.key === 'Escape') event.currentTarget.blur()
+                }}
+              />
+              {deal.buying
+                ? t('hud.dealBuy', { total: deal.amount * deal.price, room: deal.room - deal.amount })
+                : t('hud.dealSell', { total: deal.amount * deal.price, left: deal.max - deal.amount })}
+            </div>
           ) : (
             <div class="hud__hint">
               {trade.offers.length ? t('hud.sellHint') : t('hud.nothingToSell')}
               {t('hud.buyHint')}
             </div>
           ))}
+        {ferry && (
+          <div class="hud__hint">
+            {t('hud.ferryDraft', { name: ferry.name, list: listOfDraft(ferry) || t('common.empty') })}
+          </div>
+        )}
         {deposit && (
           <div class="hud__hint">
             {rich<ComponentChildren>('hud.depositLeft', {
@@ -575,6 +634,24 @@ function Info({ state, lookAtSelection, narrow }: { state: HudState; lookAtSelec
               left: deposit.left > 0 ? t('hud.left', { amount: deposit.left }) : t('hud.depositDepleted'),
             })}
           </div>
+        )}
+        {state.level && (
+          <div class="hud__hint">
+            {state.level.level > 1
+              ? t('hud.level', { level: state.level.level, max: state.level.max, gain: t(`levelGains.${state.level.gain}`), factor: state.level.factor })
+              : t('hud.levelBase', { level: state.level.level, max: state.level.max })}
+          </div>
+        )}
+        {state.level?.raising && (
+          <Progress value={state.level.raising.progress}>
+            {state.level.raising.progress > 0 ? t('hud.upgrading', { percent: percent(state.level.raising.progress) }) : t('hud.waitsToUpgrade')}
+          </Progress>
+        )}
+        {state.research && !state.research.current && <div class="hud__hint">{t('hud.researchIdle')}</div>}
+        {state.research?.current && (
+          <Progress value={state.research.current.progress}>
+            {t('hud.researching', { name: t(`research.${state.research.current.topic}`), percent: percent(state.research.current.progress) })}
+          </Progress>
         )}
         {site && (
           <Progress value={site.progress}>
@@ -637,8 +714,18 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
   const [page, setPage] = useState<Page>('root')
   const selectionKey = `${state.building}:${state.units.map(({ type, count }) => `${type}${count}`).join()}`
   useEffect(() => setPage(state.construction?.placing || state.construction?.paving ? page : 'root'), [selectionKey])
+  // Сделка космопорта: что и сколько игрок набирает на странице продажи или закупки. С уходом со страницы бросается.
+  const [deal, setDeal] = useState<Deal | null>(null)
+  useEffect(() => setDeal(null), [selectionKey, page])
+  // Подарок союзнику набирается по страницам подряд, поэтому живёт, пока выбран тот же космопорт.
+  const [ferry, setFerry] = useState<FerryDraft | null>(null)
+  useEffect(() => setFerry(null), [selectionKey])
+  const { trade } = state
+  // Союзники — справа над панелью, всегда на виду: у кого союз, тот и в списке.
+  const allies = state.players.filter(({ own, relation }) => !own && relation === 'ally')
+  const dealing = trade && !trade.order && deal && (page === 'sell' || page === 'buy') ? dealOf(trade, state.credits, page === 'buy', deal) : null
 
-  const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, patrol, open: setPage }) : []
+  const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, patrol, open: setPage, pick: setDeal, draft: setFerry }, deal, ferry) : []
 
   // Клавиши сетки. Читаются из ref, чтобы не переподписываться на каждое обновление.
   const slotsRef = useRef(slots)
@@ -656,13 +743,15 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // Список игроков сервера — пока зажат Tab.
+  // Список игроков сервера — пока зажат Tab. Отпустив Tab, он остаётся, пока мышь на нём: так видно,
+  // что кнопки союза не исчезают из-под руки.
   const [roster, setRoster] = useState(false)
+  const overRoster = useRef(false)
   useEffect(() => {
     const toggle = (shown: boolean) => (event: KeyboardEvent) => {
       if (event.code !== 'Tab' || event.target instanceof HTMLInputElement) return
       event.preventDefault()
-      setRoster(shown)
+      setRoster(shown || overRoster.current)
     }
     const down = toggle(true)
     const up = toggle(false)
@@ -680,12 +769,30 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
   return (
     <>
       {roster && state.players.length > 0 && (
-        <section class="hud roster" aria-label={t('hud.players')}>
+        <section
+          class="hud roster"
+          aria-label={t('hud.players')}
+          onMouseEnter={() => (overRoster.current = true)}
+          onMouseLeave={() => (overRoster.current = false)}
+        >
           <h2>{t('hud.roster', { online: state.players.filter(({ online }) => online).length })}</h2>
           <ul>
-            {state.players.map(({ name, own, online }) => (
+            {state.players.map(({ name, own, online, safe, relation }) => (
               <li class={own ? 'is-own' : online ? undefined : 'is-away'}>
-                <span>{name}</span>
+                <span>
+                  {name}
+                  {safe && <em>{t('hud.sheltered')}</em>}
+                  {relation && <em class={relation === 'ally' ? 'is-ally' : undefined}>{t(`hud.${relation}`)}</em>}
+                </span>
+                {!own && online && (
+                  <span class="roster__acts">
+                    {allyActions(name, relation).map(({ label, command }) => (
+                      <button key={label} onClick={() => say(command)}>
+                        {t(label)}
+                      </button>
+                    ))}
+                  </span>
+                )}
                 <small>{own ? t('hud.you') : online ? t('hud.online') : t('hud.offline')}</small>
               </li>
             ))}
@@ -698,6 +805,11 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
           {state.credits}
           {state.income > 0 && <small>{t('hud.perSecond', { amount: state.income })}</small>}
         </span>
+        {state.protection && (
+          <span class="hud__shelter" data-tip={t('hud.protectionTip')}>
+            {t('hud.protection', { left: state.protection })}
+          </span>
+        )}
         {state.stock && (
           <span class="hud__stock" data-tip={t('hud.stockTip', { capacity: state.stock.capacity })}>
             <Stacks items={state.stock.items} />
@@ -710,6 +822,23 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
         </span>
         <span class="hud__menu">{menu}</span>
       </header>
+
+      {allies.length > 0 && (
+        <section class="hud hud--allies" aria-label={t('hud.friends')}>
+          {allies.map(({ name, online, credits, base }) => (
+            <button
+              key={name}
+              class={online ? 'hud__ally' : 'hud__ally is-away'}
+              data-tip={t('hud.friendTip', { name, credits })}
+              onClick={() => base && flyTo(base.x, base.y)}
+            >
+              <em class="is-ally" />
+              {name}
+              <small>{credits}</small>
+            </button>
+          ))}
+        </section>
+      )}
 
       <Tip />
       {state.chat && <Chat
@@ -763,7 +892,19 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
       <section class={`hud bar${state.editor ? ' is-editor' : ''}`}>
         <MinimapView minimap={minimap} lookAt={lookAt} moveSelected={moveSelected} />
         {state.editor ? null : selected ? (
-          <Info state={state} lookAtSelection={lookAtSelection} narrow={narrow} />
+          <Info
+            state={state}
+            lookAtSelection={lookAtSelection}
+            narrow={narrow}
+            deal={dealing && { ...dealing, buying: page === 'buy' }}
+            ferry={ferry}
+            setAmount={(amount) => deal && setDeal({ ...deal, amount })}
+            confirm={() => {
+              if (!trade || !dealing || dealing.amount < 1) return
+              send({ type: page === 'buy' ? 'buy' : 'sell', port: trade.port, resource: dealing.resource, amount: dealing.amount })
+              setDeal(null)
+            }}
+          />
         ) : (
           <div class="bar__info bar__info--empty">
             {t('hud.nothingSelected')}

@@ -1,5 +1,5 @@
 import type { Component, Entity, World } from '../ecs'
-import { Armed, Assembly, Attached, Builds, Drop, Harvester, Hauler, Health, Inventory, Owner, Path, Position, Producer, Repair, SAVED, Tactics, Trade, Turret, Unit } from '../sim/components'
+import { Armed, Assembly, Attached, Blast, Builds, Drop, Harvester, Hauler, Health, Inventory, Owner, Path, Position, Producer, Repair, Scan, Shot, SAVED, Tactics, Trade, Turret, Unit } from '../sim/components'
 import { quantize, type Motion } from './codec'
 
 /** До скольких знаков после запятой округляются дробные числа в сети: тысячная тайла глазу не видна. */
@@ -12,7 +12,7 @@ const round = (_key: string, value: unknown) =>
 /**
  * Каким компонент уходит игроку viewer: только то, что нужно клиенту, или undefined — не уходит вовсе.
  * Прошлое место и поворот юнита и турели клиент помнит сам, место турели на носителе находит сам,
- * перезарядку считает по тику её конца, см. replica.ts. Всё, что меняется каждый тик без нужды, уходило бы каждый тик.
+ * перезарядку считает по тику её конца, возраст выстрела и взрыва — по тику рождения, см. replica.ts. Всё, что меняется каждый тик без нужды, уходило бы каждый тик.
  */
 function wire(component: Component<any>, data: any, tick: number): object | undefined {
   // Путь — свой у каждого игрока, см. pathOf.
@@ -30,6 +30,14 @@ function wire(component: Component<any>, data: any, tick: number): object | unde
     const { hit: _hit, ...rest } = data
     return rest
   }
+  // Возраст выстрела и взрыва растёт каждый тик, а тик рождения — нет; где снаряд был тик назад, клиент помнит сам.
+  if (component === Shot) {
+    const { prevX: _x, prevY: _y, age, ...rest } = data
+    return { ...rest, born: tick - age }
+  }
+  if (component === Blast) return { size: data.size, life: data.life, born: tick - data.age }
+  // Счёт до следующей вспышки радара клиенту не нужен, а менялся бы дважды в секунду.
+  if (component === Scan) return { x: data.x, y: data.y, tick: data.tick }
   return data
 }
 
@@ -47,9 +55,9 @@ export interface Wired {
 
 /**
  * Что о своём знает только хозяин: склад, очередь производства, работа грузовиков, копателей и строителей, сборка,
- * торговля, тактика. Чужому это незачем рисовать, а знать — нечестно.
+ * торговля, тактика, куда смотрит радар. Чужому это незачем рисовать, а знать — нечестно.
  */
-const PRIVATE = new Set([Inventory, Producer, Hauler, Harvester, Assembly, Trade, Tactics, Builds, Repair].map((component) => component.key))
+const PRIVATE = new Set([Inventory, Producer, Hauler, Harvester, Assembly, Trade, Tactics, Builds, Repair, Scan].map((component) => component.key))
 
 /** Сущность глазами игрока viewer: своё и ничьё — целиком, чужое — без PRIVATE и без цели стрелка. */
 export function seenBy(wired: Wired, viewer: number): Wired {
@@ -74,7 +82,6 @@ export function seenBy(wired: Wired, viewer: number): Wired {
  * сам: её место меняется с каждым шагом носителя.
  */
 export function sharedWireOf(world: World, entity: Entity, tick: number): Wired {
-  const mounted = world.has(entity, Attached) && world.has(entity, Turret)
   const parts = new Map<string, string>()
   for (const component of SAVED) {
     const data = world.get(entity, component)
@@ -82,27 +89,34 @@ export function sharedWireOf(world: World, entity: Entity, tick: number): Wired 
     const shown = wire(component, data, tick)
     if (shown !== undefined) parts.set(component.key, JSON.stringify(shown, round))
   }
-  const owner = world.get(entity, Owner)?.player
-  const drop = world.has(entity, Drop)
-  const position = mounted ? undefined : world.get(entity, Position)
-  if (!position) return { parts, owner, drop }
-  return { parts, owner, drop, motion: quantize(position.x, position.y, world.get(entity, Unit)?.facing) }
+  return { parts, owner: world.get(entity, Owner)?.player, drop: world.has(entity, Drop), motion: motionOf(world, entity) }
+}
+
+/** Движение сущности, каким оно уходит в сеть; undefined — места у неё нет или клиент находит его сам (турель на носителе). */
+export function motionOf(world: World, entity: Entity): Motion | undefined {
+  if (world.has(entity, Attached) && world.has(entity, Turret)) return undefined
+  const position = world.get(entity, Position)
+  if (!position) return undefined
+  return quantize(position.x, position.y, world.get(entity, Unit)?.facing)
 }
 
 /**
- * JSON пути сущности для игрока viewer или undefined. Путь — только своему: чужой клиенту не нужен и выдал бы,
- * куда идёт враг; из пути — только точки, по ним рисуется дорожка выбранного.
+ * JSON пути сущности для игрока viewer, его союзника или undefined. Путь — только своим: чужой клиенту не нужен и
+ * выдал бы, куда идёт враг; из пути — только точки, по ним рисуется дорожка выбранного. friends — союзники viewer,
+ * см. allies.ts.
  */
-export function pathOf(world: World, entity: Entity, viewer: number) {
+export function pathOf(world: World, entity: Entity, viewer: number, friends: readonly number[] = []) {
   const path = world.get(entity, Path)
-  if (!path || world.get(entity, Owner)?.player !== viewer) return undefined
+  if (!path) return undefined
+  const owner = world.get(entity, Owner)?.player
+  if (owner !== viewer && !(owner !== undefined && friends.includes(owner))) return undefined
   return JSON.stringify({ points: path.points }, round)
 }
 
-/** Сущность, какой она уходит игроку viewer: общее для всех и его путь. */
-export function wireOf(world: World, entity: Entity, viewer: number, tick: number): Wired {
+/** Сущность, какой она уходит игроку viewer: общее для всех и его путь (свой или союзника, см. allies.ts). */
+export function wireOf(world: World, entity: Entity, viewer: number, tick: number, friends: readonly number[] = []): Wired {
   const shared = seenBy(sharedWireOf(world, entity, tick), viewer)
-  const path = pathOf(world, entity, viewer)
+  const path = pathOf(world, entity, viewer, friends)
   if (path === undefined) return shared
   return { parts: new Map(shared.parts).set(Path.key, path), motion: shared.motion }
 }

@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { BUILDABLE, REQUIRES } from '../src/sim/buildings'
 import { PLAN } from '../src/sim/showcase'
@@ -6,6 +6,17 @@ import { Building, Owner, SCENES, stanceOf, Site, TRAINING_PLAYER, Unit, createS
 
 const STEP = 1 / 20
 const PLAYER = 1
+
+// Армии сценок набираются случайно, и от состава зависит, случится ли бой: без зерна «оборона» изредка
+// досматривала минуту без единой смерти. С зерном сценки одни и те же от прогона к прогону.
+const random = Math.random
+beforeEach(() => {
+  let seed = 7
+  Math.random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+})
+afterEach(() => {
+  Math.random = random
+})
 
 /** Мир сценки на крошечной карте без тумана; ищет зерно, на котором сценка встаёт. */
 function stage(name: SceneName) {

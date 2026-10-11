@@ -1,6 +1,7 @@
 import { DEFAULT_CONFIG, type GeneratorConfig } from '../src/map/terrain'
 import { DEFAULT_LIMITS, type ConnectLimits } from '../src/net/limits'
 import type { Lang } from '../src/i18n'
+import { DEFAULT_SEND_RATE } from '../src/net/host'
 import { DEFAULT_PORT } from '../src/net/protocol'
 import { DEFAULT_RULES, type Rules } from '../src/sim'
 import { DEFAULT_WEATHER, type WeatherOptions } from '../src/sim/weather'
@@ -17,7 +18,10 @@ export interface ServerSettings {
   admin: string
   /** Файл сохранения мира, двоичный, см. src/save/file.ts. */
   save: string
-  /** Сторона карты в тайлах. Как и generator, fog и weather, действует только на новый мир. */
+  /**
+   * Сторона карты в тайлах. Как и generator, fog и weather, действует только на новый мир. Меньше 1024 при правилах
+   * сессии брать не стоит: на 256 харита не хватает на одно дерево исследований.
+   */
   size: number
   /** Туман войны. */
   fog: boolean
@@ -29,7 +33,23 @@ export interface ServerSettings {
   tls: TlsSettings
   /** Ограничения на подключения с одного адреса; ноль снимает ограничение. */
   limits: ConnectLimits
+  /**
+   * Сколько КБ в секунду сервер шлёт одному игроку: в большом бою то, что не влезло, приходит реже — сначала то, что
+   * у игрока на экране, см. рассылку в src/net/host.ts. Ноль снимает ограничение.
+   */
+  sendRate: number
 }
+
+/**
+ * Правила серверной сессии, которыми она отличается от матча. Мир живёт две недели, и дерево исследований
+ * растянуто на них: первая тема — в десять раз дороже матчевой (30–60 компонентов), каждая следующая — ещё вдвое,
+ * последняя — 640–1920 компонентов. Всё дерево, смотря по порядку тем, — 2600–3300 компонентов (харит с девяти–
+ * одиннадцати месторождений) и 260–330 тысяч кредитов. Цену держит земля, поэтому срок растянут отдельно, ещё
+ * в двенадцать раз: первая тема — час, последняя — до 64 часов, всё дерево — 85–110 часов работы одного техцентра.
+ * Уровни зданий впятеро дороже матчевых: поднять типовую базу до третьего уровня — 42 тысячи кредитов, 2900
+ * стройблоков и 500 компонентов. Замеры — `bun run balance research`.
+ */
+export const SESSION_RULES: Partial<Rules> = { researchScale: 10, researchGrowth: 2, researchSlow: 12, upgradeScale: 5 }
 
 /** Настройки по умолчанию; seed у каждого нового сервера свой. */
 export const defaultSettings = (): ServerSettings => ({
@@ -38,13 +58,14 @@ export const defaultSettings = (): ServerSettings => ({
   password: '',
   admin: '',
   save: 'save.kharos',
-  size: 256,
+  size: 1024,
   fog: true,
   generator: { ...DEFAULT_CONFIG, seed: Math.floor(Math.random() * 2 ** 31) },
   weather: { ...DEFAULT_WEATHER },
-  rules: { ...DEFAULT_RULES },
+  rules: { ...DEFAULT_RULES, ...SESSION_RULES },
   tls: { ...DEFAULT_TLS },
   limits: { ...DEFAULT_LIMITS },
+  sendRate: DEFAULT_SEND_RATE,
 })
 
 /**

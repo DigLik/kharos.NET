@@ -7,6 +7,7 @@ import { addCredits, pay, reward } from './economy'
 import { powerSupply } from './income'
 import { put, take } from './inventory'
 import { missingFor } from './logistics'
+import { hasResearch, type Topic } from './topics'
 import { entriesOf } from './resources'
 import type { Sim } from './sim'
 import { UNITS, freeTilesNear, orderGroupMove, spawnUnit, unitSpec, type UnitType } from './units'
@@ -27,6 +28,12 @@ export function producibleBy(sim: Sim, entity: Entity): UnitType[] {
 export const missingRequirements = (sim: Sim, player: number, unit: UnitType): BuildingType[] =>
   missingBuildings(sim, player, unitSpec(unit).requires as readonly BuildingType[] | undefined)
 
+/** Тема, которую игроку надо исследовать, чтобы заказать юнит; undefined — исследовать нечего или уже открыто. */
+export function missingResearch(sim: Sim, player: number, unit: UnitType): Topic | undefined {
+  const topic = unitSpec(unit).research as Topic | undefined
+  return hasResearch(sim, player, topic) ? undefined : topic
+}
+
 /** Сколько заказов помещается в очередь. */
 export const QUEUE_LIMIT = 5
 
@@ -44,7 +51,7 @@ export function orderUnit(sim: Sim, player: number, entity: Entity, unit: UnitTy
   const producer = sim.world.get(entity, Producer)
   if (!producer || !isOwn(sim, player, entity)) return false
   if (!producibleBy(sim, entity).includes(unit) || producer.queue.length >= QUEUE_LIMIT) return false
-  if (missingRequirements(sim, player, unit).length) return false
+  if (missingRequirements(sim, player, unit).length || missingResearch(sim, player, unit)) return false
   if (!pay(sim, player, UNITS[unit].cost)) return false
   producer.queue.push(unit)
   return true

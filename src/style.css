@@ -275,7 +275,9 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* Список игроков сервера по Tab: поверх карты, по центру сверху. */
+/* Список игроков сервера по Tab: поверх карты, по центру сверху. Мышь панель держит сама — иначе
+   промах мимо кнопки уходил бы сквозь неё приказом по карте, а наведение на строку не удерживало
+   список после отпускания Tab, см. Hud.tsx. */
 .roster {
   position: fixed;
   top: 64px;
@@ -284,7 +286,6 @@ body {
   width: min(420px, calc(100vw - 32px));
   padding: 12px 16px;
   transform: translateX(-50%);
-  pointer-events: none;
 }
 
 .roster h2 {
@@ -317,6 +318,68 @@ body {
   font-weight: bold;
 }
 
+.roster em {
+  margin-left: 8px;
+  font-size: 12px;
+  font-style: normal;
+  color: #7fd0a8;
+}
+
+/* Союзник — тем же зелёным, что на карте и мини-карте, см. allies.ts. */
+.roster em.is-ally {
+  color: #4ec973;
+}
+
+/* Кнопки союза в строке игрока: сами действия прижаты к правому краю строки. */
+.roster__acts {
+  display: flex;
+  margin-left: auto;
+  gap: 6px;
+}
+
+/*
+ * Панель союзников: справа над нижней полосой, всегда на виду. Чип — кнопка: клик ведёт камеру к главному
+ * зданию союзника, счёт — тут же, см. Hud.tsx и baseOf в game/hud.ts.
+ */
+.hud--allies {
+  right: 12px;
+  bottom: 222px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+}
+
+.hud__ally {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  color: #4ec973;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hud__ally em {
+  width: 8px;
+  height: 8px;
+  background: #4ec973;
+  box-shadow: 1px 1px 0 #0b111b;
+}
+
+.hud__ally small {
+  color: #f0c95a;
+  font-size: 12px;
+}
+
+.hud__ally.is-away {
+  opacity: 0.45;
+}
+
+.hud__shelter {
+  color: #7fd0a8;
+}
+
 .roster .is-away {
   opacity: 0.45;
 }
@@ -347,6 +410,10 @@ body {
 
 .hud__alert.is-spotted {
   color: #ffd27a;
+}
+
+.hud__alert.is-found {
+  color: #8fe0a8;
 }
 
 /* Строка гаснет к концу своего времени, см. ALERT_SECONDS. */
@@ -773,6 +840,17 @@ body {
 .hud__hint {
   color: #b4c9dd;
   font-size: 12px;
+}
+
+/* Количество в сделке космопорта: его можно вписать с клавиатуры. */
+.hud__amount {
+  width: 64px;
+  padding: 1px 4px;
+  border: 1px solid #4a6079;
+  outline: none;
+  color: #fff;
+  font: inherit;
+  background: rgb(0 0 0 / 0.4);
 }
 
 .hud button small {

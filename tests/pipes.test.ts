@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, terrainAt } from '../src/map/terrain'
-import { Assembly, BUILDINGS, Batch, Building, Builds, Inventory, Orders, Site, createSim, refundOf, type Sim } from '../src/sim'
+import { Assembly, BUILDINGS, Batch, Building, Builds, Inventory, Orders, Site, Trade, createSim, refundOf, type Sim } from '../src/sim'
 import { placeBuilding, siteAt } from '../src/sim/buildings'
 import { amountOf, put } from '../src/sim/inventory'
 import { powerSupply } from '../src/sim/income'
@@ -10,6 +10,7 @@ import { networkOf, zonesOf } from '../src/sim/zones'
 import { pipeStroke, pipeSwap, unlinked, wellPartners } from '../src/sim/piping'
 import { addCredits, creditsOf } from '../src/sim/economy'
 import { spawnUnit } from '../src/sim/units'
+import { apply } from '../src/sim/commands'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }
@@ -367,4 +368,61 @@ test('укладка труб не стирает очередь строите�
   expect(queued().slice(0, 2)).toEqual([second, pipe])
   expect(queued().length).toBe(3)
   expect(siteAt(sim, x + 2, y)).toBeUndefined()
+})
+
+test('резерв хранилища: заводу — только сверх резерва, продаже — всё; резерв переживает сохранение', () => {
+  const sim = createSim(options)
+  const spot = rock(sim, 30, 10)
+  const x = spot.x
+  const y = spot.y + 6
+  const yard = placeBuilding(sim.world, 'metalYard', x, y, 1)
+  const plant = placeBuilding(sim.world, 'blockPlant', x + 14, y, 1)
+  const port = placeBuilding(sim.world, 'spaceport', x + 20, y + 2 - BUILDINGS.spaceport.height, 1)
+  const store = sim.world.get(yard, Inventory)!
+  put(store, 'metal', 100)
+  lay(sim, x, y + 2, 24)
+  expect(networkOf(sim, plant)).toBe(networkOf(sim, yard)!)
+  expect(networkOf(sim, port)).toBe(networkOf(sim, yard)!)
+
+  // Не хранилище резерва не получает; больше, чем вмещает хранилище, не поставить.
+  expect(apply(sim, 1, { type: 'reserve', buildings: [plant], amount: 10 })).toBe(false)
+  expect(apply(sim, 2, { type: 'reserve', buildings: [yard], amount: 10 })).toBe(false)
+  apply(sim, 1, { type: 'reserve', buildings: [yard], amount: 1e9 })
+  expect(store.reserve).toBe(store.capacity)
+  apply(sim, 1, { type: 'reserve', buildings: [yard], amount: 97 })
+  expect(createSim(throughJson(sim.save())).world.get(yard, Inventory)!.reserve).toBe(97)
+
+  // Завод просит 8 металла, а получает три — что лежит сверх резерва.
+  sim.world.get(plant, Assembly)!.on = true
+  run(sim, 100)
+  expect(amountOf(store, 'metal')).toBeCloseTo(97)
+  expect(amountOf(sim.world.get(plant, Inventory)!, 'metal')).toBeCloseTo(3)
+
+  // Продажа — воля игрока: она забирает и резерв.
+  expect(apply(sim, 1, { type: 'sell', port, resource: 'metal', amount: 50 })).toBe(true)
+  run(sim, 400)
+  expect(amountOf(store, 'metal')).toBeCloseTo(47)
+  expect(amountOf(sim.world.get(plant, Inventory)!, 'metal')).toBeCloseTo(3)
+
+  // Резерв снят — завод добирает своё.
+  apply(sim, 1, { type: 'reserve', buildings: [yard], amount: 0 })
+  run(sim, 100)
+  expect(amountOf(sim.world.get(plant, Inventory)!, 'metal')).toBeCloseTo(8)
+})
+
+test('продажа добирает заявку до конца, когда в хранилищах лежат дробные остатки', () => {
+  const sim = createSim(options)
+  const spot = rock(sim, 30, 10)
+  const x = spot.x
+  const y = spot.y + 6
+  // Ближнее к космопорту хранилище почти пусто: оно отдаёт дробную пачку, и заявке остаётся меньше половины единицы.
+  const far = placeBuilding(sim.world, 'metalYard', x, y, 1)
+  const near = placeBuilding(sim.world, 'metalYard', x + 10, y, 1)
+  const port = placeBuilding(sim.world, 'spaceport', x + 20, y + 2 - BUILDINGS.spaceport.height, 1)
+  put(sim.world.get(far, Inventory)!, 'metal', 100)
+  put(sim.world.get(near, Inventory)!, 'metal', 4.6)
+  lay(sim, x, y + 2, 24)
+  expect(apply(sim, 1, { type: 'sell', port, resource: 'metal', amount: 10 })).toBe(true)
+  run(sim, 400)
+  expect(sim.world.get(port, Trade)!.total).toBeGreaterThan(0)
 })

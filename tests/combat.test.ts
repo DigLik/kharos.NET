@@ -1,4 +1,4 @@
-import { expect, test } from 'bun:test'
+import { afterEach, beforeEach, expect, test } from 'bun:test'
 import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Armed, Blast, Building, Builds, Carrier, activeRepairs, Health, Inventory, INFANTRY_REGEN, isFighter, Repair, wrap, Turret, Owner, Path, Position, Producer, Shot, UNITS, Unit, WEAPONS, buildingHp, canAttack, canPlace, createSim, driveBattle, isWalkable, powerStates, producibleBy, randomArmy, spawnBattle, zoneEconomies, type Sim } from '../src/sim'
@@ -10,6 +10,17 @@ import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
 const TICK = 1 / 20
+
+// Показательный бой набирает армии случайно, и от состава зависит, кончится ли бой: 2026-10-11 сборка клиента упала
+// на «армии сходятся сами» — шестьсот секунд прошли, а бой всё шёл. С зерном бой один и тот же на всех машинах.
+const random = Math.random
+beforeEach(() => {
+  let seed = 7
+  Math.random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+})
+afterEach(() => {
+  Math.random = random
+})
 const seconds = (sim: Sim, time: number) => {
   for (let i = 0; i < Math.round(time / TICK); i++) sim.advance(TICK)
 }

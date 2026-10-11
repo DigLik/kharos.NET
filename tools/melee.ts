@@ -1,24 +1,33 @@
 /**
  * Свалка: K армий по N юнитов стоят по кругу и сходятся в центре, каждая против всех. За каждую играет
- * подключённый к хосту игрок, туман включён — как в настоящей игре. Раз в 10 секунд игры печатает, сколько живых,
- * время тика симуляции и тика хоста с рассылкой (среднее и худшее) и сколько байт в секунду уходит игроку в среднем.
- * bun tools/melee.ts [K] [N] [секунд]
+ * подключённый к хосту игрок, туман включён — как в настоящей игре; камера каждого стоит на центре свалки. Раз
+ * в 10 секунд игры печатает, сколько живых, время тика симуляции и рассылки (среднее и худшее), сколько байт в секунду
+ * уходит игроку в среднем, сколько сверок за тик рассылка откладывает и сколько тиков ждала самая залежавшаяся
+ * сущность, см. Host.sending. Бюджет — как у сервера; 0 мс на тик — без бюджета, для сравнения.
+ * bun tools/melee.ts [K] [N] [секунд] [мс на тик] [КБ/с игроку]
  */
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { createHost } from '../src/net/host'
+import { DEFAULT_SEND_RATE, createHost } from '../src/net/host'
 import { createSim, Owner, Unit } from '../src/sim'
 import { spawnUnit } from '../src/sim/units'
 
 const armies = Number(process.argv[2] ?? 10)
 const n = Number(process.argv[3] ?? 1000)
 const seconds = Number(process.argv[4] ?? 120)
+const ms = process.argv[5] === undefined ? undefined : Number(process.argv[5]) || Infinity
+const rate = Number(process.argv[6] ?? DEFAULT_SEND_RATE)
 const TICK = 1 / 20
 const SPACING = 1.2
 
-const sim = createSim({ generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } })
-const host = createHost(sim)
+// Защита новичка не дала бы армиям стрелять.
+const sim = createSim({ generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false, protection: 0 } })
+const host = createHost(sim, undefined, undefined, { budget: { ms, bytes: ms === Infinity ? undefined : rate * 1024 } })
 let bytes = 0
-for (let i = 0; i < armies; i++) host.join((data) => (bytes += typeof data === 'string' ? Buffer.byteLength(data) : data.byteLength))
+for (let i = 0; i < armies; i++) {
+  const peer = host.join((data) => (bytes += typeof data === 'string' ? Buffer.byteLength(data) : data.byteLength))
+  // Экран 60×34 тайла — обычный масштаб на большом мониторе.
+  peer.receive(JSON.stringify({ type: 'view', left: -30, top: -17, right: 30, bottom: 17 }))
+}
 
 // Каре армии — сторона side юнитов; по кругу каре стоят с зазором в одно каре.
 const types = ['infantry', 'buggy', 'tank', 'rocketeer'] as const
@@ -60,22 +69,26 @@ let hostTotal = 0
 let hostWorst = 0
 let simTotal = 0
 let simWorst = 0
+let deferred = 0
+let waited = 0
 for (let tick = 1; tick <= seconds / TICK; tick++) {
   const before = simTime
   const t = performance.now()
   host.advance(TICK)
   const hostTick = performance.now() - t
   const simTick = simTime - before
-  hostTotal += hostTick
+  hostTotal += hostTick - simTick
   simTotal += simTick
-  hostWorst = Math.max(hostWorst, hostTick)
+  deferred += host.sending.deferred
+  waited = Math.max(waited, host.sending.waited)
+  hostWorst = Math.max(hostWorst, hostTick - simTick)
   simWorst = Math.max(simWorst, simTick)
   if (tick % report === 0) {
     const perPlayer = bytes / armies / (report * TICK) / 1024
     console.log(
       `${(tick * TICK).toFixed(0)} с: живых=${alive()} сущностей=${sim.world.size} следов=${[...sim.traces.all()].length} симуляция=${(simTotal / report).toFixed(1)}мс (худший ${simWorst.toFixed(0)}) ` +
-        `хост=${(hostTotal / report).toFixed(1)}мс (худший ${hostWorst.toFixed(0)}) игроку=${perPlayer.toFixed(0)} КБ/с`,
+        `рассылка=${(hostTotal / report).toFixed(1)}мс (худший ${hostWorst.toFixed(0)}) игроку=${perPlayer.toFixed(0)} КБ/с отложено=${(deferred / report).toFixed(0)} ждали до ${waited} тиков`,
     )
-    hostTotal = hostWorst = simTotal = simWorst = bytes = 0
+    hostTotal = hostWorst = simTotal = simWorst = bytes = deferred = waited = 0
   }
 }

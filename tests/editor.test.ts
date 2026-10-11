@@ -51,7 +51,11 @@ test('деньги, прочность, склад и владелец прав�
   setOwner(sim, store, other)
   const loaded = reload(sim)
   expect(creditsOf(loaded, player)).toBe(5000)
-  const [[entity, , inventory, health, owner]] = [...loaded.world.query(Building, Inventory, Health, Owner)]
+  // Массив строки обхода один на весь обход: берём первую строку и выходим — for..of сам закроет обход.
+  const [entity, , inventory, health, owner] = (() => {
+    for (const row of loaded.world.query(Building, Inventory, Health, Owner)) return row
+    throw new Error('Здания из сохранения нет')
+  })()
   expect(inventory.items.metal).toBe(77)
   expect(health.value / health.max).toBeCloseTo(0.4)
   expect(owner.player).toBe(other)

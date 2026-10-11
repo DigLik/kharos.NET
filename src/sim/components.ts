@@ -12,8 +12,11 @@ import type { Command } from './commands'
 /** Место на карте в тайлах. У здания — левый верхний тайл основания, у юнита — его центр. */
 export const Position = component('Position', { x: 0, y: 0 })
 
-/** Здание. phase — сдвиг анимации в кадрах, чтобы одинаковые здания не мигали в такт. */
-export const Building = component('Building', { type: 'command' as BuildingType, phase: 0 })
+/**
+ * Здание. phase — сдвиг анимации в кадрах, чтобы одинаковые здания не мигали в такт. level — уровень, с единицы:
+ * что он даёт, решает вид здания, см. levelFactor в buildings.ts.
+ */
+export const Building = component('Building', { type: 'command' as BuildingType, phase: 0, level: 1 })
 
 /**
  * Прочность юнита или здания: value — от max до 0, в нуле юнит гибнет, а здание разрушается.
@@ -65,8 +68,10 @@ export const Path = component('Path', () => ({ points: [] as number[], goalX: 0,
  * earned — заработанная доля кредита, ещё не дошедшая до целого. rewards — какие награды игрок уже получил, по порядку.
  * away — сколько он заработал за нынешнее отсутствие, см. Rules.offlineIncome; в сети — ноль. camera — где у него
  * камера в начале игры: середина экрана в тайлах и масштаб, x, y, zoom; пусто — у его юнитов. Задаёт редактор.
+ * research — какие темы игрок исследовал, по порядку, см. research.ts. safe — до какого тика у него защита новичка,
+ * см. shelter.ts; ноль — её нет.
  */
-export const Player = component('Player', () => ({ id: 0, credits: 0, earned: 0, rewards: [] as string[], away: 0, camera: [] as number[] }), { tracked: true })
+export const Player = component('Player', () => ({ id: 0, credits: 0, earned: 0, rewards: [] as string[], away: 0, camera: [] as number[], research: [] as string[], safe: 0, allies: [] as number[], offered: [] as number[], asked: [] as number[] }), { tracked: true })
 
 /**
  * Производство юнитов: есть у MCV и у главного здания.
@@ -149,9 +154,10 @@ export const Hauler = component('Hauler', () => ({
  * Склад: груз, который лежит в здании или едет в юните. items — сколько какого груза, вместе с рудой; capacity —
  * сколько помещается всего, любого груза вместе; accepts — какой груз сюда кладут, пусто — любой; limits — сколько
  * каждого груза помещается самое большее: так стройка принимает ровно свои материалы, а переработка — буфер руды.
+ * reserve — резерв хранилища: столько груза оно не выдаёт никому, кроме продажи, см. givenBy в logistics.ts.
  * Между складами груз переносит транспортный луч: см. Beam и inventory.ts.
  */
-export const Inventory = component('Inventory', () => ({ items: {} as Amounts, capacity: 0, accepts: [] as readonly Good[], limits: {} as Amounts }))
+export const Inventory = component('Inventory', () => ({ items: {} as Amounts, capacity: 0, accepts: [] as readonly Good[], limits: {} as Amounts, reserve: 0 }))
 
 /**
  * Транспортный луч: переносит груз между своим складом и чужим, если между их краями не больше radius тайлов.
@@ -186,6 +192,23 @@ export const Assembly = component('Assembly', { recipe: 'blocks' as Product, on:
  * начала и, прилетев, кладёт wanted единиц в склад космопорта.
  */
 export const Trade = component('Trade', { resource: 'metal' as Resource, wanted: 0, left: 0, total: 0, buy: false })
+
+/**
+ * Корабль космопорта с подарком союзнику: деньги и груз летят к его главному зданию. Всё отдано порту при
+ * отправке — деньги списаны, груз забран из хранилищ, — и всё это выгрузится в точке (x, y), где стояло его
+ * главное здание на момент отправки. left и total — сколько тиков лететь; done — уже выгрузил, и хост,
+ * объявив об этом, снимает компонент, см. ferry.ts.
+ */
+export const Transfer = component('Transfer', () => ({
+  to: 0,
+  x: 0,
+  y: 0,
+  credits: 0,
+  goods: {} as Amounts,
+  left: 0,
+  total: 0,
+  done: false,
+}))
 
 /**
  * Вооружённый юнит. target — кого он атакует, -1 — никого. chase — гнаться ли за целью, когда она вне дальности:
@@ -275,6 +298,28 @@ export const Doomed = component('Doomed', { left: 0 })
  */
 export const Batch = component('Batch', () => ({ from: -1, to: -1, resource: 'metal' as Good, amount: 0, sent: 0, arrive: 0, push: false, path: [] as number[] }))
 
+/**
+ * Улучшение: готовое здание поднимают на следующий уровень. Компонент есть, только пока оно идёт; здание при этом
+ * работает как обычно. progress — сколько тиков работы одного строителя уже вложено. Цена списана при заказе;
+ * scale — по какому Rules.upgradeScale: отмена возвращает уплаченное, и срок работы — от него же. См. upgrades.ts.
+ */
+export const Upgrade = component('Upgrade', { progress: 0, scale: 1 })
+
+/**
+ * Исследование, которое ведёт техцентр: topic — тема (см. RESEARCH в research.ts), progress — сколько тиков оно уже
+ * идёт; при нехватке энергии растёт медленнее. Компонент есть, только пока оно идёт. Цена списана при заказе.
+ */
+export const Research = component('Research', { topic: '', progress: 0, cost: 0, parts: 0, ticks: 0 })
+
+/** Ворота, см. gates.ts: open — створка поднята, через них ходят. Компонент появляется у готовых ворот. */
+export const Gate = component('Gate', { open: false })
+
+/**
+ * Разведка радара, см. radar.ts: (x, y) — середина последней вспышки, tick — когда она случилась (−1 — ещё не было);
+ * wait — сколько тиков до следующей. Обзор хозяина включает круг вспышки, пока она не погасла.
+ */
+export const Scan = component('Scan', { x: 0, y: 0, tick: -1, wait: 0 })
+
 /** Компоненты, которые попадают в сохранение и в сеть. Новый компонент симуляции добавляй сюда. */
 /**
  * Призрак: чужое здание или месторождение, каким клиент видел его последний раз. Живёт только в клиенте: хост
@@ -283,4 +328,4 @@ export const Batch = component('Batch', () => ({ from: -1, to: -1, resource: 'me
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Harvester, Inventory, Beam, Assembly, Trade, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Harvester, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate]

@@ -1,5 +1,5 @@
 import type { Entity } from '../ecs'
-import { BUILDINGS, buildingSpec, type BuildingSpec, type BuildingType } from './buildings'
+import { BUILDINGS, buildingSpec, levelFactor, type BuildingSpec, type BuildingType } from './buildings'
 import { Assembly, Building, Health, Off, Player } from './components'
 import type { Sim } from './sim'
 import { allGrids, type Zone } from './zones'
@@ -33,7 +33,7 @@ function economyOfZone(sim: Sim, zone: Zone): Economy {
   for (const entity of zone.buildings) {
     const building = sim.world.get(entity, Building)!
     const spec: BuildingSpec = BUILDINGS[building.type]
-    const power = spec.power ?? 0
+    const power = powerAt(sim, entity)
     const income = core || !needsCore(building.type) ? (spec.income ?? 0) : 0
     // Выключенный потребитель энергии не просит и ничего не даёт.
     if (power < 0 && switchedOff(sim, entity)) continue
@@ -80,8 +80,13 @@ export function coreless(sim: Sim): Set<Entity> {
   return idle
 }
 
-/** Сколько энергии даёт или просит здание: больше нуля — вырабатывает, меньше — потребляет. */
-const powerAt = (sim: Sim, building: Entity) => buildingSpec(sim.world.get(building, Building)!.type).power ?? 0
+/** Сколько энергии даёт или просит здание: больше нуля — вырабатывает (с уровнем — больше), меньше — потребляет. */
+function powerAt(sim: Sim, building: Entity) {
+  const { type, level } = sim.world.get(building, Building)!
+  const power = buildingSpec(type).power ?? 0
+  // Выработка растёт с уровнем; у радара — потребление: дальше разведывает — больше ест.
+  return power > 0 || buildingSpec(type).scan ? power * levelFactor(level) : power
+}
 /** Потребитель, которого игрок выключил: энергии ему не нужно, и работать он не будет. У завода изделий — свой флаг. */
 function switchedOff(sim: Sim, building: Entity) {
   const assembly = sim.world.get(building, Assembly)

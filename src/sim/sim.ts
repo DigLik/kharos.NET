@@ -5,6 +5,10 @@ import { createLandMemory, saveLandMemory, updateLandMemory, type LandMemory, ty
 import { buildingSpec, createOccupancy, type Occupancy } from './buildings'
 import { fight, recover } from './combat'
 import { assemble } from './assembly'
+import { research } from './research'
+import { scan } from './radar'
+import { gates } from './gates'
+import { materializeAlliances } from './allies'
 import { apply, type Command } from './commands'
 import { Building, Carrier, Inventory, Position, SAVED, Site, Unit } from './components'
 import { mountTurrets } from './turrets'
@@ -17,6 +21,7 @@ import { adoptLegacyHarvesters, harvest } from './harvesting'
 import { haul } from './hauling'
 import { pipeFlow } from './pipes'
 import { earn } from './income'
+import { ferry } from './ferry'
 import { trade } from './trade'
 import { moveUnits, planPaths } from './movement'
 import { produceUnits } from './production'
@@ -68,6 +73,19 @@ export interface Rules {
    */
   offlineIncome: number
   offlineMinutes: number
+  /** Защита новичка: сколько минут после появления игрока нельзя атаковать, см. shelter.ts. Ноль — защиты нет. */
+  protection: number
+  /**
+   * Темп исследований. researchScale — во сколько раз тема дороже и дольше, чем в RESEARCH; researchGrowth — во сколько
+   * раз каждая открытая или начатая тема удорожает следующую; researchSlow — во сколько раз срок длиннее сверх этого:
+   * цену держит земля (харит конечен), и растянуть срок ценой нельзя. Единицы — дерево на один матч; на сервере, где
+   * мир живёт две недели, они больше, см. server/settings.ts.
+   */
+  researchScale: number
+  researchGrowth: number
+  researchSlow: number
+  /** Во сколько раз уровни зданий дороже и дольше, чем в матче, см. upgradeCost. */
+  upgradeScale: number
 }
 
 export const DEFAULT_RULES: Rules = {
@@ -86,6 +104,11 @@ export const DEFAULT_RULES: Rules = {
   toxicSwamp: 0.01,
   offlineIncome: 0.2,
   offlineMinutes: 30,
+  protection: 10,
+  researchScale: 1,
+  researchGrowth: 1,
+  researchSlow: 1,
+  upgradeScale: 1,
 }
 
 export interface SimOptions {
@@ -198,6 +221,10 @@ export function createSim(source: SimOptions | SimSave): Sim {
       (_, time) => refine(sim, time),
       // Цеха собирают изделия из привезённого сырья.
       (_, time) => assemble(sim, time),
+      (_, time) => research(sim, time),
+      (_, time) => scan(sim, time),
+      // До движения: закрывшиеся ворота уже не пропустят.
+      (_, time) => gates(sim, time),
       // До движения: едущие к цели напрямую получают пути, сколько успеет поиск за тик.
       () => planPaths(sim),
       (_, time) => moveUnits(sim, time),
@@ -210,6 +237,8 @@ export function createSim(source: SimOptions | SimSave): Sim {
       () => pipeFlow(sim),
       () => haul(sim),
       () => trade(sim),
+      // Тут же: корабли с подарками союзникам летят по тем же правилам, что рейсы космопорта.
+      () => ferry(sim),
       // После движения и работ: стреляющий юнит поворачивается к цели, и погибшие в этот тик уже ничего не делают.
       () => fight(sim),
       // После боя: вставшие без цели продолжают патруль или возвращаются на место.
@@ -272,6 +301,7 @@ export function createSim(source: SimOptions | SimSave): Sim {
 
   if ('world' in source) {
     world.restore(source.world, SAVED)
+    materializeAlliances(sim)
     refreshStorage(sim)
     remount(sim)
     adoptLegacyDeposits(sim)

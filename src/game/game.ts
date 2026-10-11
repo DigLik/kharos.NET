@@ -56,8 +56,11 @@ const SHOWCASE_MENU = 400
  * Что игра показывает: обычно копию мира хоста (Session), а витрина меню — симуляцию, которую считает сама
  * вкладка; у неё нет поколений мира — она не начинается заново из-под игры.
  */
-/** Как часто, в секундах, вкладка может сообщить хосту, где её камера: редактор показывает камеры игроков. */
-const VIEW_GAP = 0.5
+/**
+ * Как часто, в секундах, вкладка сообщает хосту, где её камера: хост чаще шлёт то, что на экране, а редактор
+ * показывает камеры игроков.
+ */
+const VIEW_GAP = 0.15
 
 export type GameSession = Omit<Session, 'sim'> & { sim: Sim & { readonly generation?: number; readonly kept?: boolean; respawn?(): void; say?(text: string): void; edit?(edit: EditOp): void; view?(box: ViewBox): void } }
 
@@ -263,20 +266,27 @@ export function createGame(
   // Мир один на все вкладки, и начинает его заново хост; на сервере — не может никто.
   const restart = () => session.local?.restart(simOptions(scene.settings), scene.settings.battle)
 
-  /** Какую видимую часть хост знает: камера шлётся, когда сдвинулась хотя бы на тайл, не чаще раза в VIEW_GAP с. */
+  /**
+   * Какую видимую часть хост знает: камера шлётся, когда сдвинулась хотя бы на тайл, не чаще раза в VIEW_GAP с —
+   * а прыгнула (мини-карта, группа, сигнал) — сразу: хост чаще шлёт то, что на экране, см. очередь рассылки в host.ts.
+   */
   let viewSent = ''
+  let viewBox = { left: 0, top: 0, right: 0, bottom: 0 }
   let sinceView = 0
   const stop = startFrames((seconds) => {
     const { sim } = scene
     sim.advance(seconds)
     sinceView += seconds
-    if (session.sim.view && sinceView >= VIEW_GAP) {
-      sinceView = 0
+    if (session.sim.view) {
       const { from, to } = scene.camera.visible
       const box = { left: Math.round(from.x), top: Math.round(from.y), right: Math.round(to.x), bottom: Math.round(to.y) }
+      // Прыжок — экран уехал больше чем на половину себя.
+      const jumped = Math.abs(box.left - viewBox.left) > (box.right - box.left) / 2 || Math.abs(box.top - viewBox.top) > (box.bottom - box.top) / 2
       const key = JSON.stringify(box)
-      if (key !== viewSent) {
+      if ((jumped || sinceView >= VIEW_GAP) && key !== viewSent) {
+        sinceView = 0
         viewSent = key
+        viewBox = box
         session.sim.view(box)
       }
     }

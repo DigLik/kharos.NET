@@ -56,6 +56,17 @@ test('грузовик с маршрутом возит со склада на �
   expect(sim.world.get(truck, Hauler)!.route).toEqual([from, to])
 })
 
+test('маршрут не вывозит резерв хранилища', () => {
+  const { sim, buildings: [from, to], truck } = base(['metalYard', 'metalYard'])
+  sim.world.get(from, Inventory)!.items.metal = 100
+  sim.send(1, { type: 'reserve', buildings: [from], amount: 60 })
+  sim.send(1, { type: 'route', units: [truck], stops: [from, to] })
+  until(sim, () => amount(sim, to, 'metal') >= 40 - 1e-6)
+  seconds(sim, 20)
+  expect(amount(sim, from, 'metal')).toBeCloseTo(60)
+  expect(amount(sim, to, 'metal')).toBeCloseTo(40)
+})
+
 test('фильтр: грузовик возит только разрешённое, и по маршруту тоже', () => {
   const { sim, buildings: [smelter, yard], truck } = base(['smelter', 'metalYard'])
   sim.world.get(smelter, Inventory)!.items.metal = 20

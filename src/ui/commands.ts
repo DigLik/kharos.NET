@@ -1,7 +1,7 @@
 import type { HudState, Stack } from '../game/hud'
 import type { PaveIcon } from '../game/portraits'
 import type { PaveTool } from '../game/scene'
-import { BRIDGE_COST, BUILDINGS, UNDERGROUND_REACH, BUILDING_TYPES, DEPOSIT_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, WARES, type Stance, type BuildingType, type Command, type DepositKind, type Good } from '../sim'
+import { BRIDGE_COST, BUILDINGS, UNDERGROUND_REACH, BUILDING_TYPES, DEPOSIT_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, WARES, type Amounts, type Stance, type BuildingType, type Command, type DepositKind, type Good, type Resource, type Topic } from '../sim'
 import { t } from '../i18n'
 
 /** Клавиши ячеек сетки команд по порядку: три ряда по четыре, как на клавиатуре, справа от WASD. */
@@ -13,23 +13,27 @@ export const GRID_SIZE = GRID_KEYS.length
 const CONVERT = 8
 const CANCEL = 9
 const DEMOLISH = 10
+/** Улучшение здания: конец второго ряда корня — у зданий, которые улучшают, списков там нет. */
+const UPGRADE = 7
 const BACK = 11
 /** Выключатель потребителя энергии — в углу корня, где у страниц «Назад». */
 const SWITCH = BACK
+/** Отдать юнитов союзнику — тоже в углу корня: у юнитов там больше ничего нет. */
+const GIFT = BACK
 /** Кнопки продажи и закупки космопорта: начало нижнего ряда. Отмена заказа техники у космопорта тогда — на месте «Назад». */
 const TRADE = 8
 /** Сколько ячеек сверху отдаётся под списки: заказы, здания, рецепты. */
 const LIST = 8
 
 /** Страница сетки строителя: корень с разделами или сами здания раздела. */
-export type Page = 'root' | 'economy' | 'storage' | 'industry' | 'military' | 'defense' | 'paving' | 'logistics' | 'filter' | 'sell' | 'buy'
+export type Page = 'root' | 'economy' | 'storage' | 'industry' | 'military' | 'defense' | 'paving' | 'logistics' | 'filter' | 'reserve' | 'sell' | 'buy' | 'ally' | 'ferryGoods' | 'gift'
 
 /** Разделы строителя: в какой странице какое здание. Остальное — хозяйство: энергия, добыча, торговля. */
 const SECTIONS: Partial<Record<Page, BuildingType[]>> = {
   storage: ['metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker'],
   industry: ['smelter', 'siliconWorks', 'distillery', 'enricher', 'blockPlant', 'ammoPlant', 'partsPlant'],
   military: ['barracks', 'factory', 'airfield', 'techCenter'],
-  defense: ['wall', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'radar'],
+  defense: ['wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'radar'],
 }
 /** Описание здания для карточки: что делает и какие здания открывает. */
 function aboutOf(building: BuildingType) {
@@ -74,6 +78,10 @@ interface Actions {
   serve: (start: boolean) => void
   patrol: (start: boolean) => void
   open: (page: Page) => void
+  /** Набрать сделку космопорта или бросить её (null). */
+  pick: (deal: Deal | null) => void
+  /** Набрать подарок союзнику или бросить его (null). */
+  draft: (ferry: FerryDraft | null) => void
 }
 
 /** Стойки по порядку кнопок. */
@@ -94,8 +102,64 @@ const PIPE_TOOLS: { tool: GridTool; cost: number }[] = [
   { tool: 'well', cost: BUILDINGS.well.cost },
 ]
 
-/** Сетка команд для выбранного: GRID_SIZE ячеек, пустые — null. */
-export function commandsOf(state: HudState, page: Page, { send, place, pave, route, serve, patrol, open }: Actions): (Slot | null)[] {
+/** Сделка, которую игрок набирает у космопорта: что продать или купить и сколько. */
+export interface Deal {
+  resource: Resource
+  amount: number
+}
+/** Шаги количества в сделке и с какого числа она начинается. */
+const DEAL_STEPS = [10, 50, 100]
+const DEAL_START = 50
+
+/**
+ * Подарок союзнику, который игрок набирает у космопорта: кому, сколько денег и какого груза. Юнитов так
+ * не передают — их отдают сразу, из меню юнитов, см. gift.
+ * editing — что правится сейчас: null — список груза, иначе количество; amount — набираемое число, его
+ * кладёт в черновик «Добавить».
+ */
+export interface FerryDraft {
+  to: number
+  name: string
+  credits: number
+  goods: Amounts
+  editing: { kind: 'good'; good: Good } | { kind: 'credits' } | null
+  amount: number
+}
+
+/** Шаги количества для подарка: груз — десятками, деньги — сотнями. */
+const FERRY_STEPS: Record<'good' | 'credits', number[]> = {
+  good: DEAL_STEPS,
+  credits: [100, 500, 1000],
+}
+
+/** Пустой подарок этому союзнику: с него начинается набор. */
+export const ferryDraftFor = (to: number, name: string): FerryDraft => ({ to, name, credits: 0, goods: {}, editing: null, amount: 0 })
+
+/**
+ * Сделка в пределах возможного: количество — не больше max (продажа — сколько есть в запасе, закупка — на сколько
+ * хватает кредитов и места в трюме, room), и почём единица. null — такого ресурса космопорт сейчас не предлагает.
+ */
+export function dealOf(trade: NonNullable<HudState['trade']>, credits: number, buying: boolean, deal: Deal) {
+  const purchase = trade.purchases.find(({ resource }) => resource === deal.resource)
+  const offer = trade.offers.find(({ resource }) => resource === deal.resource)
+  const price = (buying ? purchase : offer)?.price
+  if (price === undefined) return null
+  const room = purchase?.room ?? 0
+  const max = buying ? Math.max(0, Math.min(room, Math.floor(credits / price))) : offer!.available
+  return { resource: deal.resource, amount: Math.max(0, Math.min(max, Math.floor(deal.amount) || 0)), price, max, room }
+}
+
+/**
+ * Сетка команд для выбранного: GRID_SIZE ячеек, пустые — null. deal — набираемая сделка космопорта (см. Deal),
+ * ferry — набираемый подарок союзнику (см. FerryDraft).
+ */
+export function commandsOf(
+  state: HudState,
+  page: Page,
+  { send, place, pave, route, serve, patrol, open, pick, draft }: Actions,
+  deal: Deal | null = null,
+  ferry: FerryDraft | null = null,
+): (Slot | null)[] {
   const slots: (Slot | null)[] = Array(GRID_SIZE).fill(null)
   const list = (items: Slot[]) => items.slice(0, LIST).forEach((slot, i) => (slots[i] = slot))
   const { construction, production, conversion, assembly, trade, site, demolish, credits } = state
@@ -117,9 +181,10 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
         place(construction.placing === building ? null : building)
       },
     })
-    /** Стену не ставят по одной, а тянут мышью линией, как трубу: её кнопка включает инструмент протяжки. */
+    /** Стену и ворота не ставят по одной, а тянут мышью линией, как трубу: их кнопка включает инструмент протяжки. */
     const wallSlot = (option: (typeof construction.options)[number]): Slot => {
-      const active = construction.paving?.tool === 'wall'
+      const tool = option.building === 'gate' ? 'gate' : 'wall'
+      const active = construction.paving?.tool === tool
       return {
         ...buildingSlot(option),
         cost: active && construction.paving!.tiles > 1 ? construction.paving!.cost : option.cost,
@@ -127,7 +192,7 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
         title: option.affordable ? t('grid.wallTip') : t('grid.noCredits'),
         run: () => {
           place(null)
-          pave(active ? null : 'wall')
+          pave(active ? null : tool)
         },
       }
     }
@@ -186,7 +251,7 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
       }
     } else {
       const wanted = construction.options.filter(({ building }) => sectionOf(building) === page)
-      wanted.slice(0, BACK).forEach((option, i) => (slots[i] = option.building === 'wall' ? wallSlot(option) : buildingSlot(option)))
+      wanted.slice(0, BACK).forEach((option, i) => (slots[i] = option.building === 'wall' || option.building === 'gate' ? wallSlot(option) : buildingSlot(option)))
       slots[BACK] = {
         label: t('common.back'),
         title: t('grid.backFromPlacing'),
@@ -202,14 +267,15 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
   // Страницы торговли закрывают собой заказ техники и разбор.
   if (production && page === 'root') {
     list(
-      production.options.map(({ unit, cost, affordable, materials, missing }) => ({
+      production.options.map(({ unit, cost, affordable, materials, missing, research }) => ({
         label: t(`units.${unit}`),
         unit,
         cost,
         materials,
-        disabled: !affordable || production.full || missing.length > 0,
+        disabled: !affordable || production.full || missing.length > 0 || !!research,
         title: missing.length
           ? t('grid.needs', { list: missing.map((type) => t(`buildings.${type}`)).join(', ') })
+          : research ? t('grid.needsResearch', { name: t(`research.${research}`) })
           : production.full ? t('grid.queueFull') : affordable ? undefined : t('grid.noCredits'),
         run: () => send({ type: 'produce', producer: production.producer, unit }),
       })),
@@ -297,6 +363,29 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
     }
   }
 
+  const { reserve } = state
+  if (reserve && !construction && !haul) {
+    const { buildings, amount, capacity } = reserve
+    const set = (next: number) => send({ type: 'reserve', buildings, amount: Math.max(0, Math.min(capacity, next)) })
+    if (page === 'root') {
+      slots[0] = {
+        label: amount > 0 ? t('grid.reserveCount', { amount }) : t('grid.reserve'),
+        active: amount > 0,
+        title: t('grid.reserveTip'),
+        run: () => open('reserve'),
+      }
+    } else if (page === 'reserve') {
+      // Верхний ряд — прибавить, второй — убавить: по 10 и по 50.
+      ;[10, 50].forEach((step, i) => {
+        slots[i] = { label: `+${step}`, disabled: amount >= capacity, title: t('grid.reserveCount', { amount }), run: () => set(amount + step) }
+        slots[i + 4] = { label: `−${step}`, disabled: amount <= 0, title: t('grid.reserveCount', { amount }), run: () => set(amount - step) }
+      })
+      slots[2] = { label: t('grid.reserveAll'), active: amount >= capacity, title: t('grid.reserveAllTip'), run: () => set(capacity) }
+      slots[CANCEL] = { label: t('grid.reserveNone'), active: amount <= 0, title: t('grid.reserveNoneTip'), run: () => set(0) }
+      slots[BACK] = { label: t('common.back'), run: () => open('root') }
+    }
+  }
+
   const { harvest } = state
   if (harvest && page === 'root') {
     // Поиск месторождения: любого или своего вида, по столбцу на вид.
@@ -311,6 +400,35 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
         run: () => seek(kind),
       }
     })
+  }
+
+  const { gift } = state
+  if (gift && !construction) {
+    // Отдать юнитов союзнику: они перейдут под его управление там же, где стоят, см. gift.ts.
+    if (page === 'root') {
+      const allies = state.players.filter(({ own, relation }) => !own && relation === 'ally').length
+      slots[GIFT] = {
+        label: t('grid.gift'),
+        disabled: allies < 1,
+        title: allies ? t('grid.giftTip') : t('grid.noAllies'),
+        run: () => open('gift'),
+      }
+    } else if (page === 'gift') {
+      // Кому отдать: союзник на ячейку, клик — юниты переходят к нему.
+      list(
+        state.players
+          .filter(({ own, relation }) => !own && relation === 'ally')
+          .map(({ player, name }): Slot => ({
+            label: name,
+            title: t('grid.giftWho'),
+            run: () => {
+              send({ type: 'gift', units: gift, to: player })
+              open('root')
+            },
+          })),
+      )
+      slots[BACK] = { label: t('common.back'), run: () => open('root') }
+    }
   }
 
   if (assembly) {
@@ -336,7 +454,9 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
   }
 
   if (trade) {
-    const { port, order } = trade
+    const { port, order, transfer } = trade
+    // Космопорт один, и корабль у него один: пока в пути заказ или подарок, ни то, ни другое не начать.
+    const busy = !!order || !!transfer
     // Продажа и закупка — каждая на своей странице: верхний ряд корня космопорта занят заказом техники.
     if (page === 'root') {
       slots[TRADE] = {
@@ -353,47 +473,133 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
         title: order ? t('grid.buyBusyTip') : t('grid.buyTip'),
         run: () => open('buy'),
       }
-    } else if (!order && page === 'buy') {
-      // Закупка: верхний ряд — по 10, второй — по 50; столбец на каждый ресурс.
-      trade.purchases.slice(0, 4).forEach(({ resource, price, room }, i) => {
-        for (const [row, amount] of [[0, 10], [1, 50]] as const) {
-          const cost = amount * price
-          slots[i + row * 4] = {
+      // Подарок союзнику: деньги, груз и юниты кораблём. Набранное ждёт возвращения на страницу подарка.
+      const allies = state.players.filter(({ own, relation }) => !own && relation === 'ally').length
+      slots[TRADE + 2] = {
+        label: t('grid.give'),
+        building: 'spaceport',
+        active: !!ferry,
+        disabled: busy || allies < 1,
+        title: busy ? t('grid.giveBusyTip') : allies ? t('grid.giveTip') : t('grid.noAllies'),
+        run: () => open(ferry ? 'ferryGoods' : 'ally'),
+      }
+    } else if (page === 'ally') {
+      // Кому корабль: союзник на ячейку, клик — набор подарка ему.
+      list(
+        state.players
+          .filter(({ own, relation }) => !own && relation === 'ally')
+          .map(({ player, name }): Slot => ({
+            label: name,
+            active: ferry?.to === player,
+            title: t('grid.ferryWho'),
+            run: () => {
+              draft(ferryDraftFor(player, name))
+              open('ferryGoods')
+            },
+          })),
+      )
+      slots[BACK] = { label: t('common.back'), run: () => open('root') }
+    } else if (page === 'ferryGoods' && ferry) {
+      // Что положить в корабль: груз из хранилищ зон и деньги. Набранное видно в панели сведений.
+      if (!ferry.editing) {
+        list(
+          (state.stock?.items ?? []).map(({ resource, amount }): Slot => ({
             label: `${t(`goods.${resource}`)} ×${amount}`,
             good: resource,
-            cost,
-            disabled: credits < cost || room < amount,
-            title: room < amount ? t('grid.noRoom') : credits < cost ? t('grid.noCredits') : t('grid.buyPrice', { price }),
-            run: () => send({ type: 'buy', port, resource, amount }),
-          }
+            title: t('grid.ferryAmount'),
+            run: () => draft({ ...ferry, editing: { kind: 'good', good: resource }, amount: Math.floor(ferry.goods[resource] ?? 0) }),
+          })),
+        )
+        const empty = !ferry.credits && !Object.keys(ferry.goods).length
+        slots[TRADE] = {
+          label: `${t('grid.ferrySend')}: ${ferry.name}`,
+          building: 'spaceport',
+          disabled: empty || busy,
+          title: busy ? t('grid.giveBusyTip') : empty ? t('grid.ferryEmpty') : t('grid.giveTip'),
+          run: () => {
+            send({ type: 'ferry', port, to: ferry.to, credits: ferry.credits, goods: ferry.goods })
+            draft(null)
+            open('root')
+          },
         }
-      })
+        slots[TRADE + 1] = {
+          label: ferry.credits ? `${t('grid.ferryCredits')} ×${ferry.credits}` : t('grid.ferryCredits'),
+          title: t('grid.ferryAmount'),
+          run: () => draft({ ...ferry, editing: { kind: 'credits' }, amount: ferry.credits }),
+        }
+        slots[BACK] = { label: t('common.back'), run: () => open('root') }
+      } else {
+        // Количество: верхний ряд — прибавить, второй — убавить, «Всё» — сколько есть, «Добавить» — в корабль.
+        const editing = ferry.editing
+        const max = editing.kind === 'good' ? state.stock?.items.find(({ resource }) => resource === editing.good)?.amount ?? 0 : credits
+        const loaded = editing.kind === 'good' ? Math.floor(ferry.goods[editing.good] ?? 0) : ferry.credits
+        const steps = FERRY_STEPS[editing.kind]
+        const set = (next: number) => draft({ ...ferry, amount: Math.max(0, Math.min(max, next)) })
+        steps.forEach((step, i) => {
+          slots[i] = { label: `+${step}`, disabled: ferry.amount >= max, run: () => set(ferry.amount + step) }
+          slots[i + 4] = { label: `−${step}`, disabled: ferry.amount <= 0, run: () => set(ferry.amount - step) }
+        })
+        slots[steps.length] = { label: t('grid.all'), active: ferry.amount >= max, title: `×${max}`, run: () => set(max) }
+        slots[TRADE] = {
+          label: `${t('grid.ferryAdd')} ×${ferry.amount}`,
+          good: editing.kind === 'good' ? editing.good : undefined,
+          disabled: ferry.amount === loaded,
+          title: t('grid.ferryAmount'),
+          run: () => {
+            // Ноль убирает груз из корабля: так набранное и правят, и снимают.
+            if (editing.kind === 'credits') return void draft({ ...ferry, credits: ferry.amount, editing: null, amount: 0 })
+            const goods = { ...ferry.goods }
+            if (ferry.amount > 0) goods[editing.good] = ferry.amount
+            else delete goods[editing.good]
+            draft({ ...ferry, goods, editing: null, amount: 0 })
+          },
+        }
+        slots[BACK] = { label: t('common.back'), run: () => draft({ ...ferry, editing: null, amount: 0 }) }
+      }
+    } else if (page === 'ferryGoods') {
       slots[BACK] = { label: t('common.back'), run: () => open('root') }
-    } else if (!order) {
-      // Верхний ряд — продать полсотни, второй — всё, что есть: столбец на каждый ресурс.
-      trade.offers.slice(0, 4).forEach(({ resource, available, price }, i) => {
-        const part = Math.min(50, available)
-        slots[i] = {
-          label: `${t(`goods.${resource}`)} ×${part}`,
+    } else if (!order && (page === 'buy' || page === 'sell')) {
+      const buying = page === 'buy'
+      const picked = deal && dealOf(trade, credits, buying, deal)
+      if (!picked) {
+        // Сначала — что продать или купить: ячейка на ресурс. Количество — на следующем шаге.
+        list(
+          (buying ? trade.purchases : trade.offers).map(({ resource, price }): Slot => {
+            const limit = dealOf(trade, credits, buying, { resource, amount: DEAL_START })!
+            return {
+              label: buying ? t(`goods.${resource}`) : `${t(`goods.${resource}`)} ×${limit.max}`,
+              good: resource,
+              disabled: limit.max < 1,
+              title: limit.max >= 1 ? t(buying ? 'grid.buyPrice' : 'grid.sellPrice', { price }) : limit.room < 1 ? t('grid.noRoom') : t('grid.noCredits'),
+              run: () => pick({ resource, amount: limit.amount }),
+            }
+          }),
+        )
+        slots[BACK] = { label: t('common.back'), run: () => open('root') }
+      } else {
+        // Верхний ряд — прибавить, второй — убавить; «Всё» — сколько есть в запасе или на сколько хватает кредитов и трюма.
+        const { resource, amount, price, max } = picked
+        const set = (next: number) => pick({ resource, amount: Math.max(0, Math.min(max, next)) })
+        DEAL_STEPS.forEach((step, i) => {
+          slots[i] = { label: `+${step}`, disabled: amount >= max, run: () => set(amount + step) }
+          slots[i + 4] = { label: `−${step}`, disabled: amount <= 0, run: () => set(amount - step) }
+        })
+        slots[DEAL_STEPS.length] = { label: t('grid.all'), active: amount >= max, title: `×${max}`, run: () => set(max) }
+        slots[TRADE] = {
+          label: `${t(buying ? 'grid.buy' : 'grid.sell')} ×${amount}`,
           good: resource,
-          cost: part * price,
-          gain: true,
-          title: t('grid.sellPrice', { price }),
-          run: () => send({ type: 'sell', port, resource, amount: part }),
+          cost: amount * price,
+          gain: !buying,
+          disabled: amount < 1,
+          title: t(buying ? 'grid.buyPrice' : 'grid.sellPrice', { price }),
+          run: () => {
+            send({ type: buying ? 'buy' : 'sell', port, resource, amount })
+            pick(null)
+          },
         }
-        if (available > part) {
-          slots[i + 4] = {
-            label: t('grid.sellAll', { name: t(`goods.${resource}`) }),
-            good: resource,
-            cost: available * price,
-            gain: true,
-            title: t('grid.sellAllTip', { amount: available, price }),
-            run: () => send({ type: 'sell', port, resource, amount: available }),
-          }
-        }
-      })
-      slots[BACK] = { label: t('common.back'), run: () => open('root') }
-    } else {
+        slots[BACK] = { label: t('common.back'), run: () => pick(null) }
+      }
+    } else if (order) {
       if (order.flight === null) {
         slots[CANCEL] = {
           label: order.delivered > 0 ? t('grid.send') : t('grid.dropSale'),
@@ -403,6 +609,55 @@ export function commandsOf(state: HudState, page: Page, { send, place, pave, rou
       }
       slots[BACK] = { label: t('common.back'), run: () => open('root') }
     }
+  }
+
+  const { level } = state
+  if (level && page === 'root' && !construction) {
+    const { next, raising } = level
+    if (next) {
+      slots[UPGRADE] = {
+        label: t('grid.upgrade', { level: next.level }),
+        building: state.building ?? undefined,
+        cost: next.cost,
+        materials: next.materials,
+        disabled: !!next.lack,
+        title: next.lack === 'research' ? t('grid.needsResearch', { name: t(`research.${next.topic}`) })
+          : next.lack ? t(next.lack === 'credits' ? 'grid.noCredits' : 'grid.upgradeNoMaterials')
+          : t('grid.upgradeTip', { gain: t(`levelGains.${level.gain}`), factor: next.factor }),
+        run: () => next.buildings.forEach((building) => send({ type: 'upgrade', building, builders: [] })),
+      }
+    } else if (raising) {
+      slots[UPGRADE] = {
+        label: t('grid.cancel'),
+        title: t('grid.cancelUpgradeTip'),
+        run: () => raising.buildings.forEach((building) => send({ type: 'cancelUpgrade', building })),
+      }
+    }
+  }
+
+  const { research } = state
+  if (research && page === 'root' && !construction) {
+    const { lab, current } = research
+    /** Почему тему не начать: подсказка под кнопкой. */
+    const reason = (lack: NonNullable<(typeof research.topics)[number]['lack']>, after: Topic | null) =>
+      lack === 'done' ? t('grid.researchDone')
+      : lack === 'running' ? t('grid.researchRunning')
+      : lack === 'after' ? t('grid.researchAfter', { name: after ? t(`research.${after}`) : '' })
+      : lack === 'credits' ? t('grid.noCredits')
+      : t('grid.researchNoParts')
+    list(
+      research.topics.map(({ topic, cost, materials, time, lack, after }): Slot => ({
+        label: lack === 'done' ? `✓ ${t(`research.${topic}`)}` : t(`research.${topic}`),
+        cost: lack === 'done' ? undefined : cost,
+        materials: lack === 'done' ? undefined : materials,
+        about: t(`researchInfo.${topic}`),
+        active: lack === 'done' || current?.topic === topic,
+        disabled: !!lack || !!current,
+        title: lack ? reason(lack, after) : current ? t('grid.researchBusy') : t('grid.researchTip', { time }),
+        run: () => send({ type: 'research', lab, topic }),
+      })),
+    )
+    if (current) slots[CANCEL] = { label: t('grid.cancel'), title: t('grid.cancelResearchTip'), run: () => send({ type: 'cancelResearch', lab }) }
   }
 
   if (site) {

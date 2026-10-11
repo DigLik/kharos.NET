@@ -6,8 +6,10 @@ import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
   Assembly, Harvester, BUILDABLE, isUnlocked, buyPrice, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
-  awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
-  Off, Owner, Position, Tactics, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType,
+  awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
+  RESEARCH, Research, TOPICS, isLab, levelTopic, missingResearch, topicLack, topicPrice, type Topic, type TopicPrice, type TopicLack,
+  MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
+  Off, Owner, Player, Position, Tactics, Transfer, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
 import { paveStrokeOf } from './placing'
 import type { PaveTool, Scene } from './scene'
@@ -30,7 +32,14 @@ export interface HudState {
   clock: string
   storm: boolean
   /** Кто ещё на сервере: ники, свой ли, подключён ли. Пусто в локальной игре. */
-  players: { name: string; own: boolean; online: boolean }[]
+  /**
+   * relation — что между игроком и нами: союз, он предложил союз или мы ему, см. allies.ts. credits — счёт союзника
+   * (свой и союзнический хост шлёт целиком), base — где его главное здание: туда ведёт клик по панели союзников.
+   * player — номер игрока: по нему команда ferry называет получателя подарка.
+   */
+  players: { player: number; name: string; own: boolean; online: boolean; safe: boolean; relation: 'ally' | 'allyAsked' | 'allyOffered' | null; credits: number; base: { x: number; y: number } | null }[]
+  /** Сколько осталось своей защиты новичка, «м:сс» десятками секунд; пусто — её нет. */
+  protection: string
   /** Чат сетевой игры: сообщения и когда пришли (мс, performance.now); null — игра локальная, чата нет. */
   chat: { name: string; own: boolean; text: string; at: number; system: boolean; whisper?: string }[] | null
   /** Команды чата для дополнения и администратор ли игрок; в локальной игре команд нет. */
@@ -62,6 +71,11 @@ export interface HudState {
   coreless: boolean
   /** Выбранные юниты по видам. */
   units: { type: UnitType; count: number }[]
+  /**
+   * Свои юниты среди выбранных, которых можно отдать союзнику: их номера — для команды gift, см. gift.ts.
+   * null — отдавать нечего: выбран не свой юнит, турель на носителе или обречённый.
+   */
+  gift: number[] | null
   /** Бой: сколько среди выбранных юнитов вооружённых и средняя прочность выбранных юнитов от 0 до 1. */
   army: { armed: number; health: number } | null
   /**
@@ -123,7 +137,17 @@ export interface HudState {
     purchases: { resource: Resource; price: number; room: number }[]
     /** buy — это закупка: деньги уже отданы, корабль летит с грузом. */
     order: { resource: Resource; wanted: number; delivered: number; price: number; flight: number | null; buy: boolean } | null
+    /**
+     * Корабль с подарком союзнику в пути: кому (to — номер игрока), что везёт и как далеко улетел (flight — от 0
+     * до 1). Груз и деньги выгружаются при посадке: с этого мига их тут уже нет.
+     */
+    transfer: { to: number; credits: number; goods: Stack[]; flight: number } | null
   } | null
+  /**
+   * Резерв выбранных своих хранилищ: кому слать, сколько не выдаётся у первого из них и сколько они вмещают
+   * (наименьшее из всех).
+   */
+  reserve: { buildings: number[]; amount: number; capacity: number } | null
   /** Груз выбранных грузовиков вместе; bound — сколько из них привязано к шахте, busy — сколько заняты работой. */
   cargo: { items: Stack[]; capacity: number; bound: number; busy: number } | null
   /**
@@ -145,6 +169,29 @@ export interface HudState {
   } | null
   /** Разбор выбранных своих готовых зданий, которые можно разобрать. refund — сколько кредитов вернётся за все. */
   demolish: { buildings: number[]; refund: number } | null
+  /**
+   * Уровень выбранных своих зданий, которые улучшают: level, gain и factor — уровень первого из них, что он поднимает
+   * и во сколько раз. next — заказ следующего уровня: кому слать, сколько это стоит за всех и чего не хватает;
+   * raising — улучшения в работе: чьи и готовность первого от 0 до 1.
+   */
+  level: {
+    level: number
+    max: number
+    gain: LevelGain
+    factor: number
+    /** topic — исследование, которое открывает этот уровень: его называет подсказка, когда lack — research. */
+    next: { buildings: number[]; level: number; factor: number; cost: number; materials: Stack[]; lack: UpgradeLack | null; topic: Topic } | null
+    raising: { buildings: number[]; progress: number } | null
+  } | null
+  /**
+   * Исследования выбранного своего готового техцентра: темы с ценой и тем, что мешает начать (lack; after — тема,
+   * которую надо открыть раньше), и current — тема в работе с готовностью от 0 до 1.
+   */
+  research: {
+    lab: number
+    topics: { topic: Topic; cost: number; materials: Stack[]; time: string; lack: TopicLack | null; after: Topic | null }[]
+    current: { topic: Topic; progress: number } | null
+  } | null
   /** Что можно построить, если среди выбранного есть строитель. */
   construction: {
     /** Здание, для которого сейчас выбирается место. */
@@ -183,7 +230,8 @@ export interface HudState {
     /** Здание, а не MCV: ему можно поставить точку сбора. rally — она, если поставлена. */
     building: boolean
     rally: boolean
-    options: { unit: UnitType; cost: number; affordable: boolean; materials: Stack[]; missing: BuildingType[] }[]
+    /** missing — каких зданий не хватает для заказа, research — какого исследования. */
+    options: { unit: UnitType; cost: number; affordable: boolean; materials: Stack[]; missing: BuildingType[]; research: Topic | null }[]
   } | null
 }
 
@@ -236,6 +284,22 @@ function pipeHoverOf(scene: Scene): HudState['pipeHover'] {
   return { buildings, stock: stacksOf(items), capacity, x: camera.pointer.x, y: camera.pointer.y }
 }
 
+/** Срок для интерфейса: минуты и секунды, от часа — часы и минуты. */
+const clockOf = (seconds: number) => {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  const whole = Math.round(seconds)
+  return whole < 3600 ? `${Math.floor(whole / 60)}:${pad(whole % 60)}` : `${Math.floor(whole / 3600)}:${pad(Math.floor((whole % 3600) / 60))}:${pad(whole % 60)}`
+}
+
+/** Цена темы исследования для интерфейса. */
+const topicCost = ({ cost, materials, seconds }: TopicPrice) => ({ cost, materials: exactOf(materials), time: clockOf(seconds) })
+
+/** Остаток защиты новичка для интерфейса: вверх до десятка секунд, чтобы он не перерисовывался каждый тик. */
+function protectionOf({ sim, player }: Scene) {
+  const seconds = Math.ceil((protectionLeft(sim, player) * sim.time.step) / 10) * 10
+  return seconds > 0 ? clockOf(seconds) : ''
+}
+
 /** Собирает состояние интерфейса из симуляции и выделения. */
 export function readHud(scene: Scene): HudState {
   const { sim, player, selection } = scene
@@ -246,8 +310,13 @@ export function readHud(scene: Scene): HudState {
   let building: BuildingType | null = null
   let site: HudState['site'] = null
   let demolish: HudState['demolish'] = null
+  let level: HudState['level'] = null
+  let research: HudState['research'] = null
+  /** Готовое на улучшение всех выбранных вместе. */
+  const upgradeMaterials: Amounts = {}
   let deposit: HudState['deposit'] = null
   let stored: HudState['stored'] = null
+  let reserve: HudState['reserve'] = null
   let refinery: HudState['refinery'] = null
   let assembly: HudState['assembly'] = null
   let switchable: HudState['switchable'] = null
@@ -328,7 +397,42 @@ export function readHud(scene: Scene): HudState {
         : null
       stored = { items: stacksOf(inventory.items), capacity: inventory.capacity, store: !!spec!.stores, buffer, slots }
     }
-    if (ready && spec!.refines) refinery = { ore: spec!.refines, intake: REFINE_RATE }
+    if (ready && inventory && spec!.stores && isOwn(sim, player, entity)) {
+      reserve ??= { buildings: [], amount: inventory.reserve, capacity: inventory.capacity }
+      reserve.buildings.push(entity)
+      reserve.capacity = Math.min(reserve.capacity, inventory.capacity)
+    }
+    if (ready && spec!.refines) refinery = { ore: spec!.refines, intake: REFINE_RATE * levelFactor(built.level) }
+    const gain = ready && isOwn(sim, player, entity) ? levelGain(built.type) : undefined
+    if (built && gain) {
+      level ??= { level: built.level, max: MAX_LEVEL, gain, factor: levelFactor(built.level), next: null, raising: null }
+      const upgrade = world.get(entity, Upgrade)
+      if (upgrade) {
+        level.raising ??= { buildings: [], progress: round(Math.min(1, upgrade.progress / upgradeTicks(built.type, built.level, sim.time.step, upgrade.scale))) }
+        level.raising.buildings.push(entity)
+      } else if (isUpgradable(sim, player, entity)) {
+        const price = upgradeCost(built.type, built.level, sim.rules.upgradeScale)
+        level.next ??= { buildings: [], level: built.level + 1, factor: levelFactor(built.level + 1), cost: 0, materials: [], lack: null, topic: levelTopic(built.level) }
+        level.next.buildings.push(entity)
+        level.next.cost += price.credits
+        for (const [resource, amount] of entriesOf(price.materials)) upgradeMaterials[resource] = (upgradeMaterials[resource] ?? 0) + amount
+        const lack = upgradeLack(sim, player, entity)
+        if (lack === 'research' || (lack === 'materials' && !level.next.lack)) level.next.lack = lack
+      }
+    }
+    if (!research && built && ready && isLab(sim, player, entity)) {
+      const running = world.get(entity, Research)
+      research = {
+        lab: entity,
+        topics: TOPICS.map((topic) => ({
+          topic,
+          ...topicCost(topicPrice(sim, player, topic)),
+          lack: topicLack(sim, player, entity, topic) ?? null,
+          after: 'after' in RESEARCH[topic] ? (RESEARCH[topic].after as Topic) : null,
+        })),
+        current: running ? { topic: running.topic as Topic, progress: round(Math.min(1, running.progress / Math.max(1, running.ticks))) } : null,
+      }
+    }
     const digging = world.get(entity, Harvester)
     if (digging && isOwn(sim, player, entity)) {
       const first: boolean = !harvest
@@ -371,6 +475,7 @@ export function readHud(scene: Scene): HudState {
       const zone = zoneWith(sim, player, entity)
       const order = world.get(entity, Trade)
       const items = zone ? stockOfZone(sim, zone).items : {}
+      const ferry = world.get(entity, Transfer)
       trade = {
         port: entity,
         offers: resourceStacksOf(items).map(({ resource, amount }) => ({ resource, available: amount, price: RESOURCE_SPECS[resource].price })),
@@ -387,6 +492,14 @@ export function readHud(scene: Scene): HudState {
               price: order.buy ? buyPrice(order.resource) : RESOURCE_SPECS[order.resource].price,
               flight: order.total ? round(1 - order.left / order.total) : null,
               buy: order.buy,
+            }
+          : null,
+        transfer: ferry
+          ? {
+              to: ferry.to,
+              credits: Math.floor(ferry.credits),
+              goods: stacksOf(ferry.goods),
+              flight: ferry.total ? round(Math.min(1, 1 - ferry.left / ferry.total)) : 1,
             }
           : null,
       }
@@ -409,7 +522,7 @@ export function readHud(scene: Scene): HudState {
     if (canDemolish(sim, player, entity)) {
       demolish ??= { buildings: [], refund: 0 }
       demolish.buildings.push(entity)
-      demolish.refund += refundOf(world.get(entity, Building)!.type)
+      demolish.refund += refundOf(built!.type, built!.level)
     }
     const kind = world.get(entity, Building)?.type ?? world.get(entity, Site)?.type
     if (kind) {
@@ -423,6 +536,14 @@ export function readHud(scene: Scene): HudState {
   // Кнопки стройки показывают энергию для первой зоны: в какую попадёт здание, до выбора места неизвестно.
   const economy = zones[0] ?? economyOf(sim, player)
   const stock = stockOf(sim, player)
+  // Главные здания всех игроков — одним обходом: по ним панель союзников ведёт камеру. В локальной игре игроков нет.
+  const bases = 'players' in sim ? coreBasesOf(sim) : new Map<number, { x: number; y: number }>()
+  // Кого из выбранных можно отдать союзнику: по ним меню юнитов и показывает кнопку подарка.
+  const gift = giftable(sim, player, [...selection])
+  if (level?.next) {
+    level.next.materials = exactOf(upgradeMaterials)
+    if (credits < level.next.cost && level.next.lack !== 'research') level.next.lack = 'credits'
+  }
   const state: HudState = {
     credits,
     hover: hoverOf(scene),
@@ -440,7 +561,19 @@ export function readHud(scene: Scene): HudState {
     admin: 'admin' in sim && (sim as Replica).admin,
     editor: 'editor' in sim && (sim as Replica).editor,
     picking: !!(scene.routing || scene.serving),
-    players: 'players' in sim ? (sim as Replica).players.map(({ player, name, online }) => ({ name, own: player === scene.player, online })) : [],
+    players: 'players' in sim
+      ? (sim as Replica).players.map(({ player, name, online, safe }) => ({
+          player,
+          name,
+          own: player === scene.player,
+          online,
+          safe: !!safe,
+          relation: relationWith(sim, scene.player, player),
+          credits: creditsOf(sim, player),
+          base: bases.get(player) ?? null,
+        }))
+      : [],
+    protection: protectionOf(scene),
     income: round(economyOf(sim, player).income),
     power,
     health,
@@ -449,11 +582,13 @@ export function readHud(scene: Scene): HudState {
     coreless: idle,
     unlinked: loose,
     units: UNIT_TYPES.filter((type) => counts.has(type)).map((type) => ({ type, count: counts.get(type)! })),
+    gift: gift.length ? gift : null,
     army: unitCount ? { armed, health: round(unitHealth / unitCount) } : null,
     building,
     deposit,
     stock: stock.capacity ? { items: stacksOf(stock.items), capacity: stock.capacity } : null,
     stored,
+    reserve,
     refinery,
     assembly,
     switchable,
@@ -468,6 +603,8 @@ export function readHud(scene: Scene): HudState {
     tactics,
     site,
     demolish,
+    level,
+    research,
     construction: counts.has('builder')
       ? {
           placing: scene.placing,
@@ -519,6 +656,7 @@ export function readHud(scene: Scene): HudState {
       affordable: credits >= UNITS[unit].cost,
       materials: exactOf(unitSpec(unit).materials ?? {}),
       missing: missingRequirements(sim, player, unit),
+      research: missingResearch(sim, player, unit) ?? null,
     })),
   }
   return state
@@ -529,4 +667,23 @@ function pavingOf(scene: Scene): NonNullable<HudState['construction']>['paving']
   if (!scene.paving) return null
   const stroke = paveStrokeOf(scene)
   return { tool: scene.paving, cost: stroke?.cost ?? 0, tiles: stroke ? stroke.allowed.filter(Boolean).length : 0, short: stroke ? stroke.short.filter(Boolean).length : 0 }
+}
+
+/** Главные здания всех игроков: центр здания, туда ведёт клик по панели союзников. Все одним обходом зданий. */
+function coreBasesOf(sim: Sim) {
+  const bases = new Map<number, { x: number; y: number }>()
+  const { width, height } = BUILDINGS[CORE]
+  for (const [, position, building, owner] of sim.world.query(Position, Building, Owner)) {
+    if (building.type === CORE && !bases.has(owner.player)) bases.set(owner.player, { x: position.x + width / 2, y: position.y + height / 2 })
+  }
+  return bases
+}
+
+/** Что между игроком other и нами — для списка игроков. */
+function relationWith(sim: Sim, player: number, other: number) {
+  for (const [, info] of sim.world.query(Player)) {
+    if (info.id !== player) continue
+    return info.allies.includes(other) ? 'ally' as const : info.asked.includes(other) ? 'allyAsked' as const : info.offered.includes(other) ? 'allyOffered' as const : null
+  }
+  return null
 }

@@ -9,17 +9,23 @@ import { Builds, Building, Harvester, Producer, Unit } from './components'
 import { assignBuilders, cancelBuild, demolish, orderBuild, orderWalls, workIn } from './construction'
 import { DEPLOY_SECONDS, PACK_SECONDS, canDeploy, canPack, cancelDeploy, startConverting } from './conversion'
 import { assignHaulers, assignPickup, assignSupply, releaseHauler } from './hauling'
+import { setReserve } from './logistics'
 import { clearOrders, isBusyBuilder, queueOrder, unitsOf } from './orders'
 import { orderPave, removePave, type PaveKind } from './paving'
 import { orderPipes, orderWells } from './piping'
 import { cancelUnit, orderUnit } from './production'
 import { setFilter, setRoute, setServe } from './routes'
 import { surrender } from './defeat'
+import { cancelResearch, startResearch } from './research'
+import type { Topic } from './topics'
 import { resolveOrder } from './target'
 import { clearTactics, orderPatrol, setStance, startMarch, type Stance } from './tactics'
-import type { Good, Resource } from './resources'
+import type { Amounts, Good, Resource } from './resources'
 import type { Sim } from './sim'
+import { sendFerry } from './ferry'
+import { handOver } from './gift'
 import { buy, closeSale, sell } from './trade'
+import { cancelUpgrade, orderUpgrade } from './upgrades'
 import { inBounds, orderGroupMove, type UnitType } from './units'
 
 /**
@@ -70,18 +76,38 @@ export type Command = (
   | { type: 'buy'; port: number; resource: Resource; amount: number }
   /** Закрыть заявку раньше срока: корабль улетает с тем, что привезли; если ничего — заявка снимается. */
   | { type: 'closeSale'; port: number }
+  /**
+   * Подарок союзнику через свой космопорт: деньги и груз из хранилищ летят к его главному зданию, см. ferry.ts.
+   * Всё отдаётся сразу, а выгрузится через полёт корабля. Юнитов так не передают — их отдают сразу, см. gift.
+   */
+  | { type: 'ferry'; port: number; to: number; credits: number; goods: Amounts }
+  /**
+   * Отдать своих юнитов союзнику: они переходят под его управление там же, где стоят, и бросают прежнюю работу,
+   * см. gift.ts. Груз в кузове остаётся с ними.
+   */
+  | { type: 'gift'; units: number[]; to: number }
   /** Включить или выключить своё здание — потребителя энергии: выключенное не берёт энергию и не работает. */
   | { type: 'work'; building: number; on: boolean }
   /** Отменить свою стройку и вернуть кредиты; для здания под разбор — отменить разбор. */
   | { type: 'cancelBuild'; site: number }
   /** Назначить своё готовое здание под разбор и послать к нему своих строителей. Отменяется через cancelBuild. */
   | { type: 'demolish'; building: number; builders: number[] }
+  /** Заказать следующий уровень своего готового здания и послать к нему своих строителей: цена списывается сразу. */
+  | { type: 'upgrade'; building: number; builders: number[] }
+  /** Отменить улучшение своего здания: цена возвращается. */
+  | { type: 'cancelUpgrade'; building: number }
+  /** Начать исследование темы в своём свободном техцентре: цена списывается сразу. */
+  | { type: 'research'; lab: number; topic: Topic }
+  /** Бросить исследование своего техцентра: цена возвращается. */
+  | { type: 'cancelResearch'; lab: number }
   /** Дать своим грузовикам маршрут: свои здания-остановки по кругу. Меньше двух остановок — снять маршрут. */
   | { type: 'route'; units: number[]; stops: number[] }
   /** Своим грузовикам — возить только по заявкам этих своих зданий. Пусто — снять назначение. */
   | { type: 'serve'; units: number[]; buildings: number[] }
   /** Какие грузы возить своим грузовикам; пусто — любые. */
   | { type: 'filter'; units: number[]; goods: Good[] }
+  /** Резерв своих хранилищ: столько груза они не выдают никому, кроме продажи; ноль — снять. */
+  | { type: 'reserve'; buildings: number[]; amount: number }
   /** Сдаться: проиграть сразу — все свои юниты и здания исчезают. */
   | { type: 'surrender' }
   /** Стойка своих вооружённых юнитов: как они воюют без приказа. */
@@ -93,7 +119,8 @@ export type Command = (
   /** Протянуть наземную трубу по тайлам (x и y подряд, по порядку) и послать к ней своих строителей. */
   | { type: 'pipes'; tiles: number[]; builders: number[] }
   /** Протянуть стену по тайлам (x и y подряд, по порядку) и послать к ней своих строителей. */
-  | { type: 'walls'; tiles: number[]; builders: number[] }
+  /** Стена протяжкой; gate — не стена, а ворота, см. gates.ts. */
+  | { type: 'walls'; tiles: number[]; builders: number[]; gate?: boolean }
   /** Заложить колодец (x, y) или пару — концы подземной трубы (x, y первого и второго) — и послать к ним своих строителей. */
   | { type: 'wells'; tiles: number[]; builders: number[] }
   /** Снять своё покрытие с тайлов (x и y подряд) своими строителями: недостроенное — сразу с возвратом, готовое разберут. */
@@ -164,7 +191,7 @@ function lay(sim: Sim, player: number, command: Extract<Command, { tiles: number
   const done =
     command.type === 'pave' ? orderPave(sim, player, command.kind, tiles, free) > 0
     : command.type === 'pipes' ? orderPipes(sim, player, tiles, free) > 0
-    : command.type === 'walls' ? orderWalls(sim, player, tiles, free) > 0
+    : command.type === 'walls' ? orderWalls(sim, player, tiles, free, command.gate === true ? 'gate' : 'wall') > 0
     : command.type === 'wells' ? orderWells(sim, player, tiles, free)
     : removePave(sim, player, tiles, builders, free)
   if (!done) return false
@@ -238,6 +265,14 @@ function run(sim: Sim, player: number, command: Command): boolean {
       return buy(sim, player, command.port as Entity, command.resource, command.amount)
     case 'closeSale':
       return closeSale(sim, player, command.port as Entity)
+    case 'ferry': {
+      if (typeof command.goods !== 'object' || command.goods === null) return false
+      return sendFerry(sim, player, command.port as Entity, Number(command.to), Number(command.credits), command.goods)
+    }
+    case 'gift': {
+      if (!Array.isArray(command.units)) return false
+      return handOver(sim, player, Number(command.to), command.units as Entity[]) > 0
+    }
     case 'work':
       return setWorking(sim, player, command.building as Entity, !!command.on)
     case 'cancelBuild':
@@ -254,10 +289,22 @@ function run(sim: Sim, player: number, command: Command): boolean {
       return Array.isArray(command.units) && Array.isArray(command.buildings) && setServe(sim, player, command.units as Entity[], command.buildings as Entity[])
     case 'filter':
       return Array.isArray(command.units) && Array.isArray(command.goods) && setFilter(sim, player, command.units as Entity[], command.goods)
+    case 'reserve':
+      return Array.isArray(command.buildings) && setReserve(sim, player, command.buildings as Entity[], command.amount)
     case 'demolish': {
       const builders = Array.isArray(command.builders) ? (command.builders as Entity[]) : []
       return demolish(sim, player, command.building as Entity, builders)
     }
+    case 'upgrade': {
+      const builders = Array.isArray(command.builders) ? (command.builders as Entity[]) : []
+      return orderUpgrade(sim, player, command.building as Entity, builders)
+    }
+    case 'cancelUpgrade':
+      return cancelUpgrade(sim, player, command.building as Entity)
+    case 'research':
+      return startResearch(sim, player, command.lab as Entity, command.topic)
+    case 'cancelResearch':
+      return cancelResearch(sim, player, command.lab as Entity)
     case 'rally': {
       const building = command.building as Entity
       const producer = sim.world.get(building, Producer)

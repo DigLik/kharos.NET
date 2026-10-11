@@ -3,10 +3,11 @@ import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, isCliffFoot, terrainAt } from '../src/map/terrain'
 import {
-  BUILDINGS, Building, Builds, CORE, Health, Owner, Player, Site, Unit,
+  BUILDINGS, Building, Builds, CORE, Health, Owner, Player, SCAN_SIZE, Site, Unit, buildingSight, scanRadius,
   Off, OVERLOAD_DAMAGE, REPAIR_COST, coreless, powerSupply, REPAIR_SPEED, canBuild, canDeploy, canPlace, createSim, creditsOf, economyOf, powerOf, powerStates, refundOf, rewardsOf, siteAt, zoneEconomies, zoneOf, zonesOf, spawnStartingUnits, type BuildingType, type Sim,
 } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
+import { Scan } from '../src/sim/components'
 import { connectAll, connectBuilding } from '../src/sim/piping'
 import { REWARDS, STARTING_CREDITS } from '../src/sim/economy'
 import { spawnUnit } from '../src/sim/units'
@@ -413,4 +414,44 @@ test('генератор материи приносит деньги, толь�
   put(sim, 'command', 6, 0)
   expect(economyOf(sim, 1).income).toBeCloseTo(BUILDINGS.command.income! + BUILDINGS.matter.income!)
   expect(coreless(sim).size).toBe(0)
+})
+
+test('радар разведывает вспышками в своём радиусе; уровень растит радиус и потребление, выключенный не разведывает', () => {
+  const { sim, x, y } = start()
+  const radar = put(sim, 'radar', x + 9, y)
+  put(sim, 'generator', x + 6, y + 4)
+  const center = { x: x + 10, y: y + 1 }
+  const spots: { x: number; y: number }[] = []
+  let last = -1
+  for (let tick = 0; tick < 60 / TICK; tick++) {
+    sim.advance(TICK)
+    const flash = sim.world.get(radar, Scan)
+    if (!flash || flash.tick === last) continue
+    last = flash.tick
+    spots.push({ x: flash.x, y: flash.y })
+    // Обзор пересчитывается раз в несколько тиков: вспышка в нём — к следующему пересчёту.
+    seconds(sim, 0.25)
+    tick += 5
+    expect(sim.vision.sees(1, flash.x, flash.y)).toBe(true)
+  }
+  // Раз в две секунды, все — в радиусе первого уровня, и дальше постоянного обзора радара тоже.
+  expect(spots.length).toBeGreaterThan(25)
+  const reach = (spot: { x: number; y: number }) => Math.hypot(spot.x - center.x, spot.y - center.y)
+  for (const spot of spots) expect(reach(spot)).toBeLessThanOrEqual(scanRadius('radar') + 0.1)
+  expect(spots.some((spot) => reach(spot) > buildingSight('radar') + SCAN_SIZE)).toBe(true)
+  // Вспышка погасла, а место осталось разведанным.
+  seconds(sim, 3)
+  expect(sim.vision.explored(1, spots[0].x, spots[0].y)).toBe(true)
+
+  // Третий уровень — радиус вдвое, и ест радар вдвое.
+  expect(scanRadius('radar', 3)).toBe(scanRadius('radar') * 2)
+  const demand = economyOf(sim, 1).demand
+  sim.world.get(radar, Building)!.level = 3
+  expect(economyOf(sim, 1).demand).toBe(demand + 3)
+
+  sim.send(1, { type: 'work', building: radar, on: false })
+  seconds(sim, 0.1)
+  const stopped = sim.world.get(radar, Scan)!.tick
+  seconds(sim, 8)
+  expect(sim.world.get(radar, Scan)!.tick).toBe(stopped)
 })

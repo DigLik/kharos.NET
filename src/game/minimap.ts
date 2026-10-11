@@ -1,5 +1,5 @@
 import { biomeAt, terrainAt, type Land } from '../map/terrain'
-import { Building, DEPOSIT_CELL, Owner, Position, Site, Unit, buildingSpec, depositsIn, type Sim } from '../sim'
+import { Building, DEPOSIT_CELL, Owner, Position, Site, Unit, alliesOf, buildingSpec, depositsIn, type Sim } from '../sim'
 import { ALERT_SECONDS } from './alerts'
 import { cssColor } from './resourceColors'
 import type { Scene } from './scene'
@@ -22,6 +22,7 @@ export const PALETTE: [number, number, number][][] = [
 
 const OWN = '#5aa9ff'
 const FOE = '#ff6b5a'
+const ALLY = '#4ec973'
 const NEUTRAL = '#c8c8c8'
 
 /**
@@ -140,7 +141,9 @@ export function createMinimap(scene: Scene) {
       }
       context.drawImage(fogCanvas, 0, 0)
 
-      const colorOf = (player: number) => (player === scene.player ? OWN : player === 0 ? NEUTRAL : FOE)
+      // Свои — синие, союзники — зелёные, чужие — красные, ничьи — серые, см. allies.ts.
+      const friends = alliesOf(scene.sim, scene.player)
+      const colorOf = (player: number) => (player === scene.player ? OWN : player === 0 ? NEUTRAL : friends.includes(player) ? ALLY : FOE)
       for (const [entity, position, owner] of world.query(Position, Owner)) {
         const type = world.get(entity, Building)?.type ?? world.get(entity, Site)?.type
         if (type !== undefined) {
@@ -157,7 +160,7 @@ export function createMinimap(scene: Scene) {
       for (const alert of scene.alerts?.current() ?? []) {
         if (alert.age > ALERT_SECONDS) continue
         const pulse = (alert.age * 2) % 1
-        context.strokeStyle = alert.kind === 'attacked' ? FOE : '#ffd27a'
+        context.strokeStyle = alert.kind === 'attacked' ? FOE : alert.kind === 'found' ? '#8fe0a8' : '#ffd27a'
         context.globalAlpha = 1 - pulse
         context.lineWidth = 2
         context.beginPath()

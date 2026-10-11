@@ -218,6 +218,8 @@ export const SOUNDS = {
   attackOrder: (rate: number, variant: number) => signal(rate, variant, [1050, 700], 0.045, 0.015),
   /** Замечен противник: два коротких восходящих тона. */
   spotted: (rate: number, variant: number) => signal(rate, variant, [620, 930], 0.09, 0.05),
+  /** Найдено месторождение: три мягких тона вверх. */
+  found: (rate: number, variant: number) => signal(rate, variant, [520, 660, 780], 0.08, 0.03),
 } satisfies Record<string, (rate: number, variant: number) => Float32Array>
 
 export type SoundName = keyof typeof SOUNDS

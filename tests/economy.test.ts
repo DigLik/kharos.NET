@@ -117,12 +117,17 @@ test('производство ждёт материалов первого за
   seconds(sim, UNITS.tank.buildTime + 2)
   expect(sim.world.get(factory, Producer)).toMatchObject({ queue: ['tank'], progress: 0 })
 
-  stash({ metal: 40, silicon: 10 })
-  const tanks = () => [...sim.world.query(Unit)].filter(([, unit]) => unit.type === 'tank').length
+  stash({ metal: 40, parts: 10 })
+  // Массив строки обхода один на весь обход — считаем сразу.
+  const tanks = () => {
+    let n = 0
+    for (const [, unit] of sim.world.query(Unit)) if (unit.type === 'tank') n++
+    return n
+  }
   until(sim, () => tanks() > 0)
   // Привезли ровно на танк, и танк их забрал.
   expect(oreIn(sim, store('metal'), 'metal') + oreIn(sim, factory, 'metal')).toBeCloseTo(40 - UNITS.tank.materials.metal)
-  expect(oreIn(sim, store('silicon'), 'silicon') + oreIn(sim, factory, 'silicon')).toBeCloseTo(10 - UNITS.tank.materials.silicon)
+  expect(oreIn(sim, store('parts'), 'parts') + oreIn(sim, factory, 'parts')).toBeCloseTo(10 - UNITS.tank.materials.parts)
 })
 
 test('космопорт продаёт любой ресурс по его цене', () => {
@@ -161,7 +166,7 @@ test('дробный остаток материалов довозят: зав�
   const [factory] = buildings
   const inventory = sim.world.get(factory, Inventory)!
   inventory.items.metal = UNITS.tank.materials.metal - 0.3
-  inventory.items.silicon = UNITS.tank.materials.silicon
+  inventory.items.parts = UNITS.tank.materials.parts
   stash({ metal: 10 })
   sim.send(1, { type: 'produce', producer: factory, unit: 'tank' })
   until(sim, () => sim.world.get(factory, Producer)!.progress > 0, 60)
@@ -252,7 +257,11 @@ test('машинный завод строит MCV из стройблоков �
   const [factory] = buildings
   stash({ blocks: 40, metal: 40 })
   sim.send(1, { type: 'produce', producer: factory, unit: 'mcv' })
-  const mcvs = () => [...sim.world.query(Unit)].filter(([, unit]) => unit.type === 'mcv').map(([entity]) => entity)
+  const mcvs = () => {
+    const out: Entity[] = []
+    for (const [entity, unit] of sim.world.query(Unit)) if (unit.type === 'mcv') out.push(entity)
+    return out
+  }
   until(sim, () => mcvs().length > 0)
   expect(sim.world.has(mcvs()[0], Producer)).toBe(true)
 })

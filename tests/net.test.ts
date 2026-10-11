@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { DEFAULT_CONFIG } from '../src/map/terrain'
 import { createHost, type Host, type HostSave } from '../src/net/host'
+import { FACING, MOTION_FIELDS, POSITION, SPAN_MOST, decodeDelta, encodeDelta } from '../src/net/codec'
 import { decodeServer } from '../src/net/protocol'
+import type { WeaponType } from '../src/sim/weapons'
 import { createReplica, type Replica } from '../src/net/replica'
 import { Armed, Building, Ghost, Owner, Path, Player, Position, Producer, Unit, createSim, isWalkable, shownTo } from '../src/sim'
-import { SAVED } from '../src/sim/components'
+import { SAVED, Scan } from '../src/sim/components'
+import { connectAll } from '../src/sim/piping'
 import { wireOf } from '../src/net/wire'
 import type { Entity } from '../src/ecs'
 import { placeBuilding } from '../src/sim/buildings'
@@ -237,8 +240,8 @@ test('сохранённый сервер после перезапуска уз
   expect(back.peer.player).toBe(1)
   expect(unitsOf(back.sim, 1).length).toBe(units)
   expect(back.sim.players).toEqual([
-    { player: 1, name: 'Вася', online: true },
-    { player: 2, name: 'Петя', online: false },
+    { player: 1, name: 'Вася', online: true, safe: true },
+    { player: 2, name: 'Петя', online: false, safe: true },
   ])
   expect(join(restarted).peer.player).toBe(3)
 })
@@ -323,7 +326,8 @@ test('склад, очередь производства и цель стрел
 })
 
 test('цель приказа выбирает сервер по точке: атаку по номеру сущности не берёт, а точка в тумане — движение', () => {
-  const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 256 }))
+  // Без защиты новичка: под ней врага не атаковать.
+  const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 256, rules: { protection: 0 } }))
   const first = join(host)
   join(host)
   const { world } = host.sim
@@ -354,4 +358,147 @@ test('цель приказа выбирает сервер по точке: а�
   host.advance(STEP)
   host.advance(STEP)
   expect(armed()).toMatchObject({ target: near, ordered: true })
+})
+
+test('движение в кадре несёт срок: за сколько тиков оно набежало, не больше SPAN_MOST', () => {
+  const bytes = encodeDelta(7, [[5, [256, 512, null], 1], [300, [0, 0, FACING], 9], [2, [1, 1, null], 500]], [], '{"set":[],"unset":[],"remove":[]}')
+  const { tick, motion } = decodeDelta(bytes)
+  expect(tick).toBe(7)
+  expect(motion).toEqual([5, 1, 2, NaN, 1, 300, 0, 0, 1, 9, 2, 1 / POSITION, 1 / POSITION, NaN, SPAN_MOST])
+})
+
+test('выстрел идёт в кадре двоичной записью, а клиенту приходит как set — раньше остального о той же сущности', () => {
+  const shot = { weapon: 'cannon' as WeaponType, player: 3, source: 70000, target: -1, fromX: -12.345, fromY: 300.5, toX: 0.001, toY: -511.999, prevX: 1, prevY: 2, age: 4, life: 130, blocked: true, air: false }
+  const bytes = encodeDelta(900, [], [[41, shot, 896], [42, { ...shot, weapon: 'rifle', target: 5, blocked: false, air: true }, 900]], '{"set":[[41,{"Owner":{"player":3}}]],"unset":[],"remove":[9]}')
+  const { set, remove } = decodeDelta(bytes)
+  const { prevX: _x, prevY: _y, age: _age, ...sent } = shot
+  expect(set).toEqual([
+    [41, { Shot: { ...sent, born: 896 } }],
+    [42, { Shot: { ...sent, weapon: 'rifle', target: 5, blocked: false, air: true, born: 900 } }],
+    [41, { Owner: { player: 3 } }],
+  ])
+  expect(remove).toEqual([9])
+  // Запись — около 30 байт вместо полутора сотен в JSON.
+  expect(bytes.length).toBeLessThan(6 + 2 * 34 + 60)
+})
+
+test('тесный бюджет: новое приходит сразу, что на экране — чаще остального, а отложенное не застревает и догоняет', () => {
+  const sim = createSim({ generator: DEFAULT_CONFIG, size: 256, fog: false, rules: { techTree: false } })
+  // Байт на тик — на три десятка записей движения из четырёх сотен; время не ограничено, чтобы тест не зависел от машины.
+  const host = createHost(sim, undefined, undefined, { budget: { ms: Infinity, bytes: 600 * 20 } })
+  const updates = new Map<number, number>()
+  let replica: Replica | undefined
+  const peer = host.join((data) => {
+    const message = decodeServer(data)
+    if (message.type === 'welcome') replica = createReplica(message, () => {}, () => {})
+    else replica!.receive(message)
+    if (message.type === 'delta') for (let i = 0; i < message.motion.length; i += MOTION_FIELDS) updates.set(message.motion[i], (updates.get(message.motion[i]) ?? 0) + 1)
+  })
+  // Экран игрока стоит на первом отряде; второй — далеко за экраном.
+  peer.receive(JSON.stringify({ type: 'view', left: -70, top: -20, right: -30, bottom: 20 }))
+  const squad = (x: number) => Array.from({ length: 200 }, (_, i) => spawnUnit(sim, 'infantry', 1, x + (i % 20), -10 + Math.floor(i / 20)))
+  const shown = squad(-60)
+  const away = squad(40)
+  const everyone = [...shown, ...away]
+  host.advance(STEP)
+  replica!.advance(STEP)
+  // Появившееся — обязательное: все четыре сотни пришли в том же тике, бюджет им не указ.
+  for (const unit of everyone) expect(replica!.world.has(unit, Unit)).toBe(true)
+
+  updates.clear()
+  let deferred = 0
+  for (let tick = 0; tick < 200; tick++) {
+    for (const unit of everyone) sim.world.get(unit, Position)!.x += 0.01
+    host.advance(STEP)
+    replica!.advance(STEP)
+    deferred = Math.max(deferred, host.sending.deferred)
+  }
+  const count = (units: number[]) => units.reduce((sum, unit) => sum + (updates.get(unit) ?? 0), 0)
+  expect(deferred).toBeGreaterThan(0)
+  expect(count(shown)).toBeGreaterThan(count(away) * 4)
+  // За экраном никто не забыт: возраст растёт, и очередь доходит до каждого.
+  for (const unit of away) expect(updates.get(unit) ?? 0).toBeGreaterThan(0)
+
+  // Юнит, появившийся посреди перегрузки, приходит в том же тике.
+  const late = spawnUnit(sim, 'infantry', 1, 0, 30)
+  host.advance(STEP)
+  replica!.advance(STEP)
+  expect(replica!.world.has(late, Unit)).toBe(true)
+
+  // Юниты встали — отложенное доходит, и копия совпадает с хостом.
+  const settled = everyone.map((unit) => ({ ...sim.world.get(unit, Position)! }))
+  for (let tick = 0; tick < 200; tick++) {
+    everyone.forEach((unit, i) => Object.assign(sim.world.get(unit, Position)!, settled[i]))
+    host.advance(STEP)
+    replica!.advance(STEP)
+  }
+  expect(host.sending.deferred).toBe(0)
+  everyone.forEach((unit, i) => {
+    expect(replica!.world.get(unit, Position)!.x).toBeCloseTo(settled[i].x, 2)
+    expect(replica!.world.get(unit, Position)!.y).toBeCloseTo(settled[i].y, 2)
+  })
+})
+
+test('юнит, которого хост придержал на несколько тиков, едет к новому месту столько же тиков, а не прыгает', () => {
+  const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 256 }))
+  const { sim } = join(host)
+  sim.advance(0)
+  const id = 100_000
+  let tick = sim.time.tick
+  const frame = (motion: number[] = [], set: [number, Record<string, object>][] = []) => {
+    sim.receive({ type: 'delta', tick: ++tick, set, unset: [], remove: [], motion })
+    sim.advance(STEP)
+    return sim.world.get(id as Entity, Position)!
+  }
+  const unit = () => sim.world.get(id as Entity, Unit)!
+  expect(frame([id, 0, 0, 0, 1], [[id, { Unit: { type: 'tank' }, Owner: { player: 1 } }]])).toEqual({ x: 0, y: 0 })
+  // Четыре тика о нём не слышно, потом место в четырёх тайлах и срок — четыре тика.
+  expect(frame([id, 4, 0, 2, 4]).x).toBeCloseTo(1)
+  expect(unit().prevX).toBeCloseTo(0)
+  expect(unit().facing).toBeCloseTo(0.5)
+  expect(frame().x).toBeCloseTo(2)
+  expect(unit().prevX).toBeCloseTo(1)
+  expect(frame().x).toBeCloseTo(3)
+  expect(frame()).toEqual({ x: 4, y: 0 })
+  expect(unit().facing).toBe(2)
+  // Доехал — стоит.
+  expect(frame()).toEqual({ x: 4, y: 0 })
+  expect(unit().prevX).toBe(4)
+  // Новое место посреди пути — едет к нему оттуда, где оказался; срок в один тик — сразу на место.
+  expect(frame([id, 8, 0, 2, 2]).x).toBeCloseTo(6)
+  expect(frame([id, 0, 0, 2, 1])).toEqual({ x: 0, y: 0 })
+  expect(unit().prevX).toBeCloseTo(6)
+})
+
+test('вспышки радара видит только хозяин: его копия открывает туман там же, где хост, а чужой про них не знает', () => {
+  const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 256, rules: { techTree: false } }))
+  const first = join(host)
+  const second = join(host)
+  const { world } = host.sim
+  const at = world.get(unitsOf(host.sim as never, 1)[0]! as never, Position)!
+  const x = Math.floor(at.x)
+  const y = Math.floor(at.y)
+  placeBuilding(world, 'command', x, y + 3, 1)
+  placeBuilding(world, 'generator', x + 4, y + 3, 1)
+  const radar = placeBuilding(world, 'radar', x + 8, y + 3, 1)
+  connectAll(host.sim, 1)
+  let flash = world.get(radar, Scan)
+  for (let tick = 0; tick < 400 && !((flash = world.get(radar, Scan)) && flash.tick >= 0 && Math.hypot(flash.x - x, flash.y - y) > 25); tick++) {
+    host.advance(STEP)
+    first.sim.advance(STEP)
+    second.sim.advance(STEP)
+  }
+  expect(flash!.tick).toBeGreaterThanOrEqual(0)
+  for (let tick = 0; tick < 6; tick++) {
+    host.advance(STEP)
+    first.sim.advance(STEP)
+    second.sim.advance(STEP)
+  }
+  // Далеко за постоянным обзором радара: открыто вспышкой — и на хосте, и в копии хозяина.
+  expect(host.sim.vision.sees(1, flash!.x, flash!.y)).toBe(true)
+  expect(first.sim.world.get(radar, Scan)).toMatchObject({ x: flash!.x, y: flash!.y, tick: flash!.tick })
+  expect(first.sim.vision.sees(1, flash!.x, flash!.y)).toBe(true)
+  // Куда смотрит чужой радар, сосед не знает, даже видя сам радар.
+  expect(wireOf(world as never, radar as never, 2, 0).parts.has(Scan.key)).toBe(false)
+  expect(wireOf(world as never, radar as never, 1, 0).parts.has(Scan.key)).toBe(true)
 })

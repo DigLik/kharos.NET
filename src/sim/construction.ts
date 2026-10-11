@@ -1,8 +1,8 @@
 import type { Entity } from '../ecs'
 import { tileKey } from '../map/terrain'
-import { BUILDINGS, BUILD_RATE, CORE, buildingSpec, canPlace, durabilityOf, equip, isUnlocked, newBuilding, siteAt, type BuildingSpec, type BuildingType } from './buildings'
+import { BUILDINGS, BUILD_RATE, CORE, applyLevel, buildingSpec, canPlace, durabilityOf, equip, isUnlocked, newBuilding, siteAt, upgradeCost, upgradeSpent, type BuildingSpec, type BuildingType } from './buildings'
 import { NONE, isOwn, onTurn, ownerOf, rectDistance, turnToward, wrap } from './common'
-import { Building, Builds, Converting, Health, Inventory, Owner, Path, Pave, Position, Producer, Repair, Site, Unit } from './components'
+import { Building, Builds, Converting, Health, Inventory, Owner, Path, Pave, Position, Producer, Repair, Site, Unit, Upgrade } from './components'
 import { reserveLeft } from './deposits'
 import { amountOf } from './inventory'
 import { entriesOf, totalOf } from './resources'
@@ -13,6 +13,7 @@ import { PAVE_LIMIT, buildSpeed, paveCost } from './paving'
 import { clearDrops, dropCargo } from './drops'
 import { inCircles, inForeignZone, zoneOf } from './zones'
 import { carrierOf, turnerOf } from './turrets'
+import { cancelUpgrade } from './upgrades'
 import { UNITS, clearGround, isWalkable, orderMove, standingUnits, unitsIn } from './units'
 
 /** С какого расстояния до основания свободный строитель сам берётся за стройку или разбор, в тайлах. */
@@ -103,6 +104,21 @@ function isRepairable(sim: Sim, entity: Entity) {
   return !!health?.repairable && health.value < health.max && !world.has(entity, Site) && !world.has(entity, Converting)
 }
 
+/**
+ * Улучшение, над которым здесь сейчас работают, и уровень, с которого здание поднимают. Повреждённое здание сначала
+ * чинят, а здание под разбором не улучшают: тогда улучшения в работе нет.
+ */
+function upgradeAt(sim: Sim, entity: Entity) {
+  const { world } = sim
+  const upgrade = world.get(entity, Upgrade)
+  const building = world.get(entity, Building)
+  if (!upgrade || !building || world.has(entity, Site) || isRepairable(sim, entity)) return undefined
+  return { upgrade, building, ticks: upgradeTicks(building.type, building.level, sim.time.step, upgrade.scale) }
+}
+
+/** Сколько тиков работы одного строителя нужно, чтобы поднять здание с уровня level на следующий. */
+export const upgradeTicks = (type: BuildingType, level: number, step: number, scale = 1) => workTicks(upgradeCost(type, level, scale).credits, step)
+
 /** Может ли игрок послать строителей чинить это здание или юнит. */
 export const canRepair = (sim: Sim, player: number, entity: Entity) => isOwn(sim, player, entity) && isRepairable(sim, entity)
 
@@ -119,7 +135,7 @@ interface Work {
   cost: number
 }
 
-/** Над чем здесь работают строители; undefined — работы нет. */
+/** Над чем здесь работают строители: стройка, разбор, починка или улучшение; undefined — работы нет. */
 function workAt(sim: Sim, entity: Entity): Work | undefined {
   const { world } = sim
   const position = world.get(entity, Position)
@@ -133,10 +149,11 @@ function workAt(sim: Sim, entity: Entity): Work | undefined {
     const { radius, cost } = UNITS[unit.type]
     return { x: position.x, y: position.y, width: 0, height: 0, radius, cost }
   }
-  const built = type ?? (repair ? world.get(entity, Building)!.type : undefined)
+  const raised = upgradeAt(sim, entity)
+  const built = type ?? (repair || raised ? world.get(entity, Building)!.type : undefined)
   if (built === undefined) return undefined
   const { width, height, cost } = BUILDINGS[built]
-  return { x: position.x, y: position.y, width, height, radius: 0, cost }
+  return { x: position.x, y: position.y, width, height, radius: 0, cost: raised ? upgradeCost(built, raised.building.level, raised.upgrade.scale).credits : cost }
 }
 
 /** Расстояние от точки до края того, над чем работают, в тайлах; внутри основания — ноль. */
@@ -265,13 +282,13 @@ export function orderBuild(sim: Sim, player: number, type: BuildingType, x: numb
  * Какие тайлы протянутой стены можно заложить, по тайлу (тайлы x, y подряд): где её можно построить, см. canBuild.
  * Кредиты здесь не считаются.
  */
-export function wallStroke(sim: Sim, player: number, tiles: readonly number[]): boolean[] {
+export function wallStroke(sim: Sim, player: number, tiles: readonly number[], type: 'wall' | 'gate' = 'wall'): boolean[] {
   const taken = new Set<number>()
   const allowed: boolean[] = []
   for (let i = 0; i + 1 < tiles.length; i += 2) {
     const x = tiles[i]
     const y = tiles[i + 1]
-    const ok = Number.isInteger(x) && Number.isInteger(y) && !taken.has(tileKey(x, y)) && canBuild(sim, player, 'wall', x, y)
+    const ok = Number.isInteger(x) && Number.isInteger(y) && !taken.has(tileKey(x, y)) && canBuild(sim, player, type, x, y)
     if (ok) taken.add(tileKey(x, y))
     allowed.push(ok)
   }
@@ -279,17 +296,17 @@ export function wallStroke(sim: Sim, player: number, tiles: readonly number[]): 
 }
 
 /**
- * Закладывает протянутую стену (тайлы x, y подряд, по порядку протяжки) и посылает к ней строителей. Платят за каждый
+ * Закладывает протянутую стену или ворота — type (тайлы x, y подряд, по порядку протяжки) и посылает к ней строителей. Платят за каждый
  * тайл сразу; куда нельзя (см. wallStroke) — не кладут; кончились кредиты — дальше стена не тянется. Возвращает,
  * сколько заложено.
  */
-export function orderWalls(sim: Sim, player: number, tiles: readonly number[], builders: Entity[]) {
-  const allowed = wallStroke(sim, player, tiles.slice(0, PAVE_LIMIT * 2))
+export function orderWalls(sim: Sim, player: number, tiles: readonly number[], builders: Entity[], type: 'wall' | 'gate' = 'wall') {
+  const allowed = wallStroke(sim, player, tiles.slice(0, PAVE_LIMIT * 2), type)
   let first: Entity | undefined
   let count = 0
   for (let i = 0; i < allowed.length; i++) {
     if (!allowed[i]) continue
-    const site = orderBuild(sim, player, 'wall', tiles[i * 2], tiles[i * 2 + 1], [])
+    const site = orderBuild(sim, player, type, tiles[i * 2], tiles[i * 2 + 1], [])
     if (site === undefined) break
     first ??= site
     count++
@@ -326,8 +343,8 @@ export const DEMOLISH_REFUND = 0.5
 /** Во сколько раз разбирать быстрее, чем строить. */
 export const DEMOLISH_SPEED = 1.5
 
-/** Сколько кредитов вернёт разбор здания этого вида. */
-export const refundOf = (type: BuildingType) => Math.floor(BUILDINGS[type].cost * DEMOLISH_REFUND)
+/** Сколько кредитов вернёт разбор здания этого вида и уровня: доля его цены и вложенного в уровни. */
+export const refundOf = (type: BuildingType, level = 1) => Math.floor((BUILDINGS[type].cost + upgradeSpent(type, level)) * DEMOLISH_REFUND)
 
 /** Может ли игрок разобрать здание: оно своё, готовое и не главное — главное сворачивают в MCV. */
 export function canDemolish(sim: Sim, player: number, building: Entity) {
@@ -345,6 +362,8 @@ export function canDemolish(sim: Sim, player: number, building: Entity) {
  */
 export function demolish(sim: Sim, player: number, building: Entity, builders: Entity[]) {
   if (!canDemolish(sim, player, building)) return false
+  // Недоделанное улучшение разбор отменяет: его цена возвращается целиком.
+  cancelUpgrade(sim, player, building)
   const { type } = sim.world.get(building, Building)!
   sim.world.add(building, Site({ type, progress: siteTicks(type, sim.time.step), demolish: true }))
   assignBuilders(sim, player, building, builders)
@@ -378,6 +397,9 @@ function volunteer(sim: Sim) {
   }
   for (const [entity, , pave, owner] of world.query(Position, Pave, Owner)) {
     if (!pave.done || pave.remove) sites.push({ entity, work: workAt(sim, entity)!, player: owner.player })
+  }
+  for (const [entity, , , owner] of world.query(Upgrade, Position, Owner)) {
+    if (upgradeAt(sim, entity)) sites.push({ entity, work: workAt(sim, entity)!, player: owner.player })
   }
   // Считается недёшево, поэтому только если есть что чинить, и один раз.
   let overbuilt: Set<Entity> | undefined
@@ -459,7 +481,7 @@ export function repairLinks(sim: Sim): RepairLink[] {
   }
   if (!repairers.length) return links
 
-  const targets: { entity: Entity; work: Work; player: number; demolish: boolean; ordered: boolean }[] = []
+  const targets: { entity: Entity; work: Work; player: number; demolish: boolean; ordered: boolean; upgrade?: boolean }[] = []
   for (const [entity] of world.query(Site, Position, Owner)) targets.push({ entity, work: workAt(sim, entity)!, player: 0, demolish: false, ordered: false })
   for (const [entity, pave] of world.query(Pave, Position, Owner)) {
     if (!pave.done || pave.remove) targets.push({ entity, work: workAt(sim, entity)!, player: 0, demolish: false, ordered: false })
@@ -468,6 +490,9 @@ export function repairLinks(sim: Sim): RepairLink[] {
     // По кому сейчас бьют, не чинят: посланный строитель постоит рядом и возьмётся, когда бой стихнет.
     if (health.value < health.max && isRepairable(sim, entity) && !underFire(sim, entity)) targets.push({ entity, work: workAt(sim, entity)!, player: 0, demolish: false, ordered: false })
   }
+  for (const [entity] of world.query(Upgrade, Position, Owner)) {
+    if (upgradeAt(sim, entity)) targets.push({ entity, work: workAt(sim, entity)!, player: 0, demolish: false, ordered: false, upgrade: true })
+  }
   // Считается недёшево, поэтому только если есть повреждённое здание, и один раз.
   let overbuilt: Set<Entity> | undefined
   for (const target of targets) {
@@ -475,7 +500,8 @@ export function repairLinks(sim: Sim): RepairLink[] {
     target.player = ownerOf(sim, target.entity)
     target.demolish = !!site?.demolish || !!world.get(target.entity, Pave)?.remove
     // Электростанцию, которой не хватило бы и целой, чинят только посланные к ней: иначе починка зря жгла бы кредиты.
-    target.ordered = !site && world.has(target.entity, Building) && (overbuilt ??= overbuiltPlants(sim)).has(target.entity)
+    // Улучшают её и без приказа: больше выработки — как раз то, что снимает перегруз.
+    target.ordered = !site && !target.upgrade && world.has(target.entity, Building) && (overbuilt ??= overbuiltPlants(sim)).has(target.entity)
   }
   const stalled = new Map<Entity, boolean>()
   const stands = (entity: Entity) => {
@@ -553,8 +579,8 @@ export function awaitsMaterials(sim: Sim, site: Entity) {
  */
 function isStalled(sim: Sim, entity: Entity) {
   const { world } = sim
-  // Покрытие оплачено сразу и ничего не ждёт.
-  if (world.has(entity, Pave)) return false
+  // Покрытие и улучшение оплачены сразу и ничего не ждут.
+  if (world.has(entity, Pave) || upgradeAt(sim, entity)) return false
   const site = world.get(entity, Site)
   // Бесплатная починка не стоит и без кредитов.
   if (!site) return sim.rules.repairCost > 0 && creditsOf(sim, ownerOf(sim, entity)) <= 0
@@ -589,8 +615,8 @@ function workDone(sim: Sim) {
 
 /**
  * Раз в тик: ремонтники (Repair) вкладывают работу во всё своё, до чего дотягиваются, — чем их больше, тем быстрее.
- * Стройку строят, здание под разбор разбирают, повреждённое здание или юнит — чинят; им может быть и юнит,
- * и здание. Строитель сам подъезжает к своей работе (Builds), а дальше работает как любой ремонтник.
+ * Стройку строят, здание под разбор разбирают, повреждённое здание или юнит — чинят, здание с заказанным улучшением
+ * поднимают на уровень; ремонтником может быть и юнит, и здание. Строитель сам подъезжает к своей работе (Builds), а дальше работает как любой ремонтник.
  * С первым тиком работы площадка становится недостроенным зданием и занимает тайлы. Пока на ней стоят юниты,
  * работа не начинается: свои с неё уходят, чужих ждут.
  * Стройка вне радиуса контроля (главное здание свернули) стоит, пока контроль не вернётся; оборонительным
@@ -641,6 +667,15 @@ export function construct(sim: Sim) {
       continue
     }
     const site = world.get(entity, Site)
+    const raised = upgradeAt(sim, entity)
+    if (raised) {
+      raised.upgrade.progress += count
+      if (raised.upgrade.progress < raised.ticks) continue
+      world.remove(entity, Upgrade)
+      raised.building.level++
+      applyLevel(world, entity)
+      continue
+    }
     if (!site) {
       // Починка идёт быстрее стройки и оплачивается по мере работы; кончились кредиты — стоит.
       const health = world.get(entity, Health)
@@ -656,7 +691,7 @@ export function construct(sim: Sim) {
     if (site.demolish) {
       site.progress -= count * DEMOLISH_SPEED
       if (site.progress > 0) continue
-      addCredits(sim, player, refundOf(site.type))
+      addCredits(sim, player, refundOf(site.type, world.get(entity, Building)?.level))
       // Что лежало на складе здания, остаётся на земле.
       dropCargo(sim, entity)
       world.destroy(entity)

@@ -1,12 +1,13 @@
 import type { Entity, World } from '../ecs'
 import { Terrain, isBuildable, isCliffFoot, terrainAt, tileKey } from '../map/terrain'
 import { isOwn } from './common'
-import { Assembly, Building, Health, Repair, Owner, Position, Producer, Site } from './components'
+import { Assembly, Building, Gate, Health, Inventory, Repair, Owner, Position, Producer, Site } from './components'
 import { equipStorage, type BeamSpec } from './inventory'
 import { ORE_SPECS, PRODUCT_SPECS, WARES, stockedFor, type Amounts, type Good, type Ore, type Product } from './resources'
 import type { Sim } from './sim'
 import { mountTurrets, type MountSpec } from './turrets'
 import { isPaved } from './paved'
+import { hasResearch, type Topic } from './topics'
 import type { UnitType } from './units'
 
 /** Что симуляция знает о виде здания. Как оно выглядит, знает клиент: см. game/buildings/buildingArt.ts. */
@@ -31,6 +32,10 @@ export interface BuildingSpec {
   mounts?: MountSpec[]
   /** Сколько тайлов от центра видит готовое здание; без поля — на BUILDING_SIGHT от края. См. vision.ts. */
   sight?: number
+  /** Ворота: открыты, пока рядом нет чужих, см. gates.ts. */
+  gate?: boolean
+  /** На сколько тайлов от центра здание разведывает вспышками, см. radar.ts; с уровнем радиус растёт. */
+  scan?: number
   /** Энергия: больше нуля — вырабатывает, меньше — потребляет. */
   power?: number
   /**
@@ -85,6 +90,8 @@ export interface BuildingSpec {
   pipe?: 'surface' | 'well'
   /** Здание не подключается к сети труб: стене нечего брать и отдавать. */
   isolated?: boolean
+  /** Здание ведёт исследования, см. research.ts. */
+  researches?: boolean
 }
 
 /** На сколько тайлов от своего центра расширяет зону готовая труба или колодец. */
@@ -166,9 +173,9 @@ export const BUILDINGS = {
   partsPlant: plant('parts'),
   // Машинный завод: машинки и тяжёлая техника. Строится из стройблоков: военная промышленность требует цеха.
   factory: { width: 3, height: 3, cost: 450, power: -5, materials: { blocks: 10 }, produces: ['buggy', 'flak', 'lancer', 'tank', 'artillery', 'tesla', 'carrier', 'mcv'] },
-  // Техцентр открывает второй тир: тяжёлую технику, артиллерию и бомбардировщик. Строится из стройблоков:
-  // до него игрок должен наладить цех.
-  techCenter: { width: 3, height: 3, cost: 1000, power: -6, materials: { blocks: 15 }, sight: 8 },
+  // Техцентр ведёт исследования: они открывают уровни зданий, второй тир техники и лучевую оборону. Строится
+  // из стройблоков: до него игрок должен наладить цех.
+  techCenter: { width: 3, height: 3, cost: 1000, power: -6, materials: { blocks: 15 }, sight: 8, researches: true },
   // Аэродром выпускает летающих: им нужно топливо, бомбардировщику ещё и техцентр.
   airfield: { width: 4, height: 3, cost: 500, power: -4, materials: { metal: 15, blocks: 5 }, produces: ['airTruck', 'drone', 'gunship', 'bomber'] },
   // Электростанция.
@@ -178,7 +185,7 @@ export const BUILDINGS = {
   // одной электростанции хватает на два генератора.
   matter: { width: 2, height: 2, cost: 250, power: -3, income: 1.5, crowding: true },
   // Радар открывает туман далеко вокруг: так видно, кто идёт к базе, и куда бить артиллерией.
-  radar: { width: 2, height: 2, cost: 400, power: -3, sight: 24 },
+  radar: { width: 2, height: 2, cost: 400, power: -3, sight: 14, scan: 40 },
   windtrap: { width: 2, height: 2, cost: 300 },
   barracks: { width: 3, height: 2, cost: 250, power: -2, produces: ['infantry', 'rocketeer', 'flamer'] },
   // Шахта энергии не просит и начинает свою зону: тянуть к месторождению цепочку зданий не нужно.
@@ -199,6 +206,7 @@ export const BUILDINGS = {
   spaceport: { width: 3, height: 3, cost: 450, power: -5, materials: { metal: 20 }, trades: true, inventory: 400, accepts: WARES },
   // Дешёвая стена не расширяет зону: иначе цепочкой стен можно было бы бесплатно протянуть контроль через карту.
   wall: { width: 1, height: 1, cost: 30, hp: 400, defense: true, expand: 0, isolated: true },
+  gate: { width: 1, height: 1, cost: 90, hp: 400, defense: true, expand: 0, isolated: true, gate: true },
   // Трубы связывают здания в сеть: по ним идут груз и энергия. Наземная дешёвая и хрупкая и перекрывает проезд,
   // как стена; колодцы ведут подземный отрезок, под которым ездят и строят, а уязвимы только сами колодцы.
   pipe: { width: 1, height: 1, cost: 5, hp: 60, expand: PIPE_REACH, sight: 1, pipe: 'surface' },
@@ -227,8 +235,71 @@ export const BUILDING_TYPES = Object.keys(BUILDINGS) as BuildingType[]
 export const BUILDABLE: BuildingType[] = [
   'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'blockPlant', 'ammoPlant', 'partsPlant',
   'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker', 'spaceport', 'barracks', 'factory', 'airfield', 'techCenter',
-  'radar', 'wall', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret',
+  'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret',
 ]
+
+/** Выше этого уровня здания не улучшают. */
+export const MAX_LEVEL = 3
+/** На какую долю от первого уровня каждый следующий поднимает то, что здание делает: второй — в полтора раза, третий — вдвое. */
+export const LEVEL_BONUS = 0.5
+/** Во сколько раз здание этого уровня сильнее первого. */
+export const levelFactor = (level: number) => 1 + LEVEL_BONUS * (level - 1)
+/** Уровень здания; у стройки и у того, что не здание, — первый. */
+export const levelOf = (world: World, entity: Entity) => world.get(entity, Building)?.level ?? 1
+
+/**
+ * Что уровень поднимает у здания: добычу, скорость переработки, ёмкость, трюм и время рейса, выработку или радиус
+ * разведки — у радара вместе с ним растёт и потребление.
+ */
+export type LevelGain = 'extract' | 'refine' | 'store' | 'trade' | 'power' | 'scan'
+
+/** Что даёт уровень зданию этого вида; undefined — его не улучшают. */
+export function levelGain(type: BuildingType): LevelGain | undefined {
+  const spec = buildingSpec(type)
+  if (spec.extract) return 'extract'
+  if (spec.refines) return 'refine'
+  if (spec.stores) return 'store'
+  if (spec.trades) return 'trade'
+  if (spec.scan) return 'scan'
+  return (spec.power ?? 0) > 0 ? 'power' : undefined
+}
+
+/** Какую долю цены здания стоит в кредитах подъём с первого уровня; с каждого следующего — на столько же больше. */
+const UPGRADE_SHARE = 0.5
+/** На сколько кредитов цены здания идёт один стройблок за уровень и один компонент на верхних уровнях. */
+const UPGRADE_BLOCKS = 30
+const UPGRADE_PARTS = 60
+
+/**
+ * Цена подъёма здания с уровня level на следующий: кредиты и готовое. Стройблоки нужны всегда, с третьего уровня —
+ * ещё и компоненты: первый подъём по силам базе с одним цехом, дальше нужна вся цепочка изделий. scale — во сколько
+ * раз дороже по правилам мира (Rules.upgradeScale); единица — цена матча.
+ */
+export function upgradeCost(type: BuildingType, level: number, scale = 1): { credits: number; materials: Amounts } {
+  const { cost } = buildingSpec(type)
+  const materials: Amounts = { blocks: Math.ceil(Math.ceil(cost / UPGRADE_BLOCKS) * level * scale) }
+  if (level >= 2) materials.parts = Math.ceil(Math.ceil(cost / UPGRADE_PARTS) * (level - 1) * scale)
+  return { credits: Math.round(cost * UPGRADE_SHARE * level * scale), materials }
+}
+
+/**
+ * Сколько кредитов вложено в уровни здания сверх его цены — по цене матча, без Rules.upgradeScale: по какой цене
+ * поднимали на самом деле, здание не помнит, а правила между запусками сервера меняются. Разбор возвращает долю этого.
+ */
+export function upgradeSpent(type: BuildingType, level: number) {
+  let spent = 0
+  for (let below = 1; below < level; below++) spent += upgradeCost(type, below).credits
+  return spent
+}
+
+/** Подгоняет склад здания под его уровень: хранилище и трюм космопорта с уровнем вмещают больше. */
+export function applyLevel(world: World, entity: Entity) {
+  const building = world.get(entity, Building)
+  const inventory = world.get(entity, Inventory)
+  if (!building || !inventory) return
+  const spec = buildingSpec(building.type)
+  if ((spec.stores || spec.trades) && spec.inventory) inventory.capacity = Math.round(spec.inventory * levelFactor(building.level))
+}
 
 /** Труба ли это или колодец. */
 export const isPipe = (type: BuildingType) => !!buildingSpec(type).pipe
@@ -241,6 +312,7 @@ export const isPipe = (type: BuildingType) => !!buildingSpec(type).pipe
 export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = {
   generator: ['command'],
   wall: ['command'],
+  gate: ['command'],
   turret: ['radar'],
   matter: ['generator'],
   mine: ['generator'],
@@ -271,6 +343,12 @@ export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = 
   arcTurret: ['techCenter'],
 }
 
+/** Какое исследование открывает здание вдобавок к REQUIRES: без него строители его не ставят. */
+export const RESEARCH_FOR: Partial<Record<BuildingType, Topic>> = {
+  laserTurret: 'beams',
+  arcTurret: 'beams',
+}
+
 /** Каких готовых зданий из списка у игрока нет. */
 export function missingBuildings(sim: Sim, player: number, needs: readonly BuildingType[] | undefined): BuildingType[] {
   if (!needs?.length) return []
@@ -281,7 +359,7 @@ export function missingBuildings(sim: Sim, player: number, needs: readonly Build
 
 /** Открыто ли игроку здание: строится строителями и все нужные для него здания стоят. */
 export const isUnlocked = (sim: Sim, player: number, type: BuildingType) =>
-  BUILDABLE.includes(type) && (!sim.rules.techTree || missingBuildings(sim, player, REQUIRES[type]).length === 0)
+  BUILDABLE.includes(type) && (!sim.rules.techTree || (missingBuildings(sim, player, REQUIRES[type]).length === 0 && hasResearch(sim, player, RESEARCH_FOR[type])))
 
 /** Хранилища — по одному на каждое готовое. */
 export const STORES = BUILDING_TYPES.filter((type) => buildingSpec(type).stores)
@@ -318,8 +396,14 @@ export function createOccupancy(world: World): Occupancy {
 export const isReady = (sim: Sim, player: number, building: Entity) =>
   sim.world.has(building, Building) && !sim.world.has(building, Site) && isOwn(sim, player, building)
 
-/** Стена ли это здание: только стены укрывают от выстрелов. См. wallOnPath в combat.ts. */
-export const isWall = (sim: Sim, entity: Entity) => sim.world.get(entity, Building)?.type === 'wall'
+/** Открытые ли это ворота: готовые и с поднятой створкой. Через такие ходят, и выстрел они не держат. См. gates.ts. */
+export const isOpenGate = (sim: Sim, building: Entity) => sim.world.get(building, Gate)?.open === true && !sim.world.has(building, Site)
+
+/** Стена ли это здание: только стены и закрытые ворота укрывают от выстрелов. См. wallOnPath в combat.ts. */
+export const isWall = (sim: Sim, entity: Entity) => {
+  const type = sim.world.get(entity, Building)?.type
+  return type === 'wall' || (type === 'gate' && !isOpenGate(sim, entity))
+}
 
 /** Площадка, основание которой накрывает тайл (x, y), или undefined. Площадок мало, поэтому простой перебор. */
 export function siteAt(sim: Sim, x: number, y: number): Entity | undefined {

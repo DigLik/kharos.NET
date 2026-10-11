@@ -85,6 +85,10 @@ test('правки месторождений из прежних сохране
   save.world.entities.push([9999, { Position: { x: spot.x, y: spot.y }, Deposit: { mined: 5, kind: 'kharite', reserve: 300, gone: false } }] as never)
   const loaded = createSim(save)
   expect(depositsIn(loaded, Math.floor(spot.x / DEPOSIT_CELL), Math.floor(spot.y / DEPOSIT_CELL))[0]).toMatchObject({ kind: 'kharite', reserve: 300 })
-  const [[, , deposit]] = [...loaded.world.query(Position, Deposit)]
+  // Массив строки обхода один на весь обход: берём первую строку и выходим — for..of сам закроет обход.
+  const [, , deposit] = (() => {
+    for (const row of loaded.world.query(Position, Deposit)) return row
+    throw new Error('Месторождения из сохранения нет')
+  })()
   expect(deposit).toEqual({ mined: 5 })
 })

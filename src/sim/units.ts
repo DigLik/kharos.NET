@@ -2,6 +2,7 @@ import type { Entity } from '../ecs'
 import { Biome, Terrain, biomeAt, isCliffFoot, isPassable, terrainAt, tileKey } from '../map/terrain'
 import { FOUNDATION_SPEED, ROAD_SPEED, isPaved } from './paved'
 import { isOwn } from './common'
+import { isOpenGate } from './buildings'
 import { Armed, Converting, Hauler, Harvester, Health, Owner, Repair, Path, Pave, Position, Producer, Unit } from './components'
 import { unitSight } from './vision'
 import { STARTING_CREDITS, addCredits } from './economy'
@@ -43,6 +44,8 @@ export interface UnitSpec {
    * тиры. Строки, а не BuildingType: виды зданий сами ссылаются на виды юнитов. Имена сверяет тест.
    */
   requires?: readonly string[]
+  /** Тема исследования (Topic), без которой юнит не заказать: второй тир. Строка по той же причине; имена сверяет тест. */
+  research?: string
   /** Склад: сколько ресурсов юнит везёт. См. inventory.ts. */
   inventory?: number
   /** Грузовик: возит груз по заявкам зон, из шахты, по маршруту. См. hauling.ts. */
@@ -88,25 +91,26 @@ export const UNITS = {
   // Лазеру нужен кремний.
   lancer: { speed: 4.5, turn: 4.5, radius: 0.45, cost: 350, buildTime: 9, kind: 'vehicle', hp: 180, weapon: 'laser', materials: { metal: 8, silicon: 4 } },
   // Тяжёлые: медленные, крепкие и дорогие.
-  // Танк бьёт ядрами из башни: она поворачивается сама, и стрелять можно на ходу.
+  // Весь второй тир собирают с компонентами: в них харит, и без его месторождения и цеха верхней техники нет.
+  // Танк бьёт ядрами из башни: она поворачивается сама, и стрелять можно на ходу. Кремний его прицела — в компонентах.
   tank: {
-    speed: 2.2, turn: 2.5, radius: 0.7, cost: 600, buildTime: 14, kind: 'heavy', hp: 450, materials: { metal: 20, silicon: 4 }, requires: ['techCenter'],
+    speed: 2.2, turn: 2.5, radius: 0.7, cost: 600, buildTime: 14, kind: 'heavy', hp: 450, materials: { metal: 20, parts: 2 }, requires: ['techCenter'], research: 'armor',
     mounts: [{ turret: 'cannon', along: -0.06, across: 0 }],
   },
   // Артиллерия: гаубица на колёсном лафете. Бьёт дальше турелей, но видит меньше, чем стреляет, — ей нужен
   // разведчик; хрупкая и с мёртвой зоной вблизи, без прикрытия её съедают машинки. Второй тир.
   artillery: {
     speed: 2.4, turn: 2.2, radius: 0.6, cost: 800, buildTime: 16, kind: 'vehicle', hp: 200, weapon: 'artillery', sight: 8,
-    materials: { metal: 16, blocks: 4 }, requires: ['techCenter'],
+    materials: { metal: 16, blocks: 4, parts: 2 }, requires: ['techCenter'], research: 'siege',
   },
   // Разрядник: тяжёлое шасси с разрядной башней. Катушку собирают из компонентов: в них харит, и без цеха её не сделать.
   tesla: {
-    speed: 2, turn: 2.5, radius: 0.7, cost: 700, buildTime: 16, kind: 'heavy', hp: 500, materials: { metal: 15, silicon: 6, parts: 3 }, requires: ['techCenter'],
+    speed: 2, turn: 2.5, radius: 0.7, cost: 700, buildTime: 16, kind: 'heavy', hp: 500, materials: { metal: 15, silicon: 6, parts: 3 }, requires: ['techCenter'], research: 'armor',
     mounts: [{ turret: 'arc', along: 0, across: 0 }],
   },
   // Носитель: колёсное шасси танка без своего оружия — на нём три ракетные турели и ремонтная. Ремонтной нужен компонент.
   carrier: {
-    speed: 3, turn: 2.5, radius: 0.8, cost: 1200, buildTime: 20, kind: 'vehicle', hp: 700, materials: { metal: 25, silicon: 8, parts: 1 }, requires: ['techCenter'],
+    speed: 3, turn: 2.5, radius: 0.8, cost: 1200, buildTime: 20, kind: 'vehicle', hp: 700, materials: { metal: 25, silicon: 8, parts: 1 }, requires: ['techCenter'], research: 'siege',
     mounts: [
       { turret: 'rocket', along: 0.36, across: -0.27 },
       { turret: 'rocket', along: 0.36, across: 0.27 },
@@ -123,7 +127,7 @@ export const UNITS = {
   // турели и зенитки. Второй тир.
   bomber: {
     speed: 5.5, turn: 2.5, radius: 0.7, cost: 700, buildTime: 14, kind: 'air', hp: 180, weapon: 'bomb', sight: 7,
-    materials: { metal: 10, fuel: 12 }, requires: ['techCenter'],
+    materials: { metal: 10, fuel: 12, parts: 2 }, requires: ['techCenter'], research: 'bombing',
   },
 } satisfies Record<string, UnitSpec>
 
@@ -163,13 +167,15 @@ export const INFANTRY_REGEN = 0.02
 const STARTING_UNITS: UnitType[] = ['mcv', 'builder', 'builder', 'infantry', 'infantry', 'infantry']
 
 /**
- * Может ли наземный юнит находиться в тайле: внутри карты, на песке или скале, не в здании и не у подножия обрыва —
+ * Может ли наземный юнит находиться в тайле: внутри карты, на песке или скале, не в здании (открытые ворота не в счёт) и не у подножия обрыва —
  * туда можно только пехоте (foot), и то медленно, см. terrainSpeed. Без foot — правила техники: так ищут место
  * для всех, кто может оказаться там, а не только для пехоты.
  */
 export function isWalkable(sim: Sim, x: number, y: number, foot = false) {
   if (!inBounds(sim, x, y)) return false
-  return isPassable(terrainAt(sim.land, x, y)) && (foot || !isCliffFoot(sim.land, x, y)) && sim.occupancy.at(x, y) === undefined
+  if (!isPassable(terrainAt(sim.land, x, y)) || (!foot && isCliffFoot(sim.land, x, y))) return false
+  const building = sim.occupancy.at(x, y)
+  return building === undefined || isOpenGate(sim, building)
 }
 
 /**

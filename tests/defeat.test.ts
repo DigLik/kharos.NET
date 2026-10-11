@@ -63,7 +63,13 @@ test('игрока, которого в мире нет, проигравшим 
 
 test('без главного здания, но с другим зданием — не проиграл; без зданий и MCV — проиграл', () => {
   const sim = start()
-  const core = [...sim.world.query(Building, Owner)].find(([, building, owner]) => building.type === 'command' && owner.player === 1)![0]
+  // Массив строки обхода один на весь обход — читаем и возвращаем сразу.
+  const core = (() => {
+    for (const [entity, building, owner] of sim.world.query(Building, Owner)) {
+      if (building.type === 'command' && owner.player === 1) return entity
+    }
+    throw new Error('Главное здание игрока 1 не найдено')
+  })()
   const spot = sim.world.get(core, Position)!
   sim.world.destroy(core)
   const generator = placeBuilding(sim.world, 'generator', spot.x, spot.y, 1)

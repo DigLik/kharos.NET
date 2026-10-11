@@ -1,7 +1,8 @@
 import type { Entity, World } from '../ecs'
 import { tileKey } from '../map/terrain'
+import { alliesIn } from './allies'
 import { BUILDINGS, buildingSpec } from './buildings'
-import { Attached, Batch, Building, Off, Owner, Player, Position, Shot, Site, Unit } from './components'
+import { Attached, Batch, Building, Off, Owner, Player, Position, Scan, Shot, Site, Unit } from './components'
 import type { Sim } from './sim'
 import type { Bounds } from './sim'
 import { TURRETS } from './turrets'
@@ -15,6 +16,9 @@ const SIGHT_OVER_RANGE = 1.5
 /** Сколько тайлов от края видит готовое здание и стройка, если у вида нет своего числа. */
 const BUILDING_SIGHT = 4
 const SITE_SIGHT = 2
+/** Вспышка разведки радара: радиус в тайлах и сколько тиков она светит (20 тиков в секунду), см. radar.ts. */
+export const SCAN_SIZE = 6
+export const SCAN_TICKS = 30
 /** Раз во сколько тиков пересчитывается обзор игрока. */
 const VISION_TICKS = 4
 
@@ -60,6 +64,8 @@ export function buildingSight(type: keyof typeof BUILDINGS, site = false, off = 
 export interface Vision {
   /** Видит ли игрок тайл сейчас. */
   sees(player: number, x: number, y: number): boolean
+  /** То же, что sees, для одного игрока и только до конца этого тика: когда спрашивать приходится тысячи раз подряд. */
+  seer(player: number): (x: number, y: number) => boolean
   /** Бывал ли тайл в виду игрока. */
   explored(player: number, x: number, y: number): boolean
   /** Видит ли игрок сущность сейчас: юнит — по его тайлу, здание — по любому тайлу основания. Своё видно всегда. */
@@ -156,8 +162,10 @@ export function createVision(world: World, bounds: Bounds, tick: () => number, f
     const before = sight.lit
     for (const index of before) sight.cells[index] = EXPLORED
     sight.lit = []
+    // Разведка у союзников общая: игрок видит и то, что видят их юниты, здания и радары, см. allies.ts.
+    const team = alliesIn(world, player)
     for (const [entity, owner, position] of world.query(Owner, Position)) {
-      if (owner.player !== player || world.has(entity, Attached)) continue
+      if ((owner.player !== player && !team.includes(owner.player)) || world.has(entity, Attached)) continue
       const unit = world.get(entity, Unit)
       if (unit) {
         stamp(sight, position.x, position.y, unitSight(unit.type))
@@ -167,6 +175,10 @@ export function createVision(world: World, bounds: Bounds, tick: () => number, f
       if (!building) continue
       const { width: w, height: h } = BUILDINGS[building.type]
       stamp(sight, position.x + w / 2, position.y + h / 2, buildingSight(building.type, world.has(entity, Site), world.has(entity, Off)))
+    }
+    // Вспышки разведки своих радаров, пока не погасли, см. radar.ts.
+    for (const [, flash, owner] of world.query(Scan, Owner)) {
+      if ((owner.player === player || team.includes(owner.player)) && flash.tick >= 0 && now - flash.tick < SCAN_TICKS) stamp(sight, flash.x, flash.y, SCAN_SIZE)
     }
     if (before.length !== sight.lit.length || before.some((index, i) => index !== sight!.lit[i])) sight.changed++
     return sight
@@ -183,6 +195,13 @@ export function createVision(world: World, bounds: Bounds, tick: () => number, f
     sees(player, x, y) {
       const index = indexOf(x, y)
       return index >= 0 && sightOf(player).cells[index] === VISIBLE
+    },
+    seer(player) {
+      const { cells } = sightOf(player)
+      return (x, y) => {
+        const index = indexOf(x, y)
+        return index >= 0 && cells[index] === VISIBLE
+      }
     },
     explored(player, x, y) {
       const index = indexOf(x, y)
@@ -269,27 +288,73 @@ export function createVision(world: World, bounds: Bounds, tick: () => number, f
   return vision
 }
 
+const EVERYONE = 0
+const ALLIES = 1
+const SEEN = 2
+const NOBODY = -1
+
 /**
- * Узнаёт ли игрок о сущности: так хост решает, что слать клиенту. Своё — всегда; чужого игрока — его счёт — никогда;
- * выстрел — если виден снаряд, стрелок или место попадания: по выстрелу из тумана видно, откуда бьют. Остальное
- * с местом на карте — пока оно в обзоре; без места — всегда.
+ * Кому сущность видна — всё, что для этого нужно знать о ней самой, без игрока. Хост собирает это раз за тик
+ * и спрашивает shownBy у каждого игрока: так тысячи сущностей на десяток игроков не разбираются заново для каждого.
+ * rule: EVERYONE — всем; ALLIES — игроку owner и его союзникам, см. allies.ts; SEEN — игроку owner всегда,
+ * остальным — пока в их обзоре хоть один тайл прямоугольника (x, y, width, height) или точка из points (x, y подряд).
+ * width 0 — места на карте нет.
  */
-export function shownTo(sim: Sim, player: number, entity: Entity) {
-  const { world, vision } = sim
-  const owner = world.get(entity, Player)
-  if (owner) return owner.id === player
-  // Что течёт по трубам, видит только хозяин; союзникам — когда появятся союзы.
-  if (world.has(entity, Batch)) return world.get(entity, Owner)?.player === player
+export interface Sighting {
+  rule: number
+  owner: number
+  x: number
+  y: number
+  width: number
+  height: number
+  points?: number[]
+}
+
+const TO_EVERYONE: Sighting = { rule: EVERYONE, owner: NOBODY, x: 0, y: 0, width: 0, height: 0 }
+
+/**
+ * Кому сущность видна, см. Sighting. Своё — всегда; счёт игрока и поток в его трубе — ему и его союзникам, см.
+ * allies.ts; выстрел — если виден снаряд, стрелок или место попадания: по выстрелу из тумана видно, откуда бьют.
+ * Остальное с местом на карте — пока оно в обзоре; без места — всегда.
+ */
+export function sightingOf(world: World, entity: Entity): Sighting {
+  const account = world.get(entity, Player)
+  if (account) return { rule: ALLIES, owner: account.id, x: 0, y: 0, width: 0, height: 0 }
+  // Что течёт по трубам, видит хозяин и его союзники: видно, куда и что он возит.
+  if (world.has(entity, Batch)) return { rule: ALLIES, owner: world.get(entity, Owner)?.player ?? NOBODY, x: 0, y: 0, width: 0, height: 0 }
   const shot = world.get(entity, Shot)
   if (shot) {
     const at = world.get(entity, Position)
-    return (
-      shot.player === player ||
-      vision.sees(player, shot.fromX, shot.fromY) ||
-      vision.sees(player, shot.toX, shot.toY) ||
-      (at !== undefined && vision.sees(player, at.x, at.y))
-    )
+    const points = [shot.fromX, shot.fromY, shot.toX, shot.toY]
+    if (at) points.push(at.x, at.y)
+    return { rule: SEEN, owner: shot.player, x: 0, y: 0, width: 0, height: 0, points }
   }
-  if (!world.has(entity, Position)) return true
-  return vision.seesEntity(player, entity)
+  if (!world.has(entity, Position)) return TO_EVERYONE
+  // Турель видна там же и тем же, что её носитель.
+  const parent = world.get(entity, Attached)?.parent
+  const target = parent === undefined ? entity : (parent as Entity)
+  const owner = world.get(target, Owner)?.player ?? NOBODY
+  const position = world.get(target, Position)
+  if (!position) return { rule: SEEN, owner, x: 0, y: 0, width: 0, height: 0 }
+  const building = world.get(target, Building)
+  const { width, height } = building ? BUILDINGS[building.type] : { width: 1, height: 1 }
+  return { rule: SEEN, owner, x: position.x, y: position.y, width, height }
+}
+
+/**
+ * Узнаёт ли игрок о сущности с таким Sighting; sees — видит ли он точку, см. Vision.seer; friends — союзники
+ * игрока, см. allies.ts: им видно то же, что хозяину.
+ */
+export function shownBy(player: number, sees: (x: number, y: number) => boolean, sighting: Sighting, friends: readonly number[] = []) {
+  if (sighting.rule === EVERYONE || sighting.owner === player) return true
+  if (sighting.rule === ALLIES) return friends.includes(sighting.owner)
+  const { x, y, width, height, points } = sighting
+  for (let dy = 0; dy < height; dy++) for (let dx = 0; dx < width; dx++) if (sees(x + dx, y + dy)) return true
+  if (points) for (let i = 0; i + 1 < points.length; i += 2) if (sees(points[i], points[i + 1])) return true
+  return false
+}
+
+/** Узнаёт ли игрок о сущности: так хост решает, что слать клиенту, см. sightingOf. */
+export function shownTo(sim: Sim, player: number, entity: Entity) {
+  return shownBy(player, sim.vision.seer(player), sightingOf(sim.world, entity), alliesIn(sim.world, player))
 }
