@@ -506,7 +506,10 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
       )}
 
       <div class="bar__details">
-        <header class="hud__title">{title}</header>
+        {/* В одну строку: у пёстрого отряда виды и так видны плитками, полный список — в подсказке. */}
+        <header class="hud__title" data-tip={many ? title : undefined}>
+          {title}
+        </header>
 
         {state.power && (
           <div class={state.power.demand > state.power.produced ? 'hud__hint hud__power is-short' : 'hud__hint hud__power'}>

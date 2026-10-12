@@ -997,10 +997,14 @@ body {
 }
 
 .hud__title {
+  flex: none;
+  overflow: hidden;
   font-family: var(--font-title);
   font-size: 20px;
   line-height: 1.4;
   color: var(--text-bright);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hud__row {
