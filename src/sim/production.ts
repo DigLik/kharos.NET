@@ -1,6 +1,6 @@
 import type { Entity, Time } from '../ecs'
 import { tileKey } from '../map/terrain'
-import { BUILDINGS, CORE, buildingSpec, missingBuildings, type BuildingType } from './buildings'
+import { BUILDINGS, buildingSpec, missingBuildings, type BuildingType } from './buildings'
 import { isOwn, ownerOf } from './common'
 import { Building, Converting, Inventory, Position, Producer, Site, Unit } from './components'
 import { addCredits, pay, reward } from './economy'
@@ -16,14 +16,18 @@ const NOTHING: UnitType[] = []
 
 /**
  * Кого сейчас производит эта сущность: готовое здание — тех, кто записан в его виде (пехоту — казармы, технику —
- * машинный завод, летающих — космопорт), MCV — тех же, что главное здание. Здание под разбором не производит.
+ * машинный завод, летающих — космопорт). Здание под разбором не производит. MCV — свёрнутая база — не производит
+ * никого: очередь главного здания едет в нём и стоит до разворота (isPacked).
  */
 export function producibleBy(sim: Sim, entity: Entity): UnitType[] {
   const { world } = sim
   if (!world.has(entity, Producer) || world.has(entity, Site)) return NOTHING
-  const type = world.get(entity, Building)?.type ?? (world.get(entity, Unit)?.type === 'mcv' ? CORE : undefined)
+  const type = world.get(entity, Building)?.type
   return (type && buildingSpec(type).produces) || NOTHING
 }
+
+/** Свёрнутая ли это база: машина с очередью главного здания. Очередь у неё стоит, отменить заказ можно. */
+export const isPacked = (sim: Sim, entity: Entity) => sim.world.has(entity, Unit) && sim.world.has(entity, Producer)
 /** Каких зданий из требований юнита у игрока нет готовыми: пусто — заказывать можно. */
 export const missingRequirements = (sim: Sim, player: number, unit: UnitType): BuildingType[] =>
   missingBuildings(sim, player, unitSpec(unit).requires as readonly BuildingType[] | undefined)
@@ -110,8 +114,8 @@ export function produceUnits(sim: Sim, time: Time) {
   }
   const speeds = new Map(working.map((entity) => [entity, speedOf(entity)]))
   for (const [entity, producer] of world.query(Producer)) {
-    // Пока здание сворачивается, разбирается или машина разворачивается, производство стоит.
-    if (!producer.queue.length || world.has(entity, Converting) || world.has(entity, Site)) continue
+    // Пока здание сворачивается, разбирается, свёрнуто в MCV или машина разворачивается, производство стоит.
+    if (!producer.queue.length || world.has(entity, Converting) || world.has(entity, Site) || isPacked(sim, entity)) continue
     const needed = buildTicks(producer.queue[0], time.step)
     if (producer.progress <= 0) {
       // Заказ начинается, когда его материалы на месте, и сразу их тратит.

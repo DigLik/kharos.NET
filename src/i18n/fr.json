@@ -580,6 +580,7 @@
     "pavingEnd": " ; bouton droit ou Échap — terminer",
     "builderTip": "Construit des bâtiments et répare les vôtres : clic droit sur un chantier ou un bâtiment endommagé. Les bâtiments sont dans la grille à droite",
     "mcvTip": "Une base mobile. Conduis-la sur de la roche libre ou une fondation 3×3 — de préférence près d’un gisement — et appuie sur Déployer : elle devient le bâtiment principal, qui commande des bâtisseurs et fixe la zone de construction",
+    "packedQueue": "La base est repliée : la file attend et reprendra quand le MCV sera déployé",
     "placingTip": "Bouton gauche — poser, encore et encore ; bouton droit ou Échap — terminer",
     "adminPassword": "Mot de passe administrateur",
     "adminMode": "mode administrateur",

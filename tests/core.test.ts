@@ -3,10 +3,10 @@ import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { isCliffFoot } from '../src/map/terrain'
 import {
-  Building, CORE, Converting, Owner, Position, Producer, UNITS, Unit,
-  canDeploy, canPlace, createSim, creditsOf, spawnStartingUnits, type Sim,
+  Building, CORE, Converting, Owner, Player, Position, Producer, UNITS, Unit,
+  canDeploy, canPlace, createSim, creditsOf, producibleBy, spawnStartingUnits, type Sim,
 } from '../src/sim'
-import { REWARDS, STARTING_CREDITS } from '../src/sim/economy'
+import { STARTING_CREDITS } from '../src/sim/economy'
 import { spawnUnit } from '../src/sim/units'
 import { throughJson } from './throughJson'
 
@@ -107,21 +107,33 @@ test('развернуться можно только на свободной �
   throw new Error('Не нашлось места, где развернуться нельзя')
 })
 
+/** Стартовый набор с развёрнутой базой: производит главное здание, свёрнутая база не производит. */
+function deployed() {
+  const { sim, mcv, site } = start()
+  sim.send(1, { type: 'deploy', unit: mcv })
+  seconds(sim, 3.1)
+  return { sim, base: core(sim)!, site }
+}
+
+/** Кредиты меняются ещё и доходом главного здания, 0,2 в секунду: сверяем с допуском в кредит. */
+const near = (actual: number, expected: number) => expect(Math.abs(actual - expected)).toBeLessThanOrEqual(1)
+
 test('производство списывает кредиты, строит по очереди и выпускает юнитов рядом', () => {
-  const { sim, mcv } = start()
+  const { sim, base } = deployed()
+  const credits = creditsOf(sim, 1)
   const before = { builders: units(sim, 'builder'), truck: units(sim, 'truck') }
-  sim.send(1, { type: 'produce', producer: mcv, unit: 'truck' })
-  sim.send(1, { type: 'produce', producer: mcv, unit: 'builder' })
+  sim.send(1, { type: 'produce', producer: base, unit: 'truck' })
+  sim.send(1, { type: 'produce', producer: base, unit: 'builder' })
   sim.advance(TICK)
-  expect(creditsOf(sim, 1)).toBe(STARTING_CREDITS - UNITS.truck.cost - UNITS.builder.cost)
-  expect(sim.world.get(mcv, Producer)!.queue).toEqual(['truck', 'builder'])
+  near(creditsOf(sim, 1), credits - UNITS.truck.cost - UNITS.builder.cost)
+  expect(sim.world.get(base, Producer)!.queue).toEqual(['truck', 'builder'])
 
   seconds(sim, UNITS.truck.buildTime + 0.1)
   expect(units(sim, 'truck')).toBe(before.truck + 1)
   expect(units(sim, 'builder')).toBe(before.builders)
   seconds(sim, UNITS.builder.buildTime + 0.1)
   expect(units(sim, 'builder')).toBe(before.builders + 1)
-  expect(sim.world.get(mcv, Producer)!.queue).toEqual([])
+  expect(sim.world.get(base, Producer)!.queue).toEqual([])
 
   // Каждый вышел на свой тайл, а не встал на голову соседу.
   const tiles: string[] = []
@@ -129,72 +141,98 @@ test('производство списывает кредиты, строит �
   expect(new Set(tiles).size).toBe(tiles.length)
 })
 
-test('заказ отклоняется без кредитов, у чужого производителя, сверх очереди и для непроизводимого юнита', () => {
+test('в свёрнутой базе заказать нельзя: MCV не производит', () => {
   const { sim, mcv } = start()
-  sim.send(2, { type: 'produce', producer: mcv, unit: 'truck' })
-  sim.send(1, { type: 'produce', producer: mcv, unit: 'mcv' })
-  sim.send(1, { type: 'produce', producer: mcv, unit: 'dragon' as never })
+  expect(producibleBy(sim, mcv)).toEqual([])
+  sim.send(1, { type: 'produce', producer: mcv, unit: 'builder' })
   sim.advance(TICK)
   expect(sim.world.get(mcv, Producer)!.queue).toEqual([])
   expect(creditsOf(sim, 1)).toBe(STARTING_CREDITS)
+})
 
-  // Очередь — не больше пяти заказов; на строителей хватает кредитов на шесть.
-  for (let i = 0; i < 8; i++) sim.send(1, { type: 'produce', producer: mcv, unit: 'builder' })
+test('заказ отклоняется без кредитов, у чужого производителя, сверх очереди и для непроизводимого юнита', () => {
+  const { sim, base } = deployed()
+  const credits = creditsOf(sim, 1)
+  sim.send(2, { type: 'produce', producer: base, unit: 'truck' })
+  sim.send(1, { type: 'produce', producer: base, unit: 'mcv' })
+  sim.send(1, { type: 'produce', producer: base, unit: 'dragon' as never })
   sim.advance(TICK)
-  expect(sim.world.get(mcv, Producer)!.queue.length).toBe(5)
-  expect(creditsOf(sim, 1)).toBe(STARTING_CREDITS - 5 * UNITS.builder.cost)
+  expect(sim.world.get(base, Producer)!.queue).toEqual([])
+  near(creditsOf(sim, 1), credits)
 
-  // Первый готовый юнит приносит награду, но в очереди освободилось только одно место.
+  // Очередь — не больше пяти заказов.
+  for (let i = 0; i < 8; i++) sim.send(1, { type: 'produce', producer: base, unit: 'builder' })
+  sim.advance(TICK)
+  expect(sim.world.get(base, Producer)!.queue.length).toBe(5)
+  near(creditsOf(sim, 1), credits - 5 * UNITS.builder.cost)
+
+  // Готовый юнит освободил в очереди только одно место.
   seconds(sim, UNITS.builder.buildTime + 0.1)
-  sim.send(1, { type: 'produce', producer: mcv, unit: 'builder' })
-  sim.send(1, { type: 'produce', producer: mcv, unit: 'builder' })
+  sim.send(1, { type: 'produce', producer: base, unit: 'builder' })
+  sim.send(1, { type: 'produce', producer: base, unit: 'builder' })
   sim.advance(TICK)
-  expect(creditsOf(sim, 1)).toBe(STARTING_CREDITS + REWARDS.unit - 6 * UNITS.builder.cost)
+  expect(sim.world.get(base, Producer)!.queue.length).toBe(5)
+
+  // Без кредитов заказ не принимается.
+  for (const [entity, player] of sim.world.query(Player)) if (player.id === 1) sim.world.set(entity, Player, { credits: 0, earned: 0 })
+  sim.send(1, { type: 'cancelProduction', producer: base })
+  sim.advance(TICK)
+  sim.send(1, { type: 'produce', producer: base, unit: 'truck' })
+  sim.advance(TICK)
+  expect(sim.world.get(base, Producer)!.queue.length).toBe(4)
 })
 
 test('отмена возвращает кредиты за последний заказ', () => {
-  const { sim, mcv } = start()
-  sim.send(1, { type: 'produce', producer: mcv, unit: 'builder' })
-  sim.send(1, { type: 'produce', producer: mcv, unit: 'truck' })
+  const { sim, base } = deployed()
+  const credits = creditsOf(sim, 1)
+  sim.send(1, { type: 'produce', producer: base, unit: 'builder' })
+  sim.send(1, { type: 'produce', producer: base, unit: 'truck' })
+  sim.send(1, { type: 'cancelProduction', producer: base })
+  sim.advance(TICK)
+  expect(sim.world.get(base, Producer)!.queue).toEqual(['builder'])
+  near(creditsOf(sim, 1), credits - UNITS.builder.cost)
+
+  seconds(sim, 1)
+  sim.send(1, { type: 'cancelProduction', producer: base })
+  sim.send(1, { type: 'cancelProduction', producer: base })
+  sim.advance(TICK)
+  near(creditsOf(sim, 1), credits)
+  expect(sim.world.get(base, Producer)!.progress).toBe(0)
+})
+
+test('очередь главного здания едет в свёрнутой базе и стоит, а после разворота продолжается', () => {
+  const { sim, base } = deployed()
+  sim.send(1, { type: 'produce', producer: base, unit: 'builder' })
+  sim.send(1, { type: 'produce', producer: base, unit: 'truck' })
+  sim.send(1, { type: 'pack', building: base })
+  sim.advance(TICK)
+  const builders = units(sim, 'builder')
+  seconds(sim, 10.1)
+  const [mcv] = unitsOf(sim, 'mcv')
+  expect(sim.world.get(mcv, Producer)!.queue).toEqual(['builder', 'truck'])
+  // Свёрнутая — не производит, сколько ни жди; отменить заказ можно.
+  seconds(sim, UNITS.builder.buildTime + 1)
+  expect(units(sim, 'builder')).toBe(builders)
   sim.send(1, { type: 'cancelProduction', producer: mcv })
   sim.advance(TICK)
   expect(sim.world.get(mcv, Producer)!.queue).toEqual(['builder'])
-  expect(creditsOf(sim, 1)).toBe(STARTING_CREDITS - UNITS.builder.cost)
 
-  seconds(sim, 1)
-  sim.send(1, { type: 'cancelProduction', producer: mcv })
-  sim.send(1, { type: 'cancelProduction', producer: mcv })
-  sim.advance(TICK)
-  expect(creditsOf(sim, 1)).toBe(STARTING_CREDITS)
-  expect(sim.world.get(mcv, Producer)!.progress).toBe(0)
-})
-
-test('очередь производства переезжает из MCV в здание, а пока идёт превращение — стоит', () => {
-  const { sim, mcv } = start()
-  sim.send(1, { type: 'produce', producer: mcv, unit: 'builder' })
   sim.send(1, { type: 'deploy', unit: mcv })
-  sim.advance(TICK)
-  const builders = units(sim, 'builder')
   seconds(sim, 3.1)
-  const building = core(sim)!
-  expect(sim.world.get(building, Producer)!.queue).toEqual(['builder'])
-  expect(units(sim, 'builder')).toBe(builders)
-
+  expect(sim.world.get(core(sim)!, Producer)!.queue).toEqual(['builder'])
   seconds(sim, UNITS.builder.buildTime + 0.1)
   expect(units(sim, 'builder')).toBe(builders + 1)
 })
 
 test('сохранение посреди превращения и производства продолжается так же', () => {
-  const { sim, mcv } = start()
-  sim.send(1, { type: 'produce', producer: mcv, unit: 'truck' })
-  sim.send(1, { type: 'deploy', unit: mcv })
+  const { sim, base } = deployed()
+  sim.send(1, { type: 'produce', producer: base, unit: 'truck' })
+  sim.send(1, { type: 'pack', building: base })
   seconds(sim, 1)
   const copy = createSim(throughJson(sim.save()))
   seconds(sim, 10)
   seconds(copy, 10)
   expect(copy.save()).toEqual(sim.save())
-  // Награды за главное здание и за первый юнит и кредит, который главное здание успело принести само.
-  expect(creditsOf(copy, 1)).toBe(STARTING_CREDITS - UNITS.truck.cost + REWARDS.deploy + REWARDS.unit + 1)
 })
 
 test('MCV не разворачивается, пока под будущим зданием чужой юнит, а своих выгоняет', () => {

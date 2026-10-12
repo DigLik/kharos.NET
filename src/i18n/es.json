@@ -580,6 +580,7 @@
     "pavingEnd": "; botón derecho o Esc — terminar",
     "builderTip": "Construye edificios y repara los tuyos: clic derecho sobre una obra o algo dañado. Los edificios están en la cuadrícula de la derecha",
     "mcvTip": "Una base móvil. Llévala a roca libre o a cimientos de 3×3 —mejor junto a un yacimiento— y pulsa Desplegar: se convierte en el edificio principal, que encarga constructores y marca la zona de obra",
+    "packedQueue": "La base está plegada: la cola espera y seguirá cuando el MCV se despliegue",
     "placingTip": "Botón izquierdo — colocar, una y otra vez; botón derecho o Esc — terminar",
     "adminPassword": "Contraseña de administrador",
     "adminMode": "modo administrador",

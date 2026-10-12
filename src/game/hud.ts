@@ -5,7 +5,7 @@ import { knownReserve } from './knownReserve'
 import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
-  Assembly, BUILDABLE, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
+  Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   Research, TOPICS, PAVE_RESEARCH, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
@@ -653,7 +653,8 @@ export function readHud(scene: Scene): HudState {
       firstKind ??= kind
       mixed ||= firstKind !== kind
     }
-    if (producibleBy(sim, entity).length) producers.push(entity)
+    // MCV — тоже: заказывать в нём нельзя, но разворот и очередь главного здания, что едет в нём, — его.
+    if (producibleBy(sim, entity).length || isPacked(sim, entity)) producers.push(entity)
   }
 
   // Кнопки стройки показывают энергию для первой зоны: в какую попадёт здание, до выбора места неизвестно.

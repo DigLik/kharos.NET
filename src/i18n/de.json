@@ -580,6 +580,7 @@
     "pavingEnd": "; rechte Taste oder Esc — beenden",
     "builderTip": "Baut Gebäude und repariert Eigenes: Rechtsklick auf eine Baustelle oder etwas Beschädigtes. Gebäude sind im Raster rechts",
     "mcvTip": "Eine mobile Basis. Fahre sie auf freien Fels oder ein 3×3-Fundament — am besten bei einem Vorkommen — und drücke Ausfahren: Sie wird zum Hauptgebäude, das Bauarbeiter bestellt und die Bauzone vorgibt",
+    "packedQueue": "Die Basis ist eingepackt: die Warteschlange ruht und läuft weiter, sobald das MCV ausgefahren ist",
     "placingTip": "Linke Taste — setzen, immer wieder; rechte Taste oder Esc — beenden",
     "adminPassword": "Administratorpasswort",
     "adminMode": "Administratormodus",

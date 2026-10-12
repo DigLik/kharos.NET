@@ -751,6 +751,7 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
             </div>
           </>
         )}
+        {production && !production.building && production.queue.length > 0 && <div class="hud__hint">{t('hud.packedQueue')}</div>}
         {production?.building && (
           <div class="hud__hint">
             {production.rally ? t('hud.rallySet') : t('hud.rallyTip')}

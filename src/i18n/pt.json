@@ -580,6 +580,7 @@
     "pavingEnd": "; botão direito ou Esc — encerrar",
     "builderTip": "Constrói edifícios e conserta os seus: clique direito em uma obra ou em algo danificado. Os edifícios estão na grade à direita",
     "mcvTip": "Uma base móvel. Leve-a para rocha livre ou fundação 3×3 — de preferência perto de uma jazida — e aperte Implantar: ela vira o edifício principal, que encomenda construtores e define a zona de obra",
+    "packedQueue": "A base está recolhida: a fila espera e continua quando o MCV for implantado",
     "placingTip": "Botão esquerdo — colocar, quantas vezes quiser; botão direito ou Esc — encerrar",
     "adminPassword": "Senha de administrador",
     "adminMode": "modo administrador",

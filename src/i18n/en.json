@@ -580,6 +580,7 @@
     "pavingEnd": "; right button or Esc — finish",
     "builderTip": "Constructs buildings and repairs yours: right-click a site or a damaged one. Buildings are in the grid on the right",
     "mcvTip": "A mobile base. Drive it to free rock or a 3×3 foundation — preferably near a deposit — and press Deploy: it becomes the main building, which orders builders and sets the build zone",
+    "packedQueue": "The base is packed: the queue waits and resumes once the MCV deploys",
     "placingTip": "Left button — place, again and again; right button or Esc — finish",
     "adminPassword": "Administrator password",
     "adminMode": "administrator mode",
