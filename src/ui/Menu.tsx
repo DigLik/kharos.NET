@@ -4,6 +4,7 @@ import { CHANNELS, loadLevel, loadMuted, loadVolume, storeLevel, storeMuted, sto
 import { createMenuMusic, type MenuMusic } from '../audio/music'
 import { createSlot, deleteSave, exportSave, importSave, listSaves, renameSave, storeSave, type SaveSlot } from '../game/storage'
 import { DEFAULT_SETTINGS } from '../map/settings'
+import { FPS_LIMITS, PRESETS as GRAPHICS_PRESETS, RESOLUTIONS, graphics, presetOf, setGraphics, type Detail, type Graphics, type Preset } from '../render/graphics'
 import { DEFAULT_CONFIG, type GeneratorConfig } from '../map/terrain'
 import { DEFAULT_WEATHER, createSim } from '../sim'
 import { GENERATOR_GROUPS, Groups } from './GeneratorFields'
@@ -730,8 +731,83 @@ export function Settings({ back, onSound }: SettingsProps) {
             <output>{Math.round(levels[channel] * 100)}%</output>
           </label>
         ))}
+        <GraphicsSettings />
       </div>
     </Window>
+  )
+}
+
+const DETAIL_NAMES = ['low', 'medium', 'high'] as const
+
+/** Строка выбора: подпись и кнопки значений, выбранное подсвечено. */
+function Choice<T>({ label, tip, values, value, name, onChange }: { label: string; tip: string; values: readonly T[]; value: T; name(value: T): string; onChange(value: T): void }) {
+  return (
+    <div class="menu__field menu__field--choice">
+      <span title={tip}>{label}</span>
+      <span class="menu__inline">
+        {values.map((option) => (
+          <button type="button" key={String(option)} class={option === value ? 'is-active' : undefined} onClick={() => onChange(option)}>
+            {name(option)}
+          </button>
+        ))}
+      </span>
+    </div>
+  )
+}
+
+/** Графика: набор целиком или каждый эффект отдельно. Эффекты не выключаются — упрощаются; смена видна сразу. */
+function GraphicsSettings() {
+  const [value, setValue] = useState(graphics)
+  const change = (next: Graphics) => {
+    setGraphics(next)
+    setValue(next)
+  }
+  const preset = presetOf(value)
+  const detail = (key: 'terrain' | 'shadows' | 'weather', label: Key, tip: Key) => (
+    <Choice<Detail>
+      label={t(label)}
+      tip={t(tip)}
+      values={[0, 1, 2]}
+      value={value[key]}
+      name={(level) => t(`menu.levels.${DETAIL_NAMES[level]}`)}
+      onChange={(level) => change({ ...value, [key]: level })}
+    />
+  )
+  return (
+    <>
+      <h3 class="menu__group">{t('menu.graphics')}</h3>
+      <div class="menu__field menu__field--choice">
+        <span>{t('menu.quality')}</span>
+        <span class="menu__inline">
+          {(Object.keys(GRAPHICS_PRESETS) as Preset[]).map((name) => (
+            <button type="button" key={name} class={name === preset ? 'is-active' : undefined} onClick={() => change(GRAPHICS_PRESETS[name])}>
+              {t(`menu.qualities.${name}`)}
+            </button>
+          ))}
+          {!preset && <button type="button" class="is-active" disabled>{t('menu.qualities.custom')}</button>}
+        </span>
+      </div>
+      <Choice
+        label={t('menu.resolution')}
+        tip={t('menu.resolutionTip')}
+        values={RESOLUTIONS}
+        value={value.resolution}
+        name={(share) => `${share * 100}%`}
+        onChange={(resolution) => change({ ...value, resolution })}
+      />
+      {detail('terrain', 'menu.terrainDetail', 'menu.terrainTip')}
+      {detail('shadows', 'menu.shadows', 'menu.shadowsTip')}
+      {detail('weather', 'menu.weatherDetail', 'menu.weatherTip')}
+      <Choice
+        label={t('menu.fps')}
+        tip={t('menu.fpsTip')}
+        values={FPS_LIMITS}
+        value={value.fps}
+        name={(fps) => (fps ? String(fps) : t('menu.noLimit'))}
+        onChange={(fps) => change({ ...value, fps })}
+      />
+      <p class="menu__note">{t('menu.graphicsNote')}</p>
+    </>
   )
 }
 

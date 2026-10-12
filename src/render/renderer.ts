@@ -1,4 +1,5 @@
 import { bindScreen, createContext, forgetContext } from '../gl'
+import { graphics } from './graphics'
 
 /** Откуда смотрим на мир. */
 export interface Viewpoint {
@@ -149,14 +150,20 @@ export function createRenderer(canvas: HTMLCanvasElement, setup: Setup, onError?
     resize() {
       size.width = Math.max(1, canvas.clientWidth)
       size.height = Math.max(1, canvas.clientHeight)
-      // Плотнее двух пикселей на пиксель CSS не рисуем: разницы не видно, а работы вчетверо больше.
-      const density = Math.min(window.devicePixelRatio || 1, 2)
-      const pixelWidth = Math.round(size.width * density)
-      const pixelHeight = Math.round(size.height * density)
+      // Плотнее двух пикселей на пиксель CSS не рисуем: разницы не видно, а работы вчетверо больше. Настройка
+      // разрешения рисует ещё реже; браузер растягивает холст до экрана.
+      const screen = window.devicePixelRatio || 1
+      const density = Math.min(screen, 2) * graphics().resolution
+      const pixelWidth = Math.max(1, Math.round(size.width * density))
+      const pixelHeight = Math.max(1, Math.round(size.height * density))
       if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
         canvas.width = pixelWidth
         canvas.height = pixelHeight
       }
+      // Растянутый в целое число раз пиксель-арт остаётся чётким; в дробное — сглаживается, иначе тексели неровные.
+      const stretch = screen / density
+      const rendering = stretch > 1.01 && Math.abs(stretch - Math.round(stretch)) < 0.01 ? 'pixelated' : 'auto'
+      if (canvas.style.imageRendering !== rendering) canvas.style.imageRendering = rendering
       return size
     },
     draw(camera, time, delta) {

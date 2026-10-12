@@ -217,6 +217,31 @@
       "world": "Dunyo",
       "interface": "Interfeys"
     },
+    "graphics": "Grafika",
+    "quality": "Sifat",
+    "qualities": {
+      "low": "Past",
+      "medium": "O‘rta",
+      "high": "Yuqori",
+      "custom": "O‘zingizniki"
+    },
+    "levels": {
+      "low": "Past",
+      "medium": "O‘rta",
+      "high": "Yuqori"
+    },
+    "resolution": "Ruxsat",
+    "resolutionTip": "Dunyo nechta pikselda chiziladi: kamroq — tezroq, lekin piksellar kattaroq. Interfeys tiniqligicha qoladi.",
+    "terrainDetail": "Yer tafsiloti",
+    "terrainTip": "Kamera uzoqda bo‘lganda yer qanchalik silliq ko‘rinadi: yuqori — silliqroq, past — tezroq.",
+    "shadows": "Soyalar aniqligi",
+    "shadowsTip": "Kechasi faralar binolar va texnikadan soyani qanchalik aniq tushiradi.",
+    "weatherDetail": "Yog‘in tafsiloti",
+    "weatherTip": "Yomon havoda qancha tomchi, sachrash va qor qatlami ko‘rinadi.",
+    "fps": "Kadrlar chegarasi",
+    "fpsTip": "Kadrlar kamroq — qizish va batareya sarfi kamroq.",
+    "noLimit": "Yo‘q",
+    "graphicsNote": "Pastrog‘i kuchsiz qurilmalarda tezroq. Darhol qo‘llanadi; nima qilishini bilish uchun nomga sichqonchani olib boring.",
     "aboutText": "Ko‘p o‘yinchili brauzer RTS: asoschi mashina, protsedurali xarita, ruda qazib olish va qayta ishlash, yuk logistikasi va baza mudofaasi.",
     "authors": "Mualliflar",
     "sourceCode": "Manba kodi",

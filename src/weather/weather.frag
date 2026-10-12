@@ -13,6 +13,9 @@ uniform vec2 uWind; // тайлов в секунду
 uniform vec2 uDrift; // путь, пройденный ветром, по модулю WINDOW
 uniform float uPrecipitation; // 0 — ясно, 1 — буря
 uniform float uPixel; // тайлов мира на физический пиксель экрана
+// Настройка графики: 2 — капли ищутся во всех соседних клетках и снег в три слоя; 1 — капли в трёх ближайших
+// соседях и снег в два слоя; 0 — так же, но снег в один слой.
+uniform int uDetail;
 
 // Должны совпадать с terrain.frag.
 const int WINDOW = 512;
@@ -103,9 +106,12 @@ float rainDrops(ivec2 texel, float amount) {
   vec2 approach = vec2(0.0, -9.0) - clamp(uWind, -6.0, 6.0) * 0.9;
   vec2 direction = normalize(approach);
 
+  // Ближайшие к текселю соседние клетки — по половине своей клетки, где он лежит.
+  ivec2 near = ivec2(sign(fract(t / DROP_CELL) - 0.5));
   float alpha = 0.0;
   for (int y = -1; y <= 1; y++) {
     for (int x = -1; x <= 1; x++) {
+      if (uDetail < 2 && ((x != 0 && x != near.x) || (y != 0 && y != near.y))) continue;
       vec2 id = mod(cell + vec2(x, y), PERIOD * TEXELS_PER_TILE / DROP_CELL);
       float phase = uTime / DROP_LIFE + hash(id + 0.31) * 13.0;
       float cycle = mod(floor(phase), 256.0);
@@ -142,6 +148,8 @@ float rainDrops(ivec2 texel, float amount) {
 float snowFlakes(ivec2 texel, float amount) {
   float alpha = 0.0;
   for (int layer = 0; layer < 3; layer++) {
+    // С меньшей детализацией первыми пропадают дальние, мелкие слои.
+    if (layer < 2 - uDetail) continue;
     float depth = float(layer);
     float size = layer == 2 ? 16.0 : 8.0;
     float sway = sin(uTime * (0.6 + depth * 0.25) + depth * 2.1) * (2.0 + depth);
@@ -184,11 +192,12 @@ void main() {
   vec4 result = vec4(0.0);
   if (rain > 0.001) {
     over(result, FOG_COLOR, stepped((0.15 + cover * 0.3) * uPrecipitation * rain * FOG_ALPHA, dither));
-    over(result, RAIN_COLOR, rainDrops(texel, uPrecipitation * rain) * detail * RAIN_ALPHA);
+    // Издалека капель и хлопьев не видно (detail = 0): их и не считаем.
+    if (detail > 0.0) over(result, RAIN_COLOR, rainDrops(texel, uPrecipitation * rain) * detail * RAIN_ALPHA);
   }
   if (snow > 0.001) {
     over(result, SNOW_HAZE, stepped((0.1 + cover * 0.45) * uPrecipitation * snow * 0.7, dither));
-    over(result, SNOW_COLOR, snowFlakes(texel, uPrecipitation * snow) * detail);
+    if (detail > 0.0) over(result, SNOW_COLOR, snowFlakes(texel, uPrecipitation * snow) * detail);
   }
   if (dust > 0.001) {
     vec3 color = (biomes.x * DUST_AMOUNT.x * DUST_COLOR[0] + biomes.y * DUST_AMOUNT.y * DUST_COLOR[1]

@@ -4,6 +4,7 @@ import { createAudio } from '../audio/audio'
 import { createLandWindow, minZoom, type LandWindow } from '../map/landWindow'
 import type { MapSettings } from '../map/settings'
 import { createTerrainPass } from '../map/terrainPass'
+import { graphics } from '../render/graphics'
 import { createRenderer, type Pass } from '../render/renderer'
 import type { Session } from '../net/connect'
 import { Building, Player, Position, Unit, isOwn, weatherAt, type BuildingType, type Command, type Sim, type SimOptions, type UnitType } from '../sim'
@@ -357,7 +358,7 @@ export function createGame(
     renderer.draw(camera, time.elapsed + time.alpha * time.step, seconds)
     camera.x -= shakeX
     camera.y -= shakeY
-  }, onError)
+  }, onError, () => graphics().fps)
 
   // Последний шанс сохраниться: вкладку закрывают или уводят в фон.
   window.addEventListener('pagehide', saveCamera)

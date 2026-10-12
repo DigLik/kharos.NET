@@ -1,5 +1,6 @@
 import { bindScreen, createProgram, createQuads, createTarget, setBlend } from '../gl'
 import type { Scene } from '../game/scene'
+import { graphics } from '../render/graphics'
 import type { Pass } from '../render/renderer'
 import { blitTexelGrid, createBlitProgram, createTexelGrid, fitTexelGrid } from '../render/texelGrid'
 
@@ -8,6 +9,8 @@ const LIGHT_COLOR = [0xa8 / 255, 0xd0 / 255, 0xff / 255]
 const BLOOM_COLOR = [0x5a / 255, 0xa9 / 255, 0xff / 255]
 /** Яркость ореолов огней днём; к ночи растёт до 1. */
 const DAY_BLOOM = 0.35
+/** Сколько раз луч проверяется на преграду на каждом уровне теней. */
+const SHADOW_STEPS = [10, 20, 40]
 /** Огни слабее этого не рисуются. */
 const MIN_LEVEL = 0.02
 
@@ -108,9 +111,9 @@ out vec4 finalColor;
 const float TEXELS_PER_TILE = 16.0;
 const float LEVELS = 5.0;
 const float BAYER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
-// Сколько раз луч зрения проверяется на преграду и на сколько пикселей от источника проверка не доходит:
-// источник стоит у самого края своего юнита, и тот не должен затенять собственный свет.
-const int STEPS = 40;
+// Сколько раз луч зрения проверяется на преграду (настройка графики: 10, 20 или 40) и на сколько пикселей
+// от источника проверка не доходит: источник стоит у самого края своего юнита, и тот не должен затенять собственный свет.
+uniform int uSteps;
 const float SKIP = 1.5;
 
 void main() {
@@ -127,8 +130,8 @@ void main() {
   vec2 from = vBeam.xy + uOffset + texel / TEXELS_PER_TILE;
   vec2 to = vBeam.xy + uOffset + direction * SKIP / TEXELS_PER_TILE;
   bool outside = false;
-  for (int i = 0; i < STEPS; i++) {
-    vec2 tile = mix(from, to, (float(i) + 0.5) / float(STEPS));
+  for (int i = 0; i < uSteps; i++) {
+    vec2 tile = mix(from, to, (float(i) + 0.5) / float(uSteps));
     vec2 uv = vec2(tile.x * uScale.x, -tile.y * uScale.y) * 0.5 + 0.5;
     bool solid = texture(uOccluders, uv).a > 0.5;
     if (!solid) outside = true;
@@ -208,7 +211,7 @@ export function createLightingPass(gl: WebGL2RenderingContext, scene: Scene, cas
         spotProgram.use(mapView, { uColor: LIGHT_COLOR, uStrength: 1 })
         cut.draw()
         if (beams.count) {
-          beamProgram.use(mapView, { uColor: LIGHT_COLOR, uOccluders: occluders.texture })
+          beamProgram.use(mapView, { uColor: LIGHT_COLOR, uOccluders: occluders.texture, uSteps: SHADOW_STEPS[graphics().shadows] })
           beams.draw()
         }
 

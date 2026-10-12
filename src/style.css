@@ -1406,6 +1406,27 @@ body {
   grid-template-columns: 88px 1fr 40px;
 }
 
+/* Строка выбора: подпись и кнопки значений. В узком окне кнопки уходят под подпись. */
+.menu__field--choice {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu__field--choice > span[title] {
+  cursor: help;
+}
+
+.menu__field--choice .menu__inline button {
+  flex: 1;
+}
+
+.menu__window:not(.menu__window--wide) .menu__field--choice {
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
 .menu__subtitle {
   margin: 0 0 8px;
   font-size: 12px;

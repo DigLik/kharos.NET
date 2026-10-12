@@ -217,6 +217,31 @@
       "world": "World",
       "interface": "Interface"
     },
+    "graphics": "Graphics",
+    "quality": "Quality",
+    "qualities": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "custom": "Custom"
+    },
+    "levels": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "resolution": "Resolution",
+    "resolutionTip": "How many pixels the world is drawn in: fewer is faster but the pixels are bigger. The interface stays sharp.",
+    "terrainDetail": "Terrain detail",
+    "terrainTip": "How smooth the ground looks when the camera is far away: higher is smoother, lower is faster.",
+    "shadows": "Shadow precision",
+    "shadowsTip": "How precisely headlights cast shadows from buildings and vehicles at night.",
+    "weatherDetail": "Weather detail",
+    "weatherTip": "How many drops, splashes and layers of snow you see in bad weather.",
+    "fps": "Frame limit",
+    "fpsTip": "Fewer frames mean less heat and battery drain.",
+    "noLimit": "None",
+    "graphicsNote": "Lower is faster on weak devices. Applies at once; hover a name to see what it does.",
     "aboutText": "A multiplayer browser RTS: a founding vehicle, a procedural map, mining and refining ore, cargo logistics and base defence.",
     "authors": "Authors",
     "sourceCode": "Source code",

@@ -217,6 +217,31 @@
       "world": "Welt",
       "interface": "Oberfläche"
     },
+    "graphics": "Grafik",
+    "quality": "Qualität",
+    "qualities": {
+      "low": "Niedrig",
+      "medium": "Mittel",
+      "high": "Hoch",
+      "custom": "Eigene"
+    },
+    "levels": {
+      "low": "Niedrig",
+      "medium": "Mittel",
+      "high": "Hoch"
+    },
+    "resolution": "Auflösung",
+    "resolutionTip": "In wie vielen Pixeln die Welt gezeichnet wird: weniger ist schneller, aber die Pixel sind größer. Die Oberfläche bleibt scharf.",
+    "terrainDetail": "Geländedetails",
+    "terrainTip": "Wie glatt der Boden aus der Ferne aussieht: höher ist glatter, niedriger ist schneller.",
+    "shadows": "Schattengenauigkeit",
+    "shadowsTip": "Wie genau Scheinwerfer nachts Schatten von Gebäuden und Fahrzeugen werfen.",
+    "weatherDetail": "Wetterdetails",
+    "weatherTip": "Wie viele Tropfen, Spritzer und Schneeschichten bei Unwetter zu sehen sind.",
+    "fps": "Bildratenlimit",
+    "fpsTip": "Weniger Bilder bedeuten weniger Wärme und Akkuverbrauch.",
+    "noLimit": "Keins",
+    "graphicsNote": "Niedriger ist auf schwachen Geräten schneller. Wirkt sofort; fahre über einen Namen, um zu sehen, was er bewirkt.",
     "aboutText": "Ein Mehrspieler-RTS im Browser: Gründerfahrzeug, prozedurale Karte, Erzabbau und -verarbeitung, Frachtlogistik und Basisverteidigung.",
     "authors": "Autoren",
     "sourceCode": "Quellcode",

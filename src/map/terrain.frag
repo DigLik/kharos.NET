@@ -11,6 +11,7 @@ uniform vec2 uCamera; // центр экрана (карты) в тайлах, �
 uniform float uZoom; // пикселей на тайл
 uniform float uTime; // уже ступенями: анимация болот покадровая
 uniform float uPixel; // тайлов мира на физический пиксель экрана
+uniform float uSamples; // сколько точек усредняется в пикселе издалека: 4, 2 или 1 — настройка графики
 uniform vec3 uDunes; // порог полей барханов в эрге, в красных пустошах и их отступ от других зон
 
 const int SWAMP = 0;
@@ -489,16 +490,25 @@ void main() {
     // Вблизи — чёткий пиксель-арт.
     color = terrainColor(screenP, 1.0, wallAt(screenP));
   } else {
-    // Издалека усредняем четыре точки внутри пикселя экрана, а зерно, которое мельче пикселя, гасим.
+    // Издалека усредняем несколько точек внутри пикселя экрана, а зерно, которое мельче пикселя, гасим.
     float detail = clamp(texelPixels * 2.0 - 1.0, 0.0, 1.0);
     // Стенка обрыва ищется один раз на пиксель: это самая дорогая часть, а внутри пикселя она почти не меняется.
     vec4 wall = wallAt(screenP);
-    color = 0.25 * (
-      terrainColor(screenP + pixelX * 0.125 + pixelY * 0.375, detail, wall)
-      + terrainColor(screenP - pixelX * 0.375 + pixelY * 0.125, detail, wall)
-      + terrainColor(screenP + pixelX * 0.375 - pixelY * 0.125, detail, wall)
-      + terrainColor(screenP - pixelX * 0.125 - pixelY * 0.375, detail, wall)
-    );
+    if (uSamples >= 4.0) {
+      color = 0.25 * (
+        terrainColor(screenP + pixelX * 0.125 + pixelY * 0.375, detail, wall)
+        + terrainColor(screenP - pixelX * 0.375 + pixelY * 0.125, detail, wall)
+        + terrainColor(screenP + pixelX * 0.375 - pixelY * 0.125, detail, wall)
+        + terrainColor(screenP - pixelX * 0.125 - pixelY * 0.375, detail, wall)
+      );
+    } else if (uSamples >= 2.0) {
+      color = 0.5 * (
+        terrainColor(screenP + pixelX * 0.25 + pixelY * 0.25, detail, wall)
+        + terrainColor(screenP - pixelX * 0.25 - pixelY * 0.25, detail, wall)
+      );
+    } else {
+      color = terrainColor(screenP, detail, wall);
+    }
   }
   finalColor = vec4(color, 1.0);
 }

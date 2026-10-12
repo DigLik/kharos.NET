@@ -217,6 +217,31 @@
       "world": "Mundo",
       "interface": "Interface"
     },
+    "graphics": "Gráficos",
+    "quality": "Qualidade",
+    "qualities": {
+      "low": "Baixa",
+      "medium": "Média",
+      "high": "Alta",
+      "custom": "Personalizada"
+    },
+    "levels": {
+      "low": "Baixa",
+      "medium": "Média",
+      "high": "Alta"
+    },
+    "resolution": "Resolução",
+    "resolutionTip": "Em quantos pixels o mundo é desenhado: menos é mais rápido, mas os pixels ficam maiores. A interface continua nítida.",
+    "terrainDetail": "Detalhe do terreno",
+    "terrainTip": "Quão suave o chão parece com a câmera longe: mais alto é mais suave, mais baixo é mais rápido.",
+    "shadows": "Precisão das sombras",
+    "shadowsTip": "Com que precisão os faróis projetam sombras de prédios e veículos à noite.",
+    "weatherDetail": "Detalhe do clima",
+    "weatherTip": "Quantas gotas, respingos e camadas de neve aparecem no mau tempo.",
+    "fps": "Limite de quadros",
+    "fpsTip": "Menos quadros, menos calor e consumo de bateria.",
+    "noLimit": "Sem limite",
+    "graphicsNote": "Mais baixo é mais rápido em aparelhos fracos. Aplica na hora; passe o cursor sobre um nome para ver o que ele faz.",
     "aboutText": "Um RTS multijogador de navegador: veículo fundador, mapa procedural, extração e refino de minério, logística de carga e defesa da base.",
     "authors": "Autores",
     "sourceCode": "Código-fonte",

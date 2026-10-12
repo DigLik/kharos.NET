@@ -1,6 +1,7 @@
 import { SCREEN_VERTEX, bindScreen, createProgram, createTarget, drawQuad, setBlend } from '../gl'
 import type { Scene } from '../game/scene'
 import { WINDOW, wrap, type LandWindow } from '../map/landWindow'
+import { graphics } from '../render/graphics'
 import type { Pass } from '../render/renderer'
 import { TEXELS_PER_TILE, blitTexelGrid, createBlitProgram, createTexelGrid, fitTexelGrid } from '../render/texelGrid'
 import fragment from './weather.frag?raw'
@@ -16,7 +17,7 @@ export function createPrecipitationPass(gl: WebGL2RenderingContext, scene: Scene
   const blit = createBlitProgram(gl)
   const target = createTarget(gl)
   const grid = createTexelGrid()
-  const uniforms = { uWind: new Float32Array(2), uDrift: new Float32Array(2), uPrecipitation: 0, uPixel: 1 }
+  const uniforms = { uWind: new Float32Array(2), uDrift: new Float32Array(2), uPrecipitation: 0, uPixel: 1, uDetail: 2 }
   const gridUniforms = { uCamera: new Float32Array(2), uScreenSize: new Float32Array(2), uZoom: TEXELS_PER_TILE }
 
   return {
@@ -33,6 +34,7 @@ export function createPrecipitationPass(gl: WebGL2RenderingContext, scene: Scene
 
       fitTexelGrid(grid, frame)
       uniforms.uPixel = grid.pixel
+      uniforms.uDetail = graphics().weather
       if (!grid.close) {
         setBlend(gl, 'alpha')
         program.use(view, landWindow.uniforms, uniforms)

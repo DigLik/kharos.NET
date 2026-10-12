@@ -1,5 +1,6 @@
 import { SCREEN_VERTEX, bindScreen, createProgram, createTarget, drawQuad, setBlend } from '../gl'
 import type { Scene } from '../game/scene'
+import { graphics } from '../render/graphics'
 import type { Pass } from '../render/renderer'
 import { TEXELS_PER_TILE, blitTexelGrid, createBlitProgram, createTexelGrid, fitTexelGrid } from '../render/texelGrid'
 import { WINDOW, wrap, type LandWindow } from './landWindow'
@@ -7,6 +8,8 @@ import fragment from './terrain.frag?raw'
 
 /** Сколько раз в секунду шагает анимация болот. Должно совпадать с ней в terrain.frag. */
 const SWAMP_FPS = 5
+/** Сколько точек усредняется в пикселе издалека на каждом уровне детализации земли. */
+const SAMPLES = [1, 2, 4]
 
 // Сетка тайлов поверх земли рисуется при переносе на экран: её линии тоньше текселя.
 const GRID = `
@@ -26,11 +29,11 @@ export function createTerrainPass(gl: WebGL2RenderingContext, scene: Scene, land
   const blit = createBlitProgram(gl, GRID, 'uniform vec2 uCamera; uniform float uZoom; uniform float uGrid;')
   const target = createTarget(gl)
   const grid = createTexelGrid()
-  const uniforms = { uDunes: new Float32Array(3), uCamera: new Float32Array(2), uScreenSize: new Float32Array(2), uZoom: 1, uTime: 0, uPixel: 1 }
+  const uniforms = { uDunes: new Float32Array(3), uCamera: new Float32Array(2), uScreenSize: new Float32Array(2), uZoom: 1, uTime: 0, uPixel: 1, uSamples: 4 }
   const blitUniforms = { uGrid: 0, uZoom: 1, uCamera: landWindow.uniforms.uCamera }
   /** С чем нарисована карта: если всё то же, рисовать заново незачем. */
-  const drawn = new Float64Array(12).fill(NaN)
-  const next = new Float64Array(12)
+  const drawn = new Float64Array(13).fill(NaN)
+  const next = new Float64Array(13)
 
   return {
     draw(frame) {
@@ -50,9 +53,10 @@ export function createTerrainPass(gl: WebGL2RenderingContext, scene: Scene, land
       uniforms.uZoom = grid.close ? TEXELS_PER_TILE : frame.camera.zoom
       uniforms.uPixel = grid.pixel
       uniforms.uTime = Math.floor(frame.time * SWAMP_FPS) / SWAMP_FPS
+      uniforms.uSamples = SAMPLES[graphics().terrain]
 
-      next.set([grid.width, grid.height, uniforms.uCamera[0], uniforms.uCamera[1], uniforms.uZoom, uniforms.uPixel, uniforms.uTime, landWindow.revision])
-      next.set(uniforms.uDunes, 8)
+      next.set([grid.width, grid.height, uniforms.uCamera[0], uniforms.uCamera[1], uniforms.uZoom, uniforms.uPixel, uniforms.uTime, landWindow.revision, uniforms.uSamples])
+      next.set(uniforms.uDunes, 9)
       setBlend(gl, 'none')
       if (next.some((value, i) => value !== drawn[i])) {
         drawn.set(next)
