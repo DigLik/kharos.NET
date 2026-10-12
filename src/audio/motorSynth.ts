@@ -289,44 +289,55 @@ export type RunningName = keyof typeof RUNNING
 export const RUNNING_NAMES = Object.keys(RUNNING) as RunningName[]
 
 /**
- * Стартер: крутит мотор с подвыванием — компрессия в цилиндрах дёргает его рывками, — и мотор схватывает: вспышки
- * учащаются и садятся на холостой. heavy — дизель: стартер ниже и дольше, вспышки тяжёлые, с клубом выхлопа.
+ * Сколько секунд крутит стартер, прежде чем мотор схватит. Коротко: машина на карте трогается сразу, и звук не должен
+ * долго стоять на месте. Дизель крутится дольше.
+ */
+export const START_CRANK = { ignition: 0.28, ignitionDiesel: 0.4 } as const
+
+/**
+ * Стартер: «вжик-вжик» — электромотор стартера крутит коленвал, и каждый цилиндр на сжатии тормозит его: тон
+ * проседает, звук толкается рывками. Тон — не пила, а мягкий гул с призвуком шестерён. Потом мотор схватывает: два-три
+ * хлопка выхлопа подряд, и дальше звучит уже сам мотор — его голос заводится с перегазовкой (см. drive.ts), поэтому
+ * хвост у стартера короткий и с мотором не двоится. heavy — дизель: стартер ниже и медленнее, хлопки тяжелее, с клубом
+ * выхлопа.
  */
 function ignition(rate: number, variant: number, heavy: boolean) {
-  const crank = heavy ? 0.65 : 0.42
-  const whine = heavy ? 150 : 210
-  const pulls = heavy ? 6.5 : 9
-  const length = crank + (heavy ? 0.9 : 0.65)
-  const grind = lowpass(rate, 1400)
-  const pipe = bandpass(rate, heavy ? 80 : 110, 3)
-  const knock = bandpass(rate, 2700, 3)
-  const puff = lowpass(rate, 500)
+  const crank = START_CRANK[heavy ? 'ignitionDiesel' : 'ignition']
+  const hum = heavy ? 95 : 140
+  // Сжатий в секунду: стартер проворачивает мотор медленно, рывки слышны по одному.
+  const pulls = heavy ? 7 : 10
+  const length = crank + 0.28
+  const gears = bandpass(rate, heavy ? 900 : 1300, 4)
+  const body = lowpass(rate, 600)
+  const pipe = bandpass(rate, heavy ? 75 : 105, 2.5)
+  const knock = bandpass(rate, 2400, 3)
+  const puff = lowpass(rate, 400)
   let phase = 0
-  let fired = 0
-  let at = -1
   return render(rate, length, variant, (t, noise) => {
     const n = noise()
     let output = 0
-    if (t < crank + 0.05) {
-      // Стартер: пила с рывками компрессии, к концу его отпускают.
-      phase += (whine * (0.85 + 0.15 * Math.min(1, t / crank))) / rate
-      const pull = 0.55 + 0.45 * Math.sin(2 * Math.PI * pulls * t) ** 2
-      const saw = (phase % 1) * 2 - 1
-      output += (saw * 0.35 + grind(n) * 0.5) * pull * attack(t, 0.02) * Math.min(1, (crank + 0.05 - t) / 0.05)
+    if (t < crank + 0.03) {
+      // Сжатие: каждый рывок — провал тона и громкости, между ними стартер разгоняется.
+      const cycle = (t * pulls) % 1
+      const load = Math.exp(-cycle * 6)
+      phase += (hum * (1 - 0.25 * load)) / rate
+      const tone = Math.sin(2 * Math.PI * phase) + 0.35 * Math.sin(4 * Math.PI * phase) + 0.15 * Math.sin(6 * Math.PI * phase)
+      const level = (0.45 + 0.55 * (1 - load)) * attack(t, 0.015) * Math.min(1, (crank + 0.03 - t) / 0.03)
+      output += (tone * 0.4 + body(n) * 0.5 + gears(n) * 0.35) * level
     }
     if (t >= crank) {
-      // Схватил: вспышки идут всё чаще, от редких хлопков к ровному холостому.
+      // Схватил: три хлопка всё чаще, дальше — голос мотора.
       const local = t - crank
-      const firing = (heavy ? 7 : 11) + (heavy ? 16 : 22) * (1 - decay(local, 0.25))
-      if (t - at >= 1 / firing) {
-        at = t
-        fired++
+      const shots = [0, 0.07, 0.12]
+      for (const [i, at] of shots.entries()) {
+        const since = local - at
+        if (since < 0) continue
+        const kick = (1.2 - i * 0.2) * (decay(since, heavy ? 0.012 : 0.008) - decay(since, 0.0006))
+        output += pipe(kick + n * kick * 0.5) * 4 + kick * 0.5
+        if (heavy) output += knock(n) * decay(since, 0.002) * (1 - i * 0.25)
       }
-      const since = t - at
-      const strength = (fired <= 3 ? 1.3 : 1) * decay(local, heavy ? 0.6 : 0.4)
-      const kick = strength * (decay(since, heavy ? 0.007 : 0.004) - decay(since, 0.0004))
-      output += pipe(kick + n * kick * 0.4) * 4 + kick * 0.6
-      if (heavy) output += knock(n) * strength * decay(since, 0.0015) * 1.5 + puff(n) * decay(local, 0.15) * 0.9
+      if (heavy) output += puff(n) * decay(local, 0.1) * 0.8
+      output *= Math.min(1, (length - t) / 0.08)
     }
     return output
   })

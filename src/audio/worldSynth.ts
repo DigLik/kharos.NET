@@ -333,30 +333,6 @@ function beep(rate: number, variant: number) {
 }
 
 
-/**
- * Шаг: удар подошвы — короткий глухой толчок — и шорох того, по чему ступили. grit — сколько хруста камешков,
- * soft — насколько глухо (песок, грязь), hard — звонкий щелчок по бетону, wet — чавканье болота.
- */
-function step(rate: number, variant: number, surface: { grit: number; soft: number; hard: number; wet: number }) {
-  const next = random(variant + 3001)
-  const thud = lowpass(rate, 160 + next() * 60)
-  const scuff = bandpass(rate, surface.soft ? 900 : 2200 + next() * 800, 1.2)
-  const click = bandpass(rate, 3200 + next() * 600, 5)
-  const slurp = bandpass(rate, 500, 3)
-  const length = surface.soft ? 0.2 : 0.12
-  return render(rate, length, variant, (t, noise) => {
-    const n = noise()
-    const crunch = next() < 0.06 * decay(t, 0.03) ? 1 : 0
-    return (
-      thud(n) * decay(t, 0.015) * 2.5 +
-      scuff(n) * attack(t, 0.004) * decay(t, surface.soft ? 0.06 : 0.025) * (0.5 + surface.soft) +
-      click(n) * decay(t, 0.004) * surface.hard * 2 +
-      click(crunch) * surface.grit * 3 +
-      slurp(n) * Math.sin(Math.PI * Math.min(1, t / length)) * surface.wet * 1.5
-    )
-  })
-}
-
 /** Лазер попал: шипение прожжённого металла — шум, который тает, с тонким звоном. */
 function sizzle(rate: number, variant: number) {
   const hiss = highpass(rate, 3500)
@@ -528,10 +504,6 @@ export const WORLD_SOUNDS = {
   delivered: (rate: number, variant: number) => chime(rate, variant, [659, 784, 659], 0.08, 0.25),
   protectionOver: (rate: number, variant: number) => chime(rate, variant, [880, 659, 523], 0.14, 0.3),
   /** Шаги: по скале — хрустят камешки, по песку — шуршат, по болоту — чавкают, по бетону — стучат. */
-  step: (rate: number, variant: number) => step(rate, variant, { grit: 1, soft: 0, hard: 0.2, wet: 0 }),
-  stepSand: (rate: number, variant: number) => step(rate, variant, { grit: 0.2, soft: 1, hard: 0, wet: 0 }),
-  stepMud: (rate: number, variant: number) => step(rate, variant, { grit: 0, soft: 0.6, hard: 0, wet: 1 }),
-  stepHard: (rate: number, variant: number) => step(rate, variant, { grit: 0.3, soft: 0, hard: 1, wet: 0 }),
   sizzle,
   burn,
   zap,

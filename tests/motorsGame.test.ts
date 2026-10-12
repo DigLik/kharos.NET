@@ -61,17 +61,3 @@ test('танк заводится, тронувшись, звучит своим
   expect(played).toEqual(['ignitionDiesel', 'airBrake'])
   expect(voices[0].released).toBe(true)
 })
-
-test('пехотинец звучит каждым шагом', () => {
-  const { sim, played, motors } = setup()
-  const soldier = spawnUnit(sim, 'infantry', 1, 2, 2)
-  const position = sim.world.get(soldier, Position)!
-  motors.update(1 / 60)
-  // Два с лишним тайла пути — пять шагов.
-  for (let i = 0; i < 21; i++) {
-    position.x += 0.1
-    motors.update(0.1)
-  }
-  expect(played.length).toBe(5)
-  expect(played.every((name) => name.startsWith('step'))).toBe(true)
-})

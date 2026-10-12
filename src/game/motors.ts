@@ -3,8 +3,7 @@ import { MOTORS, MOTOR_NAMES, type Motor, type MotorName } from '../audio/motorS
 import type { MotorSound, MotorVoice } from '../audio/motorVoice'
 import type { SoundName } from '../audio/sounds'
 import type { Entity } from '../ecs'
-import { Terrain, terrainAt } from '../map/terrain'
-import { Pave, Position, Unit, unitSpec, wrap, type UnitType } from '../sim'
+import { Position, Unit, unitSpec, wrap, type UnitType } from '../sim'
 import { HANDLING, createDrive, driveSound, stepDrive, type Drive, type Handling } from './drive'
 import { nearness, sideOf } from './hearing'
 import type { Scene } from './scene'
@@ -36,7 +35,7 @@ const SATURATE = 3
 const CROWD_LEVEL = 0.6
 const CROWD_CLARITY = 0.4
 /** Громкость стартера и тормоза против мотора. */
-const START_VOLUME = 0.9
+const START_VOLUME = 0.5
 const BRAKE_VOLUME = 0.7
 /** Чаще этого, в секундах, стартер и тормоз не звучат: колонна по одному приказу заводится не хором. */
 const EVENT_GAP = 0.25
@@ -45,15 +44,8 @@ const STILL = 0.06
 const STOP_HOLD = 0.3
 /** Быстрее этого, в долях своей скорости, юнит не ездит: такой скачок — перенос, а не ход. */
 const JUMP = 2.2
-/** Шаги толпы пехоты — общая петля под отдельными шагами: громкость при «полном» звучании. */
-const STEPS_LEVEL = 0.08
-/** Пехотинец ступает раз в столько тайлов пути: полшага походки, см. GAIT_STEP в unitArt.ts. */
-const STRIDE = 0.4
-/** Громкость шага вблизи и чаще скольки секунд шаги не звучат: взвод топает, а не трещит. */
-const STEP_VOLUME = 0.22
-const STEP_GAP = 0.035
-/** Дальше этого за тик пехотинец не шагает, а переносится. */
-const LEAP = 1
+/** Шаги пехоты — общая петля: громкость при «полном» звучании. */
+const STEPS_LEVEL = 0.16
 
 interface Car {
   type: UnitType
@@ -87,8 +79,7 @@ interface Crowd {
 /**
  * Моторы техники. Каждая машина — своя езда (drive.ts): заводится стартером, разгоняется по передачам, едет, сбрасывает
  * газ, тормозит, стоит на холостых и глохнет. Ближайшие к середине экрана VOICES машин слышны каждая своим голосом,
- * со своей стороны и со своими оборотами; остальные — общим голосом толпы своего мотора. Пехотинец звучит каждым
- * шагом — по тому, на что ступил, — а под шагами тихо шуршит общая петля толпы.
+ * со своей стороны и со своими оборотами; остальные — общим голосом толпы своего мотора. Пехота шагает общей петлёй.
  */
 export function createMotors(scene: Scene, audio: Audio) {
   const cars = new Map<Entity, Car>()
@@ -96,20 +87,6 @@ export function createMotors(scene: Scene, audio: Audio) {
   let steps = 0
   let stepsSide = 0
   let clock = 0
-  /** Сколько прошёл каждый пехотинец с последнего шага и где был. */
-  const feet = new Map<Entity, { x: number; y: number; walked: number }>()
-  let stepAt = -Infinity
-  /** Чем звучит шаг по тайлу: по покрытию стучит, по песку шуршит, по болоту чавкает, по скале хрустит. */
-  const surfaceAt = (x: number, y: number): SoundName => {
-    const { sim } = scene
-    const tileX = Math.floor(x)
-    const tileY = Math.floor(y)
-    const paved = sim.paving?.at(tileX, tileY)
-    if (paved !== undefined && sim.world.get(paved, Pave)?.done) return 'stepHard'
-    if (!sim.land) return 'step'
-    const terrain = terrainAt(sim.land, tileX, tileY)
-    return terrain === Terrain.Sand ? 'stepSand' : terrain === Terrain.Swamp ? 'stepMud' : 'step'
-  }
   const last = new Map<'start' | 'brake', number>()
   const event = (kind: 'start' | 'brake', name: SoundName, volume: number, side: number) => {
     if (volume <= 0.01 || clock - (last.get(kind) ?? -Infinity) < EVENT_GAP) return
@@ -158,23 +135,9 @@ export function createMotors(scene: Scene, audio: Audio) {
         const side = sideOf(scene, position.x)
         const name = UNIT_MOTORS[unit.type]
         if (!name) {
-          seen.add(entity)
-          const foot = feet.get(entity) ?? { x: position.x, y: position.y, walked: 0 }
-          feet.set(entity, foot)
-          const moved = Math.hypot(position.x - foot.x, position.y - foot.y)
-          foot.x = position.x
-          foot.y = position.y
-          if (moved > LEAP) continue
-          foot.walked += moved
           if (near > 0 && Math.abs(position.x - unit.prevX) + Math.abs(position.y - unit.prevY) >= 1e-3) {
             steps += near
             stepsSide += near * side
-          }
-          if (foot.walked < STRIDE) continue
-          foot.walked %= STRIDE
-          if (near * STEP_VOLUME > 0.01 && clock - stepAt >= STEP_GAP) {
-            stepAt = clock
-            audio.play(surfaceAt(position.x, position.y), near * STEP_VOLUME, side * 0.8)
           }
           continue
         }
@@ -204,7 +167,6 @@ export function createMotors(scene: Scene, audio: Audio) {
         heard.push({ car, near, side, sound, score: loudness * (0.6 + 0.4 * drive.throttle) * (car.voice ? KEEP : 1) })
       }
 
-      for (const entity of feet.keys()) if (!seen.has(entity)) feet.delete(entity)
       for (const [entity, car] of cars) {
         if (seen.has(entity)) continue
         release(car)

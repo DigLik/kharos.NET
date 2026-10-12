@@ -1,4 +1,4 @@
-import type { Motor } from '../audio/motorSynth'
+import { START_CRANK, type Motor } from '../audio/motorSynth'
 import type { MotorSound } from '../audio/motorVoice'
 
 /**
@@ -16,10 +16,12 @@ export interface Handling {
   gears: number[]
 }
 
+// Разгон короткий: машина на карте трогается сразу на полной скорости, и долгий звук разгона от неё отставал бы.
+// Лёгкая набирает ход за полсекунды, грузовик и гусеничные — меньше чем за секунду.
 export const HANDLING = {
-  petrol: { accel: 0.8, brake: 2.5, gears: [0.22, 0.45, 0.72, 1.6] },
-  diesel: { accel: 0.45, brake: 1.8, gears: [0.3, 0.6, 1.6] },
-  heavy: { accel: 0.4, brake: 1.6, gears: [0.35, 0.7, 1.4] },
+  petrol: { accel: 2.2, brake: 2.5, gears: [0.22, 0.45, 0.72, 1.6] },
+  diesel: { accel: 1.4, brake: 1.8, gears: [0.3, 0.6, 1.6] },
+  heavy: { accel: 1.2, brake: 1.6, gears: [0.35, 0.7, 1.4] },
   air: { accel: 0.6, brake: 0.8, gears: [] },
 } satisfies Record<string, Handling>
 
@@ -44,12 +46,10 @@ export interface Drive {
   spool: number
 }
 
-/** Сколько секунд крутит стартер, прежде чем мотор схватит: совпадает с началом вспышек в стартере. */
-export const CRANK = { ignition: 0.42, ignitionDiesel: 0.65 } as const
 /** Столько секунд мотор стоит на холостых, а потом глохнет. */
 export const IDLE_HOLD = 6
 /** Сколько длится переключение передачи, в секундах. */
-const SHIFT = 0.2
+const SHIFT = 0.1
 /** После переключения вверх обороты падают до этой доли. */
 const SHIFT_DROP = 0.35
 /** Медленнее этого, в долях полной скорости, машина считается стоящей: толчки соседей — не езда. */
@@ -89,11 +89,12 @@ export function stepDrive(drive: Drive, motor: Motor, handling: Handling, target
   }
   if (drive.phase === 'crank') {
     // Пока крутит стартер, машина для звука ещё стоит: тронется, когда мотор схватит, — с перегазовкой.
-    if (drive.timer < CRANK[motor.start!]) return event
+    if (drive.timer < START_CRANK[motor.start!]) return event
     drive.phase = 'run'
     drive.timer = 0
-    drive.rpm = 0.45
-    drive.throttle = 0.6
+    // Схватил — перегазовка: обороты взлетают и садятся на холостые или идут в разгон.
+    drive.rpm = 0.6
+    drive.throttle = 1
   }
 
   const before = drive.speed

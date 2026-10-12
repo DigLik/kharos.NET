@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test'
 import { MOTORS, MOTOR_NAMES, RUNNING, RUNNING_NAMES, motorLoop } from '../src/audio/motorSynth'
-import { CRANK, HANDLING, IDLE_HOLD, createDrive, driveSound, stepDrive, type DriveEvent } from '../src/game/drive'
+import { HANDLING, IDLE_HOLD, createDrive, driveSound, stepDrive, type DriveEvent } from '../src/game/drive'
+import { START_CRANK as CRANK } from '../src/audio/motorSynth'
 
 const RATE = 44100
 

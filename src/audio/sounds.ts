@@ -22,5 +22,5 @@ export const INTERFACE_SOUNDS = new Set<SoundName>([
 export const WORLD_SOUND_NAMES = new Set<SoundName>([
   ...(Object.keys(MOTOR_SOUNDS) as SoundName[]),
   'doorsLocked', 'liftoff', 'gate', 'built', 'deploy', 'rollout', 'crates', 'paved', 'radar', 'shieldDown', 'shieldUp',
-  'step', 'stepSand', 'stepMud', 'stepHard', 'shipLaunch', 'shipLand', 'depleted', 'powerOn', 'powerOff', 'cargo',
+  'shipLaunch', 'shipLand', 'depleted', 'powerOn', 'powerOff', 'cargo',
 ])
