@@ -9,7 +9,6 @@ import type { Session } from '../net/connect'
 import { Building, Player, Position, Unit, isOwn, weatherAt, type BuildingType, type Command, type Sim, type SimOptions, type UnitType } from '../sim'
 import { createLightingPass } from '../weather/lightingPass'
 import { createPrecipitationPass } from '../weather/precipitationPass'
-import { createBoundsPass } from './boundsPass'
 import { createBuildingsPass } from './buildings/buildingsPass'
 import { createCombatPasses } from './combatPass'
 import { Camera } from './camera'
@@ -168,7 +167,7 @@ export function createGame(
       const units = createUnitsPasses(gl, scene)
       const buildings = createBuildingsPass(gl, scene)
       const combat = createCombatPasses(gl, scene)
-      // Порядок проходов — порядок отрисовки, снизу вверх. Витрине не нужны туман, зоны, выделение и курсор.
+      // Порядок проходов — порядок отрисовки, снизу вверх. Витрине не нужны зоны, выделение и курсор.
       const play = (pass: Pass) => (showcase ? [] : [pass])
       return [
         createTerrainPass(gl, scene, landWindow),
@@ -189,10 +188,9 @@ export function createGame(
         createPrecipitationPass(gl, scene, landWindow),
         combat.lights,
         createLightingPass(gl, scene, [units.ground, buildings, units.emplacements]),
-        // Туман — над миром и его светом, под зонами, выделением и курсором.
-        ...play(createFogPass(gl, scene)),
-        // Темнота за краем мира — над туманом: границу видно и там, где ещё не бывали.
-        createBoundsPass(gl, scene),
+        // Туман — над миром и его светом, под зонами, выделением и курсором. Он же — темнота за краем мира: её видно
+        // и в витрине, где тумана нет.
+        createFogPass(gl, scene),
         ...play(createPowerPass(gl, scene)),
         combat.effects,
         ...play(createSelectionPass(gl, scene)),
