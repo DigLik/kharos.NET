@@ -7,6 +7,7 @@ import { depositAt } from './deposits'
 import { amountOf, loadOf, roomFor } from './inventory'
 import { entriesOf, GOODS, isOre, isProduct, ORE_OF, WARES, stockedFor, type Amounts, type Good, type Ore, type Resource } from './resources'
 import type { Sim } from './sim'
+import { researchNeeds } from './topics'
 import { deliveredTo, isStore } from './trade'
 import { unitSpec } from './units'
 import { inCircles, networkOf, zonesOf, type Zone } from './zones'
@@ -54,6 +55,8 @@ const PRIORITY_WEIGHT = 1000
  */
 const PUSH_MIN = 10
 const PUSH_SHARE = 0.5
+/** Сколько каждого сырья нынешней темы лаборатория держит про запас: больше она не заказывает. */
+const LAB_STOCK = 10
 /** Заявки меньше этого не возят. */
 const MIN_JOB = 0.5
 
@@ -204,6 +207,11 @@ export function offersOf(sim: Sim, entity: Entity): readonly Good[] {
     const inputs = inputsOf(sim, entity)
     return WARES.filter((ware) => !inputs.includes(ware as Resource))
   }
+  // Лаборатория отдаёт всё, что не нужно нынешней теме: остатки прежней увозят обратно.
+  if (spec.researches) {
+    const needs = researchNeeds(sim, sim.world.get(entity, Owner)?.player ?? 0)
+    return GOODS.filter((good) => !needs[good])
+  }
   if (!spec.extract) return NOTHING_OFFERED
   const ore = mineOre(sim, entity)
   return ore ? [ore] : NOTHING_OFFERED
@@ -245,6 +253,25 @@ export function requestsOf(sim: Sim, player: number, flows = flowsOf(sim)): Requ
     // Сколько ещё поместится: больше буфера руды завод не просит, пока не переработает привезённое.
     const room = roomFor(inventory, ore)
     if (room > 0) need(entity, ore, room, PRIORITY.refine, 'mines')
+  }
+  // Лаборатории: сырьё нынешней темы, по LAB_STOCK каждого, но не больше, чем теме осталось потратить, за вычетом
+  // того, что уже лежит в других лабораториях игрока. Руду — из своих шахт, где бы они ни стояли, как переработке.
+  const labs: Entity[] = []
+  for (const [entity, building, owner] of world.query(Building, Owner)) {
+    if (owner.player !== player || !buildingSpec(building.type).researches || !world.has(entity, Inventory)) continue
+    if (!isReady(sim, player, entity) || world.has(entity, Off)) continue
+    labs.push(entity)
+  }
+  if (labs.length) {
+    const needs = researchNeeds(sim, player)
+    for (const [good, left] of entriesOf(needs)) {
+      const held = labs.reduce((sum, lab) => sum + amountOf(world.get(lab, Inventory)!, good) + (flows.incoming.get(lab)?.[good] ?? 0), 0)
+      for (const lab of labs) {
+        const own = amountOf(world.get(lab, Inventory)!, good)
+        const others = held - own - (flows.incoming.get(lab)?.[good] ?? 0)
+        need(lab, good, Math.min(LAB_STOCK, Math.ceil(left - others - 1e-6)) - own, PRIORITY.production, isOre(good) ? 'mines' : 'zone')
+      }
+    }
   }
   // Включённые заводы изделий: сырьё рецепта, сколько его держат про запас.
   for (const [entity, assembly, inventory, owner] of world.query(Assembly, Inventory, Owner)) {
@@ -358,10 +385,13 @@ export function acceptsDelivery(sim: Sim, player: number, to: Entity, resource: 
   if (materialsFor(sim, to)?.[resource]) return true
   // Цех — сырьё своего рецепта.
   if (inputsOf(sim, to).includes(resource as Resource)) return true
-  // Свой склад здания: переработка так принимает руду, которой больше негде лежать, турель — патроны, реактор — стержни.
+  // Свой склад здания: переработка так принимает руду, которой больше негде лежать, турель — патроны, реактор — стержни,
+  // лаборатория — сырьё нынешней темы.
   const type = world.get(to, Building)?.type
   if (type === undefined) return false
   const spec = buildingSpec(type)
+  // Лаборатория — сырьё своей нынешней темы.
+  if (spec.researches && researchNeeds(sim, player)[resource]) return true
   return spec.refines === resource || feedOf(spec) === resource
 }
 
@@ -516,7 +546,7 @@ export function dispatch(sim: Sim) {
             // остаток меньше порога иначе лежал бы в ней вечно.
             const stopped = !!spec.refines && amountOf(inventory, spec.refines) <= 1e-9 && !(flows.incoming.get(source)?.[spec.refines] ?? 0)
             // С дропа увозят всё до крошки.
-            const leftover = (world.has(source, Assembly) && !isProduct(resource)) || !!spec.trades || stopped || world.has(source, Drop)
+            const leftover = (world.has(source, Assembly) && !isProduct(resource)) || !!spec.trades || !!spec.researches || stopped || world.has(source, Drop)
             if (available < (leftover ? 1e-9 : Math.min(PUSH_MIN, room, holds * PUSH_SHARE))) continue
             const score = -distance(sim, truck, source)
             if (best && score <= best.score) continue

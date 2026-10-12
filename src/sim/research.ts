@@ -2,6 +2,7 @@ import type { Entity, Time, WorldSnapshot } from '../ecs'
 import { BUILDING_TYPES, RESEARCH_FOR, buildingSpec, isReady } from './buildings'
 import { Building, Inventory, Owner, Player, Research, Site } from './components'
 import { DEPOSIT_CELL, depositsIn } from './deposits'
+import { amountOf, take } from './inventory'
 import { spend } from './economy'
 import { powerSupply, zoneEconomies } from './income'
 import { RESOURCES, entriesOf, type Amounts, type Good } from './resources'
@@ -203,9 +204,11 @@ export function research(sim: Sim, time: Time) {
         lack = 'credits'
       }
       const needs: Amounts = {}
+      const stock = world.get(lab, Inventory)
       for (const [good, amount] of entriesOf(price.materials)) {
         const need = amount * share
-        const have = networkStock(sim, lab, good)
+        // Сначала — привезённое на склад лаборатории, потом — что отдают склады её сети.
+        const have = (stock ? amountOf(stock, good) : 0) + networkStock(sim, lab, good)
         if (have + EPSILON < need * part) {
           part = Math.max(0, have / need)
           lack = good
@@ -221,6 +224,7 @@ export function research(sim: Sim, time: Time) {
         report(sim, lab, 0, 'credits')
         continue
       }
+      if (stock) for (const good of Object.keys(needs) as Good[]) needs[good]! -= take(stock, good, needs[good]!)
       takeFromNetwork(sim, lab, needs)
       done += share * part
       report(sim, lab, power * part, lack)

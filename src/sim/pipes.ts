@@ -221,7 +221,7 @@ export function pipeFlow(sim: Sim) {
 
 /**
  * Развоз готового: переработка, цеха и космопорт отправляют его в хранилища своей сети — по пачке, когда накопилось
- * на пачку, а остатки (сырьё прежнего рецепта цеха, закупку космопорта) — сколько есть. Хранилище — самое пустое
+ * на пачку, а остатки (сырьё прежнего рецепта цеха, закупку космопорта, запас лаборатории от прежней темы) — сколько есть. Хранилище — самое пустое
  * по этому грузу с учётом едущего туда, из равных — ближайшее по трубам.
  */
 function pushOutlets(sim: Sim, player: number, zone: Zone, busy: Set<string>, incoming: Map<Entity, Partial<Record<Good, number>>>) {
@@ -231,14 +231,14 @@ function pushOutlets(sim: Sim, player: number, zone: Zone, busy: Set<string>, in
   for (const source of zone.buildings) {
     const type = world.get(source, Building)!.type
     const spec = buildingSpec(type)
-    if (!spec.refines && !spec.assembles && !spec.trades) continue
+    if (!spec.refines && !spec.assembles && !spec.trades && !spec.researches) continue
     const inventory = world.get(source, Inventory)
     if (!inventory) continue
     for (const resource of offersOf(sim, source)) {
       const key = `>${source}:${resource}`
       if (busy.has(key)) continue
       const available = spareOf(sim, source, resource)
-      const leftover = !!spec.trades || (world.has(source, Assembly) && !isProduct(resource)) || (!!spec.refines && amountOf(inventory, spec.refines) <= EPSILON)
+      const leftover = !!spec.trades || !!spec.researches || (world.has(source, Assembly) && !isProduct(resource)) || (!!spec.refines && amountOf(inventory, spec.refines) <= EPSILON)
       if (available < (leftover ? EPSILON : OUTLET_MIN)) continue
       const routes = routesFrom(zone, source)
       let best = NONE as Entity

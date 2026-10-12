@@ -162,3 +162,25 @@ export function pathTo(topic: Topic, done: readonly string[]): Topic[] {
   visit(topic)
   return path
 }
+
+/**
+ * Тема, которую лаборатории игрока ведут сейчас: первая в очереди, которой ещё нет в открытых и у которой открыты все
+ * предшественники; undefined — вести нечего.
+ */
+export function currentTopic(sim: Sim, player: number): Topic | undefined {
+  const entity = playerEntity(sim, player)
+  if (entity === undefined) return undefined
+  const { plan, research: known } = sim.world.get(entity, Player)!
+  return plan.find((topic): topic is Topic => isTopic(topic) && !known.includes(topic) && topicsBefore(topic).every((before) => known.includes(before)))
+}
+
+/** Сколько чего ещё потратит нынешняя тема игрока до конца: её цена за вычетом сделанного. Пусто — темы нет. */
+export function researchNeeds(sim: Sim, player: number): Amounts {
+  const topic = currentTopic(sim, player)
+  if (!topic) return {}
+  const entity = playerEntity(sim, player)!
+  const left = 1 - (sim.world.get(entity, Player)!.progress[topic] ?? 0)
+  const needs: Amounts = {}
+  for (const [good, amount] of entriesOf(topicPrice(sim, topic).materials)) needs[good] = amount * left
+  return needs
+}

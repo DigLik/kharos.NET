@@ -3,6 +3,7 @@ import type { WeatherOptions } from './weather'
 import { areaOf, createLand, loadLand, saveLand, type GeneratorConfig, type Land } from '../map/terrain'
 import { createLandMemory, saveLandMemory, updateLandMemory, type LandMemory, type LandMemorySave } from './landMemory'
 import { buildingSpec, createOccupancy, type Occupancy } from './buildings'
+import { equipStorage } from './inventory'
 import { fight, recover } from './combat'
 import { assemble } from './assembly'
 import { research, triggers } from './research'
@@ -349,10 +350,17 @@ function remount(sim: Sim) {
 
 /**
  * Склад здания сохраняется целиком, вместе с объёмом и пределами, и старое сохранение принесло бы прежние числа.
+ * Зданию, у которого склада в сохранении нет, а виду он положен, склад ставится пустым.
  * После загрузки они берутся из нынешнего описания здания; лишнее сверх нового предела не пропадает, а уходит
  * само, когда его развезут. Стройки не трогаются: их склад — под материалы.
  */
 function refreshStorage(sim: Sim) {
+  // Склад, который виду дали позже, чем записано сохранение (так он появился у лаборатории): ставится пустым.
+  const bare: Entity[] = []
+  for (const [entity, building] of sim.world.query(Building)) {
+    if (buildingSpec(building.type).inventory && !sim.world.has(entity, Inventory) && !sim.world.has(entity, Site)) bare.push(entity)
+  }
+  for (const entity of bare) equipStorage(sim.world, entity, buildingSpec(sim.world.get(entity, Building)!.type))
   for (const [entity, building, inventory] of sim.world.query(Building, Inventory)) {
     if (sim.world.has(entity, Site)) continue
     const spec = buildingSpec(building.type)

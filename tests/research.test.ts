@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import {
-  BUILDINGS, Inventory, Off, Player, RESEARCH, RESEARCH_FOR, Research, TIER_CREDITS, TIER_SECONDS, TOPICS, Upgrade, amountOf, canPlace, createSim, creditsOf, depositIn, hasResearch,
+  BUILDINGS, Batch, Inventory, Off, Player, RESEARCH, RESEARCH_FOR, Research, TIER_CREDITS, TIER_SECONDS, TOPICS, Upgrade, amountOf, canPlace, createSim, creditsOf, depositIn, hasResearch,
   isUnlocked, planOf, progressOf, researchOf, stockOf, tierOf, topicPrice, topicsBefore, upgradeCost, upgradeLack, upgradeTicks,
   type BuildingType, type Rules, type Sim, type Topic,
 } from '../src/sim'
@@ -10,7 +10,9 @@ import { STORES, placeBuilding, storeFor } from '../src/sim/buildings'
 import { PRODUCTS, RESOURCE_SPECS, isOre, resourceOf, type Amounts, type Good, type Ware } from '../src/sim/resources'
 import { addCredits } from '../src/sim/economy'
 import { UNIT_TYPES, unitSpec } from '../src/sim/units'
-import { adoptLabs } from '../src/sim/research'
+import { adoptLabs, grantResearch } from '../src/sim/research'
+import { spawnUnit } from '../src/sim/units'
+import { requestsOf } from '../src/sim/logistics'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
@@ -153,6 +155,35 @@ test('плавильню открывает исследование руды м
   expect(sim.world.get(lab, Research)!.lack).toBe('idle')
 })
 
+test('руду в лабораторию без труб до шахты везут грузовики, и она исследует плавку', () => {
+  const sim = createSim(options)
+  let found: { mine: Entity; lab: Entity; x: number; y: number } | undefined
+  for (let cellY = -6; cellY < 6 && !found; cellY++) {
+    for (let cellX = -6; cellX < 6 && !found; cellX++) {
+      const spot = depositIn(sim, cellX, cellY)
+      if (spot?.kind !== 'metal') continue
+      const [mine] = row(sim, ['mine'], spot) ?? []
+      // Лаборатория со своей электростанцией — в стороне, трубы до шахты нет.
+      const base = mine && row(sim, ['generator', 'lab'], { x: spot.x + 5, y: spot.y })
+      if (base) found = { mine, lab: base[1], x: spot.x + 3, y: spot.y + 3 }
+    }
+  }
+  if (!found) throw new Error('Не нашлось месторождения металла с местом рядом')
+  const { mine, lab, x, y } = found
+  addCredits(sim, 1, 1000)
+  spawnUnit(sim, 'truck', 1, x, y)
+  grantResearch(sim, 1, ['prospecting'])
+  plan(sim, 'metalOre')
+  // Лаборатория заказала руду из шахты: грузовик её везёт.
+  sim.advance(TICK)
+  expect(requestsOf(sim, 1).some((request) => request.to === lab && request.resource === 'metalOre' && request.source === 'mines')).toBe(true)
+  seconds(sim, topicPrice(sim, 'metalOre').seconds + 40)
+  expect(hasResearch(sim, 1, 'metalOre')).toBe(true)
+  // Лишнего лаборатория не набрала: запас — не больше, чем теме оставалось потратить.
+  expect(amountOf(sim.world.get(lab, Inventory)!, 'metalOre')).toBeLessThanOrEqual(10)
+  void mine
+})
+
 test('лаборатория тратит столько, сколько сделала; открытое остаётся у игрока и переживает сохранение', () => {
   const { sim, buildings: [lab], stash } = base(['lab'])
   learn(sim, 'metalOre', 'siliconOre')
@@ -165,11 +196,23 @@ test('лаборатория тратит столько, сколько сде�
   expect(progressOf(sim, 1, 'blocks')).toBeCloseTo(0.5, 1)
   expect(credits - creditsOf(sim, 1)).toBeGreaterThan(cost * 0.45)
   expect(credits - creditsOf(sim, 1)).toBeLessThan(cost * 0.55)
-  expect(100 - stockOf(sim, 1).items.metal!).toBeCloseTo(materials.metal! * progressOf(sim, 1, 'blocks'), 3)
+  // Потрачено — сколько нет ни в хранилищах, ни в запасе лаборатории, ни в трубах.
+  const held = (good: Good) => {
+    let amount = (stockOf(sim, 1).items[good as Ware] ?? 0) + amountOf(sim.world.get(lab, Inventory)!, good)
+    for (const [, batch] of sim.world.query(Batch)) if (batch.resource === good) amount += batch.amount
+    return amount
+  }
+  expect(100 - held('metal')).toBeCloseTo(materials.metal! * progressOf(sim, 1, 'blocks'), 3)
+  // Запас лаборатории — не больше, чем теме осталось потратить.
+  expect(amountOf(sim.world.get(lab, Inventory)!, 'metal')).toBeLessThanOrEqual(materials.metal! * (1 - progressOf(sim, 1, 'blocks')) + 1)
   seconds(sim, time / 2 + 1)
   expect(hasResearch(sim, 1, 'blocks')).toBe(true)
+  expect(100 - held('metal')).toBeCloseTo(materials.metal!, 3)
+  expect(100 - held('silicon')).toBeCloseTo(materials.silicon!, 3)
+  // Остатки запаса трубы увозят обратно в хранилища.
+  seconds(sim, 5)
+  expect(amountOf(sim.world.get(lab, Inventory)!, 'metal')).toBeLessThan(1e-6)
   expect(100 - stockOf(sim, 1).items.metal!).toBeCloseTo(materials.metal!, 3)
-  expect(100 - stockOf(sim, 1).items.silicon!).toBeCloseTo(materials.silicon!, 3)
   expect(Math.abs(credits - creditsOf(sim, 1) - cost)).toBeLessThanOrEqual(1)
   // Чужому игроку тема не открыта.
   expect(hasResearch(sim, 2, 'blocks')).toBe(false)

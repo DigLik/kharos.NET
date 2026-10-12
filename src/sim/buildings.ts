@@ -212,7 +212,8 @@ export const BUILDINGS = {
   factory: { width: 3, height: 3, cost: 450, power: -5, materials: { blocks: 10 }, produces: ['buggy', 'flak', 'lancer', 'tank', 'artillery', 'tesla', 'carrier', 'mcv'] },
   // Лаборатория ведёт исследования: они открывают переработку, цеха, армию и уровни зданий. Нужна с самого начала —
   // до плавильни, — поэтому дешёвая и без материалов; несколько лабораторий исследуют одну тему вместе, быстрее.
-  lab: { width: 2, height: 2, cost: 300, power: -3, researches: true },
+  // Склад — под сырьё нынешней темы: его подвозят грузовики и трубы, см. requestsOf в logistics.ts.
+  lab: { width: 2, height: 2, cost: 300, power: -3, researches: true, inventory: 40 },
   // Ремонтная станция чинит технику и здания вокруг себя — так же и за ту же цену, что строитель, и тоже не под
   // огнём: это пункт обслуживания в тылу. Пехота рядом поправляется быстрее. Без энергии не работает.
   repairStation: { width: 3, height: 3, cost: 500, power: -3, materials: { blocks: 8 }, repair: 5.5 },
