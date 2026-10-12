@@ -36,6 +36,7 @@
     "generator": "Elektr stansiyasi",
     "accumulator": "Akkumulyator",
     "reactor": "Reaktor",
+    "silo": "Raketa shaxtasi",
     "matter": "Materiya generatori",
     "radar": "Radar",
     "windtrap": "Shamol qopqoni",
@@ -69,6 +70,7 @@
     "generator": "Zona uchun energiya ishlab chiqaradi. Energiyasiz binolar sekinroq ishlaydi yoki to‘xtab qoladi",
     "accumulator": "Zonaning ortiqcha energiyasini to‘playdi va ishlab chiqarish yetmaganda beradi: zaryad yetguncha baza buzilgan elektr stansiyasiga bardosh beradi. Litiydan quriladi",
     "reactor": "Sterjen yonayotganda 60 energiya beradi: daqiqasiga bittadan, sterjenlarni yuk mashinalari olib keladi. O‘chirilsa, sterjenlarni tejaydi. Ichida yoqilg‘i bilan vayron bo‘lsa, portlaydi va atrofdagilarning hammasiga zarar yetkazadi — devor ortiga va chetroqqa qo‘ying",
+    "silo": "20 ta sterjen va 10 ta komponentdan yadro jangovar kallagini yig‘adi va uni xaritaning istalgan nuqtasiga uchiradi. Uchirish haqida hamma chatda biladi, radari bor o‘yinchilar uchirish joyini ko‘radi. Radiusi 12 bo‘lgan portlash hammaga farqsiz zarar yetkazadi, qalqon uni ushlab qololmaydi. Ichida jangovar kallak bilan vayron bo‘lsa, portlaydi",
     "matter": "O‘z-o‘zidan kredit keltiradi, ammo energiya sarflaydi. Zonadagi har bir keyingisi ko‘proq energiya talab qiladi",
     "mine": "Kon ustiga quriladi va rudani o‘z omboriga qazib oladi; yuk mashinalari uni qayta ishlashga tashiydi. O‘zi kichik zonani boshlab beradi",
     "smelter": "Metall rudasini eritib, metallga aylantiradi",
@@ -428,7 +430,20 @@
     "researchBusy": "Texnomarkaz boshqa mavzu bilan band",
     "researchNoParts": "Texnomarkaz tarmog‘ida komponentlar yetmaydi",
     "researchTip": "Tadqiqot {time} vaqt oladi. Narx darhol to‘lanadi, komponentlar texnomarkaz tarmog‘idan olinadi",
-    "cancelResearchTip": "Tadqiqotdan voz kechish: narxi to‘liq qaytariladi"
+    "cancelResearchTip": "Tadqiqotdan voz kechish: narxi to‘liq qaytariladi",
+    "warhead": "Jangovar kallak",
+    "warheadAbout": "Uchirish uchun yadro jangovar kallagi. Shaxta bittasini sig‘diradi",
+    "warheadTip": "Yig‘ish to‘liq energiyada {time} davom etadi. Narx darhol to‘lanadi, sterjen va komponentlar shaxta tarmog‘idan olinadi",
+    "warheadBusy": "Shaxtada allaqachon jangovar kallak bor — tayyor yoki yig‘ilmoqda",
+    "warheadNoMaterials": "Shaxta tarmog‘ida sterjen yoki komponentlar yetmaydi",
+    "cancelWarheadTip": "Yig‘ishdan voz kechish: narxi to‘liq qaytariladi",
+    "launch": "Uchirish",
+    "launchAbout": "Jangovar kallakni xaritadagi nuqtaga qaratish va raketani uchirish",
+    "launchTip": "Zarba tushadigan joyni xaritada bosing. Raketa {seconds} s dan keyin ko‘tariladi, hamma chatda biladi",
+    "launchRetarget": "Uchirish ketmoqda: raketani qayta qaratish uchun xaritani bosing",
+    "launchNoWarhead": "Avval jangovar kallak yig‘ing",
+    "abortLaunch": "Uchirishni bekor qilish",
+    "abortLaunchTip": "Raketa ko‘tarilmaydi, jangovar kallak shaxtada qoladi"
   },
   "hud": {
     "players": "O‘yinchilar",
@@ -473,7 +488,9 @@
       "spotted": "Dushman payqaldi",
       "baseAttacked": "Bazaga hujum qilindi",
       "unitsAttacked": "Bo‘linmalarimizga hujum qilindi",
-      "oreFound": "Kon topildi"
+      "oreFound": "Kon topildi",
+      "nukeLaunched": "Yadro uchirishi",
+      "nukeIncoming": "Bizga yadro zarbasi"
     },
     "nothingSelected": "Hech narsa tanlanmagan. Chap tugma — tanlash, ramka — bir nechta bo‘linma, o‘ng tugma — buyruq. Ctrl+raqam — guruhni saqlash, raqam — tanlash",
     "buildingsCount": "Binolar: {count}",
@@ -545,6 +562,11 @@
     "waitsToUpgrade": "Yaxshilash quruvchini kutmoqda: uni tanlang va binoga o‘ng tugmani bosing",
     "researching": "{name} — {percent} tadqiq qilindi",
     "researchIdle": "Tadqiqot mavzusini tanlang: ochilgani abadiy qoladi",
+    "warheadAssembling": "Jangovar kallak — {percent} yig‘ildi",
+    "warheadReady": "Jangovar kallak tayyor: «Uchirish» — nishonga qaratish",
+    "warheadEmpty": "Jangovar kallak yo‘q: raketa uchirish uchun uni yig‘ing",
+    "launching": "Uchirish: {seconds} s dan keyin ko‘tariladi",
+    "launchAim": "Bosish — zarba nuqtasi; o‘ng tugma yoki Esc — bekor qilish",
     "building": "Qurilmoqda — {percent}",
     "blocked": "Joy bo‘linmalar bilan band",
     "waitsBuilder": "Quruvchini kutmoqda",
@@ -569,7 +591,8 @@
     "siege": "Qamal ishi",
     "bombing": "Bombardimon",
     "beams": "Nur mudofaasi",
-    "atom": "Atom"
+    "atom": "Atom",
+    "warheads": "Jangovar kallaklar"
   },
   "researchInfo": {
     "levels2": "Binolarning ikkinchi darajasini ochadi: shaxtalar, qayta ishlash zavodlari, omborlar, kosmodrom va elektr stansiyalari",
@@ -578,7 +601,8 @@
     "siege": "Mashinasozlik zavodida artilleriya va tashuvchini ochadi",
     "bombing": "Aerodromda bombardimonchini ochadi",
     "beams": "Lazer va razryad minoralarini ochadi",
-    "atom": "Reaktorni ochadi. Unga urandan yoqilg‘i sterjenlari kerak"
+    "atom": "Reaktorni ochadi. Unga urandan yoqilg‘i sterjenlari kerak",
+    "warheads": "Raketa shaxtasini ochadi: xaritaning istalgan nuqtasiga yadro zarbasi"
   },
   "levelGains": {
     "extract": "qazib olish",
@@ -630,6 +654,7 @@
     "joins": "o‘yinga kirdi",
     "leaves": "o‘yindan chiqdi",
     "defeated": "mag‘lubiyatga uchradi",
+    "nukeLaunch": "yadro uchirishiga tayyorlanmoqda",
     "restarts": "qaytadan boshlamoqda",
     "kicked": "administrator tomonidan chiqarib yuborildi",
     "help": "{command} — {help}",

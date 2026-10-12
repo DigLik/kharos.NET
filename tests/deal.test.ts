@@ -14,7 +14,7 @@ test('сделка космопорта: ресурс, потом количес
   let deal: Deal | null = null
   const sent: Command[] = []
   const nothing = () => {}
-  const actions = { send: (command: Command) => void sent.push(command), place: nothing, pave: nothing, route: nothing, serve: nothing, patrol: nothing, open: nothing, pick: (next: Deal | null) => void (deal = next) }
+  const actions = { send: (command: Command) => void sent.push(command), place: nothing, pave: nothing, route: nothing, serve: nothing, patrol: nothing, aim: nothing, open: nothing, pick: (next: Deal | null) => void (deal = next) }
   const grid = (page: 'sell' | 'buy') => commandsOf(state, page, actions, deal)
   const press = (page: 'sell' | 'buy', label: string) => grid(page).find((slot) => slot?.label === label)!.run()
 

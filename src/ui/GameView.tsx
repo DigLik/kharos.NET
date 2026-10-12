@@ -111,6 +111,7 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
           route={(start) => gameRef.current?.route(start)}
           serve={(start) => gameRef.current?.serve(start)}
           patrol={(start) => gameRef.current?.patrol(start)}
+          aim={(silo) => gameRef.current?.aim(silo)}
           minimap={gameRef.current.minimap}
           lookAt={(x, y) => gameRef.current?.lookAt(x, y)}
           flyTo={(x, y) => gameRef.current?.flyTo(x, y)}

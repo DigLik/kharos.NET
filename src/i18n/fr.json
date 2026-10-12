@@ -36,6 +36,7 @@
     "generator": "Centrale électrique",
     "accumulator": "Accumulateur",
     "reactor": "Réacteur",
+    "silo": "Silo à missile",
     "matter": "Générateur de matière",
     "radar": "Radar",
     "windtrap": "Piège à vent",
@@ -69,6 +70,7 @@
     "generator": "Produit de l'énergie pour la zone. Sans énergie, les bâtiments travaillent plus lentement ou s'arrêtent",
     "accumulator": "Stocke le surplus d’énergie de la zone et le restitue quand la production manque : la base survit à une centrale détruite tant que la charge dure. Construit avec du lithium",
     "reactor": "Donne 60 d'énergie tant qu'une barre brûle : une par minute, les camions apportent les barres. Éteint, il économise les barres. Détruit avec du combustible, il explose et touche tout le monde autour — place-le derrière un mur et à l'écart",
+    "silo": "Assemble une ogive nucléaire avec 20 barres et 10 composants et la lance sur n’importe quel point de la carte. Tout le monde apprend le lancement par le chat, les joueurs dotés d’un radar voient le site de lancement. L’explosion de rayon 12 frappe tout le monde sans distinction, les boucliers ne l’arrêtent pas. Détruit avec une ogive à l’intérieur, il explose",
     "matter": "Rapporte des crédits tout seul, mais consomme de l'énergie. Chaque générateur de plus dans la zone en demande davantage",
     "mine": "Se place sur un gisement et extrait le minerai dans son stock ; les camions l'emportent au raffinage. Crée sa propre petite zone",
     "smelter": "Fond le minerai de métal en métal",
@@ -428,7 +430,20 @@
     "researchBusy": "Le centre technique est occupé par un autre sujet",
     "researchNoParts": "Le réseau du centre technique manque de composants",
     "researchTip": "La recherche prend {time}. Le prix est payé tout de suite, les composants viennent du réseau du centre technique",
-    "cancelResearchTip": "Abandonner la recherche : son prix est rendu en entier"
+    "cancelResearchTip": "Abandonner la recherche : son prix est rendu en entier",
+    "warhead": "Ogive",
+    "warheadAbout": "Une ogive nucléaire à lancer. Le silo en contient une",
+    "warheadTip": "L’assemblage prend {time} à pleine énergie. Le prix est payé tout de suite, les barres et les composants viennent du réseau du silo",
+    "warheadBusy": "Le silo a déjà une ogive, prête ou en assemblage",
+    "warheadNoMaterials": "Le réseau du silo manque de barres ou de composants",
+    "cancelWarheadTip": "Abandonner l’assemblage : son prix est rendu en entier",
+    "launch": "Lancer",
+    "launchAbout": "Pointer l’ogive sur un point de la carte et lancer le missile",
+    "launchTip": "Clique sur la carte là où la frappe doit tomber. Le missile décolle {seconds} s plus tard, et tout le monde l’apprend par le chat",
+    "launchRetarget": "Lancement en cours : clique sur la carte pour changer la cible",
+    "launchNoWarhead": "Assemble d’abord une ogive",
+    "abortLaunch": "Annuler le lancement",
+    "abortLaunchTip": "Le missile ne décolle pas, l’ogive reste dans le silo"
   },
   "hud": {
     "players": "Joueurs",
@@ -473,7 +488,9 @@
       "spotted": "Ennemi repéré",
       "baseAttacked": "Base attaquée",
       "unitsAttacked": "Nos unités sont attaquées",
-      "oreFound": "Gisement découvert"
+      "oreFound": "Gisement découvert",
+      "nukeLaunched": "Lancement nucléaire",
+      "nukeIncoming": "Frappe nucléaire sur nous"
     },
     "nothingSelected": "Rien de sélectionné. Bouton gauche — sélectionner, cadre — plusieurs unités, bouton droit — ordre. Ctrl+chiffre — mémoriser un groupe, chiffre — le sélectionner",
     "buildingsCount": "Bâtiments : {count}",
@@ -545,6 +562,11 @@
     "waitsToUpgrade": "L'amélioration attend un constructeur : sélectionne-le et fais un clic droit sur le bâtiment",
     "researching": "{name} — recherché à {percent}",
     "researchIdle": "Choisis un sujet de recherche : ce qui est débloqué le reste pour toujours",
+    "warheadAssembling": "Ogive — assemblée à {percent}",
+    "warheadReady": "Ogive prête : « Lancer » pour la pointer",
+    "warheadEmpty": "Pas d’ogive : assemble-en une pour lancer un missile",
+    "launching": "Lancement : décollage dans {seconds} s",
+    "launchAim": "Clic — point d’impact ; bouton droit ou Échap — annuler",
     "building": "En construction — {percent}",
     "blocked": "L'emplacement est occupé par des unités",
     "waitsBuilder": "Attend un constructeur",
@@ -569,7 +591,8 @@
     "siege": "Art du siège",
     "bombing": "Bombardement",
     "beams": "Défense à rayons",
-    "atom": "Atome"
+    "atom": "Atome",
+    "warheads": "Ogives"
   },
   "researchInfo": {
     "levels2": "Débloque le niveau deux des bâtiments : mines, raffineries, entrepôts, spatioport et centrales",
@@ -578,7 +601,8 @@
     "siege": "Débloque l'artillerie et le porteur à l'usine",
     "bombing": "Débloque le bombardier à l'aérodrome",
     "beams": "Débloque les tourelles laser et à arc",
-    "atom": "Débloque le réacteur. Il lui faut des barres de combustible à l'uranium"
+    "atom": "Débloque le réacteur. Il lui faut des barres de combustible à l'uranium",
+    "warheads": "Débloque le silo à missile : une frappe nucléaire sur n’importe quel point de la carte"
   },
   "levelGains": {
     "extract": "extraction",
@@ -630,6 +654,7 @@
     "joins": "rejoint la partie",
     "leaves": "quitte la partie",
     "defeated": "est vaincu",
+    "nukeLaunch": "prépare un lancement nucléaire",
     "restarts": "recommence",
     "kicked": "a été expulsé par un administrateur",
     "help": "{command} — {help}",

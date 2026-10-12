@@ -1,5 +1,5 @@
 import type { Entity } from '../ecs'
-import { type BuildingType, Building, Site, Producer, Hauler, type UnitType, Owner, Position, isOwn, UNITS, Unit, canFight, isStop, siteAt, BUILDINGS, BRIDGE_COST, FOUNDATION_COST, ROAD_COST, creditsOf } from '../sim'
+import { type BuildingType, Building, Site, Producer, Hauler, type UnitType, Owner, Position, isOwn, UNITS, Unit, canFight, isStop, siteAt, BUILDINGS, BRIDGE_COST, FOUNDATION_COST, ROAD_COST, Silo, creditsOf } from '../sim'
 import type { CameraMotion } from './cameraMotion'
 import { paveStrokeOf, placementOf } from './placing'
 import type { Scene } from './scene'
@@ -177,6 +177,19 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
       else if (button === RIGHT && !dragged) scene.edit.secondary(point)
       return
     }
+    // Наводка ядерного удара: щелчок — пуск в эту точку, правая кнопка — отмена. Рамка — обычное выделение.
+    if (scene.aiming !== null) {
+      if (button === LEFT && !dragged) {
+        scene.sim.send(scene.player, { type: 'launch', silo: scene.aiming, x: Math.floor(point.x), y: Math.floor(point.y) })
+        scene.aiming = null
+        return
+      }
+      if (button === RIGHT && !dragged) {
+        scene.aiming = null
+        return
+      }
+      if (dragged) scene.aiming = null
+    }
     // Рамка в наборе патруля — обычное выделение: набор кончается.
     // Так же и щелчок по своему невыбранному юниту — выбрать его.
     if (scene.patrolling && button === LEFT) {
@@ -329,7 +342,8 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
     }
     if (event.code === 'Escape') {
       // Сначала отменяется выбор места, и только следующим нажатием — выделение.
-      if (scene.patrolling) scene.patrolling = false
+      if (scene.aiming !== null) scene.aiming = null
+      else if (scene.patrolling) scene.patrolling = false
       else if (scene.routing) scene.routing = null
       else if (scene.serving) scene.serving = null
       else if (scene.paving) {
@@ -423,6 +437,8 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
     const credits = creditsOf(scene.sim, scene.player)
     if (scene.placing && credits < BUILDINGS[scene.placing].cost) scene.placing = null
     if (scene.paving && scene.paving !== 'remove' && credits < Math.min(...PAVE_COSTS[scene.paving])) scene.paving = null
+    // Наводят готовую боеголовку выбранной своей шахты: шахту сняли с выбора, она пуста или пуск уже идёт — наводка кончается.
+    if (scene.aiming !== null && (!scene.selection.has(scene.aiming) || !scene.sim.world.get(scene.aiming, Silo)?.ready)) scene.aiming = null
     // Патруль набирают бойцам: без них набор отменяется.
     if (scene.patrolling) {
       let fighters = false

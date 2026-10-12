@@ -15,6 +15,7 @@ import { cancelUnit, orderUnit } from './production'
 import { setFilter, setRoute, setServe } from './routes'
 import { surrender } from './defeat'
 import { cancelResearch, startResearch } from './research'
+import { abortLaunch, cancelWarhead, orderLaunch, startWarhead } from './silos'
 import type { Topic } from './topics'
 import { resolveOrder } from './target'
 import { clearTactics, orderPatrol, setStance, startMarch, type Stance } from './tactics'
@@ -94,6 +95,14 @@ export type Command = (
   | { type: 'research'; lab: number; topic: Topic }
   /** Бросить исследование своего техцентра: цена возвращается. */
   | { type: 'cancelResearch'; lab: number }
+  /** Начать сборку боеголовки в своей пустой ракетной шахте: цена списывается сразу. */
+  | { type: 'warhead'; silo: number }
+  /** Бросить сборку боеголовки: цена возвращается. */
+  | { type: 'cancelWarhead'; silo: number }
+  /** Пустить готовую боеголовку своей шахты в тайл (x, y): ракета стартует через срок пуска. См. silos.ts. */
+  | { type: 'launch'; silo: number; x: number; y: number }
+  /** Отменить пуск, пока ракета не стартовала. */
+  | { type: 'abortLaunch'; silo: number }
   /** Дать своим грузовикам маршрут: свои здания-остановки по кругу. Меньше двух остановок — снять маршрут. */
   | { type: 'route'; units: number[]; stops: number[] }
   /** Своим грузовикам — возить только по заявкам этих своих зданий. Пусто — снять назначение. */
@@ -287,6 +296,14 @@ function run(sim: Sim, player: number, command: Command): boolean {
       return startResearch(sim, player, command.lab as Entity, command.topic)
     case 'cancelResearch':
       return cancelResearch(sim, player, command.lab as Entity)
+    case 'warhead':
+      return startWarhead(sim, player, command.silo as Entity)
+    case 'cancelWarhead':
+      return cancelWarhead(sim, player, command.silo as Entity)
+    case 'launch':
+      return isMapTile(sim, command.x, command.y) && orderLaunch(sim, player, command.silo as Entity, command.x, command.y)
+    case 'abortLaunch':
+      return abortLaunch(sim, player, command.silo as Entity)
     case 'rally': {
       const building = command.building as Entity
       const producer = sim.world.get(building, Producer)

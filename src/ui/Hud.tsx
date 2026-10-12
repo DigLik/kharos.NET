@@ -23,6 +23,8 @@ interface HudProps {
   serve: (start: boolean) => void
   /** Начать набор точек патруля бойцам; false — отменить. */
   patrol: (start: boolean) => void
+  /** Начать наводку ядерного удара шахтой или бросить её (null). */
+  aim: (silo: number | null) => void
   minimap: Minimap
   /** Камера в точку карты, в тайлах: сразу. */
   lookAt: (x: number, y: number) => void
@@ -698,6 +700,13 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
             {state.level.raising.progress > 0 ? t('hud.upgrading', { percent: percent(state.level.raising.progress) }) : t('hud.waitsToUpgrade')}
           </Progress>
         )}
+        {state.silo && (state.silo.stage === 'assembling' ? (
+          <Progress value={state.silo.progress}>{t('hud.warheadAssembling', { percent: percent(state.silo.progress) })}</Progress>
+        ) : (
+          <div class={state.silo.stage === 'launching' ? 'hud__hint is-short' : 'hud__hint'}>
+            {state.silo.aiming ? t('hud.launchAim') : state.silo.stage === 'launching' ? t('hud.launching', { seconds: state.silo.launch }) : state.silo.stage === 'ready' ? t('hud.warheadReady') : t('hud.warheadEmpty')}
+          </div>
+        ))}
         {state.research && !state.research.current && <div class="hud__hint">{t('hud.researchIdle')}</div>}
         {state.research?.current && (
           <Progress value={state.research.current.progress}>
@@ -757,7 +766,7 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
 }
 
 /** Интерфейс игрока: верхняя полоса со счётом и нижняя панель — мини-карта, выбранное, сетка команд. */
-export function Hud({ state, send, place, pave, route, serve, patrol, minimap, lookAt, flyTo, lookAtSelection, narrow, moveSelected, say, menu }: HudProps) {
+export function Hud({ state, send, place, pave, route, serve, patrol, aim, minimap, lookAt, flyTo, lookAtSelection, narrow, moveSelected, say, menu }: HudProps) {
   const selected = state.units.length > 0 || state.building !== null
   const fresh = useNewRewards(state.rewards, state.loaded)
 
@@ -778,7 +787,7 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
   const self = state.players.find(({ own }) => own)
   const dealing = trade && !trade.order && deal && (page === 'sell' || page === 'buy') ? dealOf(trade, state.credits, page === 'buy', deal) : null
 
-  const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, patrol, open: setPage, pick: setDeal, draft: setFerry }, deal, ferry) : []
+  const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, patrol, aim, open: setPage, pick: setDeal, draft: setFerry }, deal, ferry) : []
 
   // Клавиши сетки. Читаются из ref, чтобы не переподписываться на каждое обновление.
   const slotsRef = useRef(slots)

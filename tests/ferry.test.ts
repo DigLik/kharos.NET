@@ -262,7 +262,7 @@ function panel(trade: HudState['trade'], players: unknown[]) {
   const sent: Command[] = []
   const nothing = () => {}
   const actions = {
-    send: (command: Command) => void sent.push(command), place: nothing, pave: nothing, route: nothing, serve: nothing, patrol: nothing,
+    send: (command: Command) => void sent.push(command), place: nothing, pave: nothing, route: nothing, serve: nothing, patrol: nothing, aim: nothing,
     open: (next: Page) => void (page = next), pick: nothing, draft: (next: FerryDraft | null) => void (ferry = next),
   }
   const grid = (at: Page) => commandsOf(state, at, actions, null, ferry)

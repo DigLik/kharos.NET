@@ -1,5 +1,6 @@
 import { biomeAt, terrainAt, type Land } from '../map/terrain'
-import { Building, DEPOSIT_CELL, Owner, Position, Site, Unit, alliesOf, buildingSpec, depositsIn, type Sim } from '../sim'
+import { BUILDINGS, Building, DEPOSIT_CELL, Mark, Missile, Owner, Position, Site, Unit, alliesOf, buildingSpec, depositsIn, type Sim } from '../sim'
+import { missileAt } from './missiles'
 import { ALERT_SECONDS } from './alerts'
 import { cssColor } from './resourceColors'
 import type { Scene } from './scene'
@@ -156,11 +157,37 @@ export function createMinimap(scene: Scene) {
         }
       }
 
+      // Ядерный удар: место пуска — янтарный крест, точка удара — красный круг взрыва, ракета — белая точка.
+      for (const [, mark, position] of world.query(Mark, Position)) {
+        const x = toX(position.x)
+        const y = toY(position.y)
+        context.lineWidth = 2
+        if (mark.kind === 'launch') {
+          context.strokeStyle = '#ffb347'
+          context.beginPath()
+          context.moveTo(x - 4, y - 4)
+          context.lineTo(x + 4, y + 4)
+          context.moveTo(x + 4, y - 4)
+          context.lineTo(x - 4, y + 4)
+          context.stroke()
+        } else {
+          context.strokeStyle = FOE
+          context.beginPath()
+          context.arc(x, y, Math.max(4, BUILDINGS.silo.warhead.blast.radius * scale), 0, Math.PI * 2)
+          context.stroke()
+        }
+      }
+      for (const [, missile] of world.query(Missile)) {
+        const at = missileAt(missile, scene.sim.time.tick, scene.sim.time.step)
+        context.fillStyle = '#ffffff'
+        context.fillRect(toX(at.x) - 1.5, toY(at.y) - 1.5, 3, 3)
+      }
+
       // Уведомления: мигающее кольцо там, где напали или заметили врага.
       for (const alert of scene.alerts?.current() ?? []) {
         if (alert.age > ALERT_SECONDS) continue
         const pulse = (alert.age * 2) % 1
-        context.strokeStyle = alert.kind === 'attacked' ? FOE : alert.kind === 'found' ? '#8fe0a8' : '#ffd27a'
+        context.strokeStyle = alert.kind === 'attacked' || alert.kind === 'nuke' ? FOE : alert.kind === 'found' ? '#8fe0a8' : '#ffd27a'
         context.globalAlpha = 1 - pulse
         context.lineWidth = 2
         context.beginPath()

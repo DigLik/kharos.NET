@@ -34,7 +34,7 @@ export type Page = 'root' | 'economy' | 'storage' | 'industry' | 'military' | 'd
 const SECTIONS: Partial<Record<Page, BuildingType[]>> = {
   storage: ['metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack'],
   industry: ['smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill', 'blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant'],
-  military: ['barracks', 'factory', 'airfield', 'techCenter', 'repairStation'],
+  military: ['barracks', 'factory', 'airfield', 'techCenter', 'repairStation', 'silo'],
   defense: ['wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator', 'radar'],
 }
 /** Описание здания для карточки: что делает и какие здания открывает. */
@@ -81,6 +81,8 @@ interface Actions {
   route: (start: boolean) => void
   serve: (start: boolean) => void
   patrol: (start: boolean) => void
+  /** Начать наводку ядерного удара шахтой или бросить её (null). */
+  aim: (silo: number | null) => void
   open: (page: Page) => void
   /** Набрать сделку космопорта или бросить её (null). */
   pick: (deal: Deal | null) => void
@@ -160,7 +162,7 @@ export function dealOf(trade: NonNullable<HudState['trade']>, credits: number, b
 export function commandsOf(
   state: HudState,
   page: Page,
-  { send, place, pave, route, serve, patrol, open, pick, draft }: Actions,
+  { send, place, pave, route, serve, patrol, aim, open, pick, draft }: Actions,
   deal: Deal | null = null,
   ferry: FerryDraft | null = null,
 ): (Slot | null)[] {
@@ -665,6 +667,32 @@ export function commandsOf(
       })),
     )
     if (current) slots[CANCEL] = { label: t('grid.cancel'), title: t('grid.cancelResearchTip'), run: () => send({ type: 'cancelResearch', lab }) }
+  }
+
+  const { silo } = state
+  if (silo && page === 'root' && !construction) {
+    const { entity, stage, lack } = silo
+    slots[0] = {
+      label: t('grid.warhead'),
+      good: 'rods',
+      cost: stage === 'empty' ? silo.cost : undefined,
+      materials: stage === 'empty' ? silo.materials : undefined,
+      about: t('grid.warheadAbout'),
+      active: stage !== 'empty',
+      disabled: !!lack,
+      title: stage !== 'empty' ? t('grid.warheadBusy') : lack === 'credits' ? t('grid.noCredits') : lack === 'materials' ? t('grid.warheadNoMaterials') : t('grid.warheadTip', { time: silo.time }),
+      run: () => send({ type: 'warhead', silo: entity }),
+    }
+    slots[1] = {
+      label: t('grid.launch'),
+      about: t('grid.launchAbout'),
+      active: silo.aiming,
+      disabled: stage !== 'ready' && stage !== 'launching',
+      title: stage === 'launching' ? t('grid.launchRetarget') : stage === 'ready' ? t('grid.launchTip', { seconds: BUILDINGS.silo.warhead.launch }) : t('grid.launchNoWarhead'),
+      run: () => aim(silo.aiming ? null : entity),
+    }
+    if (stage === 'assembling') slots[CANCEL] = { label: t('grid.cancel'), title: t('grid.cancelWarheadTip'), run: () => send({ type: 'cancelWarhead', silo: entity }) }
+    if (stage === 'launching') slots[CANCEL] = { label: t('grid.abortLaunch'), title: t('grid.abortLaunchTip'), run: () => send({ type: 'abortLaunch', silo: entity }) }
   }
 
   if (site) {

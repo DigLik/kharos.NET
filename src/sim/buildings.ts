@@ -1,7 +1,7 @@
 import type { Entity, World } from '../ecs'
 import { Terrain, isBuildable, isCliffFoot, terrainAt, tileKey } from '../map/terrain'
 import { isOwn } from './common'
-import { Accumulator, Assembly, Building, Gate, Health, Inventory, Reactor, Repair, Owner, Position, Producer, Shield, Site } from './components'
+import { Accumulator, Assembly, Building, Gate, Health, Inventory, Reactor, Repair, Owner, Position, Producer, Shield, Silo, Site } from './components'
 import { equipStorage, type BeamSpec } from './inventory'
 import { ORE_SPECS, PRODUCT_SPECS, WARES, stockedFor, type Amounts, type Good, type Ore, type Product } from './resources'
 import type { Sim } from './sim'
@@ -112,6 +112,19 @@ export interface BuildingSpec {
    * Разбор строителями не взрывает. См. meltdown в reactors.ts.
    */
   meltdown?: { radius: number; damage: number }
+  /**
+   * Ракетная шахта: собирает боеголовку — cost кредитов и materials из сети, seconds секунд при полной энергии — и пускает
+   * её в любую точку карты через launch секунд после приказа. Ракета летит speed тайлов в секунду; взрыв blast — урон
+   * damage до core тайлов от точки удара, к radius спадает до нуля. См. silos.ts.
+   */
+  warhead?: {
+    cost: number
+    materials: Amounts
+    seconds: number
+    launch: number
+    speed: number
+    blast: { radius: number; core: number; damage: number }
+  }
 }
 
 /** На сколько тайлов от своего центра расширяет зону готовая труба или колодец. */
@@ -216,6 +229,13 @@ export const BUILDINGS = {
     width: 3, height: 3, cost: 2500, power: 60, materials: { blocks: 10, parts: 10 }, inventory: 4, accepts: ['rods'],
     burns: { good: 'rods', seconds: 60 }, meltdown: { radius: 4, damage: 600 },
   },
+  // Ракетная шахта: ядерный удар в любую точку карты (§9 п. 4 design.md). Боеголовка — 20 стержней: удар стоит урана
+  // на двадцать минут реактора. Ракета чуть быстрее дрона: от пуска до удара через всю карту около двух минут.
+  // Разрушенная с боеголовкой рвётся, как реактор, — без ядерного взрыва.
+  silo: {
+    width: 3, height: 3, cost: 3000, power: -10, materials: { blocks: 20, parts: 10 }, meltdown: { radius: 4, damage: 600 },
+    warhead: { cost: 2000, materials: { rods: 20, parts: 10 }, seconds: 180, launch: 30, speed: 8, blast: { radius: 12, core: 6, damage: 3000 } },
+  },
   // Генератор материи — базовый доход: превращает энергию в кредиты. Первая электростанция окупает его быстро,
   // дальше теснота делает каждый следующий всё дороже. Он страховка на случай, когда линий добычи нет (§4.3 шаг 3):
   // одной электростанции хватает на два генератора.
@@ -276,7 +296,7 @@ export const BUILDING_TYPES = Object.keys(BUILDINGS) as BuildingType[]
 /** Что возводят строители. Остальные здания появятся вместе с тем, для чего они нужны. */
 export const BUILDABLE: BuildingType[] = [
   'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill', 'blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant',
-  'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack', 'accumulator', 'reactor', 'spaceport', 'barracks', 'factory', 'airfield', 'techCenter',
+  'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack', 'accumulator', 'reactor', 'silo', 'spaceport', 'barracks', 'factory', 'airfield', 'techCenter',
   'repairStation', 'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator',
 ]
 
@@ -400,6 +420,7 @@ export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = 
   arcTurret: ['techCenter'],
   shieldGenerator: ['techCenter'],
   reactor: ['techCenter', 'uraniumMill'],
+  silo: ['techCenter', 'rodPlant'],
 }
 
 /** Какое исследование открывает здание вдобавок к REQUIRES: без него строители его не ставят. */
@@ -407,6 +428,7 @@ export const RESEARCH_FOR: Partial<Record<BuildingType, Topic>> = {
   laserTurret: 'beams',
   arcTurret: 'beams',
   reactor: 'atom',
+  silo: 'warheads',
 }
 
 /** Каких готовых зданий из списка у игрока нет. */
@@ -536,6 +558,7 @@ export function equip(world: World, entity: Entity, type: BuildingType) {
   if (spec.shield) world.add(entity, Shield())
   if (spec.battery) world.add(entity, Accumulator())
   if (spec.burns) world.add(entity, Reactor())
+  if (spec.warhead) world.add(entity, Silo())
   if (spec.produces && !spec.inventory) {
     equipStorage(world, entity, { inventory: PRODUCER_HOLD })
   }

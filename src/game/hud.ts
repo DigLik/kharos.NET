@@ -9,6 +9,7 @@ import {
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   RESEARCH, Research, TOPICS, isLab, levelTopic, missingResearch, topicLack, topicPrice, type Topic, type TopicPrice, type TopicLack,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
+  Silo, launchLeft, warheadLack, type WarheadLack,
   Accumulator, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
 import { paveStrokeOf } from './placing'
@@ -199,6 +200,22 @@ export interface HudState {
     topics: { topic: Topic; cost: number; materials: Stack[]; time: string; lack: TopicLack | null; after: Topic | null }[]
     current: { topic: Topic; progress: number } | null
   } | null
+  /**
+   * Ракетная шахта: выбранная своя готовая. stage — что с боеголовкой: нет, собирается (progress от 0 до 1), готова,
+   * в пуске (launch — секунд до старта). cost, materials и time — цена и срок сборки, lack — что мешает её начать.
+   * aiming — игрок наводит её на цель.
+   */
+  silo: {
+    entity: number
+    stage: 'empty' | 'assembling' | 'ready' | 'launching'
+    progress: number
+    launch: number
+    cost: number
+    materials: Stack[]
+    time: string
+    lack: WarheadLack | null
+    aiming: boolean
+  } | null
   /** Что можно построить, если среди выбранного есть строитель. */
   construction: {
     /** Здание, для которого сейчас выбирается место. */
@@ -319,6 +336,7 @@ export function readHud(scene: Scene): HudState {
   let demolish: HudState['demolish'] = null
   let level: HudState['level'] = null
   let research: HudState['research'] = null
+  let silo: HudState['silo'] = null
   /** Готовое на улучшение всех выбранных вместе. */
   const upgradeMaterials: Amounts = {}
   let deposit: HudState['deposit'] = null
@@ -440,6 +458,24 @@ export function readHud(scene: Scene): HudState {
           after: 'after' in RESEARCH[topic] ? (RESEARCH[topic].after as Topic) : null,
         })),
         current: running ? { topic: running.topic as Topic, progress: round(Math.min(1, running.progress / Math.max(1, running.ticks))) } : null,
+      }
+    }
+    const warhead = spec?.warhead
+    if (!silo && warhead && ready && isOwn(sim, player, entity)) {
+      const state = world.get(entity, Silo)
+      if (state) {
+        const left = launchLeft(sim, entity)
+        silo = {
+          entity,
+          stage: left !== undefined ? 'launching' : state.ready ? 'ready' : state.ticks > 0 ? 'assembling' : 'empty',
+          progress: state.ticks > 0 ? round(Math.min(1, state.progress / state.ticks)) : 0,
+          launch: left === undefined ? 0 : Math.ceil(left * sim.time.step),
+          cost: warhead.cost,
+          materials: exactOf(warhead.materials),
+          time: clockOf(warhead.seconds),
+          lack: warheadLack(sim, player, entity) ?? null,
+          aiming: scene.aiming === entity,
+        }
       }
     }
     if (ready && spec!.ammo && inventory) ammo = { have: Math.floor(amountOf(inventory, 'ammo')), capacity: inventory.capacity }
@@ -616,6 +652,7 @@ export function readHud(scene: Scene): HudState {
     demolish,
     level,
     research,
+    silo,
     construction: counts.has('builder')
       ? {
           placing: scene.placing,

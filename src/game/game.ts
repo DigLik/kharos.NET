@@ -1,3 +1,4 @@
+import type { Entity } from '../ecs'
 import type { ViewBox } from '../net/protocol'
 import type { EditOp } from '../sim/editOps'
 import { createAudio } from '../audio/audio'
@@ -96,6 +97,8 @@ export interface Game {
   edit(edit: EditOp): void
   /** Начинает выбор точки патруля выбранным бойцам; false — отменяет. */
   patrol(start: boolean): void
+  /** Начинает наводку ядерного удара готовой боеголовкой шахты; null — отменяет. */
+  aim(silo: number | null): void
   /** Мини-карта нижней панели. */
   readonly minimap: Minimap
   /** Ставит центр экрана в точку карты, в тайлах. */
@@ -155,6 +158,7 @@ export function createGame(
     routing: null,
     serving: null,
     patrolling: false,
+    aiming: null,
     grid: false,
     weather: weatherAt(session.sim.options, session.sim.time.elapsed),
   }
@@ -298,6 +302,7 @@ export function createGame(
       scene.routing = null
       scene.serving = null
       scene.patrolling = false
+      scene.aiming = null
       // Тот же мир заново — вход в редактор и выход из него: камера остаётся, где была.
       centered = !!session.sim.kept
     }
@@ -384,7 +389,14 @@ export function createGame(
     },
     patrol(start) {
       scene.patrolling = start
-      if (start) scene.placing = scene.paving = scene.routing = scene.serving = null
+      if (start) scene.placing = scene.paving = scene.routing = scene.serving = scene.aiming = null
+    },
+    aim(silo) {
+      scene.aiming = silo as Entity | null
+      if (silo !== null) {
+        scene.placing = scene.paving = scene.routing = scene.serving = null
+        scene.patrolling = false
+      }
     },
     route(start) {
       scene.routing = start ? [] : null

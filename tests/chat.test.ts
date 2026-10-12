@@ -4,7 +4,8 @@ import { createHost } from '../src/net/host'
 import { CHAT_LENGTH, decodeServer, type ChatLine } from '../src/net/protocol'
 import { complete } from '../src/net/chatCommands'
 import { textOf, type Text } from '../src/i18n'
-import { Owner, Player, Unit, createSim } from '../src/sim'
+import { Owner, Player, Silo, Unit, createSim } from '../src/sim'
+import { placeBuilding } from '../src/sim/buildings'
 
 /**
  * Подключение к хосту, которое копит пришедшие сообщения чата: игроков — в lines, сервера — в notices. Сообщения
@@ -215,4 +216,16 @@ test('/hide: скрытого администратора нет в списк�
   host.join(() => {}, id, 'Админ')
   expect(other.notices.length).toBe(count)
   void watcher
+})
+
+test('сервер пишет в чат о подготовке ядерного пуска один раз на пуск, без места и цели', () => {
+  const sim = createSim({ generator: DEFAULT_CONFIG, size: 256 })
+  const host = createHost(sim)
+  const one = connect(host, 'Первый')
+  const two = connect(host, 'Второй')
+  const silo = placeBuilding(sim.world, 'silo', 0, 0, two.peer.player)
+  Object.assign(sim.world.get(silo, Silo)!, { ready: true, start: sim.time.tick, toX: 40, toY: 40 })
+  for (let i = 0; i < 10; i++) host.advance(sim.time.step)
+  const launches = one.notices.filter((line) => line.text === 'готовит ядерный пуск')
+  expect(launches).toEqual([{ player: two.peer.player, name: 'Второй', text: 'готовит ядерный пуск', system: true }])
 })

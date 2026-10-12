@@ -1,5 +1,5 @@
 import type { Component, Entity, World } from '../ecs'
-import { Accumulator, Armed, Assembly, Attached, Blast, Builds, Burst, Drop, Hauler, Health, Inventory, Owner, Path, Position, Producer, Reactor, Repair, Scan, Shot, SAVED, Tactics, Trade, Turret, Unit } from '../sim/components'
+import { Accumulator, Armed, Assembly, Attached, Blast, Builds, Burst, Drop, Hauler, Health, Inventory, Mark, Missile, Owner, Path, Position, Producer, Reactor, Repair, Scan, Shot, Silo, SAVED, Tactics, Trade, Turret, Unit } from '../sim/components'
 import { quantize, type Motion } from './codec'
 
 /** До скольких знаков после запятой округляются дробные числа в сети: тысячная тайла глазу не видна. */
@@ -38,6 +38,10 @@ function wire(component: Component<any>, data: any, tick: number): object | unde
   if (component === Blast) return { size: data.size, life: data.life, born: tick - data.age }
   // Сколько горит стержень, тает каждый тик; клиенту хватает знать, горит ли он.
   if (component === Reactor) return { left: data.left > 0 ? 1 : 0 }
+  // Где ракета сейчас, клиент считает сам по старту и тику: иначе она уходила бы каждый тик. Куда она летит, знает
+  // только хозяин, см. seenBy; кому видна метка — только хост. Чья метка — не тайна: о пуске уже сказано в чате.
+  if (component === Missile) return { fromX: data.fromX, fromY: data.fromY, toX: data.toX, toY: data.toY, born: data.born }
+  if (component === Mark) return { kind: data.kind, until: data.until, player: data.player }
   // Счёт до следующей вспышки радара клиенту не нужен, а менялся бы дважды в секунду.
   if (component === Scan) return { x: data.x, y: data.y, tick: data.tick }
   return data
@@ -61,7 +65,10 @@ export interface Wired {
  */
 const PRIVATE = new Set([Inventory, Producer, Hauler, Assembly, Trade, Tactics, Builds, Repair, Scan, Accumulator, Reactor].map((component) => component.key))
 
-/** Сущность глазами игрока viewer: своё и ничьё — целиком, чужое — без PRIVATE и без цели стрелка. */
+/**
+ * Сущность глазами игрока viewer: своё и ничьё — целиком, чужое — без PRIVATE и без цели стрелка; у чужой шахты —
+ * только пуск, у чужой ракеты — курс без точки удара.
+ */
 export function seenBy(wired: Wired, viewer: number): Wired {
   if (wired.owner === undefined || wired.owner === 0 || wired.owner === viewer) return wired
   if (!wired.foreign) {
@@ -72,6 +79,16 @@ export function seenBy(wired: Wired, viewer: number): Wired {
     if (armed) {
       const { target: _target, ...rest } = JSON.parse(armed)
       parts.set(Armed.key, JSON.stringify(rest))
+    }
+    // Чужая шахта: виден только пуск — створки открываются у всех на глазах; готова ли боеголовка, знает хозяин.
+    const silo = parts.get(Silo.key)
+    if (silo) parts.set(Silo.key, JSON.stringify({ start: JSON.parse(silo).start }))
+    // Чужая ракета: куда она летит, видно по курсу, но не где упадёт.
+    const missile = parts.get(Missile.key)
+    if (missile) {
+      const { fromX, fromY, toX, toY, born } = JSON.parse(missile)
+      const reach = Math.hypot(toX - fromX, toY - fromY) || 1
+      parts.set(Missile.key, JSON.stringify({ fromX, fromY, toX: fromX + (toX - fromX) / reach, toY: fromY + (toY - fromY) / reach, born, blind: true }, round))
     }
     wired.foreign = { parts, motion: wired.motion }
   }
@@ -91,7 +108,8 @@ export function sharedWireOf(world: World, entity: Entity, tick: number): Wired 
     const shown = wire(component, data, tick)
     if (shown !== undefined) parts.set(component.key, JSON.stringify(shown, round))
   }
-  return { parts, owner: world.get(entity, Owner)?.player, drop: world.has(entity, Drop), motion: motionOf(world, entity) }
+  const owner = world.get(entity, Owner)?.player ?? world.get(entity, Missile)?.player
+  return { parts, owner, drop: world.has(entity, Drop), motion: motionOf(world, entity) }
 }
 
 /** Движение сущности, каким оно уходит в сеть; undefined — места у неё нет или клиент находит его сам (турель на носителе). */

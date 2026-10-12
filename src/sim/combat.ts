@@ -846,7 +846,8 @@ export function fight(sim: Sim) {
   }
   for (const entity of vanished) world.destroy(entity)
 
-  // Аварии бьют всех вокруг без разбора — своих и союзников тоже; щит их не держит. Под защитой новичка урона нет.
+  // Аварии и ядерные удары бьют всех вокруг без разбора — своих и союзников тоже; щит их не держит. Под защитой
+  // новичка урона нет.
   const bursts: Entity[] = []
   for (const [entity, burst, position] of world.query(Burst, Position)) {
     bursts.push(entity)
@@ -855,10 +856,11 @@ export function fight(sim: Sim) {
       const distance = distanceTo(mark, position.x, position.y)
       if (distance > burst.radius) continue
       mark.health.hit = time.tick
-      mark.health.value -= (burst.damage * (1 - distance / burst.radius)) / mark.hp
+      const share = distance <= burst.core ? 1 : (burst.radius - distance) / (burst.radius - burst.core)
+      mark.health.value -= (burst.damage * share) / mark.hp
       if (mark.health.value <= 0) dead.add(mark.entity)
     }
-    blasts.push({ x: position.x, y: position.y, size: burst.radius * 2, ground: true })
+    blasts.push({ x: position.x, y: position.y, size: burst.radius, ground: true })
   }
   for (const entity of bursts) world.destroy(entity)
 

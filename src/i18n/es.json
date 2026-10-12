@@ -36,6 +36,7 @@
     "generator": "Central eléctrica",
     "accumulator": "Acumulador",
     "reactor": "Reactor",
+    "silo": "Silo de misiles",
     "matter": "Generador de materia",
     "radar": "Radar",
     "windtrap": "Trampa de viento",
@@ -69,6 +70,7 @@
     "generator": "Produce energía para la zona. Sin energía los edificios trabajan más despacio o se detienen",
     "accumulator": "Acumula el excedente de energía de la zona y lo entrega cuando falta generación: la base aguanta una central destruida mientras dure la carga. Se construye con litio",
     "reactor": "Da 60 de energía mientras arde una barra: una por minuto, los camiones traen las barras. Apagado, ahorra barras. Destruido con combustible dentro, explota y daña a todos alrededor: ponlo tras un muro y apartado",
+    "silo": "Arma una ojiva nuclear con 20 barras y 10 componentes y la lanza a cualquier punto del mapa. Todos se enteran del lanzamiento por el chat, y quien tiene radar ve el lugar de lanzamiento. La explosión de radio 12 golpea a todos por igual, los escudos no la detienen. Si lo destruyen con una ojiva dentro, explota",
     "matter": "Genera créditos por sí solo, pero consume energía. Cada uno más en la zona pide más energía",
     "mine": "Se coloca sobre un yacimiento y extrae mineral a su almacén; los camiones lo llevan a refinar. Inicia una pequeña zona propia",
     "smelter": "Funde mineral de metal en metal",
@@ -428,7 +430,20 @@
     "researchBusy": "El centro técnico está ocupado con otro tema",
     "researchNoParts": "En la red del centro técnico faltan componentes",
     "researchTip": "La investigación tarda {time}. El precio se cobra al momento y los componentes salen de la red del centro técnico",
-    "cancelResearchTip": "Abandonar la investigación: su precio se devuelve entero"
+    "cancelResearchTip": "Abandonar la investigación: su precio se devuelve entero",
+    "warhead": "Ojiva",
+    "warheadAbout": "Una ojiva nuclear para lanzar. El silo guarda una",
+    "warheadTip": "El montaje tarda {time} con energía completa. El precio se cobra al momento; las barras y los componentes salen de la red del silo",
+    "warheadBusy": "El silo ya tiene una ojiva, lista o en montaje",
+    "warheadNoMaterials": "A la red del silo le faltan barras o componentes",
+    "cancelWarheadTip": "Abandonar el montaje: su precio se devuelve entero",
+    "launch": "Lanzar",
+    "launchAbout": "Apuntar la ojiva a un punto del mapa y lanzar el misil",
+    "launchTip": "Haz clic en el mapa donde debe caer el ataque. El misil despega {seconds} s después y todos se enteran por el chat",
+    "launchRetarget": "Lanzamiento en marcha: haz clic en el mapa para cambiar el objetivo",
+    "launchNoWarhead": "Primero arma una ojiva",
+    "abortLaunch": "Cancelar lanzamiento",
+    "abortLaunchTip": "El misil no despega y la ojiva se queda en el silo"
   },
   "hud": {
     "players": "Jugadores",
@@ -473,7 +488,9 @@
       "spotted": "Enemigo avistado",
       "baseAttacked": "Base bajo ataque",
       "unitsAttacked": "Nuestras unidades están bajo ataque",
-      "oreFound": "Yacimiento encontrado"
+      "oreFound": "Yacimiento encontrado",
+      "nukeLaunched": "Lanzamiento nuclear",
+      "nukeIncoming": "Ataque nuclear contra nosotros"
     },
     "nothingSelected": "Nada seleccionado. Botón izquierdo — seleccionar, recuadro — varias unidades, botón derecho — orden. Ctrl+número — recordar un grupo, número — seleccionarlo",
     "buildingsCount": "Edificios: {count}",
@@ -545,6 +562,11 @@
     "waitsToUpgrade": "La mejora espera a un constructor: selecciónalo y haz clic derecho en el edificio",
     "researching": "{name} — investigado {percent}",
     "researchIdle": "Elige un tema de investigación: lo desbloqueado queda para siempre",
+    "warheadAssembling": "Ojiva — montado {percent}",
+    "warheadReady": "Ojiva lista: «Lanzar» para apuntarla",
+    "warheadEmpty": "Sin ojiva: arma una para lanzar un misil",
+    "launching": "Lanzamiento: despega en {seconds} s",
+    "launchAim": "Clic — punto de impacto; botón derecho o Esc — cancelar",
     "building": "En construcción — {percent}",
     "blocked": "El lugar está ocupado por unidades",
     "waitsBuilder": "Espera a un constructor",
@@ -569,7 +591,8 @@
     "siege": "Arte del asedio",
     "bombing": "Bombardeo",
     "beams": "Defensa de rayos",
-    "atom": "Átomo"
+    "atom": "Átomo",
+    "warheads": "Ojivas"
   },
   "researchInfo": {
     "levels2": "Desbloquea el nivel dos de los edificios: minas, refinerías, almacenes, el puerto espacial y las centrales",
@@ -578,7 +601,8 @@
     "siege": "Desbloquea la artillería y el portador en la fábrica",
     "bombing": "Desbloquea el bombardero en el aeródromo",
     "beams": "Desbloquea las torretas láser y de arco",
-    "atom": "Desbloquea el reactor. Necesita barras de combustible de uranio"
+    "atom": "Desbloquea el reactor. Necesita barras de combustible de uranio",
+    "warheads": "Desbloquea el silo de misiles: un ataque nuclear a cualquier punto del mapa"
   },
   "levelGains": {
     "extract": "extracción",
@@ -630,6 +654,7 @@
     "joins": "se une a la partida",
     "leaves": "sale de la partida",
     "defeated": "ha sido derrotado",
+    "nukeLaunch": "prepara un lanzamiento nuclear",
     "restarts": "empieza de nuevo",
     "kicked": "fue expulsado por un administrador",
     "help": "{command} — {help}",

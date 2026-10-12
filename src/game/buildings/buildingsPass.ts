@@ -5,10 +5,10 @@ import { Pixmap } from '../../render/pixmap'
 import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'
 import type { Entity } from '../../ecs'
-import { Assembly, BUILDING_TYPES, Building, Inventory, Owner, Position, Reactor, Site, amountOf, buildingSpec, isBurning, isOpenGate, isPipe, siteTicks, type BuildingType } from '../../sim'
+import { Assembly, BUILDINGS, BUILDING_TYPES, Building, Inventory, Owner, Position, Reactor, Silo, Site, amountOf, buildingSpec, isBurning, isOpenGate, isPipe, siteTicks, type BuildingType } from '../../sim'
 import { placementOf } from '../placing'
 import type { Scene } from '../scene'
-import { ART_FRAMES, ART_TILE, BUILDING_ART, GATE_OPEN_VARIANT, WALL_CONNECTION, type BuildingArt } from './buildingArt'
+import { ART_FRAMES, ART_TILE, BUILDING_ART, GATE_OPEN_VARIANT, SILO_DOOR_STEPS, SILO_RISE_STEPS, WALL_CONNECTION, type BuildingArt } from './buildingArt'
 
 /** Поля вокруг основания в пикселях спрайта: место для высоких частей. */
 const PAD = ART_TILE
@@ -26,6 +26,9 @@ const VISIBLE_MARGIN = 5
  * по тикам симуляции, а не каждый кадр, и без запаса анимация мигала бы.
  */
 const WORK_HOLD = 0.6
+/** Пуск ракетной шахты: какую долю срока расходятся створки и с какой доли поднимается ракета. */
+const DOORS_SHARE = 0.35
+const RISE_FROM = 0.6
 /** Цвет недостроенного: чертёж здания, сквозь который видно землю. Альфа меньше половины — тени от лучей он не даёт. */
 const BLUEPRINT = [0.3, 0.6, 1, 0.4] as const
 /** Призрак здания, которому выбирают место: полупрозрачное здание, красное — если туда нельзя. Теней он не даёт. */
@@ -151,6 +154,7 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene): P
         return type !== undefined && !buildingSpec(type).isolated
       }
       const wallVariant = (position: { x: number; y: number }, type: BuildingType, entity?: Entity) => {
+        if (type === 'silo') return entity === undefined ? 0 : siloVariant(entity)
 
         if (isPipe(type)) {
           let variant = 0
@@ -169,6 +173,18 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene): P
         if (walls.has(tileKey(position.x - 1, position.y))) variant |= WALL_CONNECTION.west
         return variant
       }
+      /**
+       * Ступень пуска шахты: створки расходятся в первую DOORS_SHARE срока пуска, ракета поднимается с RISE_FROM до
+       * старта. Вне пуска — закрыта.
+       */
+      const siloVariant = (entity: Entity) => {
+        const start = world.get(entity, Silo)?.start ?? -1
+        if (start < 0) return 0
+        const share = (simTime.tick + simTime.alpha - start) / Math.round(BUILDINGS.silo.warhead.launch / simTime.step)
+        const doors = Math.min(SILO_DOOR_STEPS - 1, Math.floor((share / DOORS_SHARE) * (SILO_DOOR_STEPS - 1)))
+        if (share < RISE_FROM) return doors
+        return SILO_DOOR_STEPS - 1 + Math.min(SILO_RISE_STEPS, Math.ceil(((share - RISE_FROM) / (1 - RISE_FROM)) * SILO_RISE_STEPS))
+      }
       const see = (position: { x: number; y: number }, type: BuildingType, phase: number, built: number, working = false, neutral = false, entity?: Entity) => {
         const sheet = sheets.get(type)![wallVariant(position, type, entity)]
         if (position.x + sheet.art.width < camera.x - halfWidth || position.x > camera.x + halfWidth) return
@@ -180,8 +196,9 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene): P
       visible.length = 0
       for (const [entity, position, building] of world.query(Position, Building)) {
         const site = world.get(entity, Site)
-        // Реактор работает, пока горит стержень: это видно сразу, без догадок по складу.
-        let working = !site && world.has(entity, Reactor) && isBurning(scene.sim, entity)
+        // Реактор работает, пока горит стержень: это видно сразу, без догадок по складу. Шахта — пока в ней готовая
+        // боеголовка.
+        let working = !site && ((world.has(entity, Reactor) && isBurning(scene.sim, entity)) || world.get(entity, Silo)?.ready === true)
         const value = !site && !working && BUILDING_ART[building.type].working ? workOf(entity, building.type) : undefined
         if (value !== undefined) {
           const state = activity.get(entity) ?? { value, until: 0 }

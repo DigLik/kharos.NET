@@ -6,7 +6,8 @@ import { createLineProgram, createLines } from '../render/lines'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Beam, Blast, Building, Ghost, Health, Position, Shield, Shot, UNITS, Unit, WEAPONS, activeRepairs, buildingSpec, flies, type RepairLink, type WeaponSpec } from '../sim'
+import { BUILDINGS, Beam, Blast, Building, Ghost, Health, Mark, Missile, Position, Shield, Shot, Silo, UNITS, Unit, WEAPONS, activeRepairs, buildingSpec, flies, type RepairLink, type WeaponSpec } from '../sim'
+import { missileAt } from './missiles'
 import { GOOD_COLORS } from './resourceColors'
 import type { Scene } from './scene'
 import type { TeamColors } from './units/unitArt'
@@ -51,6 +52,16 @@ const ARC_RATE = 30
 const EFFECT_ZOOM = 32
 /** Сколько тиков после выстрела у ствола видна вспышка. */
 const MUZZLE_TICKS = 1
+
+/** Ядерная ракета: длина корпуса в тайлах и через сколько тайлов пути она оставляет клуб дыма. */
+const MISSILE_BODY = 0.9
+const MISSILE_SMOKE_STEP = 0.35
+/** Пар из ствола шахты в пуске: с какой доли срока он идёт и сколько клубов в секунду в самом конце. */
+const STEAM_FROM = 0.45
+const STEAM_RATE = 40
+/** Метки ядерного удара: место пуска — янтарное кольцо, точка удара — красные кольца взрыва и его ядра. */
+const LAUNCH_SITE: Color = [1, 0.7, 0.2]
+const STRIKE: Color = [1, 0.15, 0.1]
 
 /** Искры там, где ремонтник работает: сколько их разом, как далеко разлетаются в тайлах и сколько раз в секунду вспыхивают заново. */
 const WELD_SPARKS = 4
@@ -359,10 +370,46 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene): { 
     })
   }
 
-  /** Новые клубы от выстрелов и взрывов этого кадра. */
-  const emitSmoke = () => {
+  /** Новые клубы от выстрелов и взрывов этого кадра; delta — его длина в секундах. */
+  const emitSmoke = (delta: number) => {
     const { world, time } = scene.sim
     alive.clear()
+    const clock = time.tick + time.alpha
+    // Ядерная ракета: на старте — облако над шахтой, в полёте — густой след на высоте полёта.
+    for (const [entity, missile] of world.query(Missile)) {
+      alive.add(entity)
+      const { x, y, lift } = missileAt(missile, clock, time.step)
+      const last = trails.get(entity)
+      if (!last) {
+        trails.set(entity, { x, y })
+        for (let i = 0; i < 24; i++) puff(missile.fromX + spread(2.5), missile.fromY + spread(2.5), 1 + Math.random(), 3 + Math.random() * 2, 0.9, 0.7, spread(2), spread(2))
+        continue
+      }
+      const distance = Math.hypot(x - last.x, y - last.y)
+      const count = Math.min(24, Math.floor(distance / MISSILE_SMOKE_STEP))
+      for (let i = 1; i <= count; i++) {
+        const share = (i * MISSILE_SMOKE_STEP) / distance
+        puff(last.x + (x - last.x) * share + spread(0.1), last.y + (y - last.y) * share - lift + spread(0.1), 0.5, 2.5, 0.85, 0.7, spread(0.3), spread(0.3))
+      }
+      if (count) {
+        const share = (count * MISSILE_SMOKE_STEP) / distance
+        last.x += (x - last.x) * share
+        last.y += (y - last.y) * share
+      }
+    }
+    // Шахта в пуске парит из открытого ствола, и чем ближе старт, тем гуще.
+    const launchTicks = Math.round(BUILDINGS.silo.warhead.launch / time.step)
+    for (const [, silo, building, position] of world.query(Silo, Building, Position)) {
+      if (silo.start < 0) continue
+      const share = (clock - silo.start) / launchTicks
+      if (share < STEAM_FROM) continue
+      const expected = STEAM_RATE * delta * ((share - STEAM_FROM) / (1 - STEAM_FROM)) ** 2
+      const count = Math.floor(expected) + (Math.random() < expected % 1 ? 1 : 0)
+      const { width, height } = BUILDINGS[building.type]
+      const cx = position.x + width / 2 + 0.2
+      const cy = position.y + height / 2 - 0.1
+      for (let i = 0; i < count; i++) puff(cx + spread(0.9), cy + spread(0.9), 0.5 + Math.random() * 0.4, 1.6, 0.95, 0.55, spread(1.2), spread(1.2) - 0.4)
+    }
     for (const [entity, blast, position] of world.query(Blast, Position)) {
       alive.add(entity)
       if (trails.has(entity)) continue
@@ -531,6 +578,11 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene): { 
           }
         }
 
+        for (const [, missile] of world.query(Missile)) {
+          const { x, y, lift } = missileAt(missile, time.tick + time.alpha, time.step)
+          lights.add(x, y - lift, 18, 8, 0.9)
+        }
+
         repairs = activeRepairs(scene.sim)
         for (const link of repairs) {
           const { toX, toY } = beamOf(link, time.alpha)
@@ -545,7 +597,7 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene): { 
           }
         }
 
-        emitSmoke()
+        emitSmoke(delta)
         // Дым тормозит, набирает скорость ветра и понемногу всплывает; клубы растут и тают.
         const { windX, windY, light } = scene.weather
         // Ночью дым темнее и синее, как всё вокруг.
@@ -700,6 +752,49 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene): { 
             dot(solid, x, y, 4, SHELL)
             dot(solid, x - point, y - point, 2, ROCKET)
           }
+        }
+
+        // Ядерная ракета: тень на земле, корпус на высоте полёта и пламя за ним.
+        for (const [, missile] of world.query(Missile)) {
+          const { x, y, lift, headingX, headingY } = missileAt(missile, scene.sim.time.tick + alpha, scene.sim.time.step)
+          if (!visible(x, y)) continue
+          const tailX = x - headingX * MISSILE_BODY
+          const tailY = y - headingY * MISSILE_BODY
+          line(solid, tailX, tailY, x, y, 5, SHELL, 0.3)
+          line(glow, tailX - headingX * 0.5, tailY - headingY * 0.5 - lift, tailX, tailY - lift, 6, FLAME)
+          dot(glow, tailX, tailY - lift, 9, EMBER, 0.8)
+          line(solid, tailX, tailY - lift, x, y - lift, 6, SHELL)
+          line(solid, tailX, tailY - lift, x, y - lift, 4, ROCKET)
+          dot(solid, x, y - lift, 3, WRECK)
+        }
+
+        // Метки ядерного удара. Место пуска — янтарное кольцо, которое расходится волнами. Точка удара — кольца взрыва
+        // и его ядра: чем ближе удар, тем чаще они мигают.
+        for (const [, mark, position] of world.query(Mark, Position)) {
+          const { x, y } = position
+          const left = Math.max(0, (mark.until - scene.sim.time.tick - alpha) * scene.sim.time.step)
+          const ring = (r: number, thickness: number, color: Color, level: number) => {
+            for (let i = 0; i < DOME_SEGMENTS; i++) {
+              const a = (i / DOME_SEGMENTS) * Math.PI * 2
+              const b = ((i + 1) / DOME_SEGMENTS) * Math.PI * 2
+              line(glow, x + Math.cos(a) * r, y + Math.sin(a) * r, x + Math.cos(b) * r, y + Math.sin(b) * r, thickness, color, level)
+            }
+          }
+          if (mark.kind === 'launch') {
+            if (!visible(x, y)) continue
+            const wave = (time * 0.8) % 1
+            ring(1.5, 3, LAUNCH_SITE, 0.8)
+            ring(1.5 + wave * 4, 2, LAUNCH_SITE, 0.6 * (1 - wave))
+            line(glow, x - 0.8, y, x + 0.8, y, 2, LAUNCH_SITE, 0.8)
+            line(glow, x, y - 0.8, x, y + 0.8, 2, LAUNCH_SITE, 0.8)
+            continue
+          }
+          const { radius, core } = BUILDINGS.silo.warhead.blast
+          if (!visible(x - radius, y) && !visible(x + radius, y) && !visible(x, y - radius) && !visible(x, y + radius) && !visible(x, y)) continue
+          const beat = 0.5 + 0.5 * Math.cos(time * Math.PI * 2 * (left < 5 ? 3 : 1))
+          ring(radius, 3, STRIKE, 0.35 + 0.4 * beat)
+          ring(core, 2, STRIKE, 0.25 + 0.3 * beat)
+          dot(glow, x, y, 8, STRIKE, 0.6 + 0.4 * beat)
         }
 
         // Работа ремонтников: луч от того, кто строит или чинит, к тому, что он строит или чинит; у разбора луч красный.

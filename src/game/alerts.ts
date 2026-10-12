@@ -1,6 +1,6 @@
 import type { Audio } from '../audio/audio'
 import type { Entity } from '../ecs'
-import { Building, Health, Owner, Position, Shot, Unit, alliesIn, buildingSpec } from '../sim'
+import { Building, Health, Mark, Owner, Position, Shot, Unit, alliesIn, buildingSpec } from '../sim'
 import { tileKey } from '../map/terrain'
 import { DEPOSIT_SIZE } from '../sim/deposits'
 import type { Scene } from './scene'
@@ -22,10 +22,10 @@ const HIT_MEMORY = 1.5
 /** Громкость сигналов: они слышны всегда, где бы ни была камера. */
 const VOLUME = 0.7
 
-export type AlertKind = 'attacked' | 'spotted' | 'found'
+export type AlertKind = 'attacked' | 'spotted' | 'found' | 'nuke'
 
 /** Что сказать об уведомлении: ключ строки в разделе hud.alerts словаря. */
-export type AlertText = 'spotted' | 'baseAttacked' | 'unitsAttacked' | 'oreFound'
+export type AlertText = 'spotted' | 'baseAttacked' | 'unitsAttacked' | 'oreFound' | 'nukeLaunched' | 'nukeIncoming'
 
 export interface Alert {
   kind: AlertKind
@@ -43,7 +43,9 @@ export interface Alert {
  * в виду появился чужой юнит — «замечен противник». Хост шлёт только то, что игрок видит, поэтому чужие юниты
  * в копии мира — это враги в виду. Об атаке предупреждают раз: снова — когда враги пропали из виду и напали опять.
  * О замеченном — не чаще SPOTTED_GAP. Игрок узнал о новом месторождении — разведал его юнитом или радаром — «найдено
- * месторождение», не чаще FOUND_GAP. Каждое уведомление — строка в ленте, сигнал и метка на мини-карте.
+ * месторождение», не чаще FOUND_GAP. Чужая метка ядерного удара — «ядерный пуск» (место пуска, видно с радаром)
+ * или «ядерный удар» (точка удара, видна тем, чьё под ней), каждая один раз. Каждое уведомление — строка в ленте,
+ * сигнал и метка на мини-карте.
  */
 export function createAlerts(scene: Scene, audio: Audio | null) {
   let clock = 0
@@ -58,6 +60,8 @@ export function createAlerts(scene: Scene, audio: Audio | null) {
   /** Какие месторождения игрок уже знал: по номеру правки слоя и по миру, с которым они сверены. */
   let deposits: { sim: unknown; generation: number | undefined; revision: number; known: Set<number> } | undefined
   let foundAt = -Infinity
+  /** Метки ядерного удара, о которых уже сказали. */
+  let nukes = new Set<Entity>()
 
   const raise = (kind: AlertKind, text: AlertText, x: number, y: number) => {
     alerts.push({ kind, text, x, y, at: clock })
@@ -90,6 +94,14 @@ export function createAlerts(scene: Scene, audio: Audio | null) {
       }
       foes = nextFoes
       if (!foes.size) warned = false
+
+      const nextNukes = new Set<Entity>()
+      for (const [entity, mark, position] of world.query(Mark, Position)) {
+        nextNukes.add(entity)
+        if (nukes.has(entity) || mark.player === player || allies.includes(mark.player)) continue
+        raise('nuke', mark.kind === 'launch' ? 'nukeLaunched' : 'nukeIncoming', position.x, position.y)
+      }
+      nukes = nextNukes
       if (spotted !== undefined && clock - spottedAt >= SPOTTED_GAP) {
         spottedAt = clock
         const { x, y } = world.get(spotted, Position)!

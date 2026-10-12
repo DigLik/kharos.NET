@@ -1673,7 +1673,75 @@ const reactor: BuildingArt = {
   },
 }
 
+/** Сколько ступеней открытия створок у ракетной шахты и сколько ступеней подъёма ракеты в открытом стволе. */
+export const SILO_DOOR_STEPS = 8
+export const SILO_RISE_STEPS = 4
+
+/**
+ * Ракетная шахта, 3×3: бетонная плита в полосах опасности, посередине — ствол под двумя створками, слева — пульт.
+ * Вариант — ступень пуска: сначала створки расходятся (до SILO_DOOR_STEPS − 1), потом в открытом стволе поднимается
+ * ракета — сверху её нос растёт и светлеет. working — боеголовка готова: лампа пульта зелёная, у пустой — жёлтая.
+ */
+const silo: BuildingArt = {
+  ...BUILDINGS.silo,
+  variants: SILO_DOOR_STEPS + SILO_RISE_STEPS,
+  working: true,
+  draw(g, t, light, variant = 0, working = false) {
+    const CONCRETE: Tones = [0x4f4c47, 0x77736b, 0x9d988e, 0xbfb9ae, 0xe0dbd1]
+    const open = Math.min(1, variant / (SILO_DOOR_STEPS - 1))
+    const rise = Math.max(0, variant - (SILO_DOOR_STEPS - 1)) / SILO_RISE_STEPS
+    slab(g, 0, 2, 48, 46, 4, CONCRETE)
+    for (let x = 2; x < 46; x += 4) {
+      g.rect(x, 4, 2, 2, HAZARD[1])
+      g.rect(x + 2, 4, 2, 2, HAZARD[0])
+    }
+    // Ствол: тёмный колодец с ребрами по стенкам.
+    const [left, top, size] = [16, 11, 22]
+    g.rect(left - 2, top - 2, size + 4, size + 4, INK)
+    g.rect(left, top, size, size, DARK)
+    for (let i = 2; i < size; i += 5) g.rect(left + i, top, 1, size, IRON[0])
+    // Ракета в стволе: нос сверху — круг с красной макушкой; поднимаясь, он ближе и крупнее.
+    if (open > 0.5) {
+      const radius = 4 + rise * 3
+      const cx = left + size / 2
+      const cy = top + size / 2
+      g.circle(cx, cy, radius + 1, INK)
+      g.circle(cx, cy, radius, IRON[3])
+      g.circle(cx - radius * 0.25, cy - radius * 0.25, radius * 0.6, IRON[4])
+      g.circle(cx, cy, Math.max(1, radius * 0.3), FIRE[1])
+    }
+    // Створки уходят под бетон в стороны.
+    const shift = Math.round(open * (size / 2))
+    const door = (x: number, w: number) => {
+      if (w <= 0) return
+      g.rect(x, top, w, size, STEEL[1])
+      g.rect(x, top, w, 1, STEEL[3])
+      for (let y = top + 3; y < top + size; y += 6) g.rect(x, y, w, 2, HAZARD[1])
+    }
+    door(left, size / 2 - shift)
+    door(left + size / 2 + shift, size / 2 - shift)
+    if (shift === 0) g.rect(left + size / 2, top, 1, size, INK)
+    // Рама ствола поверх створок.
+    g.rect(left - 2, top - 2, size + 4, 2, CONCRETE[2])
+    g.rect(left - 2, top + size, size + 4, 2, CONCRETE[0])
+    g.rect(left - 2, top, 2, size, CONCRETE[2])
+    g.rect(left + size, top, 2, size, CONCRETE[0])
+    // Пульт слева: будка с окном и лампой готовности.
+    slab(g, 2, 14, 11, 16, 4, IRON)
+    windows(g, [4, 8], 18)
+    const ready = working ? 0x5fe08a : 0xe0b84a
+    g.rect(6, 24, 3, 3, INK)
+    g.rect(7, 25, 1, 1, ready)
+    light(7.5, 25.5, 1.5, working ? 0.6 : 0.25 + 0.2 * pulse(t))
+    // Огни по углам ствола: в пуске бегут по кругу.
+    const corners = [[left - 3, top - 3], [left + size + 1, top - 3], [left + size + 1, top + size + 1], [left - 3, top + size + 1]]
+    corners.forEach(([x, y], i) => bulb(g, light, x, y, open > 0 ? chase(t * 2, i / 4) : 0.1))
+    lamp(g, light, 42, 40, 2, pulse(t))
+  },
+}
+
 export const BUILDING_ART = {
+  silo,
   rodPlant,
   rodRack,
   reactor,

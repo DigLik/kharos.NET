@@ -293,10 +293,38 @@ export const Accumulator = component('Accumulator', { charge: 0, flow: 0 })
 export const Reactor = component('Reactor', { left: 0 })
 
 /**
- * Взрыв, который бьёт по площади всех без разбора — своих, союзных и чужих: авария реактора. Живёт до ближайшего
- * боя: урон от damage в центре до нуля на краю radius. См. fight в combat.ts.
+ * Взрыв, который бьёт по площади всех без разбора — своих, союзных и чужих: авария реактора, ядерный удар. Живёт
+ * до ближайшего боя: урон damage до core тайлов от центра, дальше спадает до нуля на краю radius. См. fight в combat.ts.
  */
-export const Burst = component('Burst', { radius: 0, damage: 0 })
+export const Burst = component('Burst', { radius: 0, damage: 0, core: 0 })
+
+/**
+ * Ракетная шахта (silos.ts). Сборка боеголовки: ticks — её срок при полной энергии, progress — сколько собрано, cost —
+ * сколько кредитов списано (отмена их вернёт); ticks ноль — сборки нет. ready — боеголовка готова. start — тик приказа
+ * о пуске, −1 — пуск не идёт; toX, toY — куда наведена ракета.
+ */
+export const Silo = component('Silo', { progress: 0, ticks: 0, cost: 0, ready: false, start: -1, toX: 0, toY: 0 })
+
+/**
+ * Ядерная ракета в полёте (silos.ts). Места на карте (Position) у неё нет: она летит над всем по прямой из (fromX, fromY)
+ * в (toX, toY) с тика born, и клиент сам ведёт её по этим числам; x и y — где она сейчас, по ним её видят. player — чья.
+ * mark — метка точки удара (Mark), −1 — её ещё нет. blind — только у копии чужой ракеты на клиенте: (toX, toY) у неё
+ * не точка удара, а точка на курсе, см. seenBy в wire.ts.
+ */
+export const Missile = component('Missile', { fromX: 0, fromY: 0, toX: 0, toY: 0, born: 0, x: 0, y: 0, player: 0, mark: -1, blind: false })
+
+/**
+ * Метка на карте, которую видят не по обзору, а по списку viewers: место ядерного пуска (kind launch) — игроки
+ * с радаром, точка удара (strike) — те, чьё под ней. player — чья ракета: ему и его союзникам метка видна всегда.
+ * until — тик, когда она пропадает. См. silos.ts.
+ */
+/**
+ * Вспышка ядерного взрыва: до тика until всем игрокам виден круг radius вокруг неё — туман там на миг снят у каждого,
+ * где бы он ни был. См. silos.ts и vision.ts.
+ */
+export const Glare = component('Glare', { radius: 0, until: 0 })
+
+export const Mark = component('Mark', () => ({ kind: 'launch' as 'launch' | 'strike', until: 0, player: 0, viewers: [] as number[] }))
 
 /**
  * Очередь приказов юнита, отданных с Shift: следующий он берёт, когда закончит нынешнее дело. group — общий номер
@@ -345,4 +373,4 @@ export const Scan = component('Scan', { x: 0, y: 0, tick: -1, wait: 0 })
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Mark, Glare]

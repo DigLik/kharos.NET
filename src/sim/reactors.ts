@@ -1,6 +1,6 @@
 import type { Entity } from '../ecs'
 import { buildingSpec } from './buildings'
-import { Building, Burst, Inventory, Off, Position, Reactor } from './components'
+import { Building, Burst, Inventory, Off, Position, Reactor, Silo } from './components'
 import { amountOf, take } from './inventory'
 import type { Sim } from './sim'
 
@@ -29,7 +29,8 @@ export function burnFuel(sim: Sim) {
 
 /**
  * Авария: здание с топливом внутри (BuildingSpec.meltdown) оставляет на своём месте взрыв, который бьёт всех вокруг
- * в ближайшем бою, см. Burst. Топливо сгорает в нём и на землю не падает. Пустой реактор не взрывается.
+ * в ближайшем бою, см. Burst. Топливо сгорает в нём и на землю не падает. Пустой реактор не взрывается; шахта —
+ * только с готовой боеголовкой, и рвётся она как реактор, без ядерного взрыва.
  * Зовут те, кто разрушает здание: бой и перегруз.
  */
 export function meltdown(sim: Sim, entity: Entity) {
@@ -37,11 +38,13 @@ export function meltdown(sim: Sim, entity: Entity) {
   const building = world.get(entity, Building)
   const position = world.get(entity, Position)
   const spec = building && buildingSpec(building.type)
-  if (!spec?.meltdown || !spec.burns || !position) return
-  const inventory = world.get(entity, Inventory)
-  const rods = inventory ? amountOf(inventory, spec.burns.good) : 0
-  if (rods <= 0 && (world.get(entity, Reactor)?.left ?? 0) <= 0) return
-  if (inventory && rods > 0) take(inventory, spec.burns.good, rods)
+  if (!spec?.meltdown || !position) return
+  if (spec.burns) {
+    const inventory = world.get(entity, Inventory)
+    const rods = inventory ? amountOf(inventory, spec.burns.good) : 0
+    if (rods <= 0 && (world.get(entity, Reactor)?.left ?? 0) <= 0) return
+    if (inventory && rods > 0) take(inventory, spec.burns.good, rods)
+  } else if (world.get(entity, Silo)?.ready !== true) return
   const { radius, damage } = spec.meltdown
   world.spawn(Position({ x: position.x + spec.width / 2, y: position.y + spec.height / 2 }), Burst({ radius, damage }))
 }

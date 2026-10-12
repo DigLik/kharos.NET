@@ -36,6 +36,7 @@
     "generator": "Power Plant",
     "accumulator": "Accumulator",
     "reactor": "Reactor",
+    "silo": "Missile Silo",
     "matter": "Matter Generator",
     "radar": "Radar",
     "windtrap": "Windtrap",
@@ -69,6 +70,7 @@
     "generator": "Produces power for the zone. Without power, buildings work slower or stop",
     "accumulator": "Stores surplus zone power and releases it when generation falls short: the base survives a destroyed power plant while the charge lasts. Built from lithium",
     "reactor": "Gives 60 power while a rod burns: one per minute, trucks bring the rods. Switched off, it saves rods. Destroyed with fuel inside, it explodes and hits everyone around — keep it behind a wall and out of the way",
+    "silo": "Assembles a nuclear warhead from 20 rods and 10 parts and launches it at any point on the map. Everyone learns of the launch in chat, players with a radar see the launch site. The blast of radius 12 hits everyone alike, shields do not stop it. Destroyed with a warhead inside, it explodes",
     "matter": "Earns credits on its own but eats power. Each next one in the zone asks for more power",
     "mine": "Placed on a deposit, it digs ore into its own store; trucks take it to be refined. Starts a small zone of its own",
     "smelter": "Smelts metal ore into metal",
@@ -428,7 +430,20 @@
     "researchBusy": "The tech center is busy with another topic",
     "researchNoParts": "The tech center's network lacks components",
     "researchTip": "The research takes {time}. The price is paid at once, components come from the tech center's network",
-    "cancelResearchTip": "Drop the research: its price is refunded in full"
+    "cancelResearchTip": "Drop the research: its price is refunded in full",
+    "warhead": "Warhead",
+    "warheadAbout": "A nuclear warhead to launch. The silo holds one",
+    "warheadTip": "Assembly takes {time} at full power. The price is paid at once, rods and parts come from the silo's network",
+    "warheadBusy": "The silo already has a warhead — ready or being assembled",
+    "warheadNoMaterials": "The silo's network lacks rods or parts",
+    "cancelWarheadTip": "Drop the assembly: its price is refunded in full",
+    "launch": "Launch",
+    "launchAbout": "Aim the warhead at a point on the map and launch the missile",
+    "launchTip": "Click the map where the strike should land. The missile lifts off {seconds} s later, and everyone is told in chat",
+    "launchRetarget": "Launch under way: click the map to retarget the missile",
+    "launchNoWarhead": "Assemble a warhead first",
+    "abortLaunch": "Abort launch",
+    "abortLaunchTip": "The missile does not lift off, the warhead stays in the silo"
   },
   "hud": {
     "players": "Players",
@@ -473,7 +488,9 @@
       "spotted": "Enemy spotted",
       "baseAttacked": "Base under attack",
       "unitsAttacked": "Our units are under attack",
-      "oreFound": "Deposit found"
+      "oreFound": "Deposit found",
+      "nukeLaunched": "Nuclear launch",
+      "nukeIncoming": "Nuclear strike incoming"
     },
     "nothingSelected": "Nothing selected. Left button — select, drag a box — several units, right button — order. Ctrl+digit — remember a group, digit — select it",
     "buildingsCount": "Buildings: {count}",
@@ -545,6 +562,11 @@
     "waitsToUpgrade": "The upgrade awaits a builder: select one and right-click the building",
     "researching": "{name} — {percent} researched",
     "researchIdle": "Pick a research topic: what is unlocked stays forever",
+    "warheadAssembling": "Warhead — {percent} assembled",
+    "warheadReady": "Warhead ready: Launch to aim it",
+    "warheadEmpty": "No warhead: assemble one to launch a missile",
+    "launching": "Launch: lift-off in {seconds} s",
+    "launchAim": "Click — strike point; right button or Esc — cancel",
     "building": "Under construction — {percent}",
     "blocked": "The site is blocked by units",
     "waitsBuilder": "Waiting for a builder",
@@ -569,7 +591,8 @@
     "siege": "Siegecraft",
     "bombing": "Bombing",
     "beams": "Beam defense",
-    "atom": "Atom"
+    "atom": "Atom",
+    "warheads": "Warheads"
   },
   "researchInfo": {
     "levels2": "Unlocks building level two: mines, refineries, stores, the spaceport and power plants",
@@ -578,7 +601,8 @@
     "siege": "Unlocks artillery and the carrier at the factory",
     "bombing": "Unlocks the bomber at the airfield",
     "beams": "Unlocks the laser and arc turrets",
-    "atom": "Unlocks the reactor. It needs fuel rods made from uranium"
+    "atom": "Unlocks the reactor. It needs fuel rods made from uranium",
+    "warheads": "Unlocks the missile silo: a nuclear strike at any point on the map"
   },
   "levelGains": {
     "extract": "output",
@@ -630,6 +654,7 @@
     "joins": "joined the game",
     "leaves": "left the game",
     "defeated": "has been defeated",
+    "nukeLaunch": "is preparing a nuclear launch",
     "restarts": "starts over",
     "kicked": "was kicked by an administrator",
     "help": "{command} — {help}",

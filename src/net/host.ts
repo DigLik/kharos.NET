@@ -2,7 +2,7 @@ import { applyEdit, type EditOp } from '../sim/editOps'
 import type { Entity } from '../ecs'
 import { Terrain, terrainAt, tileBytes } from '../map/terrain'
 import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownBy, sightingOf, allied, alliesOf, breakAlliance, exitAlliance, offerAlliance, giftable, spawnStartingUnits, wipePlayer, type Command, type Sim, type Sighting, type SimSave } from '../sim'
-import { Armed, Attached, Blast, Building, Health, Owner, Path, Player, Position, Shot, Transfer, Unit } from '../sim/components'
+import { Armed, Attached, Blast, Building, Health, Owner, Path, Player, Position, Shot, Silo, Transfer, Unit } from '../sim/components'
 import { pathOf, seenBy, sharedWireOf, type Wired } from './wire'
 import { LAND, POSITION, encodeDelta, type Motion, type ShotRecord } from './codec'
 import { deflate } from '../save/file'
@@ -329,6 +329,8 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
   const hidden = new Set<number>()
   /** Кто под защитой новичка, каким это знают клиенты: поменялось — список игроков рассылается заново. */
   let sheltered = protectedPlayers(sim)
+  /** Пуски, о которых уже сказали в чате: шахта и тик приказа, см. Silo.start. */
+  let launches = new Set<string>()
   /** Кто играет — глазами viewer: скрытых он не видит, кроме самого себя. */
   const roster = (viewer?: number) => {
     const online = new Set(peers.values())
@@ -1395,6 +1397,15 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
           sheltered = safe
           announce()
         }
+        // Ядерный пуск — сообщение всем, раз на пуск: кто готовит, без места и цели (§9 п. 4 design.md).
+        const launching = new Set<string>()
+        for (const [entity, silo, owner] of sim.world.query(Silo, Owner)) {
+          if (silo.start < 0) continue
+          const key = `${entity}:${silo.start}`
+          launching.add(key)
+          if (!launches.has(key) && !hidden.has(owner.player)) notice(owner.player, hostText('nukeLaunch'))
+        }
+        launches = launching
         // Поражение — сообщение всем, один раз. Локальной игре не нужно: там игрок один.
         if (editing.size) sendViews()
         if (sweep && player === undefined) {

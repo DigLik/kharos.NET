@@ -2,7 +2,7 @@ import { setBlend } from '../gl'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites, createWhiteTexture } from '../render/sprites'
 import type { Entity } from '../ecs'
-import { BUILDINGS, Building, CONTROL_RADIUS, Hauler, Position, Tactics, allZones, wellPartners, type BuildingType } from '../sim'
+import { BUILDINGS, Building, CONTROL_RADIUS, Silo, Hauler, Position, Tactics, allZones, wellPartners, type BuildingType } from '../sim'
 import { paveStrokeOf, placementOf } from './placing'
 import type { Scene } from './scene'
 
@@ -160,7 +160,9 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
       const placement = scene.camera.pointerTile ? placementOf(scene) : null
       const stroke = scene.camera.pointerTile ? paveStrokeOf(scene) : null
       const routes = routesOf(scene)
-      if (!placement && !stroke && !routes.length) return
+      // Наводка ядерного удара: под указателем — круг взрыва и его ядра. Наводить можно только готовую боеголовку.
+      const aim = scene.aiming !== null && scene.sim.world.get(scene.aiming, Silo)?.ready ? scene.camera.pointerTile : null
+      if (!placement && !stroke && !routes.length && !aim) return
 
       /** Прямоугольник в тайлах от камеры. */
       const rect = (x: number, y: number, width: number, height: number, [r, g, b]: Color, alpha: number) =>
@@ -269,6 +271,21 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
             area(stroke.tiles[i], stroke.tiles[i + 1], 1, 1, stroke.allowed[tile] ? good : stroke.short[tile] ? SHORT : FORBIDDEN)
           }
         }
+      }
+
+      if (aim) {
+        const size = ROUTE_DOT / camera.zoom
+        const cx = Math.floor(aim.x) + 0.5
+        const cy = Math.floor(aim.y) + 0.5
+        const { radius, core } = BUILDINGS.silo.warhead.blast
+        for (const r of [radius, core]) {
+          const dots = Math.ceil((Math.PI * 2 * r) / ROUTE_STEP)
+          for (let i = 0; i < dots; i++) {
+            const a = (i / dots) * Math.PI * 2
+            rect(cx + Math.cos(a) * r - camera.x - size / 2, cy + Math.sin(a) * r - camera.y - size / 2, size, size, FORBIDDEN, BORDER_ALPHA)
+          }
+        }
+        area(cx - 0.5, cy - 0.5, 1, 1, FORBIDDEN)
       }
 
       setBlend(gl, 'alpha')

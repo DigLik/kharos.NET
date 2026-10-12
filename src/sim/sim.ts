@@ -23,6 +23,7 @@ import { haul } from './hauling'
 import { pipeFlow } from './pipes'
 import { earn, storeEnergy } from './income'
 import { burnFuel } from './reactors'
+import { launchMissiles } from './silos'
 import { ferry } from './ferry'
 import { trade } from './trade'
 import { moveUnits, planPaths } from './movement'
@@ -251,6 +252,8 @@ export function createSim(source: SimOptions | SimSave): Sim {
       () => trade(sim),
       // Тут же: корабли с подарками союзникам летят по тем же правилам, что рейсы космопорта.
       () => ferry(sim),
+      // До боя: взрыв долетевшей ракеты бьёт в этот же бой.
+      () => launchMissiles(sim),
       // После движения и работ: стреляющий юнит поворачивается к цели, и погибшие в этот тик уже ничего не делают.
       () => fight(sim),
       // После боя: вставшие без цели продолжают патруль или возвращаются на место.
