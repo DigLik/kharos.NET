@@ -17,10 +17,10 @@ import type { Sim } from './sim'
  */
 
 /**
- * Что открывает тему-открытие: игрок видит месторождение (любое — deposit, или своего вида), в его хранилище или
+ * Что открывает тему-открытие: у игрока достроена лаборатория (lab), он видит месторождение (любое — deposit, или своего вида), в его хранилище или
  * переработке появился готовый ресурс (refined), в его сети не хватило энергии (brownout).
  */
-export type Trigger = 'deposit' | 'kharite' | 'lithium' | 'uranium' | 'refined' | 'brownout'
+export type Trigger = 'lab' | 'deposit' | 'kharite' | 'lithium' | 'uranium' | 'refined' | 'brownout'
 export interface TopicSpec {
   /** Темы, без которых эту не начать. Строки, а не Topic: темы ссылаются друг на друга; имена сверяет тест. */
   after?: readonly string[]
@@ -31,8 +31,10 @@ export interface TopicSpec {
 }
 
 export const RESEARCH = {
-  // Открытия: шахта — когда найдено месторождение, редкие руды — когда найдено их месторождение, космопорт — когда
+  // Открытия: научный метод — когда достроена лаборатория, шахта — когда найдено месторождение, редкие руды — когда найдено их месторождение, космопорт — когда
   // есть что продать, накопитель — когда энергии впервые не хватило.
+  // Научный метод — когда достроена первая лаборатория: без него не начать ни одну тему.
+  science: { trigger: 'lab' },
   prospecting: { trigger: 'deposit' },
   khariteFound: { trigger: 'kharite' },
   lithiumFound: { trigger: 'lithium' },
@@ -41,15 +43,15 @@ export const RESEARCH = {
   accumulators: { trigger: 'brownout' },
   // Ярус 1: трубы, стены, радар и дороги — за одни кредиты: с них начинается база. Трубы нужны раньше всего:
   // без сети лаборатория не получит руду из шахты.
-  pipes: {},
-  walls: {},
-  radar: {},
-  roads: {},
+  pipes: { after: ['science'] },
+  walls: { after: ['science'] },
+  radar: { after: ['science'] },
+  roads: { after: ['science'] },
   // Ярус 1: переработка трёх обычных руд и казармы. Каждая переработка — исследование своей руды из шахты.
-  metalOre: { after: ['prospecting'], uses: { metalOre: 10 } },
-  siliconOre: { after: ['prospecting'], uses: { siliconOre: 10 } },
-  fuelOre: { after: ['prospecting'], uses: { fuelOre: 10 } },
-  infantry: {},
+  metalOre: { after: ['science', 'prospecting'], uses: { metalOre: 10 } },
+  siliconOre: { after: ['science', 'prospecting'], uses: { siliconOre: 10 } },
+  fuelOre: { after: ['science', 'prospecting'], uses: { fuelOre: 10 } },
+  infantry: { after: ['science'] },
   // Ярус 2: редкие руды, первые цеха и пехота с ракетами и огнём.
   khariteOre: { after: ['siliconOre', 'khariteFound'], uses: { khariteOre: 6 } },
   lithiumOre: { after: ['metalOre', 'lithiumFound'], uses: { lithiumOre: 6 } },

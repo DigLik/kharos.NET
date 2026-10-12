@@ -588,6 +588,7 @@
     "labSpeed": "Velocidad de los laboratorios seleccionados: ×{speed}"
   },
   "research": {
+    "science": "Método científico",
     "prospecting": "Prospección",
     "khariteFound": "Kharita hallada",
     "lithiumFound": "Litio hallado",
@@ -631,6 +632,7 @@
     "foundation": "Cimientos"
   },
   "researchInfo": {
+    "science": "El primer laboratorio: con él empieza toda la investigación",
     "prospecting": "Mina: extrae mineral de un yacimiento hallado",
     "khariteFound": "Se halló un yacimiento de kharita: ya se puede investigar su enriquecimiento",
     "lithiumFound": "Se halló un yacimiento de litio: ya se puede investigar su evaporación",
@@ -702,6 +704,7 @@
       "locked": "Todavía no: lo que necesita no está investigado ni en la cola"
     },
     "triggers": {
+      "lab": "Construir un laboratorio",
       "deposit": "Hallar cualquier yacimiento",
       "kharite": "Hallar un yacimiento de kharita",
       "lithium": "Hallar un yacimiento de litio",

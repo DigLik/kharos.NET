@@ -588,6 +588,7 @@
     "labSpeed": "Velocidade dos laboratórios selecionados: ×{speed}"
   },
   "research": {
+    "science": "Método científico",
     "prospecting": "Prospecção",
     "khariteFound": "Kharita encontrada",
     "lithiumFound": "Lítio encontrado",
@@ -631,6 +632,7 @@
     "foundation": "Fundação"
   },
   "researchInfo": {
+    "science": "O primeiro laboratório: com ele começa toda a pesquisa",
     "prospecting": "Mina: extrai minério de uma jazida encontrada",
     "khariteFound": "Uma jazida de kharita foi encontrada: seu enriquecimento pode ser pesquisado",
     "lithiumFound": "Uma jazida de lítio foi encontrada: sua evaporação pode ser pesquisada",
@@ -702,6 +704,7 @@
       "locked": "Ainda não: o que precisa não foi pesquisado nem está na fila"
     },
     "triggers": {
+      "lab": "Construir um laboratório",
       "deposit": "Encontrar qualquer jazida",
       "kharite": "Encontrar uma jazida de kharita",
       "lithium": "Encontrar uma jazida de lítio",

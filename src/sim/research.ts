@@ -120,6 +120,12 @@ function depositsSeen(sim: Sim, player: number) {
   return kinds
 }
 
+/** Есть ли у игрока достроенная лаборатория. */
+function hasLab(sim: Sim, player: number) {
+  for (const [entity] of sim.world.query(Building)) if (isLab(sim, player, entity)) return true
+  return false
+}
+
 /** Есть ли у игрока готовый ресурс в хранилище или переработке: первая переработанная руда. */
 function hasRefined(sim: Sim, player: number) {
   for (const [entity, building, inventory] of sim.world.query(Building, Inventory)) {
@@ -131,8 +137,8 @@ function hasRefined(sim: Sim, player: number) {
 }
 
 /**
- * Раз в секунду: темы-открытия, у которых случилось условие, открываются сами — игрок нашёл месторождение, впервые
- * переработал руду, остался без энергии. Проверяются только у тех, у кого они ещё не открыты.
+ * Раз в секунду: темы-открытия, у которых случилось условие, открываются сами — игрок достроил лабораторию, нашёл
+ * месторождение, впервые переработал руду, остался без энергии. Проверяются только у тех, у кого они ещё не открыты.
  */
 export function triggers(sim: Sim, time: Time) {
   if (time.tick % Math.max(1, Math.round(1 / time.step))) return
@@ -144,7 +150,8 @@ export function triggers(sim: Sim, time: Time) {
     for (const topic of open) {
       const trigger = topicSpec(topic).trigger!
       const happened =
-        trigger === 'refined' ? hasRefined(sim, player.id)
+        trigger === 'lab' ? hasLab(sim, player.id)
+        : trigger === 'refined' ? hasRefined(sim, player.id)
         : trigger === 'brownout' ? zoneEconomies(sim, player.id).some((economy) => economy.demand > economy.produced + 1e-9)
         : (seen ??= depositsSeen(sim, player.id)).size > 0 && (trigger === 'deposit' || seen.has(trigger))
       if (happened) learn(sim, entity, topic)

@@ -588,6 +588,7 @@
     "labSpeed": "Vitesse des laboratoires sélectionnés : ×{speed}"
   },
   "research": {
+    "science": "Méthode scientifique",
     "prospecting": "Prospection",
     "khariteFound": "Kharite trouvée",
     "lithiumFound": "Lithium trouvé",
@@ -631,6 +632,7 @@
     "foundation": "Fondations"
   },
   "researchInfo": {
+    "science": "Le premier laboratoire : toute recherche commence par lui",
     "prospecting": "Mine : extrait le minerai d’un gisement trouvé",
     "khariteFound": "Un gisement de kharite est trouvé : son enrichissement peut être étudié",
     "lithiumFound": "Un gisement de lithium est trouvé : son évaporation peut être étudiée",
@@ -702,6 +704,7 @@
       "locked": "Pas encore : ce qu’il faut n’est ni recherché ni dans la file"
     },
     "triggers": {
+      "lab": "Construire un laboratoire",
       "deposit": "Trouver un gisement",
       "kharite": "Trouver un gisement de kharite",
       "lithium": "Trouver un gisement de lithium",

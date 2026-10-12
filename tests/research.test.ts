@@ -124,11 +124,12 @@ test('плавильню открывает исследование руды м
   expect(isUnlocked(sim, 1, 'smelter')).toBe(false)
   expect(isUnlocked(sim, 1, 'lab')).toBe(true)
 
-  // Плавку не поставить в план, пока не открыта разведка: её не исследуют, она открывается сама, когда игрок
-  // увидит месторождение, — здесь его видит шахта, и проверка раз в секунду.
+  // Плавку не поставить в план, пока не случились открытия: научный метод — достроенная лаборатория, разведка —
+  // месторождение в обзоре (здесь его видит шахта). Их не исследуют, они открываются сами, проверка раз в секунду.
   plan(sim, 'metalOre')
   expect(planOf(sim, 1)).toEqual([])
   seconds(sim, 1)
+  expect(hasResearch(sim, 1, 'science')).toBe(true)
   expect(hasResearch(sim, 1, 'prospecting')).toBe(true)
   plan(sim, 'metalOre')
   expect(planOf(sim, 1)).toEqual(['metalOre'])
@@ -172,7 +173,7 @@ test('руду в лабораторию без труб до шахты вез�
   const { mine, lab, x, y } = found
   addCredits(sim, 1, 1000)
   spawnUnit(sim, 'truck', 1, x, y)
-  grantResearch(sim, 1, ['prospecting'])
+  grantResearch(sim, 1, ['science', 'prospecting'])
   plan(sim, 'metalOre')
   // Лаборатория заказала руду из шахты: грузовик её везёт.
   sim.advance(TICK)
@@ -248,7 +249,7 @@ test('несколько лабораторий складывают скоро�
 test('очередь ведёт тему вместе с предшественниками; брошенная тема помнит прогресс; без энергии лаборатория стоит', () => {
   const { sim, plants, buildings: [lab], stash } = base(['lab'])
   stash({ metal: 200, silicon: 200 })
-  learn(sim, 'prospecting')
+  learn(sim, 'science', 'prospecting')
   plan(sim, 'vehicles')
   expect(planOf(sim, 1)).toEqual(['metalOre', 'siliconOre', 'blocks', 'vehicles'])
   // Руды в сети нет: лаборатория ждёт её на первой теме.

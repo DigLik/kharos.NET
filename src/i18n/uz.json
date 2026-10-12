@@ -588,6 +588,7 @@
     "labSpeed": "Tanlangan laboratoriyalar tezligi: ×{speed}"
   },
   "research": {
+    "science": "Ilmiy usul",
     "prospecting": "Yer osti razvedkasi",
     "khariteFound": "Xarit topildi",
     "lithiumFound": "Litiy topildi",
@@ -631,6 +632,7 @@
     "foundation": "Poydevor"
   },
   "researchInfo": {
+    "science": "Birinchi laboratoriya: barcha tadqiqotlar undan boshlanadi",
     "prospecting": "Shaxta: topilgan konidan ruda qazib oladi",
     "khariteFound": "Xarit koni topildi: uni boyitishni o‘rganish mumkin",
     "lithiumFound": "Litiy koni topildi: uni bug‘latishni o‘rganish mumkin",
@@ -702,6 +704,7 @@
       "locked": "Hozircha yo‘q: keraklisi na o‘rganilgan, na navbatda"
     },
     "triggers": {
+      "lab": "Laboratoriya qurish",
       "deposit": "Istalgan konni topish",
       "kharite": "Xarit konini topish",
       "lithium": "Litiy konini topish",

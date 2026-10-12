@@ -588,6 +588,7 @@
     "labSpeed": "Tempo der ausgewählten Labore: ×{speed}"
   },
   "research": {
+    "science": "Wissenschaftliche Methode",
     "prospecting": "Prospektion",
     "khariteFound": "Kharit gefunden",
     "lithiumFound": "Lithium gefunden",
@@ -631,6 +632,7 @@
     "foundation": "Fundament"
   },
   "researchInfo": {
+    "science": "Das erste Labor: mit ihm beginnt alle Forschung",
     "prospecting": "Mine: fördert Erz aus einem gefundenen Vorkommen",
     "khariteFound": "Ein Kharit-Vorkommen ist gefunden: seine Anreicherung kann erforscht werden",
     "lithiumFound": "Ein Lithium-Vorkommen ist gefunden: seine Verdampfung kann erforscht werden",
@@ -702,6 +704,7 @@
       "locked": "Noch nicht: das Nötige ist weder erforscht noch eingereiht"
     },
     "triggers": {
+      "lab": "Ein Labor bauen",
       "deposit": "Ein Vorkommen finden",
       "kharite": "Ein Kharit-Vorkommen finden",
       "lithium": "Ein Lithium-Vorkommen finden",

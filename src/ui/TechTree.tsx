@@ -22,10 +22,11 @@ const STATUS_ORDER: Record<TopicView['status'], number> = { available: 0, soon: 
 /** Руда, которую находит открытие месторождения: её значок и рисуется на теме. */
 const FOUND = { kharite: 'khariteOre', lithium: 'lithiumOre', uranium: 'uraniumOre' } as const
 
-/** Значок темы: модернизация — здание со стрелками уровня, находка — руда, остальное — первое, что тема открывает. */
+/** Значок темы: модернизация — здание со стрелками уровня, находка — руда, научный метод — лаборатория, остальное — первое, что тема открывает. */
 function iconOf(view: TopicView, size: number) {
   if (view.topic === 'levels2' || view.topic === 'levels3') return levelPortrait(view.topic === 'levels2' ? 2 : 3, size)
   if (view.trigger && view.trigger in FOUND) return goodIcon(FOUND[view.trigger as keyof typeof FOUND])
+  if (view.trigger === 'lab') return buildingPortrait('lab', size)
   if (view.paves.length) return pavePortrait(view.paves[0], size)
   if (view.buildings.length) return buildingPortrait(view.buildings[0], size)
   if (view.units.length) return unitPortrait(view.units[0], size)
