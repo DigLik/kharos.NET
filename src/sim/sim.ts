@@ -124,7 +124,7 @@ export const DEFAULT_RULES: Rules = {
   researchSlow: 1,
   upgradeScale: 1,
   depositRenewal: 15,
-  armyLimit: 200,
+  armyLimit: 600,
 }
 
 export interface SimOptions {
