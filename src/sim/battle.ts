@@ -5,7 +5,7 @@ import { setStance } from './tactics'
 import { turretsOf } from './turrets'
 import type { Sim } from './sim'
 import { UNITS, UNIT_TYPES, canStand, flies, spawnUnit, isFighter, type UnitType } from './units'
-import { WEAPONS } from './weapons'
+import { WEAPONS, type WeaponSpec } from './weapons'
 
 /** Сколько кредитов стоит армия одной стороны показательного боя. */
 const ARMY_BUDGET = 3500
@@ -85,14 +85,17 @@ export function spawnBattle(sim: Sim, player: number, x: number, y: number, own 
 
 /**
  * Ведёт показательный бой: каждому вооружённому юниту без цели указывает ближайшего врага, которого тот может достать.
- * Возвращает false, когда бой кончился: хотя бы у одной из сторон не осталось юнитов.
+ * Возвращает false, когда бой кончился: хотя бы у одной из сторон не осталось юнитов или ни одна не может достать
+ * другую — например, бомбардировщики против бомбардировщиков: в воздух бьёт только оружие с air, и такой бой шёл бы вечно.
  */
 export function driveBattle(sim: Sim, player: number) {
   const { world } = sim
-  const units: { entity: Entity; player: number; x: number; y: number; air: boolean }[] = []
+  const units: { entity: Entity; player: number; x: number; y: number; air: boolean; hitsGround: boolean; hitsAir: boolean }[] = []
   const byEntity = new Map<Entity, (typeof units)[number]>()
   for (const [entity, unit, position, owner] of world.query(Unit, Position, Owner)) {
-    const item = { entity, player: owner.player, x: position.x, y: position.y, air: flies(unit.type) }
+    const weapons = [entity, ...turretsOf(sim, entity)].map((gunner) => weaponOf(sim, gunner)).filter((weapon) => weapon !== undefined)
+    const hitsAir = weapons.some((weapon) => WEAPONS[weapon].air)
+    const item = { entity, player: owner.player, x: position.x, y: position.y, air: flies(unit.type), hitsGround: weapons.some((weapon) => !(WEAPONS[weapon] as WeaponSpec).onlyAir), hitsAir }
     units.push(item)
     byEntity.set(entity, item)
   }
@@ -105,14 +108,11 @@ export function driveBattle(sim: Sim, player: number) {
   }
   for (const entity of idle) {
     const self = byEntity.get(entity)
-    const gunners = [entity, ...turretsOf(sim, entity)]
-    const weapons = gunners.map((gunner) => weaponOf(sim, gunner)).filter((weapon) => weapon !== undefined)
-    if (!self || !weapons.length) continue
-    const hitsAir = weapons.some((weapon) => WEAPONS[weapon].air)
+    if (!self || (!self.hitsGround && !self.hitsAir)) continue
     let nearest: Entity | null = null
     let best = Infinity
     for (const other of units) {
-      if (other.player === self.player || (other.air && !hitsAir)) continue
+      if (other.player === self.player || !(other.air ? self.hitsAir : self.hitsGround)) continue
       const distance = (other.x - self.x) ** 2 + (other.y - self.y) ** 2
       if (distance < best) {
         best = distance
@@ -121,5 +121,7 @@ export function driveBattle(sim: Sim, player: number) {
     }
     if (nearest !== null) orderAttack(sim, self.player, [entity], nearest)
   }
-  return units.some((unit) => unit.player === player) && units.some((unit) => unit.player !== player)
+  // Кто-то из одной стороны может достать кого-то из другой: наземного бьёт любое оружие, летающего — только air.
+  const reaches = (from: (typeof units)[number], to: (typeof units)[number]) => from.player !== to.player && (to.air ? from.hitsAir : from.hitsGround)
+  return units.some((unit) => unit.player === player) && units.some((unit) => unit.player !== player) && units.some((from) => units.some((to) => reaches(from, to)))
 }

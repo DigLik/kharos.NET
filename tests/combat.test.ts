@@ -381,6 +381,16 @@ test('показательный бой: армии сходятся сами, �
   expect(sides()).toBeLessThan(2)
 })
 
+test('показательный бой кончается, когда ни одна сторона не может достать другую: бомбардировщики против бомбардировщиков', () => {
+  const { sim, x, y } = field()
+  spawnUnit(sim, 'bomber', 1, x, y)
+  spawnUnit(sim, 'bomber', 2, x + 6, y)
+  expect(driveBattle(sim, 1)).toBe(false)
+  // Зенитка по земле не бьёт, но бомбардировщика достаёт: такой бой идёт.
+  spawnUnit(sim, 'flak', 2, x + 8, y + 2)
+  expect(driveBattle(sim, 1)).toBe(true)
+})
+
 test('показательный бой не перебивает приказ идти, ни стрелку, ни носителю турелей', () => {
   const { sim, x, y } = field()
   const units = (['infantry', 'lancer', 'buggy'] as const).map((type, i) => spawnUnit(sim, type, 1, x + 8, y - 2 + i * 2))
