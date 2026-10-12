@@ -6,14 +6,18 @@
  * добить турели. Винтокрылы летят через стену сразу к турелям — их ракетам она не помеха.
  *
  * Строки — отряды разной цены. Меряется: когда пробили стену, сколько своих потеряли в кредитах, сколько турелей
- * снесли и во сколько защитнику обошёлся ремонт. Вторая половина таблицы — тот же штурм, но у защитника внутри
- * узла стоит строитель, и он чинит.
+ * снесли и во сколько защитнику обошёлся ремонт. У каждого отряда три строки: узел как есть; у защитника внутри
+ * узла стоит строитель, и он чинит; узел под куполом щита (генератор щита и электростанция внутри кольца, щит
+ * заряжен).
+ *
+ * Узел снабжён: склады турелей пополняются боеприпасами до полного, как будто их подвозят по трубам. Без этого турели
+ * молчат — патроны у них свои (TURRET_STORE), и замер мерил бы штурм пустого кольца.
  *
  * Сцена ставится на скале: на песке оборона держит лишь 70% прочности, и мерить надо одно и то же.
  */
 import type { Entity } from '../../src/ecs'
 import {
-  Owner, UNITS, Unit, durabilityOf, flies, isWalkable, spawnBattle,
+  BUILDINGS, Inventory, Owner, Shield, UNITS, Unit, durabilityOf, flies, isWalkable, spawnBattle,
   type BuildingType, type Sim, type UnitType,
 } from '../../src/sim'
 import { placeBuilding } from '../../src/sim/buildings'
@@ -98,14 +102,23 @@ function ground(sim: Sim, width: number, height: number) {
   throw new Error(`Не нашлось скальной площадки ${width}×${height} под узел обороны`)
 }
 
-/** Узел обороны в симуляции: стены, турели и, если withRepair, строитель внутри. */
-function node(withRepair: boolean) {
+/** Чем защитник держит узел сверх стен и турелей. */
+type Guard = 'bare' | 'repair' | 'shield'
+
+/** Узел обороны в симуляции: стены, турели и строитель внутри (repair) или щит с электростанцией (shield). */
+function node(guard: Guard) {
   const sim = newSim()
   const at = ground(sim, 2 * RING + 3, 2 * RING + 3)
   const { walls, turrets } = layout(at.x + 1, at.y + 1)
   for (const spot of [...walls, ...turrets]) placeBuilding(sim.world, spot.type, spot.x, spot.y, DEFENDER)
   addCredits(sim, DEFENDER, REPAIR_CREDITS)
-  if (withRepair) {
+  if (guard === 'shield') {
+    // Над рядом турелей: электростанция в левом верхнем углу кольца, генератор щита — в правом.
+    placeBuilding(sim.world, 'generator', at.x + 2, at.y + 2, DEFENDER)
+    const shield = placeBuilding(sim.world, 'shieldGenerator', at.x + 2 * RING - 1, at.y + 2, DEFENDER)
+    sim.world.get(shield, Shield)!.charge = BUILDINGS.shieldGenerator.shield.capacity
+  }
+  if (guard === 'repair') {
     // Строитель встаёт на первый свободный тайл внутри кольца и сам берётся чинить повреждённое рядом.
     const inside: { x: number; y: number }[] = []
     for (let dy = 1; dy <= 2 * RING - 1; dy++) {
@@ -142,8 +155,8 @@ function countUnits(sim: Sim, player: number, type: UnitType) {
 }
 
 /** Один штурм: узел, отряд, приказы и замер. */
-function assault(squad: Squad, withRepair: boolean): Result {
-  const { sim, turrets, gate } = node(withRepair)
+function assault(squad: Squad, guard: Guard): Result {
+  const { sim, turrets, gate } = node(guard)
   spawnBattle(sim, 1, gate.x, gate.y, squad.units, [], GAP)
   const kind = squad.units[0]
   const air = flies(kind)
@@ -154,6 +167,11 @@ function assault(squad: Squad, withRepair: boolean): Result {
   for (let tick = 0; tick < Math.round(LIMIT / TICK); tick++) {
     if (tick % ORDERS_TICKS === 0) {
       if (countUnits(sim, 1, kind) === 0) break
+      for (const spot of turrets) {
+        const turret = entityAt(sim, spot)
+        const ammo = turret === undefined ? undefined : sim.world.get(turret, Inventory)
+        if (ammo) ammo.items.ammo = ammo.capacity
+      }
       // Приказ как у игрока: сперва стена, после пролома — ближайшая живая турель. Летящие идут к турели сразу.
       const wall = entityAt(sim, gate)
       const turret = turrets.map((spot) => entityAt(sim, spot)).find((entity) => entity !== undefined)
@@ -178,7 +196,7 @@ function assault(squad: Squad, withRepair: boolean): Result {
     lostUnits,
     lost: lostUnits * UNITS[kind].cost,
     killed,
-    spend: withRepair ? Math.round(spendBefore - creditsOf(sim, DEFENDER)) : 0,
+    spend: guard === 'repair' ? Math.round(spendBefore - creditsOf(sim, DEFENDER)) : 0,
   }
   sim.destroy()
   return result
@@ -190,21 +208,24 @@ interface Outcome {
   cost: number
   bare: Result
   repair: Result
+  shield: Result
 }
 
 function outcomes(): Outcome[] {
   return SQUADS.map((squad) => ({
     squad,
     cost: squad.units.reduce((sum, type) => sum + UNITS[type].cost, 0),
-    bare: assault(squad, false),
-    repair: assault(squad, true),
+    bare: assault(squad, 'bare'),
+    repair: assault(squad, 'repair'),
+    shield: assault(squad, 'shield'),
   }))
 }
 
 /** Строка таблицы по одному штурму. */
-function row(squad: Squad, cost: number, result: Result, withRepair: boolean): (string | number)[] {
+function row(squad: Squad, cost: number, result: Result, guard: Guard): (string | number)[] {
+  const withRepair = guard === 'repair'
   return [
-    withRepair ? `${squad.name} /ремонт` : squad.name,
+    guard === 'bare' ? squad.name : `${squad.name} /${withRepair ? 'ремонт' : 'щит'}`,
     cost,
     result.breach ? clock(result.breach) : '—',
     `${result.lostUnits}/${squad.units.length}`,
@@ -221,8 +242,9 @@ export function printSieges() {
   const all = outcomes()
   const rows: (string | number)[][] = []
   for (const item of all) {
-    rows.push(row(item.squad, item.cost, item.bare, false))
-    rows.push(row(item.squad, item.cost, item.repair, true))
+    rows.push(row(item.squad, item.cost, item.bare, 'bare'))
+    rows.push(row(item.squad, item.cost, item.repair, 'repair'))
+    rows.push(row(item.squad, item.cost, item.shield, 'shield'))
   }
   printTable(['отряд', 'цена', 'стена', 'потери', 'потери кр', 'ремонт', 'турелей'], rows, 20, 9)
   console.log('  стена — когда пробили кольцо; потери — юнитов и кредитов у атакующего;')

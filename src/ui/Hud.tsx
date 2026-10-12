@@ -524,6 +524,11 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
         {state.health !== null && (
           <div class="hud__hint">{t('hud.health', { percent: percent(state.health), repair: state.repair })}</div>
         )}
+        {state.shield && (
+          <div class="hud__hint">
+            {state.shield.down > 0 ? t('hud.shieldDown', { seconds: state.shield.down }) : t('hud.shield', { charge: state.shield.charge, capacity: state.shield.capacity })}
+          </div>
+        )}
         {state.army && state.army.health < 1 && <div class="hud__hint">{t('hud.armyHealth', { percent: percent(state.army.health) })}</div>}
         {state.army && state.army.armed > 0 && !construction && (
           <div class="hud__hint">{t('hud.armed')}</div>

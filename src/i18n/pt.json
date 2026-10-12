@@ -53,7 +53,8 @@
     "rocketTurret": "Torre de foguetes",
     "cannonTurret": "Torre de canhão",
     "laserTurret": "Torre laser",
-    "arcTurret": "Torre de arco"
+    "arcTurret": "Torre de arco",
+    "shieldGenerator": "Gerador de escudo"
   },
   "buildingInfo": {
     "command": "O coração da base: dá uma zona de construção e um pouco de renda, e produz construtores e caminhões. O laser no teto atinge inimigos em toda a zona. Os construtores não o erguem: é um MCV que se implanta",
@@ -90,7 +91,8 @@
     "rocketTurret": "Foguetes contra veículos e aviação. Usa munição do próprio estoque",
     "cannonTurret": "Canhão de área contra veículos terrestres; não atinge o ar. Usa munição do próprio estoque",
     "laserTurret": "Laser sem munição, com a energia da zona. Muito forte contra veículos pesados; atinge também o ar",
-    "arcTurret": "Arco sem munição, com a energia da zona. Alcança pouco, mas salta para os vizinhos: contra grupos de infantaria; quatro vezes mais fraco contra unidades aéreas"
+    "arcTurret": "Arco sem munição, com a energia da zona. Alcança pouco, mas salta para os vizinhos: contra grupos de infantaria; quatro vezes mais fraco contra unidades aéreas",
+    "shieldGenerator": "Uma cúpula de raio 7 absorve o dano a você e aos aliados sob ela vindo de fora e do ar; quem entra acerta sem passar pelo escudo. Apaga sem energia"
   },
   "rewards": {
     "deploy": "Centro de comando implantado",
@@ -462,6 +464,8 @@
     "unlinked": "Não está ligado à rede: estenda um cano; sem isso os recursos não chegam nem saem",
     "starved": "⚡ Falta energia: o edifício trabalha mais devagar ou está parado",
     "switchedOff": "Desligado: não consome energia nem trabalha; ligue na grade à direita",
+    "shield": "Escudo: {charge} de {capacity}",
+    "shieldDown": "Escudo rompido: volta em {seconds} s",
     "health": "Integridade: {percent}. O conserto custa {repair}: selecione construtores e clique no edifício com o botão direito",
     "armyHealth": "Integridade: {percent}. Construtores consertam os veículos; a infantaria se recupera sozinha",
     "armed": "Atiram sozinhas nos inimigos ao alcance. Clique direito em um inimigo — atacar",

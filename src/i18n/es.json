@@ -53,7 +53,8 @@
     "rocketTurret": "Torreta de cohetes",
     "cannonTurret": "Torreta de cañón",
     "laserTurret": "Torreta láser",
-    "arcTurret": "Torreta de arco"
+    "arcTurret": "Torreta de arco",
+    "shieldGenerator": "Generador de escudo"
   },
   "buildingInfo": {
     "command": "El corazón de la base: da una zona de construcción y algo de ingresos, y produce constructores y camiones. El láser del techo alcanza a los enemigos en toda la zona. Los constructores no lo levantan: se despliega desde un MCV",
@@ -90,7 +91,8 @@
     "rocketTurret": "Cohetes contra vehículos y aviación. Usa munición de su propio almacén",
     "cannonTurret": "Cañón de área contra vehículos terrestres; no dispara al aire. Usa munición de su propio almacén",
     "laserTurret": "Láser sin munición, con energía de la zona. Muy fuerte contra vehículos pesados; también dispara al aire",
-    "arcTurret": "Arco sin munición, con energía de la zona. Alcanza poco, pero salta a los vecinos: ideal contra grupos de infantería; cuatro veces más débil contra unidades aéreas"
+    "arcTurret": "Arco sin munición, con energía de la zona. Alcanza poco, pero salta a los vecinos: ideal contra grupos de infantería; cuatro veces más débil contra unidades aéreas",
+    "shieldGenerator": "Una cúpula de radio 7 absorbe el daño a ti y a tus aliados bajo ella desde fuera y desde el aire; quien entra golpea sin pasar por el escudo. Se apaga sin energía"
   },
   "rewards": {
     "deploy": "Centro de mando desplegado",
@@ -462,6 +464,8 @@
     "unlinked": "No está conectado a la red: tiende una tubería; sin ella los recursos ni llegan ni salen",
     "starved": "⚡ Falta energía: el edificio trabaja más despacio o está parado",
     "switchedOff": "Apagado: no consume energía ni trabaja; enciéndelo en la cuadrícula de la derecha",
+    "shield": "Escudo: {charge} de {capacity}",
+    "shieldDown": "Escudo roto: vuelve en {seconds} s",
     "health": "Integridad: {percent}. La reparación cuesta {repair}: selecciona constructores y haz clic derecho en el edificio",
     "armyHealth": "Integridad: {percent}. Los constructores reparan los vehículos; la infantería se recupera sola",
     "armed": "Disparan por su cuenta a los enemigos a tiro. Clic derecho sobre un enemigo — atacar",

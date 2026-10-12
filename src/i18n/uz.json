@@ -53,7 +53,8 @@
     "rocketTurret": "Raketa minorasi",
     "cannonTurret": "Zambarak minorasi",
     "laserTurret": "Lazer minorasi",
-    "arcTurret": "Razryad minorasi"
+    "arcTurret": "Razryad minorasi",
+    "shieldGenerator": "Qalqon generatori"
   },
   "buildingInfo": {
     "command": "Baza yuragi: qurilish zonasini beradi, ozroq daromad keltiradi hamda quruvchilar va yuk mashinalarini ishlab chiqaradi. Tomidagi lazer butun zona bo‘ylab dushmanlarga zarba beradi. Quruvchilar uni qura olmaydi — uni MCV ochib joylashtiradi",
@@ -90,7 +91,8 @@
     "rocketTurret": "Texnika va aviatsiyaga qarshi raketalar. O‘z omboridagi o‘q-dorilar bilan otadi",
     "cannonTurret": "Quruqlik texnikasiga qarshi zarbali zambarak, havoga otmaydi. O‘z omboridagi o‘q-dorilar bilan otadi",
     "laserTurret": "O‘q-dorisiz, zona energiyasi hisobiga ishlovchi lazer. Ayniqsa og‘ir texnikaga qarshi kuchli, havoga ham zarba beradi",
-    "arcTurret": "O‘q-dorisiz, zona energiyasi hisobiga ishlovchi razryad. Masofasi qisqa, lekin qo‘shnilarga sakraydi: piyodalar to‘dasi uchun; havodagi nishonlarga to‘rt baravar kuchsiz zarba beradi"
+    "arcTurret": "O‘q-dorisiz, zona energiyasi hisobiga ishlovchi razryad. Masofasi qisqa, lekin qo‘shnilarga sakraydi: piyodalar to‘dasi uchun; havodagi nishonlarga to‘rt baravar kuchsiz zarba beradi",
+    "shieldGenerator": "Radiusi 7 bo‘lgan gumbaz ostidagi o‘zingiz va ittifoqchilarga tashqaridan va havodan keladigan zararni yutadi; ichkariga kirgan qalqonni chetlab uradi. Energiyasiz o‘chadi"
   },
   "rewards": {
     "deploy": "Bosh bino joylashtirildi",
@@ -462,6 +464,8 @@
     "unlinked": "Tarmoqqa ulanmagan: quvur o‘tkazing — aks holda resurslar kelmaydi ham, ketmaydi ham",
     "starved": "⚡ Energiya yetarli emas: bino sekinroq ishlaydi yoki to‘xtaydi",
     "switchedOff": "O‘chirilgan: energiya sarflamaydi va ishlamaydi; o‘ngdagi to‘rda yoqing",
+    "shield": "Qalqon: {charge} / {capacity}",
+    "shieldDown": "Qalqon teshildi: {seconds} s dan keyin tiklanadi",
     "health": "Mustahkamlik: {percent}. Tuzatish qiymati {repair}: quruvchilarni tanlang va binoga o‘ng tugmani bosing",
     "armyHealth": "Mustahkamlik: {percent}. Texnikani quruvchilar tuzatadi, piyodalar o‘zlari tuzaladi",
     "armed": "O‘q yetadigan masofadagi dushmanlarga o‘zlari otadi. Hujum qilish uchun dushmanga o‘ng tugmani bosing",

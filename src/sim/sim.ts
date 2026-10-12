@@ -17,6 +17,7 @@ import { renewDeposits } from './renewal'
 import { unitSpec } from './units'
 import type { Entity } from '../ecs'
 import { REPAIR_COST, REPAIR_PAUSE, REPAIR_SPEED, construct } from './construction'
+import { chargeShields } from './shields'
 import { convert } from './conversion'
 import { haul } from './hauling'
 import { pipeFlow } from './pipes'
@@ -254,6 +255,7 @@ export function createSim(source: SimOptions | SimSave): Sim {
       // После работ и боя: кому не досталось ни того, ни другого, — те турели разворачиваются по корпусу.
       () => restTurrets(sim),
       () => recover(sim),
+      () => chargeShields(sim),
       () => earn(sim),
       () => sim.traces.update(),
       () => sim.vision.update(),

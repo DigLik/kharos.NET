@@ -9,6 +9,7 @@ import { Armed, Blast, Building, Converting, Doomed, Health, Inventory, Off, Own
 import { releaseHauler } from './hauling'
 import { powerSupply } from './income'
 import { repairStations } from './construction'
+import { absorb, domes } from './shields'
 import { amountOf, take } from './inventory'
 import { searchCut, searchedTiles, withSearchQuota } from './path'
 import { protectedPlayers, protectionLeft, unprotect } from './shelter'
@@ -466,12 +467,19 @@ export function fight(sim: Sim) {
     return supply.get(carrier) ?? 0
   }
 
-  /** Наносит урон. source — кто стрелял: уцелевший свободный юнит отвечает ему огнём. */
-  const hit = (mark: Mark, amount: number, weapon: WeaponSpec, source: Entity) => {
+  /** Купола щитов на этот тик; гасят урон, см. shields.ts. */
+  const shields = domes(sim)
+  /**
+   * Наносит урон. source — кто стрелял: уцелевший свободный юнит отвечает ему огнём; (fromX, fromY) — откуда:
+   * щит гасит только пришедшее из-за купола.
+   */
+  const hit = (mark: Mark, amount: number, weapon: WeaponSpec, source: Entity, fromX: number, fromY: number) => {
     if (dead.has(mark.entity)) return
     // Тик попадания помнит ремонт: под огнём не чинят, см. REPAIR_PAUSE.
     mark.health.hit = time.tick
-    mark.health.value -= (amount * (weapon.vs?.[mark.armor] ?? 1)) / mark.hp
+    let damage = amount * (weapon.vs?.[mark.armor] ?? 1)
+    if (shields.length) damage = absorb(sim, shields, mark.player, mark.x, mark.y, damage, fromX, fromY, !!marks.get(source)?.air)
+    mark.health.value -= damage / mark.hp
     if (mark.health.value <= 0) {
       dead.add(mark.entity)
       return
@@ -504,10 +512,10 @@ export function fight(sim: Sim) {
    * Попадание в точку: урон цели или всем врагам в радиусе взрыва. blocked — выстрел остановила стена:
    * тогда взрыв достаётся только стенам, а всё, что за ними, укрыто.
    */
-  const impact = (weapon: WeaponSpec, player: number, source: Entity, target: Entity, x: number, y: number, blocked = false) => {
+  const impact = (weapon: WeaponSpec, player: number, source: Entity, target: Entity, x: number, y: number, fromX: number, fromY: number, blocked = false) => {
     if (!weapon.splash) {
       const mark = marks.get(target)
-      if (mark && canHit(weapon, player, mark)) hit(mark, weapon.damage, weapon, source)
+      if (mark && canHit(weapon, player, mark)) hit(mark, weapon.damage, weapon, source, fromX, fromY)
       return
     }
     for (const mark of near(x, y, weapon.splash)) {
@@ -515,7 +523,7 @@ export function fight(sim: Sim) {
       if (!canHit(weapon, player, mark)) continue
       const distance = distanceTo(mark, x, y)
       if (distance > weapon.splash) continue
-      hit(mark, weapon.damage * (1 - (1 - SPLASH_EDGE) * (distance / weapon.splash)), weapon, source)
+      hit(mark, weapon.damage * (1 - (1 - SPLASH_EDGE) * (distance / weapon.splash)), weapon, source, fromX, fromY)
     }
   }
 
@@ -532,7 +540,7 @@ export function fight(sim: Sim) {
   for (const [entity, blast] of world.query(Blast)) if (++blast.age >= blast.life) gone.push(entity)
 
   // Снаряды летят. Попадания — после обхода.
-  const landed: { entity: Entity; weapon: WeaponSpec; player: number; source: Entity; target: Entity; x: number; y: number; blocked: boolean; air: boolean }[] = []
+  const landed: { entity: Entity; weapon: WeaponSpec; player: number; source: Entity; target: Entity; x: number; y: number; fromX: number; fromY: number; blocked: boolean; air: boolean }[] = []
   for (const [entity, shot, position] of world.query(Shot, Position)) {
     const weapon: WeaponSpec = WEAPONS[shot.weapon]
     shot.age++
@@ -560,15 +568,15 @@ export function fight(sim: Sim) {
         position.y = shot.toY
       }
       if (reached || weapon.splash) {
-        landed.push({ entity, weapon, player: shot.player, source: shot.source as Entity, target: shot.target as Entity, x: position.x, y: position.y, blocked: shot.blocked, air: shot.air })
+        landed.push({ entity, weapon, player: shot.player, source: shot.source as Entity, target: shot.target as Entity, x: position.x, y: position.y, fromX: shot.fromX, fromY: shot.fromY, blocked: shot.blocked, air: shot.air })
       } else gone.push(entity)
       continue
     }
     position.x += (dx / distance) * move
     position.y += (dy / distance) * move
   }
-  for (const { entity, weapon, player, source, target, x, y, blocked, air } of landed) {
-    impact(weapon, player, source, target, x, y, blocked)
+  for (const { entity, weapon, player, source, target, x, y, fromX, fromY, blocked, air } of landed) {
+    impact(weapon, player, source, target, x, y, fromX, fromY, blocked)
     // Попадание в летающего земли не касается, даже если его сбили, пока снаряд летел.
     blasts.push({ x, y, size: weapon.splash ?? 0.2, ground: !air })
     gone.push(entity)
@@ -795,7 +803,7 @@ export function fight(sim: Sim) {
       world.spawn(Position({ x: fromX, y: fromY }), Shot({ ...shot, target: wall.wall, toX: hitX, toY: hitY, life: BEAM_TICKS }))
       sim.traces.add({ kind: 'burn', x: hitX, y: hitY })
       const mark = marks.get(wall.wall)
-      if (mark) hit(mark, weapon.damage, weapon, carrier)
+      if (mark) hit(mark, weapon.damage, weapon, carrier, fromX, fromY)
       continue
     }
     // Лазер, разряд и огонь бьют сразу; разряд и огонь перескакивают дальше на ближайших врагов.
@@ -810,7 +818,8 @@ export function fight(sim: Sim) {
         Position({ x: from.x, y: from.y }),
         Shot({ ...shot, fromX: from.x, fromY: from.y, target: current.entity, toX: current.x, toY: current.y, life: BEAM_TICKS }),
       )
-      hit(current, damage, weapon, carrier)
+      // Разряд, перескочивший под куполом, всё равно пришёл снаружи: щит судит по стрелку.
+      hit(current, damage, weapon, carrier, fromX, fromY)
       // Луч прожигает землю там, куда попал.
       if (!current.air) sim.traces.add({ kind: 'burn', x: current.x, y: current.y })
       damage *= CHAIN_DECAY

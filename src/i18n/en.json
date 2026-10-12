@@ -53,7 +53,8 @@
     "rocketTurret": "Rocket Turret",
     "cannonTurret": "Cannon Turret",
     "laserTurret": "Laser Turret",
-    "arcTurret": "Arc Turret"
+    "arcTurret": "Arc Turret",
+    "shieldGenerator": "Shield Generator"
   },
   "buildingInfo": {
     "command": "The heart of the base: gives a build zone and a little income, and produces builders and trucks. The roof laser hits enemies anywhere in the zone. Builders cannot raise it — an MCV deploys into it",
@@ -90,7 +91,8 @@
     "rocketTurret": "Rockets against vehicles and aircraft. Fires ammo from its own store",
     "cannonTurret": "A splash cannon against ground vehicles; cannot hit aircraft. Fires ammo from its own store",
     "laserTurret": "A laser that needs no ammo and runs on zone power. Especially strong against heavy vehicles; hits aircraft too",
-    "arcTurret": "An arc that needs no ammo and runs on zone power. Short range, but it jumps to neighbours: made for infantry crowds; four times weaker against aircraft"
+    "arcTurret": "An arc that needs no ammo and runs on zone power. Short range, but it jumps to neighbours: made for infantry crowds; four times weaker against aircraft",
+    "shieldGenerator": "A dome of radius 7 absorbs damage to you and your allies beneath it from shooters outside and from the air; anyone who gets inside hits past the shield. Goes down without power"
   },
   "rewards": {
     "deploy": "Command Center deployed",
@@ -462,6 +464,8 @@
     "unlinked": "Not connected to the network: lay a pipe — otherwise resources neither arrive nor leave",
     "starved": "⚡ Not enough power: the building works slower or stops",
     "switchedOff": "Switched off: draws no power and does not work; switch it on in the grid on the right",
+    "shield": "Shield: {charge} of {capacity}",
+    "shieldDown": "Shield broken: back up in {seconds} s",
     "health": "Health: {percent}. Repair costs {repair}: select builders and right-click the building",
     "armyHealth": "Health: {percent}. Builders repair vehicles; infantry heals on its own",
     "armed": "They fire at enemies in range on their own. Right-click an enemy to attack",

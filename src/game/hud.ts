@@ -9,7 +9,7 @@ import {
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   RESEARCH, Research, TOPICS, isLab, levelTopic, missingResearch, topicLack, topicPrice, type Topic, type TopicPrice, type TopicLack,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
-  Off, Owner, Player, Position, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
+  Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
 import { paveStrokeOf } from './placing'
 import type { PaveTool, Scene } from './scene'
@@ -65,6 +65,11 @@ export interface HudState {
   /** Прочность выбранного здания от 0 до 1, если оно повреждено, и сколько кредитов стоит его дочинить. */
   health: number | null
   repair: number
+  /**
+   * Щит выбранного генератора: запас и ёмкость в единицах прочности; down — через сколько секунд поднимется
+   * пробитый купол, ноль — купол держится или растёт.
+   */
+  shield: { charge: number; capacity: number; down: number } | null
   /** Выбранному зданию не хватает энергии, и оно работает медленнее. */
   starved: boolean
   /** Выбранное здание со складом не подключено к сети труб, см. unlinked. */
@@ -329,6 +334,7 @@ export function readHud(scene: Scene): HudState {
   let trade: HudState['trade'] = null
   let power: HudState['power'] = null
   let health: number | null = null
+  let shield: HudState['shield'] = null
   let repair = 0
   let starved = false
   let idle = false
@@ -497,6 +503,11 @@ export function readHud(scene: Scene): HudState {
       health = round(left / max)
       repair = repairCostOf(BUILDINGS[built.type].cost, left, sim.rules.repairCost, max)
     }
+    const dome = built && world.get(entity, Shield)
+    const domeSpec = built && buildingSpec(built.type).shield
+    if (dome && domeSpec) {
+      shield = { charge: Math.floor(dome.charge), capacity: domeSpec.capacity, down: Math.max(0, Math.ceil((dome.down - sim.time.tick) * sim.time.step)) }
+    }
     if (built && powerStates(sim).get(entity) === 'starved') starved = true
     if (built && coreless(sim).has(entity)) idle = true
     if (unlinked(sim, player, entity)) loose = true
@@ -564,6 +575,7 @@ export function readHud(scene: Scene): HudState {
     income: round(economyOf(sim, player).income),
     power,
     health,
+    shield,
     repair,
     starved,
     coreless: idle,

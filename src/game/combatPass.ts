@@ -6,7 +6,7 @@ import { createLineProgram, createLines } from '../render/lines'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Beam, Blast, Building, Health, Position, Shot, UNITS, Unit, WEAPONS, activeRepairs, flies, type RepairLink, type WeaponSpec } from '../sim'
+import { BUILDINGS, Beam, Blast, Building, Ghost, Health, Position, Shield, Shot, UNITS, Unit, WEAPONS, activeRepairs, buildingSpec, flies, type RepairLink, type WeaponSpec } from '../sim'
 import { GOOD_COLORS } from './resourceColors'
 import type { Scene } from './scene'
 import type { TeamColors } from './units/unitArt'
@@ -110,6 +110,12 @@ const ROCKET: Color = [0.85, 0.87, 0.9]
 const FLAME: Color = [1, 0.6, 0.2]
 const SHELL: Color = [0.12, 0.12, 0.14]
 const LASER: Color = [1, 0.15, 0.3]
+/** Купол щита. */
+const DOME: Color = [0.35, 0.7, 1]
+/** Отрезков в окружности купола. */
+const DOME_SEGMENTS = 64
+/** Сколько секунд купол вспыхивает после погашенного попадания. */
+const DOME_FLASH = 0.6
 /** Языки огнемёта: сколько пятен вдоль струи и их второй цвет. */
 const FLAME_TONGUES = 6
 const EMBER: Color = [1, 0.35, 0.08]
@@ -716,6 +722,32 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene): { 
             const reach = WELD_SPREAD * (0.4 + 0.6 * noise(seed + i * 13, Math.floor(beat))) * phase
             // Искра падает: чем дальше улетела, тем ниже.
             dot(glow, toX + Math.cos(angle) * reach, toY + Math.sin(angle) * reach + reach * phase * 0.6, 2, i % 2 ? CORE : color, 1 - phase)
+          }
+        }
+
+        // Купола щитов: тусклые в покое, ярче с запасом, вспыхивают от погашенного попадания. Погашенный не рисуется;
+        // здание, которое игрок только помнит в тумане, — тоже: что с его щитом сейчас, не видно.
+        for (const [entity, shield, building, position] of world.query(Shield, Building, Position)) {
+          const spec = buildingSpec(building.type).shield
+          if (!spec || shield.charge <= 0 || world.has(entity, Ghost)) continue
+          const { width, height } = BUILDINGS[building.type]
+          const cx = position.x + width / 2
+          const cy = position.y + height / 2
+          const { radius } = spec
+          if (!visible(cx - radius, cy) && !visible(cx + radius, cy) && !visible(cx, cy - radius) && !visible(cx, cy + radius) && !visible(cx, cy)) continue
+          const since = shield.hit < 0 ? Infinity : (scene.sim.time.tick - shield.hit + alpha) * scene.sim.time.step
+          const flash = since < DOME_FLASH ? 1 - since / DOME_FLASH : 0
+          const level = 0.12 + 0.18 * (shield.charge / spec.capacity) + 0.6 * flash
+          // Кромка и два кольца ближе к макушке: сверху купол читается как полусфера.
+          for (const [share, lift, thickness, part] of [[1, 0, 3, 1], [0.75, 0.18, 2, 0.5], [0.42, 0.32, 2, 0.35]] as const) {
+            const r = radius * share
+            const top = cy - radius * lift
+            for (let i = 0; i < DOME_SEGMENTS; i++) {
+              const a = (i / DOME_SEGMENTS) * Math.PI * 2
+              const b = ((i + 1) / DOME_SEGMENTS) * Math.PI * 2
+              const shimmer = 0.8 + 0.2 * Math.sin(time * 2 + i * 0.7 + entity)
+              line(glow, cx + Math.cos(a) * r, top + Math.sin(a) * r, cx + Math.cos(b) * r, top + Math.sin(b) * r, thickness, DOME, level * part * shimmer)
+            }
           }
         }
 

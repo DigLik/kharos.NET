@@ -53,7 +53,8 @@
     "rocketTurret": "Tourelle lance-roquettes",
     "cannonTurret": "Tourelle à canon",
     "laserTurret": "Tourelle laser",
-    "arcTurret": "Tourelle à arc"
+    "arcTurret": "Tourelle à arc",
+    "shieldGenerator": "Générateur de bouclier"
   },
   "buildingInfo": {
     "command": "Le cœur de la base : il donne une zone de construction, un peu de revenus et produit constructeurs et camions. Le laser du toit frappe les ennemis dans toute la zone. Les constructeurs ne le bâtissent pas : c'est un MCV qui se déploie",
@@ -90,7 +91,8 @@
     "rocketTurret": "Roquettes contre les véhicules et l'aviation. Utilise les munitions de son propre stock",
     "cannonTurret": "Canon à effet de zone contre les véhicules terrestres ; ne tire pas en l'air. Utilise les munitions de son propre stock",
     "laserTurret": "Laser sans munitions, alimenté par l'énergie de la zone. Très efficace contre les véhicules lourds ; tire aussi sur les aéronefs",
-    "arcTurret": "Arc sans munitions, alimenté par l'énergie de la zone. Portée courte, mais il saute sur les voisins : idéal contre l'infanterie groupée ; quatre fois plus faible contre les unités volantes"
+    "arcTurret": "Arc sans munitions, alimenté par l'énergie de la zone. Portée courte, mais il saute sur les voisins : idéal contre l'infanterie groupée ; quatre fois plus faible contre les unités volantes",
+    "shieldGenerator": "Un dôme de rayon 7 absorbe les dégâts infligés à vous et à vos alliés dessous depuis l’extérieur et depuis les airs ; qui entre frappe sans passer par le bouclier. S’éteint sans énergie"
   },
   "rewards": {
     "deploy": "Centre de commandement déployé",
@@ -462,6 +464,8 @@
     "unlinked": "Non relié au réseau : posez un tuyau, sinon les ressources n'arrivent ni ne repartent",
     "starved": "⚡ Énergie insuffisante : le bâtiment travaille plus lentement ou est à l'arrêt",
     "switchedOff": "Éteint : ne consomme pas d'énergie et ne travaille pas ; allumez-le dans la grille à droite",
+    "shield": "Bouclier : {charge} sur {capacity}",
+    "shieldDown": "Bouclier percé : revient dans {seconds} s",
     "health": "Solidité : {percent}. La réparation coûte {repair} : sélectionnez des constructeurs et faites un clic droit sur le bâtiment",
     "armyHealth": "Solidité : {percent}. Les constructeurs réparent les véhicules, l'infanterie se rétablit seule",
     "armed": "Tirent d'eux-mêmes sur les ennemis à portée. Clic droit sur un ennemi — attaquer",

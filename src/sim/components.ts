@@ -273,6 +273,13 @@ export const Tactics = component('Tactics', () => ({ stance: 'defensive' as Stan
 export const Off = component('Off', {})
 
 /**
+ * Генератор щита: charge — запас в единицах прочности; hit — тик последнего погашенного попадания (до паузы
+ * запас не растёт); down — до какого тика купол погашен после пробоя. Ёмкость и радиус — BuildingSpec.shield.
+ * См. shields.ts.
+ */
+export const Shield = component('Shield', { charge: 0, hit: -1, down: 0 })
+
+/**
  * Очередь приказов юнита, отданных с Shift: следующий он берёт, когда закончит нынешнее дело. group — общий номер
  * приказа, отданного нескольким юнитам сразу: такой приказ они берут вместе, чтобы встать строем. См. orders.ts.
  */
@@ -319,4 +326,4 @@ export const Scan = component('Scan', { x: 0, y: 0, tick: -1, wait: 0 })
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate, Shield]

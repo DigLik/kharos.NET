@@ -1,7 +1,7 @@
 import type { Entity, World } from '../ecs'
 import { Terrain, isBuildable, isCliffFoot, terrainAt, tileKey } from '../map/terrain'
 import { isOwn } from './common'
-import { Assembly, Building, Gate, Health, Inventory, Repair, Owner, Position, Producer, Site } from './components'
+import { Assembly, Building, Gate, Health, Inventory, Repair, Owner, Position, Producer, Shield, Site } from './components'
 import { equipStorage, type BeamSpec } from './inventory'
 import { ORE_SPECS, PRODUCT_SPECS, WARES, stockedFor, type Amounts, type Good, type Ore, type Product } from './resources'
 import type { Sim } from './sim'
@@ -95,6 +95,8 @@ export interface BuildingSpec {
   isolated?: boolean
   /** Здание ведёт исследования, см. research.ts. */
   researches?: boolean
+  /** Генератор щита: радиус купола от центра, ёмкость в единицах прочности и рост в секунду при полной энергии (shields.ts). */
+  shield?: { radius: number; capacity: number; regen: number }
 }
 
 /** На сколько тайлов от своего центра расширяет зону готовая труба или колодец. */
@@ -228,6 +230,9 @@ export const BUILDINGS = {
   // Разрядная турель — против толпы: разряд бьёт цель и перескакивает на соседей, достаёт и до летающих, но недалеко.
   // Как и лазерная, патронов не просит и стреляет энергией зоны, только берёт её больше.
   arcTurret: { width: 1, height: 1, cost: 500, hp: 450, defense: true, power: -3, mounts: [{ turret: 'arc', along: 0, across: 0 }] },
+  // Генератор щита гасит урон по своим под куполом от стрелков снаружи: против артиллерии и бомбардировщиков,
+  // а не против штурма вплотную. Энергию берёт всегда; строится из компонентов.
+  shieldGenerator: { width: 2, height: 2, cost: 1200, power: -6, materials: { parts: 5 }, shield: { radius: 7, capacity: 4000, regen: 100 } },
   cannonTurret: { width: 1, height: 1, cost: 450, hp: 500, defense: true, ...TURRET_STORE, mounts: [{ turret: 'cannon', along: 0, across: 0 }] },
 } satisfies Record<string, BuildingSpec>
 
@@ -241,7 +246,7 @@ export const BUILDING_TYPES = Object.keys(BUILDINGS) as BuildingType[]
 export const BUILDABLE: BuildingType[] = [
   'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'blockPlant', 'ammoPlant', 'partsPlant',
   'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker', 'spaceport', 'barracks', 'factory', 'airfield', 'techCenter',
-  'repairStation', 'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret',
+  'repairStation', 'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator',
 ]
 
 /** Выше этого уровня здания не улучшают. */
@@ -348,6 +353,7 @@ export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = 
   repairStation: ['factory'],
   laserTurret: ['techCenter'],
   arcTurret: ['techCenter'],
+  shieldGenerator: ['techCenter'],
 }
 
 /** Какое исследование открывает здание вдобавок к REQUIRES: без него строители его не ставят. */
@@ -480,6 +486,7 @@ export const newBuilding = (world: World, type: BuildingType) => Building({ type
 export function equip(world: World, entity: Entity, type: BuildingType) {
   const spec = buildingSpec(type)
   if (spec.repair) world.add(entity, Repair({ radius: spec.repair }))
+  if (spec.shield) world.add(entity, Shield())
   if (spec.produces && !spec.inventory) {
     equipStorage(world, entity, { inventory: PRODUCER_HOLD })
   }

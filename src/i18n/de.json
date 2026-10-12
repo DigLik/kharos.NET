@@ -53,7 +53,8 @@
     "rocketTurret": "Raketenturm",
     "cannonTurret": "Kanonenturm",
     "laserTurret": "Laserturm",
-    "arcTurret": "Blitzturm"
+    "arcTurret": "Blitzturm",
+    "shieldGenerator": "Schildgenerator"
   },
   "buildingInfo": {
     "command": "Das Herz der Basis: gibt eine Bauzone und etwas Einkommen und produziert Baufahrzeuge und Lastwagen. Der Laser auf dem Dach trifft Feinde in der ganzen Zone. Baufahrzeuge errichten sie nicht — ein MCV fährt sich zu ihr aus",
@@ -90,7 +91,8 @@
     "rocketTurret": "Raketen gegen Fahrzeuge und Fluggeräte. Verschießt Munition aus dem eigenen Lager",
     "cannonTurret": "Eine Kanone mit Flächenwirkung gegen Bodenfahrzeuge; trifft keine Fluggeräte. Verschießt Munition aus dem eigenen Lager",
     "laserTurret": "Ein Laser ohne Munition, mit Energie der Zone. Besonders stark gegen schwere Fahrzeuge; trifft auch Fluggeräte",
-    "arcTurret": "Ein Blitz ohne Munition, mit Energie der Zone. Reicht nicht weit, springt aber auf Nachbarn über: gegen Infanteriegruppen; gegen Fluggeräte viermal schwächer"
+    "arcTurret": "Ein Blitz ohne Munition, mit Energie der Zone. Reicht nicht weit, springt aber auf Nachbarn über: gegen Infanteriegruppen; gegen Fluggeräte viermal schwächer",
+    "shieldGenerator": "Eine Kuppel mit Radius 7 fängt Schaden an eigenen und verbündeten Einheiten darunter ab, wenn er von außen oder aus der Luft kommt; wer hineinkommt, trifft am Schild vorbei. Erlischt ohne Energie"
   },
   "rewards": {
     "deploy": "Kommandozentrale ausgefahren",
@@ -462,6 +464,8 @@
     "unlinked": "Nicht ans Netz angeschlossen: Verlege ein Rohr — sonst kommen Rohstoffe weder an noch weg",
     "starved": "⚡ Zu wenig Energie: Das Gebäude arbeitet langsamer oder steht still",
     "switchedOff": "Ausgeschaltet: zieht keine Energie und arbeitet nicht; im Raster rechts einschalten",
+    "shield": "Schild: {charge} von {capacity}",
+    "shieldDown": "Schild durchbrochen: wieder aktiv in {seconds} s",
     "health": "Zustand: {percent}. Die Reparatur kostet {repair}: Baufahrzeuge auswählen und das Gebäude mit rechts anklicken",
     "armyHealth": "Zustand: {percent}. Fahrzeuge reparieren die Baufahrzeuge, Infanterie erholt sich von selbst",
     "armed": "Schießen von selbst auf Feinde in Reichweite. Rechtsklick auf einen Feind — angreifen",
