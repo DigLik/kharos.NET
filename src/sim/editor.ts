@@ -1,12 +1,12 @@
 import type { Entity } from '../ecs'
 import { Biome, CLIFF_BIT, biomeAt, DUNE_SHIFT, MAX_PEAK_RADIUS, Terrain, isBuildable, batchLand, isCliffFoot, peakOf, setPeakTile, setTile, terrainAt, tileBytes, tileKey, type Dunes } from '../map/terrain'
 import { BUILDINGS, canPlace, placeBuilding, type BuildingType } from './buildings'
-import { Attached, Builds, Building, Carrier, Ghost, Harvester, Turret, Health, Inventory, Owner, Path, Player, Position, Unit } from './components'
+import { Attached, Builds, Building, Carrier, Ghost, Turret, Health, Inventory, Owner, Path, Player, Position, Unit } from './components'
 import { DEPOSIT_CELL, DEPOSIT_SIZE, addDeposit, depositAt, depositsIn, depositNear, dropDeposit, prepareDeposits, reserveLeft, type DepositKind, type DepositSpot } from './deposits'
 import { creditsOf, addCredits } from './economy'
 import { releaseHauler } from './hauling'
 import { apply, type Command } from './commands'
-import { NONE, wrap } from './common'
+import { wrap } from './common'
 import { stopAttack } from './combat'
 import { clearOrders } from './orders'
 import { clearTactics } from './tactics'
@@ -446,8 +446,6 @@ export function clearTasks(sim: Sim, entity: Entity) {
   clearOrders(sim, [entity])
   world.remove(entity, Path)
   world.remove(entity, Builds)
-  const harvester = world.get(entity, Harvester)
-  if (harvester) Object.assign(harvester, { x: NONE, y: NONE, picked: false, ordered: false, parked: true, seek: '' })
   releaseHauler(sim, entity)
   stopAttack(sim, entity)
   clearTactics(sim, entity)

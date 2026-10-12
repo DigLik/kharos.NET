@@ -4,7 +4,6 @@ import { BUILDINGS, buildingSpec, canPlace, placeBuilding, type BuildingType } f
 import { Inventory } from './components'
 import { depositIn, type DepositSpot } from './deposits'
 import { addCredits } from './economy'
-import { orderSeek } from './harvesting'
 import { assignHaulers } from './hauling'
 import { connectAll } from './piping'
 import { networkOf } from './zones'
@@ -30,7 +29,7 @@ const SANDBOX_BUILDINGS: BuildingType[] = [
   'generator', 'generator', 'generator', 'generator', 'smelter', 'siliconWorks', 'blockPlant', 'ammoPlant', 'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker', 'spaceport', 'factory', 'barracks', 'matter', 'techCenter', 'radar',
 ]
 /** С какими юнитами игрок начинает на тестовой карте, кроме грузовиков. */
-const SANDBOX_UNITS: UnitType[] = ['harvester', 'builder', 'builder', 'infantry', 'infantry', 'rocketeer', 'buggy', 'tank', 'tesla', 'carrier']
+const SANDBOX_UNITS: UnitType[] = ['builder', 'builder', 'infantry', 'infantry', 'rocketeer', 'buggy', 'tank', 'tesla', 'carrier']
 /** Сколько грузовиков: первый привязан к шахте, остальные свободны и работают на заявки зон. */
 const SANDBOX_TRUCKS = 4
 
@@ -133,8 +132,6 @@ export function spawnSandbox(sim: Sim, player: number) {
     const type = i < SANDBOX_TRUCKS ? 'truck' : SANDBOX_UNITS[i - SANDBOX_TRUCKS]
     const unit = spawnUnit(sim, type, player, tiles[i * 2], tiles[i * 2 + 1])
     if (type === 'truck') trucks.push(unit)
-    // Харвестер сам не ищет: здесь ему сразу велено искать любое месторождение.
-    if (type === 'harvester') orderSeek(sim, player, [unit], 'any')
   }
   // Шахта в сети базы: руду на переработку несут трубы, привязывать грузовик к ней незачем.
   if (networkOf(sim, mine) !== networkOf(sim, core ?? mine)) assignHaulers(sim, player, mine, trucks.slice(0, 1))

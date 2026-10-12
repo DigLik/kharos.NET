@@ -1,5 +1,5 @@
 import type { Entity } from '../ecs'
-import { type BuildingType, Building, Site, Harvester, Producer, Hauler, type UnitType, Owner, Position, isOwn, UNITS, Unit, canFight, isStop, siteAt, BUILDINGS, BRIDGE_COST, FOUNDATION_COST, ROAD_COST, creditsOf } from '../sim'
+import { type BuildingType, Building, Site, Producer, Hauler, type UnitType, Owner, Position, isOwn, UNITS, Unit, canFight, isStop, siteAt, BUILDINGS, BRIDGE_COST, FOUNDATION_COST, ROAD_COST, creditsOf } from '../sim'
 import type { CameraMotion } from './cameraMotion'
 import { paveStrokeOf, placementOf } from './placing'
 import type { Scene } from './scene'
@@ -432,12 +432,12 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
     // Маршрут набирают грузовикам: без них набор отменяется.
     if (scene.routing) {
       let trucks = false
-      for (const entity of scene.selection) trucks ||= scene.sim.world.has(entity, Hauler) && !scene.sim.world.has(entity, Harvester)
+      for (const entity of scene.selection) trucks ||= scene.sim.world.has(entity, Hauler)
       if (!trucks) scene.routing = null
     }
     if (scene.serving) {
       let trucks = false
-      for (const entity of scene.selection) trucks ||= scene.sim.world.has(entity, Hauler) && !scene.sim.world.has(entity, Harvester)
+      for (const entity of scene.selection) trucks ||= scene.sim.world.has(entity, Hauler)
       if (!trucks) scene.serving = null
     }
     // Покрытие кладут и снимают строители.

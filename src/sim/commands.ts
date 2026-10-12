@@ -1,11 +1,9 @@
 import type { Entity } from '../ecs'
 import { setWorking } from './assembly'
-import type { DepositKind } from './deposits'
-import { orderHarvest, orderSeek } from './harvesting'
 import { BUILDINGS, type BuildingType } from './buildings'
 import { orderAttack, stopAttack } from './combat'
-import { NONE, isOwn } from './common'
-import { Builds, Building, Harvester, Producer, Unit } from './components'
+import { isOwn } from './common'
+import { Builds, Building, Producer, Unit } from './components'
 import { assignBuilders, cancelBuild, demolish, orderBuild, orderWalls, workIn } from './construction'
 import { DEPLOY_SECONDS, PACK_SECONDS, canDeploy, canPack, cancelDeploy, startConverting } from './conversion'
 import { assignHaulers, assignPickup, assignSupply, releaseHauler } from './hauling'
@@ -64,10 +62,6 @@ export type Command = (
   | { type: 'pickup'; units: number[]; drop: number }
   /** Послать свои грузовики обеспечить грузом своё здание или стройку: возят по их заявкам, пока те не кончатся. */
   | { type: 'supply'; units: number[]; target: number }
-  /** Послать своих харвестеров копать месторождение с левым верхним тайлом (x, y). */
-  | { type: 'harvest'; units: number[]; x: number; y: number }
-  /** Велеть своим харвестерам искать месторождение вида kind или любое (any): среди разведанных, а нет — разведать. */
-  | { type: 'seek'; units: number[]; kind: DepositKind | 'any' }
   /** Послать своих вооружённых юнитов атаковать чужой юнит или здание: они гонятся за целью, пока она жива. */
   | { type: 'attack'; units: number[]; target: number }
   /** Заявка на продажу до amount единиц ресурса: грузовики свезут его в космопорт из хранилищ его зоны, потом придут кредиты. */
@@ -209,12 +203,9 @@ function run(sim: Sim, player: number, command: Command): boolean {
         return sim.world.has(entity, Unit) && isOwn(sim, player, entity)
       })
       if (!units.length) return false
-      // Приказ идти снимает строителя со стройки, грузовик — с маршрута, бойца — с цели, а харвестера —
-      // с месторождения: он ждёт команды.
+      // Приказ идти снимает строителя со стройки, грузовик — с маршрута, бойца — с цели.
       for (const entity of units) {
         sim.world.remove(entity, Builds)
-        const harvester = sim.world.get(entity, Harvester)
-        if (harvester) Object.assign(harvester, { x: NONE, y: NONE, picked: false, ordered: false, parked: true, seek: '' })
         releaseHauler(sim, entity)
         stopAttack(sim, entity)
         clearTactics(sim, entity)
@@ -246,15 +237,6 @@ function run(sim: Sim, player: number, command: Command): boolean {
       return Array.isArray(command.units) && assignPickup(sim, player, command.drop as Entity, command.units as Entity[])
     case 'supply':
       return Array.isArray(command.units) && assignSupply(sim, player, command.target as Entity, command.units as Entity[])
-    case 'harvest': {
-      // Слой месторождений заводит клетку на каждый запрошенный тайл: чужие координаты туда не пускаются.
-      if (!Array.isArray(command.units) || !isMapTile(sim, command.x, command.y)) return false
-      return orderHarvest(sim, player, command.units as Entity[], command.x, command.y)
-    }
-    case 'seek': {
-      if (!Array.isArray(command.units)) return false
-      return orderSeek(sim, player, command.units as Entity[], command.kind)
-    }
     case 'attack': {
       if (!Array.isArray(command.units)) return false
       return orderAttack(sim, player, command.units as Entity[], command.target as Entity)

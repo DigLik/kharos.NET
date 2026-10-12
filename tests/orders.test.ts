@@ -153,14 +153,13 @@ test('очередь приказов ограничена, а приказ в �
   for (const entity of units) expect(Math.hypot(sim.world.get(entity, Position)!.x - site.x - 4, sim.world.get(entity, Position)!.y - site.y - 5)).toBeLessThan(3)
 })
 
-test('координаты команд проверяются на границы карты: месторождения, точка сбора, патруль', () => {
+test('координаты команд проверяются на границы карты: точка сбора, патруль', () => {
   const { sim, core } = start()
   const units = squad(sim, 1)
   const cells = () => saveDeposits(sim.deposits).cells.length
   const before = cells()
   const { right, bottom } = sim.bounds
   for (const [x, y] of [[NaN, 0], [0.5, 1], [right + 100, 0], [0, bottom + 5000], [1e9, -1e9]]) {
-    sim.send(1, { type: 'harvest', units, x, y })
     sim.send(1, { type: 'rally', building: core, x, y })
   }
   sim.send(1, { type: 'patrol', units, points: [right + 10, 0, 1e9, 1e9] })
@@ -174,7 +173,7 @@ test('мусор в полях команды не роняет тик: кома
   const { sim, builders } = start()
   // Объект без рабочих toString и valueOf бросает при приведении к числу — так упал живой сервер.
   const junk = JSON.parse('{"toString":0,"valueOf":0}')
-  for (const type of ['harvest', 'move', 'build', 'rally', 'sell', 'patrol', 'pave']) {
+  for (const type of ['move', 'build', 'rally', 'sell', 'patrol', 'pave']) {
     for (const queue of [false, true]) {
       sim.send(1, { type, queue, units: builders, builders, x: junk, y: junk, points: [junk, junk], tiles: [junk, junk], building: junk, port: junk, amount: junk, resource: junk, kind: junk } as never)
     }

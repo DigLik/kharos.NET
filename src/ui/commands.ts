@@ -1,7 +1,7 @@
 import type { HudState, Stack } from '../game/hud'
 import type { PaveIcon } from '../game/portraits'
 import type { PaveTool } from '../game/scene'
-import { BRIDGE_COST, BUILDINGS, UNDERGROUND_REACH, BUILDING_TYPES, DEPOSIT_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, TRANSFER_CAPACITY, WARES, type Amounts, type Stance, type BuildingType, type Command, type DepositKind, type Good, type Resource, type Topic } from '../sim'
+import { BRIDGE_COST, BUILDINGS, UNDERGROUND_REACH, BUILDING_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, TRANSFER_CAPACITY, WARES, type Amounts, type Stance, type BuildingType, type Command, type Good, type Resource, type Topic } from '../sim'
 import { t } from '../i18n'
 
 /** Клавиши ячеек сетки команд по порядку: три ряда по четыре, как на клавиатуре, справа от WASD. */
@@ -388,22 +388,6 @@ export function commandsOf(
       slots[CANCEL] = { label: t('grid.reserveNone'), active: amount <= 0, title: t('grid.reserveNoneTip'), run: () => set(0) }
       slots[BACK] = { label: t('common.back'), run: () => open('root') }
     }
-  }
-
-  const { harvest } = state
-  if (harvest && page === 'root') {
-    // Поиск месторождения: любого или своего вида, по столбцу на вид.
-    const seek = (kind: DepositKind | 'any') => send({ type: 'seek', units: harvest.units, kind })
-    slots[0] = { label: t('grid.seekAny'), active: harvest.seek === 'any' && !harvest.parked, title: t('grid.seekAnyTip'), run: () => seek('any') }
-    DEPOSIT_TYPES.forEach((kind, i) => {
-      slots[1 + i] = {
-        label: t('grid.seek', { name: t(`goods.${kind}`) }),
-        good: kind,
-        active: harvest.seek === kind && !harvest.parked,
-        title: t('grid.seekTip'),
-        run: () => seek(kind),
-      }
-    })
   }
 
   const { gift } = state

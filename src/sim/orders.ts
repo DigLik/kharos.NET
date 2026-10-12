@@ -1,13 +1,13 @@
 import type { Entity } from '../ecs'
 import { apply, type Command } from './commands'
 import { NONE, isOwn } from './common'
-import { Armed, Builds, Converting, Harvester, Hauler, Orders, Owner, Path, Tactics, Unit } from './components'
+import { Armed, Builds, Converting, Hauler, Orders, Owner, Path, Tactics, Unit } from './components'
 import { orderBuild } from './construction'
 import type { Sim } from './sim'
 import { turretsOf } from './turrets'
 
 /** Приказы, которые можно ставить в очередь, — у них есть конец или их дело ведёт юнит сам. */
-const QUEUED = new Set<Command['type']>(['move', 'attack', 'assist', 'build', 'harvest', 'haul', 'pickup', 'supply'])
+const QUEUED = new Set<Command['type']>(['move', 'attack', 'assist', 'build', 'haul', 'pickup', 'supply'])
 
 export const canQueue = (command: Command) => QUEUED.has(command.type)
 
@@ -80,8 +80,6 @@ function idle(sim: Sim, entity: Entity) {
   const tactics = world.get(entity, Tactics)
   // В патруле или не дошёл, куда шёл: отвлёкся на врага по дороге или возвращается после погони.
   if (tactics?.patrol.length || tactics?.away) return false
-  const harvester = world.get(entity, Harvester)
-  if (harvester && (harvester.picked || harvester.seek)) return false
   // Заявки зон грузовик возит и сам, без приказа: их очередь прерывает.
   const hauler = world.get(entity, Hauler)
   if (hauler && (hauler.mine !== NONE || hauler.pickup !== NONE || hauler.supply !== NONE || hauler.route.length || hauler.serve.length)) return false

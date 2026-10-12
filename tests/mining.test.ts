@@ -2,14 +2,13 @@ import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import type { Entity } from '../src/ecs'
 import {
-  BUILDINGS, Beam, Position, DEPOSIT_CELL, DEPOSIT_KINDS, DEPOSIT_TYPES, Deposit, Hauler, Harvester, Inventory, REFINE_RATE, REFINE_RATIO, RESOURCE_SPECS, SELL_SECONDS, TRUCK_CAPACITY, Trade, amountOf, canBuild, deliveredTo, gapBetween, canSell, isWalkable, stockOf, canPlace, createSim, creditsOf, depositAt, depositIn, depositNear, reserveLeft, rewardsOf,
+  BUILDINGS, Beam, DEPOSIT_CELL, DEPOSIT_KINDS, DEPOSIT_TYPES, Deposit, Hauler, Inventory, REFINE_RATE, REFINE_RATIO, RESOURCE_SPECS, SELL_SECONDS, TRUCK_CAPACITY, Trade, amountOf, canBuild, deliveredTo, gapBetween, canSell, isWalkable, stockOf, canPlace, createSim, creditsOf, depositAt, depositIn, depositNear, reserveLeft, rewardsOf,
   zonesOf, type BuildingType, type DepositSpot, type Good, type Sim,
 } from '../src/sim'
-import { isBuildable, terrainAt } from '../src/map/terrain'
-import { Path } from '../src/sim/components'
+import { Producer } from '../src/sim/components'
 import { placeBuilding } from '../src/sim/buildings'
 import { addCredits } from '../src/sim/economy'
-import { notWalledIn, spawnUnit } from '../src/sim/units'
+import { spawnUnit } from '../src/sim/units'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }
@@ -400,171 +399,18 @@ test('здания можно ставить вплотную к шахте, а 
   expect(canBuild(sim, 1, 'mine', spot.x, spot.y)).toBe(false)
 })
 
-test('новый харвестер стоит; по приказу искать находит месторождение, копает, отвозит руду и возвращается', () => {
-  const { sim, spot, mine, truck } = base()
-  sim.world.destroy(mine)
-  sim.world.destroy(truck)
-  const smelter = refineryAt(sim, spot)
-  const harvester = spawnUnit(sim, 'harvester', 1, spot.x - 1, spot.y)
-  const capacity = sim.world.get(harvester, Inventory)!.capacity
-  const reserve = reserveLeft(sim, spot.x, spot.y)
-
-  // Сам ничего не ищет: месторождение под боком, а он стоит.
-  seconds(sim, 5)
-  expect(oreIn(sim, harvester)).toBe(0)
-  expect(sim.world.get(harvester, Harvester)!.parked).toBe(true)
-
-  // Велели искать любое — находит то, что рядом, и, набрав полный кузов, везёт его в плавильню.
-  sim.send(1, { type: 'seek', units: [harvester], kind: 'any' })
-  until(sim, () => oreIn(sim, harvester) > 0)
-  expect(sim.world.get(harvester, Harvester)!).toMatchObject({ x: spot.x, y: spot.y, ordered: false })
-  until(sim, () => metalIn(sim, smelter) + oreIn(sim, smelter) >= capacity - 1e-6)
-  expect(reserveLeft(sim, spot.x, spot.y)).toBeCloseTo(reserve - capacity)
-  // Разгрузился — снова копает.
-  until(sim, () => oreIn(sim, harvester) > 1)
-
-  // Чужому месторождение не назначить; своему — можно, но только найденное: о неразведанном игрок не знает.
-  const other = depositNear(sim, spot.x + 60, spot.y, 50)!
-  sim.send(1, { type: 'harvest', units: [harvester], x: other.x, y: other.y })
-  sim.advance(TICK)
-  expect(sim.world.get(harvester, Harvester)!.x).toBe(spot.x)
-  // Разведал всю карту — теперь можно.
-  sim.vision.explore(1, [0, 1e9])
-  sim.send(2, { type: 'harvest', units: [harvester], x: other.x, y: other.y })
-  sim.advance(TICK)
-  expect(sim.world.get(harvester, Harvester)!.x).toBe(spot.x)
-  sim.send(1, { type: 'harvest', units: [harvester], x: other.x, y: other.y })
-  sim.advance(TICK)
-  expect(sim.world.get(harvester, Harvester)!).toMatchObject({ x: other.x, y: other.y, ordered: true })
-})
-
-test('харвестер не знает о неразведанных месторождениях: ищет их, разведывая сам', () => {
-  const { sim, spot, mine, truck } = base()
-  sim.world.destroy(mine)
-  sim.world.destroy(truck)
-  refineryAt(sim, spot)
-  // Харита рядом не видно: месторождение ему придётся открыть самому.
-  const harvester = spawnUnit(sim, 'harvester', 1, spot.x - 1, spot.y)
-  sim.advance(TICK)
-  const start = { ...sim.world.get(harvester, Position)! }
-  sim.send(1, { type: 'seek', units: [harvester], kind: 'kharite' })
-  until(sim, () => sim.world.get(harvester, Harvester)!.x !== -1, 600)
-  const { x, y } = sim.world.get(harvester, Harvester)!
-  expect(depositAt(sim, x, y)!.kind).toBe('kharite')
-  // Разведано по-честному: месторождение открыто, и харвестер к нему ехал.
-  expect(sim.vision.exploredIn(1, x, y, 2, 2)).toBe(true)
-  expect(Math.hypot(sim.world.get(harvester, Position)!.x - start.x, sim.world.get(harvester, Position)!.y - start.y)).toBeGreaterThan(3)
-})
-
-test('несколько харвестеров на одном месторождении копают все', () => {
-  const { sim, spot, mine, truck } = base()
-  sim.world.destroy(mine)
-  sim.world.destroy(truck)
-  refineryAt(sim, spot)
-  const harvesters = [
-    spawnUnit(sim, 'harvester', 1, spot.x - 12, spot.y),
-    spawnUnit(sim, 'harvester', 1, spot.x - 12, spot.y + 1),
-    spawnUnit(sim, 'harvester', 1, spot.x - 13, spot.y),
-  ]
-  sim.send(1, { type: 'seek', units: harvesters, kind: 'any' })
-  seconds(sim, 30)
-  const loads = harvesters.map((harvester) => oreIn(sim, harvester))
-  for (const load of loads) expect(load).toBeGreaterThan(0)
-})
-
-test('месторождение под шахтой харвестер не копает: ни сам, ни по приказу', () => {
-  const { sim, spot, truck } = base()
-  sim.world.destroy(truck)
-  refineryAt(sim, spot)
-  const reserve = reserveLeft(sim, spot.x, spot.y)
-  const harvester = spawnUnit(sim, 'harvester', 1, spot.x - 1, spot.y)
-  sim.send(1, { type: 'harvest', units: [harvester], x: spot.x, y: spot.y })
-  seconds(sim, 10)
-  expect(sim.world.get(harvester, Harvester)!.x === spot.x && sim.world.get(harvester, Harvester)!.y === spot.y).toBe(false)
-  // Запас уходит только шахте: в харвестер с этого месторождения не попало ничего.
-  expect(oreIn(sim, harvester)).toBe(0)
-  expect(reserveLeft(sim, spot.x, spot.y)).toBeLessThanOrEqual(reserve)
-})
-
-test('харвестер, уведённый приказом идти, стоит и ждёт команды; приказ копать снова запускает его', () => {
-  const { sim, spot, mine, truck } = base()
-  sim.world.destroy(mine)
-  sim.world.destroy(truck)
-  refineryAt(sim, spot)
-  const harvester = spawnUnit(sim, 'harvester', 1, spot.x - 1, spot.y)
-  sim.send(1, { type: 'seek', units: [harvester], kind: 'any' })
-  until(sim, () => oreIn(sim, harvester) > 0)
-  sim.send(1, { type: 'move', units: [harvester], x: spot.x - 6, y: spot.y })
-  seconds(sim, 15)
-  const load = oreIn(sim, harvester)
-  seconds(sim, 10)
-  expect(sim.world.get(harvester, Harvester)!).toMatchObject({ x: -1, parked: true })
-  expect(oreIn(sim, harvester)).toBe(load)
-
-  sim.send(1, { type: 'harvest', units: [harvester], x: spot.x, y: spot.y })
-  until(sim, () => oreIn(sim, harvester) > load)
-  expect(sim.world.get(harvester, Harvester)!.parked).toBe(false)
-})
-
-test('выработав месторождение, харвестер ищет такое же: среди известных, а нет — разведывает', () => {
-  const { sim, spot, mine, truck } = base()
-  sim.world.destroy(mine)
-  sim.world.destroy(truck)
-  refineryAt(sim, spot)
-  const harvester = spawnUnit(sim, 'harvester', 1, spot.x - 1, spot.y)
-  sim.send(1, { type: 'harvest', units: [harvester], x: spot.x, y: spot.y })
-  until(sim, () => oreIn(sim, harvester) > 0)
-  for (const [, deposit] of sim.world.query(Deposit)) deposit.mined = spot.reserve
-  until(sim, () => {
-    const { x, y } = sim.world.get(harvester, Harvester)!
-    return x !== -1 && (x !== spot.x || y !== spot.y)
-  }, 600)
-  const { x, y } = sim.world.get(harvester, Harvester)!
-  expect(depositAt(sim, x, y)!.kind).toBe(spot.kind)
-})
-
-test('ищущий руду харвестер разведывает вокруг места, где начал поиск, а не уезжает по прямой на край карты', () => {
-  const { sim, spot } = start()
-  const harvester = spawnUnit(sim, 'harvester', 1, spot.x - 1, spot.y)
-  const from = { ...sim.world.get(harvester, Position)! }
-  // Ищет то, чего рядом может и не быть: ни одного вида, кроме редкого.
-  sim.send(1, { type: 'seek', units: [harvester], kind: DEPOSIT_TYPES[DEPOSIT_TYPES.length - 1] })
-  let farthest = 0
-  for (let i = 0; i < 240; i++) {
-    seconds(sim, 1)
-    const position = sim.world.get(harvester, Position)!
-    farthest = Math.max(farthest, Math.hypot(position.x - from.x, position.y - from.y))
-  }
-  expect(farthest).toBeLessThan(2 * 60 + 10)
-})
-
-test('ищущий руду харвестер разведывает скалу, на которой стоит, а не уезжает с неё', () => {
-  const { sim, spot } = start()
-  const harvester = spawnUnit(sim, 'harvester', 1, spot.x - 1, spot.y)
-  sim.send(1, { type: 'seek', units: [harvester], kind: DEPOSIT_TYPES[DEPOSIT_TYPES.length - 1] })
-  const goals: { x: number; y: number }[] = []
-  for (let i = 0; i < 60 * 20; i++) {
-    sim.advance(TICK)
-    const path = sim.world.get(harvester, Path)
-    if (path && sim.world.get(harvester, Harvester)!.x < 0) goals.push({ x: Math.floor(path.goalX), y: Math.floor(path.goalY) })
-  }
-  expect(goals.length).toBeGreaterThan(0)
-  for (const goal of goals) expect(isBuildable(terrainAt(sim.land, goal.x, goal.y))).toBe(true)
-})
-
-test('харвестер в западной половине карты разведывает вокруг одного центра, а не сбрасывает его', () => {
-  const { sim } = start()
-  // Скала с отрицательной x: там координаты разведки меньше нуля.
-  let at: { x: number; y: number } | undefined
-  for (let y = -40; y < 40 && !at; y += 4) for (let x = -200; x < -100 && !at; x += 4) if (notWalledIn(sim, x, y) && isBuildable(terrainAt(sim.land, x, y))) at = { x, y }
-  const harvester = spawnUnit(sim, 'harvester', 1, at!.x, at!.y)
-  sim.send(1, { type: 'seek', units: [harvester], kind: DEPOSIT_TYPES[DEPOSIT_TYPES.length - 1] })
-  const centers = new Set<string>()
-  for (let i = 0; i < 60 * 20; i++) {
-    sim.advance(TICK)
-    const { scoutX, scoutY, picked } = sim.world.get(harvester, Harvester)!
-    if (!picked && (scoutX !== -1 || scoutY !== -1)) centers.add(`${scoutX},${scoutY}`)
-  }
-  expect(centers.size).toBeGreaterThan(0)
-  expect(centers.size).toBeLessThanOrEqual(2)
+test('харвестеров из прежних сохранений больше нет: сами они и их заказы уходят, а цена возвращается хозяину', () => {
+  const sim = createSim(options)
+  addCredits(sim, 1, 1000)
+  const truck = spawnUnit(sim, 'truck', 1, 0, 0)
+  const save = sim.save()
+  // Так харвестер и заказы на него лежали в сохранении до того, как его убрали.
+  save.world.entities.push([9998, { Position: { x: 4, y: 4 }, Unit: { type: 'harvester' }, Owner: { player: 1 }, Harvester: { picked: true } }] as never)
+  save.world.entities.push([9999, { Position: { x: 8, y: 8 }, Producer: { queue: ['harvester', 'truck', 'harvester'], progress: 30, rally: [] }, Owner: { player: 1 } }] as never)
+  const loaded = createSim(save)
+  expect(loaded.world.alive(9998 as Entity)).toBe(false)
+  expect(loaded.world.alive(truck)).toBe(true)
+  // Начатый харвестер ушёл вместе с ходом работы: грузовик начинается с нуля.
+  expect(loaded.world.get(9999 as Entity, Producer)).toMatchObject({ queue: ['truck'], progress: 0 })
+  expect(creditsOf(loaded, 1)).toBe(creditsOf(sim, 1) + 3 * 400)
 })

@@ -5,7 +5,7 @@ import { createHost } from '../src/net/host'
 import { decodeServer } from '../src/net/protocol'
 import { createReplica, type Replica } from '../src/net/replica'
 import {
-  Doomed, Hauler, Harvester, Inventory, Owner, Path, Tactics, amountOf, canPlace, createSim, fromClient, giftable, handOver, offerAlliance,
+  Doomed, Hauler, Inventory, Owner, Path, Tactics, amountOf, canPlace, createSim, fromClient, giftable, handOver, offerAlliance,
   type BuildingType, type Command, type Sim,
 } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
@@ -69,23 +69,18 @@ test('юниты переходят там же, где стоят: работа
   const sim = createSim(options)
   const tank = spawnUnit(sim, 'tank', 1, 4, 4)
   const truck = spawnUnit(sim, 'truck', 1, 6, 6)
-  const harvester = spawnUnit(sim, 'harvester', 1, 8, 8)
   sim.world.set(truck, Hauler, { mine: 11, pickup: 12, from: 13, to: 14, amount: 5, full: true, route: [15, 16], stop: 1, resource: 'metal' })
   sim.world.set(truck, Path, { points: [6, 6, 9, 9], goalX: 9, goalY: 9 })
   sim.world.set(truck, Tactics, { away: true, homeX: 6, homeY: 6 })
-  sim.world.set(harvester, Harvester, { picked: true, parked: false, x: 20, y: 20 })
   account(sim, 1, 2)
   ally(sim, 1, 2)
 
-  expect(handOver(sim, 1, 2, [tank, truck, harvester])).toBe(3)
+  expect(handOver(sim, 1, 2, [tank, truck])).toBe(2)
   // Работа снята, маршрут и патруль забыты, путь брошен — и всё это там же, где юниты стояли.
   expect(sim.world.get(truck, Hauler)).toMatchObject({ mine: NONE, pickup: NONE, from: NONE, to: NONE, amount: 0, full: false, route: [], stop: 0 })
   expect(sim.world.has(truck, Path)).toBe(false)
   expect(sim.world.get(truck, Tactics)!.away).toBe(false)
   expect(sim.world.get(truck, Owner)!.player).toBe(2)
-  // Пустой харвестер встаёт ждать приказа, а его поиск месторождения сброшен.
-  expect(sim.world.get(harvester, Harvester)).toMatchObject({ picked: false, parked: true, ordered: false, x: NONE, y: NONE, seek: '' })
-  expect(sim.world.get(harvester, Owner)!.player).toBe(2)
   // Турели не остаются на союзной технике чужими.
   expect(turretsOf(sim, tank).length).toBeGreaterThan(0)
   for (const turret of turretsOf(sim, tank)) expect(sim.world.get(turret, Owner)!.player).toBe(2)
@@ -114,22 +109,20 @@ test('груз остаётся в кузове и довозится уже н�
 test('приказ gift из меню юнитов меняет хозяина в ближайшем тике, а несоюзнику — ничего', () => {
   const sim = createSim(options)
   const truck = spawnUnit(sim, 'truck', 1, 4, 4)
-  const harvester = spawnUnit(sim, 'harvester', 1, 6, 6)
-  sim.world.set(harvester, Harvester, { picked: true, parked: false })
+  const tank = spawnUnit(sim, 'tank', 1, 6, 6)
   account(sim, 1, 2, 3)
   ally(sim, 1, 2)
-  expect(fromClient({ type: 'gift', units: [truck, harvester], to: 2 })).toBe(true)
+  expect(fromClient({ type: 'gift', units: [truck, tank], to: 2 })).toBe(true)
 
   // Третьему — не союзник: в очередь команда уходит, но мир её отвергает.
   sim.send(1, { type: 'gift', units: [truck], to: 3 })
   sim.advance(STEP)
   expect(sim.world.get(truck, Owner)!.player).toBe(1)
 
-  sim.send(1, { type: 'gift', units: [truck, harvester], to: 2 })
+  sim.send(1, { type: 'gift', units: [truck, tank], to: 2 })
   sim.advance(STEP)
   expect(sim.world.get(truck, Owner)!.player).toBe(2)
-  expect(sim.world.get(harvester, Owner)!.player).toBe(2)
-  expect(sim.world.get(harvester, Harvester)!.parked).toBe(true)
+  expect(sim.world.get(tank, Owner)!.player).toBe(2)
 })
 
 const random = Math.random

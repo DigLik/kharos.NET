@@ -24,9 +24,9 @@ test('словари: в каждом языке те же ключи и те ж
 
 test('строки: подстановки, строчные, значки между кусками и сообщения хоста на языке игрока', async () => {
   expect(t('menu.hours', { hours: 2, minutes: 5 })).toBe('2 ч 5 мин')
-  expect(t('grid.seek', { name: 'Металл' })).toBe('Искать: металл')
+  expect(t('hud.depositTip', { name: 'Металл' })).toBe('Месторождение: металл')
   const icon = { icon: true }
-  expect(rich('hud.digs', { icon, name: 'Нефть' })).toEqual(['Копает ', icon, ' ', 'нефть', ' и везёт на переработку. '])
+  expect(rich('hud.depositLeft', { icon, name: 'Нефть', left: 'осталось 5' })).toEqual([icon, ' ', 'Нефть', ': ', 'осталось 5'])
   const usage = hostText('usage', { command: '/msg <player> <text>' })
   expect(textOf(usage)).toBe('Как: /msg <игрок> <текст>')
   expect(textOf('как написал человек')).toBe('как написал человек')

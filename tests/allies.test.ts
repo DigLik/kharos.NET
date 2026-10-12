@@ -312,7 +312,7 @@ test('путь юнита союзника уходит союзнику, а ч�
   const sim = createSim({ generator: DEFAULT_CONFIG, size: 256 })
   addCredits(sim, 1, 100)
   addCredits(sim, 2, 100)
-  const unit = spawnUnit(sim, 'harvester', 2, 5, 5)
+  const unit = spawnUnit(sim, 'truck', 2, 5, 5)
   sim.world.set(unit, Path, { points: [5, 5, 9, 9], goalX: 9, goalY: 9 })
   // Путь — только своим: по нему видно, куда идёт чужой отряд.
   expect(pathOf(sim.world, unit, 1)).toBeUndefined()

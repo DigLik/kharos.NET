@@ -1,7 +1,7 @@
 import type { Entity } from '../ecs'
 import { BUILDINGS, buildingSpec, isReady, levelFactor, levelOf, type BuildingSpec } from './buildings'
 import { NONE, isOwn, onTurn } from './common'
-import { Beam, Building, Converting, Drop, Hauler, Harvester, Inventory, Owner, Path, Position, Site } from './components'
+import { Beam, Building, Converting, Drop, Hauler, Inventory, Owner, Path, Position, Site } from './components'
 import { DEPOSIT_KINDS, reserveLeft, takeReserve } from './deposits'
 import { amountOf, approach, beamFor, put, reaches, resetBeams, roomFor, transfer } from './inventory'
 import { isStore } from './trade'
@@ -37,7 +37,7 @@ export const canHaul = (sim: Sim, player: number, mine: Entity) => isReady(sim, 
 export function assignHaulers(sim: Sim, player: number, mine: Entity, units: Entity[]) {
   const { world } = sim
   if (!canHaul(sim, player, mine)) return false
-  const trucks = [...new Set(units)].filter((entity) => world.has(entity, Hauler) && !world.has(entity, Harvester) && isOwn(sim, player, entity))
+  const trucks = [...new Set(units)].filter((entity) => world.has(entity, Hauler) && isOwn(sim, player, entity))
   for (const truck of trucks) {
     releaseHauler(sim, truck)
     world.get(truck, Hauler)!.mine = mine
@@ -58,7 +58,7 @@ export const canSupply = (sim: Sim, player: number, target: Entity) =>
 export function assignSupply(sim: Sim, player: number, target: Entity, units: Entity[]) {
   const { world } = sim
   if (!canSupply(sim, player, target)) return false
-  const trucks = [...new Set(units)].filter((entity) => world.has(entity, Hauler) && !world.has(entity, Harvester) && isOwn(sim, player, entity))
+  const trucks = [...new Set(units)].filter((entity) => world.has(entity, Hauler) && isOwn(sim, player, entity))
   for (const truck of trucks) {
     releaseHauler(sim, truck)
     const hauler = world.get(truck, Hauler)!
@@ -84,7 +84,7 @@ export const canPickup = (sim: Sim, drop: Entity) => sim.world.alive(drop) && si
 export function assignPickup(sim: Sim, player: number, drop: Entity, units: Entity[]) {
   const { world } = sim
   if (!canPickup(sim, drop)) return false
-  const trucks = [...new Set(units)].filter((entity) => world.has(entity, Hauler) && !world.has(entity, Harvester) && isOwn(sim, player, entity))
+  const trucks = [...new Set(units)].filter((entity) => world.has(entity, Hauler) && isOwn(sim, player, entity))
   for (const truck of trucks) {
     releaseHauler(sim, truck)
     world.get(truck, Hauler)!.pickup = drop
@@ -222,10 +222,8 @@ export function haul(sim: Sim) {
 
   for (const [entity, hauler, owner, cargo] of world.query(Hauler, Owner, Inventory)) {
     hauler.loading = false
-    // Харвестер, пока копает, — забота harvesting.ts: сюда он попадает, только когда везёт руду.
-    if (!hauler.full && world.has(entity, Harvester)) continue
     // Грузовик с маршрутом ездит по нему сам: см. routes.ts.
-    if (hauler.route.length && !world.has(entity, Harvester)) continue
+    if (hauler.route.length) continue
     if (hauler.mine !== NONE && !canHaul(sim, owner.player, hauler.mine as Entity)) {
       // Шахты больше нет: грузовик свободен. Груз остаётся в кузове.
       released.push(entity)

@@ -200,10 +200,10 @@ test('широкому юниту узкая дорога не помогает:
   const { sim, x, y } = start()
   for (let dx = 0; dx < 4; dx++) lay(sim, 'road', x + 4 + dx, y + 9)
   expect(terrainSpeed(sim, 'truck', x + 5, y + 9)).toBe(ROAD_SPEED)
-  expect(terrainSpeed(sim, 'harvester', x + 5, y + 9)).toBe(1)
+  expect(terrainSpeed(sim, 'artillery', x + 5, y + 9)).toBe(1)
   for (let dx = 0; dx < 4; dx++) lay(sim, 'road', x + 4 + dx, y + 10)
-  expect(terrainSpeed(sim, 'harvester', x + 5, y + 9)).toBe(ROAD_SPEED)
-  expect(terrainSpeed(sim, 'harvester', x + 5, y + 10)).toBe(ROAD_SPEED)
+  expect(terrainSpeed(sim, 'artillery', x + 5, y + 9)).toBe(ROAD_SPEED)
+  expect(terrainSpeed(sim, 'artillery', x + 5, y + 10)).toBe(ROAD_SPEED)
 })
 
 test('путь колёсных сворачивает на дорогу, если по ней быстрее; гусеничные едут напрямик', () => {

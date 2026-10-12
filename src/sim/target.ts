@@ -3,11 +3,9 @@ import { siteAt } from './buildings'
 import { canAttack } from './combat'
 import type { Command } from './commands'
 import { isOwn } from './common'
-import { Harvester, Hauler, Owner, Position, Repair, Unit, Upgrade } from './components'
+import { Hauler, Owner, Position, Repair, Unit, Upgrade } from './components'
 import { canRepair } from './construction'
-import { DEPOSIT_SIZE, depositNear, knowsDeposit } from './deposits'
 import { dropAt } from './drops'
-import { hasMine } from './harvesting'
 import { canHaul, canSupply } from './hauling'
 import type { Sim } from './sim'
 import { canFight } from './turrets'
@@ -35,12 +33,11 @@ export function unitNear(sim: Sim, player: number, x: number, y: number, own = t
 }
 
 /**
- * Приказ точкой: что юнитам units игрока делать с точкой point (в тайлах) — атаковать врага, копать месторождение,
- * возить, строить или чинить, а нет — идти туда. Возвращает команды с целями по номерам сущностей.
+ * Приказ точкой: что юнитам units игрока делать с точкой point (в тайлах) — атаковать врага, возить, строить или
+ * чинить, а нет — идти туда. Возвращает команды с целями по номерам сущностей.
  *
  * Цель выбирает симуляция, а не клиент: по номеру сущности клиент мог бы назвать и то, чего не видит. Поэтому
- * с fog точка в тумане — всегда движение: что там стоит, игрок не знает. Кроме разведанного месторождения:
- * оно с места не уйдёт, и игрок о нём помнит.
+ * с fog точка в тумане — всегда движение: что там стоит, игрок не знает.
  */
 export function resolveOrder(sim: Sim, player: number, units: Entity[], point: { x: number; y: number }, margin = ORDER_MARGIN, fog = true): Command[] {
   const { world } = sim
@@ -56,20 +53,13 @@ export function resolveOrder(sim: Sim, player: number, units: Entity[], point: {
   const builders = units.some((entity) => world.has(entity, Repair))
   // То, чему грузовики могут привезти груз: своя стройка или здание в точке.
   const needy = planned ?? damaged
-  const isTruck = (entity: Entity) => world.has(entity, Hauler) && !world.has(entity, Harvester)
+  const isTruck = (entity: Entity) => world.has(entity, Hauler)
   const trucks = units.some(isTruck)
   const drop = seen && trucks ? dropAt(sim, x, y) : undefined
   // Вооружённые по врагу — атакуют: по чужому юниту или зданию в точке.
   const enemy = unitAt(false) ?? damaged
   const fighters = units.some((entity) => canFight(sim, entity))
-  // Харвестеры по месторождению — копают его, если на нём нет шахты.
-  const harvesters = units.some((entity) => world.has(entity, Harvester))
-  const found = harvesters ? depositNear(sim, point.x, point.y, DEPOSIT_SIZE) : null
-  const known = found && knowsDeposit(sim, player, found)
-  const deposit = found && known && !hasMine(sim, found) ? found : null
-  const onDeposit = deposit && x >= deposit.x && x < deposit.x + DEPOSIT_SIZE && y >= deposit.y && y < deposit.y + DEPOSIT_SIZE
   if (fighters && enemy !== undefined && canAttack(sim, player, enemy)) return [{ type: 'attack', units, target: enemy }]
-  if (deposit && onDeposit) return [{ type: 'harvest', units, x: deposit.x, y: deposit.y }]
   // Грузовики по своей шахте — привязываются к ней и возят добытое.
   if (trucks && damaged !== undefined && canHaul(sim, player, damaged)) return [{ type: 'haul', units, mine: damaged }]
   // Грузовики по дропу — вывозят его.

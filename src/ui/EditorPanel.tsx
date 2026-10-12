@@ -12,7 +12,6 @@ import {
   Builds,
   Building,
   Converting,
-  Harvester,
   Hauler,
   Orders,
   Path,
@@ -620,11 +619,8 @@ function tasksOf(sim: Sim, entity: Entity): string[] {
   if (builds && world.alive(builds.site as Entity)) tasks.push(t(world.has(builds.site as Entity, Site) ? 'editor.task.builds' : 'editor.task.repairs', { name: nameOf(builds.site) }))
   const armed = world.get(entity, Armed)
   if (armed && armed.target >= 0 && world.alive(armed.target as Entity)) tasks.push(t('editor.task.attacks', { name: nameOf(armed.target) }))
-  const harvester = world.get(entity, Harvester)
-  if (harvester?.picked) tasks.push(t('editor.task.digs', { x: harvester.x, y: harvester.y }))
-  else if (harvester?.seek) tasks.push(t('editor.task.seeks', { what: harvester.seek === 'any' ? t('editor.task.any') : t(`goods.${harvester.seek}`) }))
   const hauler = world.get(entity, Hauler)
-  if (hauler && !harvester) {
+  if (hauler) {
     if (hauler.mine >= 0) tasks.push(t('editor.task.haulsFrom', { mine: hauler.mine }))
     if (hauler.route.length) tasks.push(t('editor.task.route', { stops: hauler.route.map(nameOf).join(' → ') }))
     if (hauler.supply >= 0) tasks.push(t('editor.task.supplies', { name: nameOf(hauler.supply) }))

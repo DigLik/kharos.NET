@@ -3,7 +3,7 @@ import { Biome, Terrain, biomeAt, isCliffFoot, isPassable, terrainAt, tileKey } 
 import { FOUNDATION_SPEED, ROAD_SPEED, isPaved } from './paved'
 import { isOwn } from './common'
 import { isOpenGate } from './buildings'
-import { Armed, Converting, Hauler, Harvester, Health, Owner, Repair, Path, Pave, Position, Producer, Unit } from './components'
+import { Armed, Converting, Hauler, Health, Owner, Repair, Path, Pave, Position, Producer, Unit } from './components'
 import { unitSight } from './vision'
 import { STARTING_CREDITS, addCredits } from './economy'
 import { equipStorage, type BeamSpec } from './inventory'
@@ -52,8 +52,6 @@ export interface UnitSpec {
   hauls?: boolean
   /** Транспортный луч: им юнит отдаёт ресурсы со своего склада или забирает на него. */
   beam?: BeamSpec
-  /** Харвестер: копает руду сам, столько в секунду, и возит её на переработку. См. harvesting.ts. */
-  harvest?: number
   /** Сколько тайлов от центра юнит видит; без поля — по классу, и не меньше дальности оружия. См. vision.ts. */
   sight?: number
 }
@@ -74,7 +72,6 @@ export const UNITS = {
   // и сгружает его: зданиям лучи не нужны.
   // Харвестер — шахта на колёсах: копает медленнее шахты, зато сам и где угодно, и сам возит руду на
   // переработку. Тяжелее грузовика: его ловят в поле, и он должен пережить первый налёт.
-  harvester: { speed: 3, turn: 3, radius: 0.55, cost: 400, buildTime: 10, kind: 'vehicle', hp: 300, sight: 6, inventory: 30, harvest: 0.75, beam: { radius: 2, rate: 10, give: true, take: true } },
   truck: { speed: 3.5, turn: 4, radius: 0.45, cost: 150, buildTime: 8, kind: 'vehicle', hp: 150, sight: 6, inventory: 25, hauls: true, beam: { radius: 2, rate: 10, give: true, take: true } },
   // Пехота.
   // Огнемётчик: штурмовик ближнего боя — выжигает пехоту в окопах и здания, к броне ему не подойти.
@@ -376,8 +373,7 @@ export function spawnUnit(sim: Sim, type: UnitType, player: number, x: number, y
   const infantry = spec.kind === 'infantry'
   const entity = world.spawn(Position(position), Unit({ type, prevX: position.x, prevY: position.y }), Owner({ player }), Health(infantry ? { repairable: false, regen: INFANTRY_REGEN } : {}))
   if (type === 'mcv') world.add(entity, Producer)
-  if (spec.hauls || spec.harvest) world.add(entity, Hauler)
-  if (spec.harvest) world.add(entity, Harvester)
+  if (spec.hauls) world.add(entity, Hauler)
   if (spec.weapon) world.add(entity, Armed)
   if (spec.repair) world.add(entity, Repair({ radius: spec.repair }))
   equipStorage(world, entity, spec)

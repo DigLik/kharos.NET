@@ -16,7 +16,6 @@ const ORDER_SOUNDS: Partial<Record<Command['type'], SoundName>> = {
   route: 'order',
   serve: 'order',
   pickup: 'order',
-  harvest: 'order',
   haul: 'order',
   assist: 'order',
   attack: 'attackOrder',

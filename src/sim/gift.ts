@@ -1,7 +1,7 @@
 import type { Entity } from '../ecs'
 import { allied } from './allies'
-import { NONE, isOwn } from './common'
-import { Attached, Builds, Doomed, Hauler, Harvester, Inventory, Owner, Path, Unit } from './components'
+import { isOwn } from './common'
+import { Attached, Builds, Doomed, Hauler, Inventory, Owner, Path, Unit } from './components'
 import { stopAttack } from './combat'
 import { releaseHauler } from './hauling'
 import { amountOf } from './inventory'
@@ -13,8 +13,8 @@ import { turretsOf } from './turrets'
 
 /**
  * Передача своих юнитов союзнику: выбранные юниты переходят под его управление там же, где стоят, — это приказ,
- * а не груз, и корабль для него не нужен. Работу они бросают: стройка, маршрут, цель, патруль и путь снимаются,
- * а харвестер встаёт ждать приказа. Груз остаётся в кузове: что юнит вёз, то и довозит — уже новому хозяину,
+ * а не груз, и корабль для него не нужен. Работу они бросают: стройка, маршрут, цель, патруль и путь снимаются.
+ * Груз остаётся в кузове: что юнит вёз, то и довозит — уже новому хозяину,
  * в его хранилища и на его переработку. Турели уходят вместе с носителем: иначе на союзной технике остались бы
  * чужие башни. Принимает только союзник.
  */
@@ -39,8 +39,6 @@ export function handOver(sim: Sim, player: number, to: number, units: readonly E
     const carried = cargo && GOODS.find((good) => amountOf(cargo, good) > 1e-9)
     const hauler = world.get(entity, Hauler)
     if (hauler && carried) Object.assign(hauler, { resource: carried, full: true })
-    const harvester = world.get(entity, Harvester)
-    if (harvester) Object.assign(harvester, { x: NONE, y: NONE, picked: false, ordered: false, parked: !carried, seek: '' })
     stopAttack(sim, entity)
     clearTactics(sim, entity)
     clearOrders(sim, [entity])

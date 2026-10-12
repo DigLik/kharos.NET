@@ -1,7 +1,7 @@
 import type { Entity } from '../ecs'
 import { isReady } from './buildings'
 import { NONE, isOwn, onTurn } from './common'
-import { Converting, Hauler, Harvester, Inventory, Owner, Path, Unit } from './components'
+import { Converting, Hauler, Inventory, Owner, Path, Unit } from './components'
 import { amountOf, beamFor, reaches, roomFor, transfer } from './inventory'
 import { releaseHauler, seekBeam, seekDue } from './hauling'
 import { acceptsDelivery, givenBy, offersOf } from './logistics'
@@ -41,7 +41,7 @@ function pickFor(sim: Sim, player: number, filter: readonly Good[], from: Entity
 /**
  * Даёт грузовикам игрока маршрут: здания-остановки по кругу. Остановки — свои готовые здания со складом, подряд
  * одинаковые склеиваются; меньше двух — маршрут снимается. Грузовик бросает прежнюю работу, шахту, дроп, назначение
- * и обеспечение; груз в кузове повезёт по маршруту. Не грузовики, харвестеры и чужие из списка выбрасываются.
+ * и обеспечение; груз в кузове повезёт по маршруту. Не грузовики и чужие из списка выбрасываются.
  */
 export function setRoute(sim: Sim, player: number, units: Entity[], stops: Entity[]) {
   const { world } = sim
@@ -51,7 +51,7 @@ export function setRoute(sim: Sim, player: number, units: Entity[], stops: Entit
     route.push(stop)
   }
   if (route.length > 1 && route[0] === route[route.length - 1]) route.pop()
-  const trucks = [...new Set(units)].filter((entity) => world.has(entity, Hauler) && world.has(entity, Unit) && !world.has(entity, Harvester) && isOwn(sim, player, entity))
+  const trucks = [...new Set(units)].filter((entity) => world.has(entity, Hauler) && world.has(entity, Unit) && isOwn(sim, player, entity))
   for (const truck of trucks) {
     const hauler = world.get(truck, Hauler)!
     // Прежние приказы снимаются, как в releaseHauler: иначе, когда маршрут кончится, грузовик вернётся к ним.
@@ -77,7 +77,7 @@ export const SERVE_LIMIT = 16
 export function setServe(sim: Sim, player: number, units: Entity[], buildings: Entity[]) {
   const { world } = sim
   const serve = [...new Set(buildings)].filter((building) => isStop(sim, player, building)).slice(0, SERVE_LIMIT)
-  const trucks = [...new Set(units)].filter((entity) => world.has(entity, Hauler) && world.has(entity, Unit) && !world.has(entity, Harvester) && isOwn(sim, player, entity))
+  const trucks = [...new Set(units)].filter((entity) => world.has(entity, Hauler) && world.has(entity, Unit) && isOwn(sim, player, entity))
   for (const truck of trucks) {
     releaseHauler(sim, truck)
     world.get(truck, Hauler)!.serve = serve
@@ -134,7 +134,7 @@ export function runRoutes(sim: Sim) {
   const ended: Entity[] = []
 
   for (const [truck, hauler, owner, cargo] of world.query(Hauler, Owner, Inventory)) {
-    if (!hauler.route.length || world.has(truck, Harvester)) continue
+    if (!hauler.route.length) continue
     if (world.has(truck, Path) || world.has(truck, Converting)) continue
     const player = owner.player
     if (hauler.route.some((stop) => !isStop(sim, player, stop as Entity))) {

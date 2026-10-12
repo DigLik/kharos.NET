@@ -1,5 +1,5 @@
 import type { Component, Entity, World } from '../ecs'
-import { Armed, Assembly, Attached, Blast, Builds, Drop, Harvester, Hauler, Health, Inventory, Owner, Path, Position, Producer, Repair, Scan, Shot, SAVED, Tactics, Trade, Turret, Unit } from '../sim/components'
+import { Armed, Assembly, Attached, Blast, Builds, Drop, Hauler, Health, Inventory, Owner, Path, Position, Producer, Repair, Scan, Shot, SAVED, Tactics, Trade, Turret, Unit } from '../sim/components'
 import { quantize, type Motion } from './codec'
 
 /** До скольких знаков после запятой округляются дробные числа в сети: тысячная тайла глазу не видна. */
@@ -57,7 +57,7 @@ export interface Wired {
  * Что о своём знает только хозяин: склад, очередь производства, работа грузовиков, копателей и строителей, сборка,
  * торговля, тактика, куда смотрит радар. Чужому это незачем рисовать, а знать — нечестно.
  */
-const PRIVATE = new Set([Inventory, Producer, Hauler, Harvester, Assembly, Trade, Tactics, Builds, Repair, Scan].map((component) => component.key))
+const PRIVATE = new Set([Inventory, Producer, Hauler, Assembly, Trade, Tactics, Builds, Repair, Scan].map((component) => component.key))
 
 /** Сущность глазами игрока viewer: своё и ничьё — целиком, чужое — без PRIVATE и без цели стрелка. */
 export function seenBy(wired: Wired, viewer: number): Wired {

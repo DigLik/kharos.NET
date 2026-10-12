@@ -4,7 +4,6 @@ import type { Amounts, Good, Product, Resource } from './resources'
 import type { TurretType } from './turrets'
 import type { UnitType } from './units'
 import type { WeaponType } from './weapons'
-import type { DepositKind } from './deposits'
 import type { PaveKind } from './paved'
 import type { Stance } from './tactics'
 import type { Command } from './commands'
@@ -167,16 +166,6 @@ export const Inventory = component('Inventory', () => ({ items: {} as Amounts, c
  * работает со всеми, кто в радиусе, сразу. links — с кем он работал в этот тик: target — чей склад, pulling —
  * забирал он с него или отдавал на него, resource — что переносил.
  */
-/**
- * Харвестер: копает руду из месторождения в кузов и возит её на переработку (доставку ведёт Hauler).
- * x, y — левый верхний тайл месторождения, где он копает; picked — выбрано ли оно: нет — он ищет его сам.
- * Выбранность — отдельным полем, а не значением координат: у карты есть и отрицательные тайлы.
- * ordered — месторождение назначил игрок. seek — что искать: вид месторождения, any — любое, пусто — ничего.
- * Ищет он честно: среди разведанных игроком, а не найдя — разведывает сам. Выработается — ищет того же вида.
- * parked — стоит и ждёт команды: новый харвестер, уведённый приказом идти или не нашедший ничего.
- */
-/** scoutX, scoutY — откуда начат поиск: разведка идёт кольцами вокруг этой точки; scouting — поиск начат. */
-export const Harvester = component('Harvester', { x: -1, y: -1, picked: false, ordered: false, parked: true, seek: '' as DepositKind | 'any' | '', scoutX: -1, scoutY: -1, scouting: false })
 
 export const Beam = component('Beam', () => ({ radius: 2, rate: 10, give: true, take: true, links: [] as { target: number; pulling: boolean; resource: Good }[] }))
 
@@ -330,4 +319,4 @@ export const Scan = component('Scan', { x: 0, y: 0, tick: -1, wait: 0 })
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Harvester, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate]

@@ -6,7 +6,6 @@ import { TRAINING_PLAYER, orderAttack } from './combat'
 import { Armed, Building, Inventory, Owner, Path, Position, Site, Unit } from './components'
 import { orderBuild } from './construction'
 import { addCredits } from './economy'
-import { orderSeek } from './harvesting'
 import { fortification } from './fortify'
 import { put } from './inventory'
 import { spawnSandbox } from './sandbox'
@@ -55,16 +54,10 @@ function idle(sim: Sim, entity: Entity) {
   return target === undefined || target === null || !sim.world.has(target as Entity, Position)
 }
 
-/** Добыча: работающая база и несколько харвестеров, которые сами разведывают и копают все виды руды. */
+/** Добыча: работающая база — шахта, трубы, переработки и грузовики, которые развозят готовое по хранилищам. */
 const mining: Scene = {
   create(sim, player) {
-    const base = spawnSandbox(sim, player)
-    if (!base) return false
-    const harvesters = spawnGroup(sim, ['harvester', 'harvester', 'harvester', 'truck', 'truck'], player, base.x, base.y, 3).filter(
-      (entity) => sim.world.get(entity, Unit)?.type === 'harvester',
-    )
-    for (const harvester of harvesters) orderSeek(sim, player, [harvester], 'any')
-    return true
+    return !!spawnSandbox(sim, player)
   },
 }
 

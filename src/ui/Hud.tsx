@@ -556,18 +556,6 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
             })}
           </div>
         )}
-        {state.harvest && (
-          <div class="hud__hint">
-            {state.harvest.kind
-              ? rich<ComponentChildren>('hud.digs', { icon: <Res resource={state.harvest.kind} />, name: t(`goods.${state.harvest.kind}`) })
-              : state.harvest.parked
-                ? t('hud.parked')
-                : state.harvest.seek && state.harvest.seek !== 'any'
-                  ? rich<ComponentChildren>('hud.seeks', { icon: <Res resource={state.harvest.seek} />, name: t(`goods.${state.harvest.seek}`) })
-                  : t('hud.seeksAny')}
-            {t('hud.harvestTip')}
-          </div>
-        )}
         {state.ammo && (
           <div class={state.ammo.have <= 0 ? 'hud__hint is-short' : 'hud__hint'}>
             {t('hud.ammo')}: <Res resource="ammo" amount={state.ammo.have} of={state.ammo.capacity} />

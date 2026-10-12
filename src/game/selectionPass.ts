@@ -4,7 +4,7 @@ import { createAtlas } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Building, Converting, DEPOSIT_SIZE, Orders, Owner, Path, Position, Producer, Site, UNITS, Unit, buildTicks, networkOf, siteTicks } from '../sim'
+import { BUILDINGS, Building, Converting, Orders, Owner, Path, Position, Producer, Site, UNITS, Unit, buildTicks, networkOf, siteTicks } from '../sim'
 import type { Scene } from './scene'
 import { drawnPosition } from './units/unitsPass'
 
@@ -150,7 +150,6 @@ export function createSelectionPass(gl: WebGL2RenderingContext, scene: Scene): P
         for (const { command } of list) {
           const to =
             command.type === 'move' ? { x: command.x + 0.5, y: command.y + 0.5 }
-            : command.type === 'harvest' ? { x: command.x + DEPOSIT_SIZE / 2, y: command.y + DEPOSIT_SIZE / 2 }
             : command.type === 'attack' ? centerOf(command.target)
             : command.type === 'assist' ? centerOf(command.site)
             : command.type === 'haul' ? centerOf(command.mine)

@@ -1,8 +1,7 @@
 import { hash } from '../map/terrain'
-import { buildingSpec } from './buildings'
+import { buildingSpec, siteAt } from './buildings'
 import { Building, Deposit, Position, Site } from './components'
 import { DEPOSIT_CELL, DEPOSIT_SIZE, addDeposit, cellOf, depositAt, depositsIn, dropDeposit, knowsDeposit, placeIn, reserveLeft, seesDeposit, type DepositSpot } from './deposits'
-import { hasMine } from './harvesting'
 import type { Sim } from './sim'
 
 /**
@@ -14,6 +13,21 @@ import type { Sim } from './sim'
  * Туман: о новом месторождении знает только тот, кто видел его место после появления (DepositSpot.found), а ушедшее
  * помнят, как прежде, все, кто о нём знал, пока не увидят, что его нет (DepositLayer.ghosts).
  */
+
+/** Стоит ли на месторождении шахта — готовая или строящаяся, чья угодно. */
+export function hasMine(sim: Sim, spot: DepositSpot) {
+  for (let y = spot.y; y < spot.y + DEPOSIT_SIZE; y++) {
+    for (let x = spot.x; x < spot.x + DEPOSIT_SIZE; x++) {
+      const building = sim.occupancy.at(x, y)
+      const type = building === undefined ? undefined : sim.world.get(building, Building)?.type
+      if (type && buildingSpec(type).extract) return true
+      const site = siteAt(sim, x, y)
+      const planned = site === undefined ? undefined : sim.world.get(site, Site)!.type
+      if (planned && buildingSpec(planned).extract) return true
+    }
+  }
+  return false
+}
 
 /** Раз в сколько тиков всё это проверяется: месторождения уходят и появляются за минуты, а не за тики. */
 const CHECK_TICKS = 20

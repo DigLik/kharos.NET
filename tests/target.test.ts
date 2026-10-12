@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Armed, Harvester, Hauler, Orders, Path, Position, canPlace, createSim, depositIn, depositNear, resolveOrder, type Sim } from '../src/sim'
+import { Armed, Hauler, Orders, Path, Position, canPlace, createSim, depositIn, resolveOrder, type Sim } from '../src/sim'
 import { dropItems } from '../src/sim/drops'
 import { spawnUnit } from '../src/sim/units'
 
@@ -24,27 +24,6 @@ function order(sim: Sim, player: number, units: number[], x: number, y: number, 
   sim.send(player, { type: 'order', units, x, y, queue })
   sim.advance(TICK)
 }
-
-test('приказ точкой харвестеру: по месторождению на виду — копать, по неразведанному — идти, по разведанному в тумане — копать', () => {
-  const { sim, spot } = start()
-  const harvester = spawnUnit(sim, 'harvester', 1, spot.x - 1, spot.y)
-  const state = () => sim.world.get(harvester, Harvester)!
-  sim.advance(TICK)
-  order(sim, 1, [harvester], spot.x + 1.5, spot.y + 0.5)
-  expect(state()).toMatchObject({ x: spot.x, y: spot.y, picked: true, ordered: true })
-
-  const other = depositNear(sim, spot.x + 60, spot.y, 50)!
-  expect(sim.vision.explored(1, other.x, other.y)).toBe(false)
-  order(sim, 1, [harvester], other.x + 0.5, other.y + 0.5)
-  // О неразведанном игрок не знает: туда просто едут, и с прежнего месторождения приказ снимает.
-  expect(state()).toMatchObject({ picked: false, parked: true })
-  expect(sim.world.get(harvester, Path)).toMatchObject({ goalX: other.x, goalY: other.y })
-
-  sim.vision.explore(1, [0, 1e9])
-  expect(sim.vision.sees(1, other.x, other.y)).toBe(false)
-  order(sim, 1, [harvester], other.x + 0.5, other.y + 0.5)
-  expect(state()).toMatchObject({ x: other.x, y: other.y, picked: true })
-})
 
 test('приказ точкой грузовику: дроп на виду — вывозить, дроп в тумане — просто ехать', () => {
   const { sim, spot } = start()

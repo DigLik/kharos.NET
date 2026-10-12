@@ -2,7 +2,7 @@ import type { Entity } from '../ecs'
 import { inputsOf } from './assembly'
 import { BUILDINGS, buildingSpec, isReady, type BuildingSpec } from './buildings'
 import { NONE, isOwn } from './common'
-import { Assembly, Batch, Building, Converting, Drop, Hauler, Harvester, Inventory, Off, Owner, Path, Position, Producer, Site, Trade, Unit } from './components'
+import { Assembly, Batch, Building, Converting, Drop, Hauler, Inventory, Off, Owner, Path, Position, Producer, Site, Trade, Unit } from './components'
 import { depositAt } from './deposits'
 import { amountOf, loadOf, roomFor } from './inventory'
 import { entriesOf, GOODS, isOre, isProduct, ORE_OF, WARES, stockedFor, type Amounts, type Good, type Ore, type Resource } from './resources'
@@ -401,7 +401,7 @@ const isIdle = (sim: Sim, truck: Entity) => {
   const { world } = sim
   const hauler = world.get(truck, Hauler)!
   const cargo = world.get(truck, Inventory)
-  return !world.has(truck, Harvester) && !hauler.route.length && hauler.mine === NONE && hauler.pickup === NONE && hauler.from === NONE && hauler.to === NONE && (!cargo || loadOf(cargo) <= 1e-9) && !world.has(truck, Path) && !world.has(truck, Converting)
+  return !hauler.route.length && hauler.mine === NONE && hauler.pickup === NONE && hauler.from === NONE && hauler.to === NONE && (!cargo || loadOf(cargo) <= 1e-9) && !world.has(truck, Path) && !world.has(truck, Converting)
 }
 
 /**

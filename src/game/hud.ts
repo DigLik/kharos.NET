@@ -5,7 +5,7 @@ import { knownReserve } from './knownReserve'
 import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
-  Assembly, Harvester, BUILDABLE, isUnlocked, buyPrice, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
+  Assembly, BUILDABLE, isUnlocked, buyPrice, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   RESEARCH, Research, TOPICS, isLab, levelTopic, missingResearch, topicLack, topicPrice, type Topic, type TopicPrice, type TopicLack,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
@@ -116,10 +116,6 @@ export interface HudState {
     yield: number
     seconds: number
   } | null
-  /**
-   * Свои харвестеры среди выбранных: кто они, что копают, что ищут (общее у всех, иначе null) и стоят ли все без дела.
-   */
-  harvest: { units: number[]; kind: DepositKind | null; seek: DepositKind | 'any' | null; parked: boolean } | null
   /** Боеприпасы выбранной турели: сколько есть и сколько помещается. */
   ammo: { have: number; capacity: number } | null
   /**
@@ -325,7 +321,6 @@ export function readHud(scene: Scene): HudState {
   let buildingCount = 0
   let mixed = false
   let firstKind: BuildingType | undefined
-  let harvest: HudState['harvest'] = null
   let ammo: HudState['ammo'] = null
   let materials: HudState['materials'] = null
   let cargo: HudState['cargo'] = null
@@ -379,12 +374,10 @@ export function readHud(scene: Scene): HudState {
       cargo.capacity += inventory.capacity
       if (hauler.mine >= 0) cargo.bound++
       else if (hauler.from >= 0 || hauler.to >= 0 || hauler.route.length || hauler.serve.length) cargo.busy++
-      if (!world.has(entity, Harvester)) {
-        haul ??= { units: [], routed: 0, served: 0, filter: [...hauler.filter], routing: scene.routing ? scene.routing.length : null, serving: scene.serving ? scene.serving.length : null }
-        haul.units.push(entity)
-        if (hauler.route.length) haul.routed++
-        if (hauler.serve.length) haul.served++
-      }
+      haul ??= { units: [], routed: 0, served: 0, filter: [...hauler.filter], routing: scene.routing ? scene.routing.length : null, serving: scene.serving ? scene.serving.length : null }
+      haul.units.push(entity)
+      if (hauler.route.length) haul.routed++
+      if (hauler.serve.length) haul.served++
     }
     const built = world.get(entity, Building)
     const ready = !!built && !world.has(entity, Site)
@@ -434,15 +427,6 @@ export function readHud(scene: Scene): HudState {
         })),
         current: running ? { topic: running.topic as Topic, progress: round(Math.min(1, running.progress / Math.max(1, running.ticks))) } : null,
       }
-    }
-    const digging = world.get(entity, Harvester)
-    if (digging && isOwn(sim, player, entity)) {
-      const first: boolean = !harvest
-      harvest ??= { units: [], kind: null, seek: digging.seek || null, parked: true }
-      harvest.units.push(entity)
-      if (digging.picked) harvest.kind = depositAt(sim, digging.x, digging.y)?.kind ?? harvest.kind
-      if (!first && harvest.seek !== (digging.seek || null)) harvest.seek = null
-      harvest.parked &&= digging.parked
     }
     if (ready && spec!.ammo && inventory) ammo = { have: Math.floor(amountOf(inventory, 'ammo')), capacity: inventory.capacity }
     if (ready && (spec!.power ?? 0) < 0 && !world.has(entity, Assembly) && isOwn(sim, player, entity)) {
@@ -597,7 +581,6 @@ export function readHud(scene: Scene): HudState {
     switchable,
     buildings: buildingCount,
     mixed,
-    harvest,
     ammo,
     materials,
     trade,
