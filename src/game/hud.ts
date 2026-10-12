@@ -9,7 +9,7 @@ import {
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   RESEARCH, Research, TOPICS, isLab, levelTopic, missingResearch, topicLack, topicPrice, type Topic, type TopicPrice, type TopicLack,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
-  Accumulator, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
+  Accumulator, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
 import { paveStrokeOf } from './placing'
 import type { PaveTool, Scene } from './scene'
@@ -125,6 +125,8 @@ export interface HudState {
   } | null
   /** Боеприпасы выбранной турели: сколько есть и сколько помещается. */
   ammo: { have: number; capacity: number } | null
+  /** Стержни выбранного своего реактора: сколько на складе, сколько помещается и горит ли стержень сейчас. */
+  rods: { have: number; capacity: number; burning: boolean } | null
   /**
    * Материалы, которых ждёт выбранная стройка или первый заказ выбранного производителя: сколько нужно и сколько
    * уже на месте. waiting — работа стоит, пока их не привезут.
@@ -329,6 +331,7 @@ export function readHud(scene: Scene): HudState {
   let mixed = false
   let firstKind: BuildingType | undefined
   let ammo: HudState['ammo'] = null
+  let rods: HudState['rods'] = null
   let materials: HudState['materials'] = null
   let cargo: HudState['cargo'] = null
   let haul: HudState['haul'] = null
@@ -440,7 +443,10 @@ export function readHud(scene: Scene): HudState {
       }
     }
     if (ready && spec!.ammo && inventory) ammo = { have: Math.floor(amountOf(inventory, 'ammo')), capacity: inventory.capacity }
-    if (ready && (spec!.power ?? 0) < 0 && !world.has(entity, Assembly) && isOwn(sim, player, entity)) {
+    if (ready && spec!.burns && inventory && isOwn(sim, player, entity)) {
+      rods = { have: Math.floor(amountOf(inventory, spec!.burns.good)), capacity: inventory.capacity, burning: isBurning(sim, entity) }
+    }
+    if (ready && building !== null && isSwitchable(building) && !world.has(entity, Assembly) && isOwn(sim, player, entity)) {
       switchable ??= { buildings: [], on: false }
       switchable.buildings.push(entity)
       switchable.on ||= !world.has(entity, Off)
@@ -600,6 +606,7 @@ export function readHud(scene: Scene): HudState {
     buildings: buildingCount,
     mixed,
     ammo,
+    rods,
     materials,
     trade,
     cargo,

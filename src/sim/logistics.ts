@@ -1,6 +1,6 @@
 import type { Entity } from '../ecs'
 import { inputsOf } from './assembly'
-import { BUILDINGS, buildingSpec, isReady, type BuildingSpec } from './buildings'
+import { BUILDINGS, buildingSpec, feedOf, isReady, type BuildingSpec } from './buildings'
 import { NONE, isOwn } from './common'
 import { Assembly, Batch, Building, Converting, Drop, Hauler, Inventory, Off, Owner, Path, Position, Producer, Site, Trade, Unit } from './components'
 import { depositAt } from './deposits'
@@ -253,11 +253,13 @@ export function requestsOf(sim: Sim, player: number, flows = flowsOf(sim)): Requ
       need(entity, resource, amount - amountOf(inventory, resource), PRIORITY.production)
     }
   }
-  // Турели: патроны, когда расстреляна четверть запаса. Оборону ставят и вне зон — её кормит ближайшая зона.
+  // Турели и реакторы: патроны и стержни, когда израсходована четверть запаса. Оборону ставят и вне зон — её кормит
+  // ближайшая зона.
   for (const [entity, building, inventory, owner] of world.query(Building, Inventory, Owner)) {
-    if (owner.player !== player || !buildingSpec(building.type).ammo || !isReady(sim, player, entity)) continue
-    const room = roomFor(inventory, 'ammo')
-    if (room >= inventory.capacity * AMMO_REORDER) need(entity, 'ammo', room, PRIORITY.ammo, 'zone', true)
+    const feed = feedOf(buildingSpec(building.type))
+    if (owner.player !== player || !feed || !isReady(sim, player, entity)) continue
+    const room = roomFor(inventory, feed)
+    if (room >= inventory.capacity * AMMO_REORDER) need(entity, feed, room, PRIORITY.ammo, 'zone', true)
   }
   // Продажа: товар заявки.
   for (const [entity, order] of world.query(Trade, Inventory)) {
@@ -356,11 +358,11 @@ export function acceptsDelivery(sim: Sim, player: number, to: Entity, resource: 
   if (materialsFor(sim, to)?.[resource]) return true
   // Цех — сырьё своего рецепта.
   if (inputsOf(sim, to).includes(resource as Resource)) return true
-  // Свой склад здания: переработка так принимает руду, которой больше негде лежать, турель — патроны.
+  // Свой склад здания: переработка так принимает руду, которой больше негде лежать, турель — патроны, реактор — стержни.
   const type = world.get(to, Building)?.type
   if (type === undefined) return false
   const spec = buildingSpec(type)
-  return spec.refines === resource || (!!spec.ammo && resource === 'ammo')
+  return spec.refines === resource || feedOf(spec) === resource
 }
 
 /** Ближайшая к точке зона: по расстоянию до края её ближайшего круга. */

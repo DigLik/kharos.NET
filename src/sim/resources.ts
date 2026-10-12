@@ -64,12 +64,14 @@ export interface ProductSpec {
 
 /**
  * Изделия сборочного цеха — по одному на каждую петлю игры (§3.7 design.md): стройблоки — стройке, боеприпасы —
- * турелям, компоненты — верхнему тиру. Их не продают: космопорт торгует только ресурсами.
+ * турелям, компоненты — верхнему тиру, стержни — реактору. Их не продают: космопорт торгует только ресурсами.
  */
 export const PRODUCT_SPECS = {
   blocks: { recipe: { metal: 2, silicon: 1 }, yield: 1 },
   ammo: { recipe: { metal: 1 }, yield: 10 },
   parts: { recipe: { silicon: 2, kharite: 1 }, yield: 1 },
+  // Топливные стержни — реактору и боеголовке (§9 п. 4 design.md): второй слой, как и сам уран.
+  rods: { recipe: { uranium: 2, metal: 1 }, yield: 1 },
 } satisfies Record<string, ProductSpec>
 
 export type Product = keyof typeof PRODUCT_SPECS

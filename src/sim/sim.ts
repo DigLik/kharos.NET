@@ -22,6 +22,7 @@ import { convert } from './conversion'
 import { haul } from './hauling'
 import { pipeFlow } from './pipes'
 import { earn, storeEnergy } from './income'
+import { burnFuel } from './reactors'
 import { ferry } from './ferry'
 import { trade } from './trade'
 import { moveUnits, planPaths } from './movement'
@@ -224,6 +225,8 @@ export function createSim(source: SimOptions | SimSave): Sim {
     update: [
       commands,
       () => convert(sim),
+      // До энергии зон: реакторы берут стержни, и горящий уже даёт энергию в этот тик.
+      () => burnFuel(sim),
       // До всех потребителей энергии: накопители решают, сколько отдают зоне в этот тик.
       () => storeEnergy(sim),
       (_, time) => produceUnits(sim, time),

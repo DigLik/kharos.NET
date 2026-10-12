@@ -27,6 +27,8 @@ export const RESEARCH = {
   bombing: { cost: 400, parts: 4, seconds: 40 },
   // Лазерная и разрядная турели.
   beams: { cost: 400, parts: 4, seconds: 40 },
+  // Реактор: второй слой энергии, нужен уран — приз рыжих пустошей.
+  atom: { cost: 800, parts: 8, seconds: 80 },
 } satisfies Record<string, TopicSpec>
 
 export type Topic = keyof typeof RESEARCH

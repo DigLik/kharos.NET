@@ -1,6 +1,7 @@
 import type { Entity } from '../ecs'
 import { BUILDINGS, buildingSpec, levelFactor, type BuildingSpec, type BuildingType } from './buildings'
 import { Accumulator, Assembly, Building, Health, Off, Player } from './components'
+import { isBurning, meltdown } from './reactors'
 import type { Sim } from './sim'
 import { allGrids, type Zone } from './zones'
 
@@ -90,6 +91,8 @@ export function coreless(sim: Sim): Set<Entity> {
 function powerAt(sim: Sim, building: Entity) {
   const { type, level } = sim.world.get(building, Building)!
   const power = buildingSpec(type).power ?? 0
+  // Реактор вырабатывает, только пока в нём горит стержень.
+  if (buildingSpec(type).burns && !isBurning(sim, building)) return 0
   // Выработка растёт с уровнем; у радара — потребление: дальше разведывает — больше ест.
   return power > 0 || buildingSpec(type).scan ? power * levelFactor(level) : power
 }
@@ -227,7 +230,10 @@ function wear(sim: Sim, all: Book[]) {
       if (health.value <= 0) ruined.push(entity)
     }
   }
-  for (const entity of ruined) world.destroy(entity)
+  for (const entity of ruined) {
+    meltdown(sim, entity)
+    world.destroy(entity)
+  }
 }
 
 /**

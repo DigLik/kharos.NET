@@ -577,6 +577,12 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
             {state.ammo.have <= 0 ? t('hud.ammoEmpty') : t('hud.ammoTip')}
           </div>
         )}
+        {state.rods && (
+          <div class={state.rods.have <= 0 && !state.rods.burning ? 'hud__hint is-short' : 'hud__hint'}>
+            {t('hud.rods')}: <Res resource="rods" amount={state.rods.have} of={state.rods.capacity} />
+            {state.rods.burning ? t('hud.rodsTip') : t('hud.rodsEmpty')}
+          </div>
+        )}
         {assembly && (
           <>
             <div class="hud__hint">

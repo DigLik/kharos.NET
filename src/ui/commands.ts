@@ -28,12 +28,12 @@ const FERRY = 0
 const LIST = 8
 
 /** Страница сетки строителя: корень с разделами или сами здания раздела. */
-export type Page = 'root' | 'economy' | 'storage' | 'industry' | 'military' | 'defense' | 'paving' | 'logistics' | 'filter' | 'reserve' | 'sell' | 'buy' | 'ally' | 'ferryGoods' | 'gift'
+export type Page = 'root' | 'economy' | 'storage' | 'industry' | 'military' | 'defense' | 'paving' | 'logistics' | 'filter' | 'reserve' | 'sell' | 'buy' | 'ally' | 'ferryGoods' | 'ferryMore' | 'gift'
 
 /** Разделы строителя: в какой странице какое здание. Остальное — хозяйство: энергия, добыча, торговля. */
 const SECTIONS: Partial<Record<Page, BuildingType[]>> = {
-  storage: ['metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker'],
-  industry: ['smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill', 'blockPlant', 'ammoPlant', 'partsPlant'],
+  storage: ['metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack'],
+  industry: ['smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill', 'blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant'],
   military: ['barracks', 'factory', 'airfield', 'techCenter', 'repairStation'],
   defense: ['wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator', 'radar'],
 }
@@ -351,6 +351,8 @@ export function commandsOf(
       if (haul.served > 0) {
         slots[4] = { label: t('grid.dropServe'), title: t('grid.backToRequests'), run: () => send({ type: 'serve', units, buildings: [] }) }
       }
+      // Под фильтром — сбросить его: на странице фильтра для этой кнопки места нет.
+      if (filter.length) slots[6] = { label: t('grid.all'), title: t('grid.allTip'), run: () => send({ type: 'filter', units, goods: [] }) }
     } else if (page === 'filter') {
       /** Руда в фильтре — вся сразу: по видам её различает месторождение, а не игрок. */
       const has = (goods: readonly Good[]) => goods.every((good) => filter.includes(good))
@@ -361,9 +363,8 @@ export function commandsOf(
       WARES.forEach((ware, i) => {
         slots[i] = { label: t(`goods.${ware}`), good: ware, active: has([ware]), title: t('grid.carryOrNot'), run: () => toggle([ware]) }
       })
-      // Готового девять видов: руда встаёт на место отмены, «Всё» — на место разбора.
+      // Готового десять видов: руда — сразу за ними, «Всё» — в корне грузовика.
       slots[WARES.length] = { label: t('grid.ore'), good: ORES[0], active: has(ORES), title: t('grid.oreTip'), run: () => toggle(ORES) }
-      slots[DEMOLISH] = { label: t('grid.all'), active: !filter.length, title: t('grid.allTip'), run: () => send({ type: 'filter', units, goods: [] }) }
       slots[BACK] = { label: t('common.back'), run: () => open('root') }
     }
   }
@@ -446,6 +447,14 @@ export function commandsOf(
     const { port, order, transfer } = trade
     // Космопорт один, и корабль у него один: пока в пути заказ или подарок, ни то, ни другое не начать.
     const busy = !!order || !!transfer
+    /** Груз из хранилищ зон, который можно положить в корабль: ячейка на груз, клик — выбрать количество. */
+    const ferryGoodsOf = (ferry: FerryDraft) =>
+      (state.stock?.items ?? []).map(({ resource, amount }): Slot => ({
+        label: `${t(`goods.${resource}`)} ×${amount}`,
+        good: resource,
+        title: t('grid.ferryAmount'),
+        run: () => draft({ ...ferry, editing: { kind: 'good', good: resource }, amount: Math.floor(ferry.goods[resource] ?? 0) }),
+      }))
     // Продажа и закупка — каждая на своей странице: верхний ряд корня космопорта занят заказом техники.
     if (page === 'root') {
       slots[TRADE] = {
@@ -488,18 +497,18 @@ export function commandsOf(
           })),
       )
       slots[BACK] = { label: t('common.back'), run: () => open('root') }
-    } else if (page === 'ferryGoods' && ferry) {
+    } else if (page === 'ferryMore' && ferry && !ferry.editing) {
+      // Хвост списка груза, который не влез на первую страницу.
+      ferryGoodsOf(ferry).slice(LIST).forEach((slot, i) => (slots[i] = slot))
+      slots[BACK] = { label: t('common.back'), run: () => open('ferryGoods') }
+    } else if ((page === 'ferryGoods' || page === 'ferryMore') && ferry) {
       // Что положить в корабль: груз из хранилищ зон и деньги. Набранное видно в панели сведений.
       if (!ferry.editing) {
-        const goods = (state.stock?.items ?? []).map(({ resource, amount }): Slot => ({
-          label: `${t(`goods.${resource}`)} ×${amount}`,
-          good: resource,
-          title: t('grid.ferryAmount'),
-          run: () => draft({ ...ferry, editing: { kind: 'good', good: resource }, amount: Math.floor(ferry.goods[resource] ?? 0) }),
-        }))
+        const goods = ferryGoodsOf(ferry)
         list(goods)
-        // Готового девять видов, а под список восемь ячеек: девятый — в свободную ячейку нижнего ряда.
-        if (goods[LIST]) slots[DEMOLISH] = goods[LIST]
+        // Под список восемь ячеек: девятый груз — в свободную ячейку нижнего ряда, а если их больше — там «Ещё».
+        if (goods.length === LIST + 1) slots[DEMOLISH] = goods[LIST]
+        else if (goods.length > LIST + 1) slots[DEMOLISH] = { label: t('grid.more'), title: t('grid.moreTip'), run: () => open('ferryMore') }
         const empty = !ferry.credits && !Object.keys(ferry.goods).length
         slots[TRADE] = {
           label: `${t('grid.ferrySend')}: ${ferry.name}`,
@@ -546,7 +555,13 @@ export function commandsOf(
             draft({ ...ferry, goods, editing: null, amount: 0 })
           },
         }
-        slots[BACK] = { label: t('common.back'), run: () => draft({ ...ferry, editing: null, amount: 0 }) }
+        slots[BACK] = {
+          label: t('common.back'),
+          run: () => {
+            draft({ ...ferry, editing: null, amount: 0 })
+            open('ferryGoods')
+          },
+        }
       }
     } else if (page === 'ferryGoods') {
       slots[BACK] = { label: t('common.back'), run: () => open('root') }

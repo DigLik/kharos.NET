@@ -1,5 +1,5 @@
 import type { Entity, Time } from '../ecs'
-import { buildingSpec, isReady } from './buildings'
+import { isReady, isSwitchable } from './buildings'
 import { Assembly, Building, Hauler, Inventory, Off, Owner, Site } from './components'
 import { powerSupply } from './income'
 import { amountOf, put, roomFor, take } from './inventory'
@@ -35,7 +35,7 @@ export const inputsOf = (sim: Sim, entity: Entity): readonly Resource[] => {
 export function setWorking(sim: Sim, player: number, entity: Entity, on: boolean) {
   const { world } = sim
   const type = world.get(entity, Building)?.type
-  if (!type || !isReady(sim, player, entity) || (buildingSpec(type).power ?? 0) >= 0) return false
+  if (!type || !isReady(sim, player, entity) || !isSwitchable(type)) return false
   // Новый завод изделий выключен без тега Off: у него свой флаг on, и он главнее.
   const assembly = world.get(entity, Assembly)
   if (assembly ? assembly.on === on : on === !world.has(entity, Off)) return false

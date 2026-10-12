@@ -15,6 +15,7 @@ export const GOOD_COLORS: Record<Good, number> = {
   blocks: 0xd8b98a,
   ammo: 0xe0803a,
   parts: 0x4fd6a2,
+  rods: 0x7ef0b0,
   metalOre: 0x8d7a5f,
   siliconOre: 0x5a6a8a,
   fuelOre: 0x8a7a2a,

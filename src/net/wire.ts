@@ -1,5 +1,5 @@
 import type { Component, Entity, World } from '../ecs'
-import { Accumulator, Armed, Assembly, Attached, Blast, Builds, Drop, Hauler, Health, Inventory, Owner, Path, Position, Producer, Repair, Scan, Shot, SAVED, Tactics, Trade, Turret, Unit } from '../sim/components'
+import { Accumulator, Armed, Assembly, Attached, Blast, Builds, Burst, Drop, Hauler, Health, Inventory, Owner, Path, Position, Producer, Reactor, Repair, Scan, Shot, SAVED, Tactics, Trade, Turret, Unit } from '../sim/components'
 import { quantize, type Motion } from './codec'
 
 /** До скольких знаков после запятой округляются дробные числа в сети: тысячная тайла глазу не видна. */
@@ -15,8 +15,8 @@ const round = (_key: string, value: unknown) =>
  * перезарядку считает по тику её конца, возраст выстрела и взрыва — по тику рождения, см. replica.ts. Всё, что меняется каждый тик без нужды, уходило бы каждый тик.
  */
 function wire(component: Component<any>, data: any, tick: number): object | undefined {
-  // Путь — свой у каждого игрока, см. pathOf.
-  if (component === Path) return undefined
+  // Путь — свой у каждого игрока, см. pathOf. Авария живёт до ближайшего боя: клиент видит её взрывом (Blast).
+  if (component === Path || component === Burst) return undefined
   // Место и поворот юнита идут движением, см. codec.ts.
   if (component === Unit) {
     const { prevX: _x, prevY: _y, prevFacing: _previous, facing: _facing, ...rest } = data
@@ -36,6 +36,8 @@ function wire(component: Component<any>, data: any, tick: number): object | unde
     return { ...rest, born: tick - age }
   }
   if (component === Blast) return { size: data.size, life: data.life, born: tick - data.age }
+  // Сколько горит стержень, тает каждый тик; клиенту хватает знать, горит ли он.
+  if (component === Reactor) return { left: data.left > 0 ? 1 : 0 }
   // Счёт до следующей вспышки радара клиенту не нужен, а менялся бы дважды в секунду.
   if (component === Scan) return { x: data.x, y: data.y, tick: data.tick }
   return data
@@ -57,7 +59,7 @@ export interface Wired {
  * Что о своём знает только хозяин: склад, очередь производства, работа грузовиков, копателей и строителей, сборка,
  * торговля, тактика, куда смотрит радар. Чужому это незачем рисовать, а знать — нечестно.
  */
-const PRIVATE = new Set([Inventory, Producer, Hauler, Assembly, Trade, Tactics, Builds, Repair, Scan, Accumulator].map((component) => component.key))
+const PRIVATE = new Set([Inventory, Producer, Hauler, Assembly, Trade, Tactics, Builds, Repair, Scan, Accumulator, Reactor].map((component) => component.key))
 
 /** Сущность глазами игрока viewer: своё и ничьё — целиком, чужое — без PRIVATE и без цели стрелка. */
 export function seenBy(wired: Wired, viewer: number): Wired {

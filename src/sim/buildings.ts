@@ -1,7 +1,7 @@
 import type { Entity, World } from '../ecs'
 import { Terrain, isBuildable, isCliffFoot, terrainAt, tileKey } from '../map/terrain'
 import { isOwn } from './common'
-import { Accumulator, Assembly, Building, Gate, Health, Inventory, Repair, Owner, Position, Producer, Shield, Site } from './components'
+import { Accumulator, Assembly, Building, Gate, Health, Inventory, Reactor, Repair, Owner, Position, Producer, Shield, Site } from './components'
 import { equipStorage, type BeamSpec } from './inventory'
 import { ORE_SPECS, PRODUCT_SPECS, WARES, stockedFor, type Amounts, type Good, type Ore, type Product } from './resources'
 import type { Sim } from './sim'
@@ -102,6 +102,16 @@ export interface BuildingSpec {
    * держит, в единицах энергии на секунду; rate — сколько энергии в секунду берёт или отдаёт. См. storeEnergy в income.ts.
    */
   battery?: { capacity: number; rate: number }
+  /**
+   * Реактор: вырабатывает power, только пока горит стержень, — один на seconds секунд, пока включён, выключенный
+   * не жжёт. Стержни держит на своём складе и заказывает у зоны сам, как турель патроны. См. reactors.ts.
+   */
+  burns?: { good: Product; seconds: number }
+  /**
+   * Разрушенное с топливом внутри взрывается: урон damage в центре до нуля на краю radius, по всем без разбора.
+   * Разбор строителями не взрывает. См. meltdown в reactors.ts.
+   */
+  meltdown?: { radius: number; damage: number }
 }
 
 /** На сколько тайлов от своего центра расширяет зону готовая труба или колодец. */
@@ -184,6 +194,7 @@ export const BUILDINGS = {
   blockPlant: plant('blocks'),
   ammoPlant: plant('ammo'),
   partsPlant: plant('parts'),
+  rodPlant: plant('rods'),
   // Машинный завод: машинки и тяжёлая техника. Строится из стройблоков: военная промышленность требует цеха.
   factory: { width: 3, height: 3, cost: 450, power: -5, materials: { blocks: 10 }, produces: ['buggy', 'flak', 'lancer', 'tank', 'artillery', 'tesla', 'carrier', 'mcv'] },
   // Техцентр ведёт исследования: они открывают уровни зданий, второй тир техники и лучевую оборону. Строится
@@ -199,6 +210,12 @@ export const BUILDINGS = {
   // Накопитель держит минуту работы электростанции: база переживает снесённую станцию или перегруз, пока его хватает.
   // Строится из лития: это его работа.
   accumulator: { width: 2, height: 2, cost: 400, materials: { lithium: 20 }, battery: { capacity: 600, rate: 10 } },
+  // Реактор даёт шесть электростанций на 9 тайлах вместо 24 и жжёт стержень в минуту — около 90 кредитов сырья.
+  // Разрушенный с топливом взрывается: его ставят за стеной и в стороне.
+  reactor: {
+    width: 3, height: 3, cost: 2500, power: 60, materials: { blocks: 10, parts: 10 }, inventory: 4, accepts: ['rods'],
+    burns: { good: 'rods', seconds: 60 }, meltdown: { radius: 4, damage: 600 },
+  },
   // Генератор материи — базовый доход: превращает энергию в кредиты. Первая электростанция окупает его быстро,
   // дальше теснота делает каждый следующий всё дороже. Он страховка на случай, когда линий добычи нет (§4.3 шаг 3):
   // одной электростанции хватает на два генератора.
@@ -221,6 +238,7 @@ export const BUILDINGS = {
   blockYard: store(['blocks'], 2, 2, 150, 200),
   ammoBunker: store(['ammo'], 2, 1, 200, 300),
   partsLocker: store(['parts'], 1, 1, 200, 60),
+  rodRack: store(['rods'], 1, 1, 300, 40),
   // Космопорт торгует: энергию просит всегда.
   // Товар на продажу грузовики сгружают в трюм корабля. Строится из металла, а не из стройблоков: с него
   // начинаются деньги, и первой продаже хватает одной линии металла — без цеха и кремния.
@@ -257,8 +275,8 @@ export const CORE: BuildingType = 'command'
 export const BUILDING_TYPES = Object.keys(BUILDINGS) as BuildingType[]
 /** Что возводят строители. Остальные здания появятся вместе с тем, для чего они нужны. */
 export const BUILDABLE: BuildingType[] = [
-  'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill', 'blockPlant', 'ammoPlant', 'partsPlant',
-  'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'accumulator', 'spaceport', 'barracks', 'factory', 'airfield', 'techCenter',
+  'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill', 'blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant',
+  'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack', 'accumulator', 'reactor', 'spaceport', 'barracks', 'factory', 'airfield', 'techCenter',
   'repairStation', 'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator',
 ]
 
@@ -285,7 +303,8 @@ export function levelGain(type: BuildingType): LevelGain | undefined {
   if (spec.stores) return 'store'
   if (spec.trades) return 'trade'
   if (spec.scan) return 'scan'
-  return (spec.power ?? 0) > 0 ? 'power' : undefined
+  // Реактор не улучшают: выработка с уровнем росла бы, а расход стержней — нет.
+  return (spec.power ?? 0) > 0 && !spec.burns ? 'power' : undefined
 }
 
 /** Какую долю цены здания стоит в кредитах подъём с первого уровня; с каждого следующего — на столько же больше. */
@@ -325,6 +344,12 @@ export function applyLevel(world: World, entity: Entity) {
   if ((spec.stores || spec.trades) && spec.inventory) inventory.capacity = Math.round(spec.inventory * levelFactor(building.level))
 }
 
+/** Что здание само заказывает на свой склад: патроны турели, стержни реактора; undefined — ничего. */
+export const feedOf = (spec: BuildingSpec): Product | undefined => (spec.ammo ? 'ammo' : spec.burns?.good)
+
+/** Выключается ли здание игроком: потребитель энергии и реактор — тот бережёт стержни. */
+export const isSwitchable = (type: BuildingType) => (buildingSpec(type).power ?? 0) < 0 || !!buildingSpec(type).burns
+
 /** Труба ли это или колодец. */
 export const isPipe = (type: BuildingType) => !!buildingSpec(type).pipe
 
@@ -359,9 +384,11 @@ export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = 
   blockPlant: ['smelter'],
   ammoPlant: ['smelter'],
   partsPlant: ['siliconWorks'],
+  rodPlant: ['uraniumMill'],
   blockYard: ['blockPlant'],
   ammoBunker: ['ammoPlant'],
   partsLocker: ['partsPlant'],
+  rodRack: ['rodPlant'],
   barracks: ['radar'],
   factory: ['radar'],
   airfield: ['radar'],
@@ -372,12 +399,14 @@ export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = 
   laserTurret: ['techCenter'],
   arcTurret: ['techCenter'],
   shieldGenerator: ['techCenter'],
+  reactor: ['techCenter', 'uraniumMill'],
 }
 
 /** Какое исследование открывает здание вдобавок к REQUIRES: без него строители его не ставят. */
 export const RESEARCH_FOR: Partial<Record<BuildingType, Topic>> = {
   laserTurret: 'beams',
   arcTurret: 'beams',
+  reactor: 'atom',
 }
 
 /** Каких готовых зданий из списка у игрока нет. */
@@ -506,6 +535,7 @@ export function equip(world: World, entity: Entity, type: BuildingType) {
   if (spec.repair) world.add(entity, Repair({ radius: spec.repair }))
   if (spec.shield) world.add(entity, Shield())
   if (spec.battery) world.add(entity, Accumulator())
+  if (spec.burns) world.add(entity, Reactor())
   if (spec.produces && !spec.inventory) {
     equipStorage(world, entity, { inventory: PRODUCER_HOLD })
   }

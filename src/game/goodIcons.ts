@@ -85,6 +85,19 @@ const MASKS: Record<string, string[]> = {
     '..obbbbo..',
     '...oooo...',
   ],
+  // Три стержня связкой, торцы светятся.
+  rods: [
+    '.oo.oo.oo.',
+    '.ol.ol.ol.',
+    '.ob.ob.ob.',
+    '.ob.ob.ob.',
+    '.ob.ob.ob.',
+    '.ob.ob.ob.',
+    'oooooooooo',
+    'odddddddd.',
+    '.ob.ob.ob.',
+    '.od.od.od.',
+  ],
   // Кладка.
   blocks: [
     '..........',

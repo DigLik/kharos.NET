@@ -287,6 +287,18 @@ export const Shield = component('Shield', { charge: 0, hit: -1, down: 0 })
 export const Accumulator = component('Accumulator', { charge: 0, flow: 0 })
 
 /**
+ * Реактор: left — сколько тиков ещё горит стержень в работе; ноль — стержня нет, и реактор не вырабатывает.
+ * См. reactors.ts.
+ */
+export const Reactor = component('Reactor', { left: 0 })
+
+/**
+ * Взрыв, который бьёт по площади всех без разбора — своих, союзных и чужих: авария реактора. Живёт до ближайшего
+ * боя: урон от damage в центре до нуля на краю radius. См. fight в combat.ts.
+ */
+export const Burst = component('Burst', { radius: 0, damage: 0 })
+
+/**
  * Очередь приказов юнита, отданных с Shift: следующий он берёт, когда закончит нынешнее дело. group — общий номер
  * приказа, отданного нескольким юнитам сразу: такой приказ они берут вместе, чтобы встать строем. См. orders.ts.
  */
@@ -333,4 +345,4 @@ export const Scan = component('Scan', { x: 0, y: 0, tick: -1, wait: 0 })
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst]

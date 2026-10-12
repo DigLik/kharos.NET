@@ -5,13 +5,14 @@ import { isPaved } from './paved'
 import { dropCargo } from './drops'
 import { BUILDINGS, buildingSpec, isWall, type BuildingType } from './buildings'
 import { NONE, isOwn, onTurn, ownerOf, rectDistance, turnToward, wrap } from './common'
-import { Armed, Blast, Building, Converting, Doomed, Health, Inventory, Off, Owner, Path, Pave, Position, Shot, Site, Tactics, Turret, Unit } from './components'
+import { Armed, Blast, Building, Burst, Converting, Doomed, Health, Inventory, Off, Owner, Path, Pave, Position, Shot, Site, Tactics, Turret, Unit } from './components'
 import { releaseHauler } from './hauling'
 import { powerSupply } from './income'
 import { repairStations } from './construction'
 import { absorb, domes } from './shields'
 import { amountOf, take } from './inventory'
 import { searchCut, searchedTiles, withSearchQuota } from './path'
+import { meltdown } from './reactors'
 import { protectedPlayers, protectionLeft, unprotect } from './shelter'
 import type { Sim } from './sim'
 import { TURRETS, carrierOf, turnerOf, turretsOf } from './turrets'
@@ -845,6 +846,22 @@ export function fight(sim: Sim) {
   }
   for (const entity of vanished) world.destroy(entity)
 
+  // Аварии бьют всех вокруг без разбора — своих и союзников тоже; щит их не держит. Под защитой новичка урона нет.
+  const bursts: Entity[] = []
+  for (const [entity, burst, position] of world.query(Burst, Position)) {
+    bursts.push(entity)
+    for (const mark of near(position.x, position.y, burst.radius)) {
+      if (dead.has(mark.entity) || safe.has(mark.player)) continue
+      const distance = distanceTo(mark, position.x, position.y)
+      if (distance > burst.radius) continue
+      mark.health.hit = time.tick
+      mark.health.value -= (burst.damage * (1 - distance / burst.radius)) / mark.hp
+      if (mark.health.value <= 0) dead.add(mark.entity)
+    }
+    blasts.push({ x: position.x, y: position.y, size: burst.radius * 2, ground: true })
+  }
+  for (const entity of bursts) world.destroy(entity)
+
   // Болото красных пустошей едкое: жжёт стоящих в нём наземных юнитов.
   const burn = sim.rules.toxicSwamp * time.step
   if (burn > 0) {
@@ -871,6 +888,8 @@ export function fight(sim: Sim) {
       sim.traces.add({ kind: 'wreck', type: unit.type, facing: unit.facing, x: mark.x, y: mark.y })
     }
     releaseHauler(sim, entity)
+    // Реактор с топливом взрывается в следующем бою; топливо сгорает в аварии и на землю не падает.
+    meltdown(sim, entity)
     // Груз со склада здания и из кузова остаётся на земле.
     dropCargo(sim, entity)
     world.destroy(entity)

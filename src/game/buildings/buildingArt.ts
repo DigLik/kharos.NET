@@ -1575,7 +1575,108 @@ const accumulator: BuildingArt = {
   },
 }
 
+/**
+ * Завод стержней, 2×2: пресс набивает таблетки урана в трубки, трубки лежат в кассете; зелёный огонёк
+ * на прессе в работе мигает с каждым ходом, лампа радиации — по краю.
+ */
+const rodPlant: BuildingArt = {
+  ...BUILDINGS.rodPlant,
+  working: true,
+  draw(g, t, light, _variant, working = false) {
+    const tint = accent(GOOD_COLORS.rods)
+    slab(g, 0, 2, 32, 30, 3, IRON)
+    for (let x = 2; x < 30; x += 4) {
+      g.rect(x, 4, 2, 2, HAZARD[1])
+      g.rect(x + 2, 4, 2, 2, HAZARD[0])
+    }
+    // Пресс: станина и шток, который в работе ходит вниз-вверх.
+    g.rect(4, 8, 11, 14, INK)
+    g.rect(5, 9, 9, 12, IRON[2])
+    g.rect(5, 9, 9, 1, IRON[3])
+    const stroke = working ? Math.round(pulse(t * 2) * 4) : 0
+    g.rect(8, 10, 3, 5 + stroke, INK)
+    g.rect(9, 10, 1, 5 + stroke, IRON[4])
+    bulb(g, light, 11, 18, working ? pulse(t * 2) : 0.15)
+    // Кассета: трубки со стержнями, в работе по одной загорается торец.
+    g.rect(17, 8, 12, 19, INK)
+    g.rect(18, 9, 10, 17, IRON[1])
+    for (let i = 0; i < 4; i++) {
+      const x = 19 + i * 2
+      g.rect(x, 10, 1, 15, IRON[3])
+      g.rect(x, 10, 1, 1, working && chase(t, i / 4) > 0.3 ? tint[2] : tint[0])
+    }
+    g.rect(4, 24, 11, 3, IRON[1])
+    lamp(g, light, 27, 28, 1, pulse(t))
+  },
+}
+
+/** Стеллаж стержней, 1×1: свинцовый пенал с тремя гнёздами, торцы стержней светятся зелёным. */
+const rodRack: BuildingArt = {
+  ...BUILDINGS.rodRack,
+  draw(g, t, light) {
+    const tint = accent(GOOD_COLORS.rods)
+    slab(g, 0, 1, 16, 15, 2, IRON)
+    g.rect(2, 3, 12, 9, INK)
+    g.rect(3, 4, 10, 7, IRON[1])
+    for (let i = 0; i < 3; i++) {
+      const x = 4 + i * 3
+      g.rect(x, 5, 2, 5, IRON[3])
+      g.rect(x, 5, 2, 1, chase(t, i / 3) > 0.3 ? tint[2] : tint[1])
+    }
+    light(8, 7, 2, 0.2 + 0.3 * pulse(t))
+  },
+}
+
+/**
+ * Реактор, 3×3: герметичный купол над активной зоной, градирня с паром и щит с полосами опасности. Пока горит
+ * стержень, из окна купола идёт синее свечение, огни по кольцу бегут, а градирня парит.
+ */
+const reactor: BuildingArt = {
+  ...BUILDINGS.reactor,
+  working: true,
+  draw(g, t, light, _variant, working = false) {
+    const CONCRETE: Tones = [0x5a5650, 0x837e76, 0xa8a299, 0xc8c2b8, 0xe6e1d8]
+    const GLOW = [0x1a3a8a, 0x3f8cff, 0xbfe4ff] as const
+    slab(g, 0, 2, 48, 46, 4, CONCRETE)
+    for (let x = 2; x < 46; x += 4) {
+      g.rect(x, 42, 2, 2, HAZARD[1])
+      g.rect(x + 2, 42, 2, 2, HAZARD[0])
+    }
+    // Градирня справа: широкое основание, сужение и пар над ней.
+    tower(g, 36, 26, 8, 10, CONCRETE)
+    g.circle(36, 16, 6, INK)
+    g.circle(36, 16, 5, CONCRETE[0])
+    if (working) {
+      for (let i = 0; i < 3; i++) {
+        const rise = ((t + i / 3) % 1) * 10
+        g.circle(36 + (i - 1) * 2, 14 - rise, 3 + rise * 0.3, i % 2 ? 0xdfe6ea : 0xf4f7f9)
+      }
+    }
+    // Купол над активной зоной слева: окно со свечением и кольцо огней.
+    tower(g, 16, 26, 12, 4, STEEL)
+    const level = working ? 0.6 + 0.4 * pulse(t * 2) : 0.1
+    g.rect(13, 18, 7, 5, INK)
+    g.rect(14, 19, 5, 3, working ? GLOW[1] : GLOW[0])
+    if (working) g.rect(15, 20, 3, 1, GLOW[2])
+    light(16, 20, 6, level * 0.8)
+    const LIGHTS = 8
+    for (let i = 0; i < LIGHTS; i++) {
+      const angle = (i / LIGHTS) * TURN
+      const x = Math.round(16 + Math.cos(angle) * 9)
+      const y = Math.round(22 + Math.sin(angle) * 9)
+      bulb(g, light, x - 1, y - 1, working ? chase(t, i / LIGHTS) : 0.1)
+    }
+    // Трубы от купола к градирне.
+    g.rect(27, 30, 4, 3, INK)
+    g.rect(27, 31, 4, 1, RUST[1])
+    lamp(g, light, 6, 38, 2, pulse(t * (working ? 2 : 1)))
+  },
+}
+
 export const BUILDING_ART = {
+  rodPlant,
+  rodRack,
+  reactor,
   evaporator,
   uraniumMill,
   lithiumStore,

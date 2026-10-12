@@ -5,7 +5,7 @@ import { Pixmap } from '../../render/pixmap'
 import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'
 import type { Entity } from '../../ecs'
-import { Assembly, BUILDING_TYPES, Building, Inventory, Owner, Position, Site, amountOf, buildingSpec, isOpenGate, isPipe, siteTicks, type BuildingType } from '../../sim'
+import { Assembly, BUILDING_TYPES, Building, Inventory, Owner, Position, Reactor, Site, amountOf, buildingSpec, isBurning, isOpenGate, isPipe, siteTicks, type BuildingType } from '../../sim'
 import { placementOf } from '../placing'
 import type { Scene } from '../scene'
 import { ART_FRAMES, ART_TILE, BUILDING_ART, GATE_OPEN_VARIANT, WALL_CONNECTION, type BuildingArt } from './buildingArt'
@@ -180,8 +180,9 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene): P
       visible.length = 0
       for (const [entity, position, building] of world.query(Position, Building)) {
         const site = world.get(entity, Site)
-        let working = false
-        const value = !site && BUILDING_ART[building.type].working ? workOf(entity, building.type) : undefined
+        // Реактор работает, пока горит стержень: это видно сразу, без догадок по складу.
+        let working = !site && world.has(entity, Reactor) && isBurning(scene.sim, entity)
+        const value = !site && !working && BUILDING_ART[building.type].working ? workOf(entity, building.type) : undefined
         if (value !== undefined) {
           const state = activity.get(entity) ?? { value, until: 0 }
           if (Math.abs(value - state.value) > 1e-9) state.until = time + WORK_HOLD
