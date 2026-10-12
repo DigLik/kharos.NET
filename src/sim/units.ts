@@ -607,8 +607,14 @@ export function evictUnits(sim: Sim, x: number, y: number, width: number, height
   if (!inside.length) return
   const group = new Set(inside)
   const taken = standingUnits(sim, group, UNITS.mcv.radius)
-  sendToTiles(sim, inside, freeTilesNear(sim, x + Math.floor(width / 2), y + Math.floor(height / 2), inside.length, 1, taken), group)
+  // Путь наружу идёт и сквозь тех, кто стоит вплотную к основанию: они уступят дорогу. Иначе строитель, которого
+  // обступили свои, — соседний строитель, боец, — а с других сторон здания и трубы, не выходил бы с площадки никогда.
+  const passable = new Set([...group, ...unitsIn(sim, x - EVICT_MARGIN, y - EVICT_MARGIN, width + EVICT_MARGIN * 2, height + EVICT_MARGIN * 2)])
+  sendToTiles(sim, inside, freeTilesNear(sim, x + Math.floor(width / 2), y + Math.floor(height / 2), inside.length, 1, taken), passable)
 }
+
+/** На сколько тайлов вокруг основания стоящие юниты не мешают выселенному выйти, см. evictUnits. */
+const EVICT_MARGIN = 2
 
 /**
  * Освобождает прямоугольник в тайлах под здание игрока player и говорит, свободен ли он. Свои стоящие юниты

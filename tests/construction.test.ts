@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, isCliffFoot, terrainAt } from '../src/map/terrain'
 import {
   BUILDINGS, Building, Builds, CORE, Inventory, REWARDS, Owner, Player, Position, Site, TOPICS, Unit,
-  Health, canBuild, canPlace, createSim, creditsOf, freeCredits, isWalkable, rewardsOf, siteAt, spawnStartingUnits, type Sim,
+  Health, canBuild, canPlace, createSim, creditsOf, freeCredits, grantResearch, isWalkable, rewardsOf, siteAt, spawnStartingUnits, type Sim,
 } from '../src/sim'
 import { BUILD_RATE, isUnlocked, placeBuilding } from '../src/sim/buildings'
 import { WORK_RADIUS, siteTicks, wallStroke } from '../src/sim/construction'
@@ -414,4 +414,23 @@ test('без кредитов стройка стоит, а свободных �
   sim.send(1, { type: 'build', building: 'generator', x: site.x, y: site.y + 4, builders: [] })
   sim.advance(TICK)
   expect(sim.world.count(Site)).toBe(1)
+})
+
+test('строитель, которого обступили свои, сходит с площадки трубы у здания, и труба строится', () => {
+  const { sim, core, builders } = start()
+  grantResearch(sim, 1, ['pipes'])
+  const at = sim.world.get(core, Position)!
+  // Тайл над правым краем главного здания: снизу — здание, справа — своя труба, слева — багги, сверху — второй строитель.
+  const x = at.x + 2
+  const y = at.y - 1
+  placeBuilding(sim.world, 'pipe', x + 1, y, 1)
+  spawnUnit(sim, 'buggy', 1, x - 1, y)
+  for (const builder of builders) sim.world.destroy(builder)
+  const [inside, above] = [spawnUnit(sim, 'builder', 1, x, y), spawnUnit(sim, 'builder', 1, x, y - 1)]
+  sim.send(1, { type: 'pipes', tiles: [x, y], builders: [above, inside] })
+  seconds(sim, 15)
+  const pipe = sim.occupancy.at(x, y)
+  expect(pipe).toBeDefined()
+  expect(sim.world.get(pipe!, Building)?.type).toBe('pipe')
+  expect(sim.world.has(pipe!, Site)).toBe(false)
 })

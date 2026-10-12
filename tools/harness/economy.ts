@@ -5,8 +5,9 @@
  *   2. Замер живой линии в симуляции: шахта, переработка, хранилище и космопорт на одной сети труб и продажа —
  *      сколько кредитов в секунду выходит на самом деле, с доставкой по трубам и полётом корабля.
  *   3. Производство: сколько кредитов и материалов в секунду тратит здание и сколько линий его кормят.
- *   4. Разгон настоящими командами: типовой порядок стройки от разворота MCV до второго генератора материи —
- *      когда появляются первые деньги и на что их хватает.
+ *   4. Разгон настоящими командами: типовой порядок нового игрока от стартового набора — разворот MCV, строители,
+ *      лаборатория и первые темы, линия металла и космопорт — до второго генератора материи: когда появляются первые
+ *      деньги и на что их хватает. Застрял — значит, застрянет и новичок.
  *
  * Раздел отвечает на главный вопрос стабилизации: сколько линий добычи кормит одну производственную.
  */
@@ -14,13 +15,13 @@ import type { Entity } from '../../src/ecs'
 import {
   BUILDINGS, BUILDING_TYPES, Builds, Building, DEPOSIT_KINDS, DEPOSIT_TYPES, Inventory, Owner, PRODUCTS, PRODUCT_SPECS, REFINE_RATE, RESOURCE_SPECS,
   REWARDS, Site, TRUCK_CAPACITY, TURRETS, Trade, UNITS, Unit, WEAPONS, amountOf, buildingSpec, canBuild, canPlace, canSell, creditsOf, cycleSeconds,
-  depositIn, economyOf, networkOf, pipeRoute, Position, entriesOf, isProduct, rewardsOf, stockOf, totalOf, unitSpec,
+  depositIn, economyOf, freeCredits, hasResearch, isTrigger, topicsBefore, networkOf, pipeRoute, Position, entriesOf, isProduct, rewardsOf, stockOf, totalOf, unitSpec,
+  type Topic,
   type Amounts, type BuildingType, type DepositSpot, type Resource, type Sim, type TurretSpec, type UnitType, type WeaponSpec,
 } from '../../src/sim'
 import { placeBuilding } from '../../src/sim/buildings'
 import { connectAll } from '../../src/sim/piping'
-import { STARTING_CREDITS, addCredits } from '../../src/sim/economy'
-import { freeTilesNear, spawnUnit } from '../../src/sim/units'
+import { spawnStartingUnits } from '../../src/sim/units'
 import { TICK, clock, newSim, placeableNear, printTable, rectOf, rectsApart, rings, round, spotNear } from './lib'
 
 /** Тиков в секунду: внутренние циклы идут ровно по секундам. */
@@ -339,14 +340,28 @@ function makeSteps(opening: Opening, core: { x: number; y: number }, deposit: De
   }
   const produce = (title: string, unit: UnitType, count: number): Step => ({
     title,
-    cost: UNITS[unit].cost,
+    cost: UNITS[unit].cost * count,
     started: false,
     run(sim, opening) {
       if (opening.core === undefined) return false
-      sim.send(1, { type: 'produce', producer: opening.core, unit })
+      for (let i = countUnits(sim, unit); i < count; i++) sim.send(1, { type: 'produce', producer: opening.core, unit })
       return true
     },
     done: (sim) => countUnits(sim, unit) >= count,
+  })
+  /** Тема исследования: игрок ставит её в очередь, лаборатории ведут её сами; готово — когда тема изучена. */
+  const research = (topic: Topic): Step => ({
+    title: `исследовано: ${topic}`,
+    cost: 0,
+    started: false,
+    run(sim) {
+      // Открытия (наука, месторождение в обзоре) засчитываются сами и на тик позже события: до них тему не поставить,
+      // как не поставит её и игрок — в окне исследований она ещё красная.
+      if (!topicsBefore(topic).filter(isTrigger).every((before) => hasResearch(sim, 1, before))) return false
+      sim.send(1, { type: 'research', topic })
+      return true
+    },
+    done: (sim) => hasResearch(sim, 1, topic),
   })
   return [
     {
@@ -359,16 +374,24 @@ function makeSteps(opening: Opening, core: { x: number; y: number }, deposit: De
       },
       done: (_sim, opening) => opening.core !== undefined,
     },
-    // Каждое здание сразу подключают трубой: энергия и груз ходят только по своей сети.
+    // Строителей в стартовом наборе нет: их заказывают в развёрнутом главном здании.
+    produce('строители', 'builder', 2),
+    // Электростанция у главного здания: энергия общая на зону, трубы ей не нужны — да их ещё и не исследовали.
     build('заложено: электростанция', 'generator', 1, core.x + 5, core.y - 4),
-    connect('generator'),
     ready('электростанция', 'generator', 1),
-    build('заложено: шахта', 'mine', 1, deposit.x, deposit.y),
-    connect('mine'),
-    ready('шахта', 'mine', 1),
+    // Лаборатория открывает «Научный метод», с ним — трубы; руду металла она изучает из своей шахты по трубам.
+    build('заложено: лаборатория', 'lab', 1, core.x - 4, core.y - 4),
+    ready('лаборатория', 'lab', 1),
+    research('pipes'),
+    connect('lab'),
+    // Генератор материи — первый доход, пока нет продажи: ему нужна сеть главного здания, то есть трубы.
     build('заложено: генератор материи', 'matter', 1, core.x + 2, core.y - 4),
     connect('matter'),
     ready('генератор материи', 'matter', 1),
+    build('заложено: шахта', 'mine', 1, deposit.x, deposit.y),
+    connect('mine'),
+    ready('шахта', 'mine', 1),
+    research('metalOre'),
     // Переработка до хранилища: хранилище металла открывается ею, и без неё продавать нечего.
     build('заложено: переработка', 'smelter', 1, core.x + 5, core.y + 4),
     connect('smelter'),
@@ -380,7 +403,6 @@ function makeSteps(opening: Opening, core: { x: number; y: number }, deposit: De
     connect('spaceport'),
     ready('космопорт', 'spaceport', 1),
     build('заложено: вторая электростанция', 'generator', 2, core.x - 5, core.y - 4),
-    connect('generator'),
     ready('вторая электростанция', 'generator', 2),
     build('заложено: второй генератор материи', 'matter', 2, core.x - 2, core.y - 4),
     connect('matter'),
@@ -428,12 +450,12 @@ function printOpening() {
   const sim = newSim()
   const start = startSpot(sim)
   const center = { x: start.core.x + 1, y: start.core.y + 1 }
-  const opening: Opening = { mcv: spawnUnit(sim, 'mcv', 1, center.x, center.y), builders: [] }
-  addCredits(sim, 1, STARTING_CREDITS)
-  const tiles = freeTilesNear(sim, start.core.x, start.core.y, 8)
-  for (let i = 0; i < 2 && i * 2 + 1 < tiles.length; i++) {
-    opening.builders.push(spawnUnit(sim, 'builder', 1, tiles[i * 2], tiles[i * 2 + 1]))
-  }
+  // Стартовый набор настоящего игрока: MCV, бойцы и кредиты — MCV встаёт на место главного здания.
+  const units = spawnStartingUnits(sim, 1, center.x, center.y)
+  const mcv = units.find((unit) => sim.world.get(unit, Unit)?.type === 'mcv')!
+  const position = sim.world.get(mcv, Position)!
+  Object.assign(position, { x: center.x, y: center.y })
+  const opening: Opening = { mcv, builders: [] }
   const steps = makeSteps(opening, center, start.spot)
 
   const limit = 600
@@ -455,7 +477,8 @@ function printOpening() {
       if (stock >= TRUCK_CAPACITY) sim.send(1, { type: 'sell', port, resource: 'metal', amount: stock })
     }
     const step = index < steps.length ? steps[index] : undefined
-    if (step && !step.started && creditsOf(sim, 1) >= step.cost && step.run(sim, opening)) {
+    // Стройку закладывают на свободные кредиты: за вычетом обещанного начатым, см. freeCredits.
+    if (step && !step.started && freeCredits(sim, 1) >= step.cost && step.run(sim, opening)) {
       step.started = true
       minuteSpend += step.cost
     }
@@ -494,7 +517,7 @@ function printOpening() {
   }
 
   events.sort((a, b) => a.time - b.time)
-  console.log('\nРазгон настоящими командами: от MCV до второго генератора материи')
+  console.log('\nРазгон настоящими командами: от стартового набора до второго генератора материи')
   for (const event of events) console.log(`  ${clock(event.time).padStart(5)}  ${event.text}`)
   if (index < steps.length) console.log(`  застряли на шаге «${steps[index].title}»: не хватило места, денег или строителя`)
   printTable(['минута', 'кредиты', 'доход/с', 'металл'], curve)
