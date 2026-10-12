@@ -1,7 +1,7 @@
 import type { Entity, World } from '../ecs'
 import { Terrain, isBuildable, isCliffFoot, terrainAt, tileKey } from '../map/terrain'
 import { isOwn } from './common'
-import { Assembly, Building, Gate, Health, Inventory, Repair, Owner, Position, Producer, Shield, Site } from './components'
+import { Accumulator, Assembly, Building, Gate, Health, Inventory, Repair, Owner, Position, Producer, Shield, Site } from './components'
 import { equipStorage, type BeamSpec } from './inventory'
 import { ORE_SPECS, PRODUCT_SPECS, WARES, stockedFor, type Amounts, type Good, type Ore, type Product } from './resources'
 import type { Sim } from './sim'
@@ -97,6 +97,11 @@ export interface BuildingSpec {
   researches?: boolean
   /** Генератор щита: радиус купола от центра, ёмкость в единицах прочности и рост в секунду при полной энергии (shields.ts). */
   shield?: { radius: number; capacity: number; regen: number }
+  /**
+   * Накопитель энергии: копит излишек выработки своей зоны и отдаёт его, когда энергии не хватает. capacity — сколько
+   * держит, в единицах энергии на секунду; rate — сколько энергии в секунду берёт или отдаёт. См. storeEnergy в income.ts.
+   */
+  battery?: { capacity: number; rate: number }
 }
 
 /** На сколько тайлов от своего центра расширяет зону готовая труба или колодец. */
@@ -172,6 +177,9 @@ export const BUILDINGS = {
   siliconWorks: refinery('siliconOre', 3, 2, 400, -4),
   distillery: refinery('fuelOre', 2, 3, 400, -5),
   enricher: refinery('khariteOre', 2, 2, 650, -7),
+  // Выпарка лития из рассола солончаков и урановая фабрика: второй слой, база работает и без них.
+  evaporator: refinery('lithiumOre', 3, 2, 500, -5),
+  uraniumMill: refinery('uraniumOre', 2, 2, 800, -8),
   // Заводы изделий: каждый собирает своё изделие из ресурсов (§3.7 design.md). Склад общий на сырьё и готовое.
   blockPlant: plant('blocks'),
   ammoPlant: plant('ammo'),
@@ -188,6 +196,9 @@ export const BUILDINGS = {
   airfield: { width: 4, height: 3, cost: 500, power: -4, materials: { metal: 15, blocks: 5 }, produces: ['airTruck', 'drone', 'gunship', 'bomber'] },
   // Электростанция.
   generator: { width: 2, height: 2, cost: 300, power: 10 },
+  // Накопитель держит минуту работы электростанции: база переживает снесённую станцию или перегруз, пока его хватает.
+  // Строится из лития: это его работа.
+  accumulator: { width: 2, height: 2, cost: 400, materials: { lithium: 20 }, battery: { capacity: 600, rate: 10 } },
   // Генератор материи — базовый доход: превращает энергию в кредиты. Первая электростанция окупает его быстро,
   // дальше теснота делает каждый следующий всё дороже. Он страховка на случай, когда линий добычи нет (§4.3 шаг 3):
   // одной электростанции хватает на два генератора.
@@ -205,6 +216,8 @@ export const BUILDINGS = {
   siliconStore: store(['silicon'], 2, 2, 150, 300),
   fuelTank: store(['fuel'], 2, 2, 200, 300),
   khariteVault: store(['kharite'], 1, 1, 250, 60),
+  lithiumStore: store(['lithium'], 2, 1, 200, 120),
+  uraniumCask: store(['uranium'], 1, 1, 300, 60),
   blockYard: store(['blocks'], 2, 2, 150, 200),
   ammoBunker: store(['ammo'], 2, 1, 200, 300),
   partsLocker: store(['parts'], 1, 1, 200, 60),
@@ -244,8 +257,8 @@ export const CORE: BuildingType = 'command'
 export const BUILDING_TYPES = Object.keys(BUILDINGS) as BuildingType[]
 /** Что возводят строители. Остальные здания появятся вместе с тем, для чего они нужны. */
 export const BUILDABLE: BuildingType[] = [
-  'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'blockPlant', 'ammoPlant', 'partsPlant',
-  'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker', 'spaceport', 'barracks', 'factory', 'airfield', 'techCenter',
+  'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill', 'blockPlant', 'ammoPlant', 'partsPlant',
+  'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'accumulator', 'spaceport', 'barracks', 'factory', 'airfield', 'techCenter',
   'repairStation', 'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator',
 ]
 
@@ -334,10 +347,15 @@ export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = 
   siliconWorks: ['generator'],
   distillery: ['generator'],
   enricher: ['generator'],
+  evaporator: ['generator'],
+  uraniumMill: ['generator'],
+  accumulator: ['generator'],
   metalYard: ['smelter'],
   siliconStore: ['siliconWorks'],
   fuelTank: ['distillery'],
   khariteVault: ['enricher'],
+  lithiumStore: ['evaporator'],
+  uraniumCask: ['uraniumMill'],
   blockPlant: ['smelter'],
   ammoPlant: ['smelter'],
   partsPlant: ['siliconWorks'],
@@ -487,6 +505,7 @@ export function equip(world: World, entity: Entity, type: BuildingType) {
   const spec = buildingSpec(type)
   if (spec.repair) world.add(entity, Repair({ radius: spec.repair }))
   if (spec.shield) world.add(entity, Shield())
+  if (spec.battery) world.add(entity, Accumulator())
   if (spec.produces && !spec.inventory) {
     equipStorage(world, entity, { inventory: PRODUCER_HOLD })
   }

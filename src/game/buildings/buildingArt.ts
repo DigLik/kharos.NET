@@ -1433,7 +1433,154 @@ const shieldGenerator: BuildingArt = {
   },
 }
 
+/**
+ * Выпарка лития, 3×2: два мелких пруда розового рассола, в работе по ним бегут блики; насосная с трубой
+ * к прудам и куча соли, которую подгребает скребок.
+ */
+const evaporator: BuildingArt = {
+  ...BUILDINGS.evaporator,
+  working: true,
+  draw(g, t, light, _variant, working = false) {
+    const tint = accent(GOOD_COLORS.lithium)
+    const SALT: Tones = [0x7a7068, 0xa89e94, 0xd0c8be, 0xe8e2da, 0xffffff]
+    slab(g, 0, 2, 48, 30, 3, SALT)
+    // Пруды: обваловка, рассол и блики, которые в работе плывут.
+    for (const [x, y, offset] of [[3, 5, 0], [3, 16, 0.5]] as const) {
+      g.rect(x, y, 26, 10, INK)
+      g.rect(x + 1, y + 1, 24, 8, SALT[0])
+      g.rect(x + 2, y + 2, 22, 6, tint[0])
+      g.rect(x + 2, y + 2, 22, 2, tint[1])
+      for (let i = 0; i < 3; i++) {
+        const shift = working ? Math.floor(((t + offset + i / 3) % 1) * 18) : i * 6
+        g.rect(x + 3 + shift, y + 4 + (i % 2), 3, 1, tint[2])
+      }
+    }
+    // Насосная: короб с трубой к прудам, лампа насоса мигает в такт.
+    g.rect(31, 5, 13, 11, INK)
+    g.rect(32, 6, 11, 9, IRON[2])
+    g.rect(32, 6, 11, 1, IRON[3])
+    g.rect(29, 9, 3, 2, IRON[1])
+    g.rect(29, 20, 3, 2, IRON[1])
+    g.rect(30, 9, 1, 13, IRON[1])
+    lamp(g, light, 40, 10, 2, working ? pulse(t * 4) : 0.2)
+    // Куча соли и скребок, который её подгребает.
+    g.circle(38, 23, 5, INK)
+    g.circle(38, 23, 4, SALT[3])
+    g.circle(37, 22, 2, SALT[4])
+    g.rect(37, 20, 2, 1, tint[2])
+    const reach = working ? Math.round(pulse(t) * 3) : 0
+    g.rect(31 + reach, 27, 4, 2, INK)
+    g.rect(31 + reach, 27, 3, 1, HAZARD[1])
+  },
+}
+
+/**
+ * Урановая фабрика, 2×2: бак выщелачивания с мешалкой и зелёным раствором, рядом линия бочек с жёлтым кеком;
+ * полосы опасности по краю и лампа радиации.
+ */
+const uraniumMill: BuildingArt = {
+  ...BUILDINGS.uraniumMill,
+  working: true,
+  draw(g, t, light, _variant, working = false) {
+    const tint = accent(GOOD_COLORS.uranium)
+    slab(g, 0, 2, 32, 30, 3, IRON)
+    for (let x = 2; x < 30; x += 4) {
+      g.rect(x, 4, 2, 2, HAZARD[1])
+      g.rect(x + 2, 4, 2, 2, HAZARD[0])
+    }
+    // Бак: раствор светится, мешалка крутится в работе.
+    const cx = 12
+    const cy = 16
+    g.circle(cx, cy, 9, INK)
+    g.circle(cx, cy, 8, IRON[3])
+    g.circle(cx, cy, 6, INK)
+    g.circle(cx, cy, 5, working ? tint[1] : tint[0])
+    const angle = TURN * (working ? t : 0.1)
+    g.line(cx - Math.cos(angle) * 4, cy - Math.sin(angle) * 4, cx + Math.cos(angle) * 4, cy + Math.sin(angle) * 4, 1, IRON[4])
+    g.circle(cx, cy, 1.5, IRON[4])
+    light(cx, cy, 5, working ? 0.4 + 0.3 * pulse(t * 2) : 0.1)
+    // Бочки с кеком: в работе по одной загорается крышка — бочка наполнена.
+    for (let i = 0; i < 3; i++) {
+      const y = 9 + i * 6
+      g.rect(23, y, 6, 5, INK)
+      g.rect(24, y + 1, 4, 3, HAZARD[1])
+      g.rect(24, y + 1, 4, 1, working && chase(t, i / 3) > 0.3 ? tint[2] : 0xf0d860)
+    }
+    lamp(g, light, 27, 27, 2, pulse(t * (working ? 3 : 1)))
+  },
+}
+
+/** Склад лития, 2×1: навес над стеллажом розовых брикетов, погрузочная площадка и огонёк учёта. */
+const lithiumStore: BuildingArt = {
+  ...BUILDINGS.lithiumStore,
+  draw(g, t, light) {
+    const tint = accent(GOOD_COLORS.lithium)
+    slab(g, 0, 1, 32, 15, 2, IRON)
+    g.rect(2, 3, 28, 9, IRON[0])
+    // Стеллаж: три яруса брикетов.
+    for (let x = 3; x < 22; x += 4) {
+      for (const y of [4, 7]) {
+        g.rect(x, y, 3, 2, tint[1])
+        g.rect(x, y, 3, 1, tint[2])
+      }
+    }
+    // Площадка и лампа учёта.
+    g.rect(23, 4, 6, 7, IRON[2])
+    g.rect(23, 4, 6, 1, IRON[3])
+    bulb(g, light, 25, 6, 0.4 + 0.6 * pulse(t))
+  },
+}
+
+/** Урановый контейнер, 1×1: свинцовый бочонок с крышкой на болтах и зелёной меткой радиации. */
+const uraniumCask: BuildingArt = {
+  ...BUILDINGS.uraniumCask,
+  draw(g, t, light) {
+    const tint = accent(GOOD_COLORS.uranium)
+    slab(g, 0, 1, 16, 15, 2, IRON)
+    g.circle(8, 7, 6, INK)
+    g.circle(8, 7, 5, IRON[1])
+    g.circle(7, 6, 4, IRON[2])
+    for (const [x, y] of [[4, 7], [12, 7], [8, 3], [8, 11]] as const) g.rect(x, y, 1, 1, IRON[4])
+    const glow = 0.5 + 0.5 * pulse(t)
+    g.circle(8, 7, 2, INK)
+    g.circle(8, 7, 1.5, glow > 0.6 ? tint[2] : tint[1])
+    light(8, 7, 3, 0.2 + 0.3 * glow)
+  },
+}
+
+/**
+ * Накопитель энергии, 2×2: шесть банок в стойке под общей шиной; по банкам снизу вверх бежит заряд цвета
+ * команды, на конце шины мигает огонёк.
+ */
+const accumulator: BuildingArt = {
+  ...BUILDINGS.accumulator,
+  draw(g, t, light) {
+    const tint = accent(GOOD_COLORS.lithium)
+    slab(g, 0, 2, 32, 30, 3, STEEL)
+    // Шина над банками.
+    g.rect(3, 4, 26, 3, INK)
+    g.rect(4, 5, 24, 1, RUST[2])
+    for (let i = 0; i < 6; i++) {
+      const x = 4 + (i % 3) * 8
+      const y = 8 + Math.floor(i / 3) * 10
+      g.rect(x, y, 7, 9, INK)
+      g.rect(x + 1, y + 1, 5, 7, STEEL[2])
+      g.rect(x + 1, y + 1, 1, 7, STEEL[3])
+      g.rect(x + 2, y, 3, 1, tint[1])
+      // Заряд: столбик растёт и опадает, у каждой банки со своим сдвигом.
+      const level = Math.round(pulse(t, i / 6) * 5)
+      if (level > 0) g.rect(x + 3, y + 7 - level, 2, level, teamColor(0.5 + 0.1 * level))
+    }
+    bulb(g, light, 27, 4, pulse(t * 2))
+  },
+}
+
 export const BUILDING_ART = {
+  evaporator,
+  uraniumMill,
+  lithiumStore,
+  uraniumCask,
+  accumulator,
   repairStation,
   shieldGenerator,
   techCenter,

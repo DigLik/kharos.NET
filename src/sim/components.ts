@@ -280,6 +280,13 @@ export const Off = component('Off', {})
 export const Shield = component('Shield', { charge: 0, hit: -1, down: 0 })
 
 /**
+ * Накопитель энергии: charge — сколько энергии в нём, в единицах энергии на секунду; flow — сколько он в этот тик
+ * отдаёт зоне (больше нуля) или берёт из её излишка (меньше нуля). Ёмкость и скорость — BuildingSpec.battery.
+ * См. storeEnergy в income.ts.
+ */
+export const Accumulator = component('Accumulator', { charge: 0, flow: 0 })
+
+/**
  * Очередь приказов юнита, отданных с Shift: следующий он берёт, когда закончит нынешнее дело. group — общий номер
  * приказа, отданного нескольким юнитам сразу: такой приказ они берут вместе, чтобы встать строем. См. orders.ts.
  */
@@ -326,4 +333,4 @@ export const Scan = component('Scan', { x: 0, y: 0, tick: -1, wait: 0 })
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate, Shield]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator]

@@ -64,7 +64,7 @@ test('развёрнутое главное здание приносит наг
   const { sim } = start()
   expect(rewardsOf(sim, 1)).toEqual(['deploy'])
   expect(creditsOf(sim, 1)).toBe(STARTING_CREDITS + REWARDS.deploy)
-  expect(economyOf(sim, 1)).toEqual({ produced: 0, demand: 0, income: BUILDINGS.command.income, crowd: 0 })
+  expect(economyOf(sim, 1)).toEqual({ produced: 0, demand: 0, income: BUILDINGS.command.income, crowd: 0, stored: 0 })
 
   seconds(sim, 50)
   expect(creditsOf(sim, 1)).toBe(STARTING_CREDITS + REWARDS.deploy + 10)
@@ -89,10 +89,10 @@ test('генератор материи даёт кредиты за энерг�
   const { sim, x, y } = start()
   put(sim, 'matter', x + 6, y)
   // Без электростанции генератор материи стоит.
-  expect(economyOf(sim, 1)).toEqual({ produced: 0, demand: 3, income: 0.2, crowd: 1 })
+  expect(economyOf(sim, 1)).toEqual({ produced: 0, demand: 3, income: 0.2, crowd: 1, stored: 0 })
 
   put(sim, 'generator', x + 6, y + 4)
-  expect(economyOf(sim, 1)).toEqual({ produced: 10, demand: 3, income: 1.7, crowd: 1 })
+  expect(economyOf(sim, 1)).toEqual({ produced: 10, demand: 3, income: 1.7, crowd: 1, stored: 0 })
   const credits = creditsOf(sim, 1)
   seconds(sim, 10)
   expect(creditsOf(sim, 1)).toBe(credits + 17)
@@ -123,12 +123,12 @@ test('здания держат зону и работают и без глав�
   put(sim, 'matter', x + 6, y + 3)
   // Далёкий генератор материи — своя зона без электростанции: энергии ему нет, и дохода он не даёт.
   put(sim, 'matter', x + 60, y)
-  expect(economyOf(sim, 1)).toEqual({ produced: 10, demand: 6, income: 1.7, crowd: 2 })
+  expect(economyOf(sim, 1)).toEqual({ produced: 10, demand: 6, income: 1.7, crowd: 2, stored: 0 })
 
   sim.send(1, { type: 'pack', building: coreOf(sim) })
   seconds(sim, 10.1)
   // Свёрнуто главное здание: энергия та же, а дохода нет ни с него, ни с генераторов материи.
-  expect(economyOf(sim, 1)).toEqual({ produced: 10, demand: 6, income: 0, crowd: 2 })
+  expect(economyOf(sim, 1)).toEqual({ produced: 10, demand: 6, income: 0, crowd: 2, stored: 0 })
 })
 
 test('готовые здания расширяют зону строительства по цепочке, стройки — нет', () => {
@@ -221,7 +221,7 @@ test('энергия у каждой зоны своя: электростанц
   put(sim, 'generator', x + 6, y)
   put(sim, 'generator', x + 6, y + 3)
   put(sim, 'matter', x + 9, y)
-  expect(zoneEconomies(sim, 1)).toEqual([{ produced: 20, demand: 3, income: 1.7, crowd: 1 }])
+  expect(zoneEconomies(sim, 1)).toEqual([{ produced: 20, demand: 3, income: 1.7, crowd: 1, stored: 0 }])
 
   // Второе главное здание далеко от первого — вторая зона. Её генератор материи без своей электростанции стоит.
   // Далеко местность не проверялась: трубы там кладутся руками.
@@ -230,7 +230,7 @@ test('энергия у каждой зоны своя: электростанц
   placeBuilding(sim.world, 'matter', far + 4, y, 1)
   placeBuilding(sim.world, 'pipe', far + 3, y, 1)
   expect(zonesOf(sim, 1).length).toBe(2)
-  expect(zoneEconomies(sim, 1)[1]).toEqual({ produced: 0, demand: 3, income: 0.2, crowd: 1 })
+  expect(zoneEconomies(sim, 1)[1]).toEqual({ produced: 0, demand: 3, income: 0.2, crowd: 1, stored: 0 })
   // Теснота тоже считается по зонам: в каждой генератор материи первый.
   expect(economyOf(sim, 1).income).toBeCloseTo(1.9)
 

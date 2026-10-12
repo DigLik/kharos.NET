@@ -10,6 +10,8 @@ export const GOOD_COLORS: Record<Good, number> = {
   silicon: 0x7f9cff,
   fuel: 0xffc93c,
   kharite: 0xc06bff,
+  lithium: 0xf59ac0,
+  uranium: 0xb4e84a,
   blocks: 0xd8b98a,
   ammo: 0xe0803a,
   parts: 0x4fd6a2,
@@ -17,6 +19,8 @@ export const GOOD_COLORS: Record<Good, number> = {
   siliconOre: 0x5a6a8a,
   fuelOre: 0x8a7a2a,
   khariteOre: 0x7a4a9a,
+  lithiumOre: 0x9a6a7e,
+  uraniumOre: 0x6a8a3a,
 }
 
 /** Цвет груза для CSS. */

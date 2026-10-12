@@ -10,6 +10,8 @@
 export interface ResourceSpec {
   /** Цена единицы при продаже через космопорт, в кредитах. */
   price: number
+  /** С орбиты не закупается: только своя добыча, чужая — набегом или подарком союзника. */
+  mined?: boolean
 }
 
 /**
@@ -23,6 +25,10 @@ export const RESOURCE_SPECS = {
   fuel: { price: 12 },
   // Харит редок и дорог: месторождения его малы, а добыча медленная.
   kharite: { price: 60 },
+  // Литий и уран — второй слой, а не обязательный набор: база без них работает. Литий идёт на накопители энергии.
+  lithium: { price: 30 },
+  // Уран закупить нельзя: иначе реактор и ядерный заряд покупались бы за кредиты (§9 п. 4 design.md).
+  uranium: { price: 40, mined: true },
 } satisfies Record<string, ResourceSpec>
 
 export type Resource = keyof typeof RESOURCE_SPECS
@@ -34,6 +40,8 @@ export const ORE_SPECS = {
   siliconOre: { resource: 'silicon' },
   fuelOre: { resource: 'fuel' },
   khariteOre: { resource: 'kharite' },
+  lithiumOre: { resource: 'lithium' },
+  uraniumOre: { resource: 'uranium' },
 } satisfies Record<string, { resource: Resource }>
 
 export type Ore = keyof typeof ORE_SPECS

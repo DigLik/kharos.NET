@@ -5,11 +5,11 @@ import { knownReserve } from './knownReserve'
 import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
-  Assembly, BUILDABLE, isUnlocked, buyPrice, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
+  Assembly, BUILDABLE, isUnlocked, buyPrice, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   RESEARCH, Research, TOPICS, isLab, levelTopic, missingResearch, topicLack, topicPrice, type Topic, type TopicPrice, type TopicLack,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
-  Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
+  Accumulator, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
 import { paveStrokeOf } from './placing'
 import type { PaveTool, Scene } from './scene'
@@ -61,7 +61,9 @@ export interface HudState {
    * Энергия зоны строительства, в которой стоит выбранная электростанция: сколько вырабатывается и сколько
    * просят потребители. У каждой зоны она своя, поэтому общего счётчика нет.
    */
-  power: { produced: number; demand: number } | null
+  power: { produced: number; demand: number; stored: number } | null
+  /** Выбранный накопитель: заряд, ёмкость и сколько энергии он сейчас отдаёт (больше нуля) или копит (меньше). */
+  battery: { charge: number; capacity: number; flow: number } | null
   /** Прочность выбранного здания от 0 до 1, если оно повреждено, и сколько кредитов стоит его дочинить. */
   health: number | null
   repair: number
@@ -333,6 +335,7 @@ export function readHud(scene: Scene): HudState {
   let tactics: HudState['tactics'] = null
   let trade: HudState['trade'] = null
   let power: HudState['power'] = null
+  let battery: HudState['battery'] = null
   let health: number | null = null
   let shield: HudState['shield'] = null
   let repair = 0
@@ -365,11 +368,13 @@ export function readHud(scene: Scene): HudState {
       const spot = depositAt(sim, position.x, position.y)
       if (spot) deposit = { kind: spot.kind, left: Math.floor(reserveLeft(sim, position.x, position.y)) }
     }
-    if (building !== null && (buildingSpec(building).power ?? 0) > 0) {
+    if (building !== null && ((buildingSpec(building).power ?? 0) > 0 || buildingSpec(building).battery)) {
       // Недостроенная и отрезанная от зоны электростанция ни в какую зону не входит — показывать нечего.
       const zone = gridsOf(sim, player).findIndex((zone) => zone.buildings.includes(entity))
-      if (zone >= 0) power = { produced: Math.round(zones[zone].produced * 10) / 10, demand: zones[zone].demand }
+      if (zone >= 0) power = { produced: round(zones[zone].produced), demand: zones[zone].demand, stored: round(zones[zone].stored) }
     }
+    const cell = building !== null && world.get(entity, Accumulator)
+    if (cell && building !== null) battery = { charge: Math.floor(cell.charge), capacity: buildingSpec(building).battery!.capacity, flow: round(cell.flow) }
     const hauler = world.get(entity, Hauler)
     const inventory = world.get(entity, Inventory)
     if (hauler && inventory) {
@@ -471,7 +476,7 @@ export function readHud(scene: Scene): HudState {
       trade = {
         port: entity,
         offers: resourceStacksOf(items).map(({ resource, amount }) => ({ resource, available: amount, price: RESOURCE_SPECS[resource].price })),
-        purchases: RESOURCES.map((resource) => ({
+        purchases: RESOURCES.filter(isOrbital).map((resource) => ({
           resource,
           price: buyPrice(resource),
           room: Math.floor(roomFor(world.get(entity, Inventory)!, resource)),
@@ -574,6 +579,7 @@ export function readHud(scene: Scene): HudState {
     protection: protectionOf(scene),
     income: round(economyOf(sim, player).income),
     power,
+    battery,
     health,
     shield,
     repair,

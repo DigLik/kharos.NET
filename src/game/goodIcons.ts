@@ -59,6 +59,32 @@ const MASKS: Record<string, string[]> = {
     '..........',
     '..........',
   ],
+  // Столбик лепёшек.
+  lithium: [
+    '..........',
+    '...oooo...',
+    '..olllbo..',
+    '..oddddo..',
+    '..olllbo..',
+    '..oddddo..',
+    '..olllbo..',
+    '..obbbdo..',
+    '..oddddo..',
+    '...oooo...',
+  ],
+  // Таблетка со знаком радиации.
+  uranium: [
+    '...oooo...',
+    '..olddlo..',
+    '.ollddllo.',
+    'obllddllbo',
+    'obbbllbbbo',
+    'oddbllbddo',
+    'odddbbdddo',
+    '.oddbbddo.',
+    '..obbbbo..',
+    '...oooo...',
+  ],
   // Кладка.
   blocks: [
     '..........',

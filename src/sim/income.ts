@@ -1,18 +1,20 @@
 import type { Entity } from '../ecs'
 import { BUILDINGS, buildingSpec, levelFactor, type BuildingSpec, type BuildingType } from './buildings'
-import { Assembly, Building, Health, Off, Player } from './components'
+import { Accumulator, Assembly, Building, Health, Off, Player } from './components'
 import type { Sim } from './sim'
 import { allGrids, type Zone } from './zones'
 
 /** Хозяйство одной энергосети на этот тик (см. allGrids). Энергия у каждой своя: между ними она не передаётся. */
 export interface Economy {
-  /** Сколько энергии дают здания зоны и сколько её просят потребители. */
+  /** Сколько энергии дают здания зоны и сколько её просят потребители. В produced входит и отданное накопителями. */
   produced: number
   demand: number
   /** Доход в кредитах в секунду с учётом нехватки энергии. */
   income: number
   /** Сколько в зоне зданий, которым тесно друг с другом (см. BuildingSpec.crowding). */
   crowd: number
+  /** Сколько энергии в этот тик отдают зоне её накопители, см. storeEnergy. */
+  stored: number
 }
 
 /** Есть ли в зоне главное здание: без него доход приносит только оно само, генераторы материи стоят. */
@@ -24,15 +26,18 @@ const needsCore = (type: BuildingType) => type !== 'command' && !!buildingSpec(t
 /**
  * Хозяйство зоны. Если энергии не хватает, потребители работают на ту долю, на которую её хватает.
  * Доход с генераторов материи — только если в зоне есть главное здание; энергию они просят и без него.
+ * stored — считать ли то, что отдают накопители: сами они решают, сколько отдать, по хозяйству без себя.
  */
-function economyOfZone(sim: Sim, zone: Zone): Economy {
-  const economy: Economy = { produced: 0, demand: 0, income: 0, crowd: 0 }
+function economyOfZone(sim: Sim, zone: Zone, stored = true): Economy {
+  const economy: Economy = { produced: 0, demand: 0, income: 0, crowd: 0, stored: 0 }
   const core = hasCore(sim, zone)
   /** Доход потребителей при полной энергии. */
   let powered = 0
   for (const entity of zone.buildings) {
     const building = sim.world.get(entity, Building)!
     const spec: BuildingSpec = BUILDINGS[building.type]
+    const flow = stored ? (sim.world.get(entity, Accumulator)?.flow ?? 0) : 0
+    if (flow > 0) economy.stored += flow
     const power = powerAt(sim, entity)
     const income = core || !needsCore(building.type) ? (spec.income ?? 0) : 0
     // Выключенный потребитель энергии не просит и ничего не даёт.
@@ -47,6 +52,7 @@ function economyOfZone(sim: Sim, zone: Zone): Economy {
       economy.income += income
     }
   }
+  economy.produced += economy.stored
   if (powered) economy.income += powered * Math.min(1, economy.produced / economy.demand)
   return economy
 }
@@ -99,12 +105,13 @@ export const zoneEconomies = (sim: Sim, player: number): readonly Economy[] =>
 
 /** Итог по всем зонам игрока. Для дохода это то, что он получает; энергию так складывать можно только для справки. */
 export function economyOf(sim: Sim, player: number): Economy {
-  const total: Economy = { produced: 0, demand: 0, income: 0, crowd: 0 }
+  const total: Economy = { produced: 0, demand: 0, income: 0, crowd: 0, stored: 0 }
   for (const economy of zoneEconomies(sim, player)) {
     total.produced += economy.produced
     total.demand += economy.demand
     total.income += economy.income
     total.crowd += economy.crowd
+    total.stored += economy.stored
   }
   return total
 }
@@ -170,6 +177,36 @@ export function overbuiltPlants(sim: Sim): Set<Entity> {
     if (economy.demand > capacity) for (const entity of found) plants.add(entity)
   }
   return plants
+}
+
+/**
+ * Раз в тик, до всех потребителей: накопители решают, сколько энергии отдают зоне в этот тик и сколько берут.
+ * Не хватает выработки — отдают недостающее, сколько позволяют скорость и заряд; есть излишек — копят его. Заряжаются
+ * только излишком: потребителей накопитель не объедает. Отданное входит в выработку зоны (Economy.stored), поэтому,
+ * пока заряда хватает, потребители работают в полную силу и электростанции не перегружаются. Накопитель вне зоны
+ * не отдаёт и не берёт.
+ */
+export function storeEnergy(sim: Sim) {
+  const { world, time } = sim
+  for (const [, battery] of world.query(Accumulator)) battery.flow = 0
+  for (const [, zones] of allGrids(sim)) {
+    for (const zone of zones) {
+      const cells = zone.buildings.filter((entity) => world.has(entity, Accumulator))
+      if (!cells.length) continue
+      const economy = economyOfZone(sim, zone, false)
+      let balance = economy.produced - economy.demand
+      for (const entity of cells) {
+        const battery = world.get(entity, Accumulator)!
+        const { capacity, rate } = buildingSpec(world.get(entity, Building)!.type).battery!
+        let flow = 0
+        if (balance < 0 && battery.charge > 0) flow = Math.min(rate, -balance, battery.charge / time.step)
+        else if (balance > 0 && battery.charge < capacity) flow = -Math.min(rate, balance, (capacity - battery.charge) / time.step)
+        balance += flow
+        battery.flow = flow
+        battery.charge = Math.max(0, Math.min(capacity, battery.charge - flow * time.step))
+      }
+    }
+  }
 }
 
 /**

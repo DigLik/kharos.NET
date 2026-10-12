@@ -32,8 +32,8 @@ export type Page = 'root' | 'economy' | 'storage' | 'industry' | 'military' | 'd
 
 /** Разделы строителя: в какой странице какое здание. Остальное — хозяйство: энергия, добыча, торговля. */
 const SECTIONS: Partial<Record<Page, BuildingType[]>> = {
-  storage: ['metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker'],
-  industry: ['smelter', 'siliconWorks', 'distillery', 'enricher', 'blockPlant', 'ammoPlant', 'partsPlant'],
+  storage: ['metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker'],
+  industry: ['smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill', 'blockPlant', 'ammoPlant', 'partsPlant'],
   military: ['barracks', 'factory', 'airfield', 'techCenter', 'repairStation'],
   defense: ['wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator', 'radar'],
 }
@@ -361,8 +361,9 @@ export function commandsOf(
       WARES.forEach((ware, i) => {
         slots[i] = { label: t(`goods.${ware}`), good: ware, active: has([ware]), title: t('grid.carryOrNot'), run: () => toggle([ware]) }
       })
+      // Готового девять видов: руда встаёт на место отмены, «Всё» — на место разбора.
       slots[WARES.length] = { label: t('grid.ore'), good: ORES[0], active: has(ORES), title: t('grid.oreTip'), run: () => toggle(ORES) }
-      slots[CANCEL] = { label: t('grid.all'), active: !filter.length, title: t('grid.allTip'), run: () => send({ type: 'filter', units, goods: [] }) }
+      slots[DEMOLISH] = { label: t('grid.all'), active: !filter.length, title: t('grid.allTip'), run: () => send({ type: 'filter', units, goods: [] }) }
       slots[BACK] = { label: t('common.back'), run: () => open('root') }
     }
   }
@@ -490,14 +491,15 @@ export function commandsOf(
     } else if (page === 'ferryGoods' && ferry) {
       // Что положить в корабль: груз из хранилищ зон и деньги. Набранное видно в панели сведений.
       if (!ferry.editing) {
-        list(
-          (state.stock?.items ?? []).map(({ resource, amount }): Slot => ({
-            label: `${t(`goods.${resource}`)} ×${amount}`,
-            good: resource,
-            title: t('grid.ferryAmount'),
-            run: () => draft({ ...ferry, editing: { kind: 'good', good: resource }, amount: Math.floor(ferry.goods[resource] ?? 0) }),
-          })),
-        )
+        const goods = (state.stock?.items ?? []).map(({ resource, amount }): Slot => ({
+          label: `${t(`goods.${resource}`)} ×${amount}`,
+          good: resource,
+          title: t('grid.ferryAmount'),
+          run: () => draft({ ...ferry, editing: { kind: 'good', good: resource }, amount: Math.floor(ferry.goods[resource] ?? 0) }),
+        }))
+        list(goods)
+        // Готового девять видов, а под список восемь ячеек: девятый — в свободную ячейку нижнего ряда.
+        if (goods[LIST]) slots[DEMOLISH] = goods[LIST]
         const empty = !ferry.credits && !Object.keys(ferry.goods).length
         slots[TRADE] = {
           label: `${t('grid.ferrySend')}: ${ferry.name}`,

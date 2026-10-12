@@ -110,7 +110,7 @@ export const DEFAULT_CONFIG: GeneratorConfig = {
   tierStep: 0.065,
   cliffScale: 20,
   cliffShare: 0.35,
-  depositChance: 0.85,
+  depositChance: 0.95,
   depositRichness: 1,
 }
 

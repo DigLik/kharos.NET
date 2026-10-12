@@ -21,7 +21,7 @@ import { chargeShields } from './shields'
 import { convert } from './conversion'
 import { haul } from './hauling'
 import { pipeFlow } from './pipes'
-import { earn } from './income'
+import { earn, storeEnergy } from './income'
 import { ferry } from './ferry'
 import { trade } from './trade'
 import { moveUnits, planPaths } from './movement'
@@ -224,6 +224,8 @@ export function createSim(source: SimOptions | SimSave): Sim {
     update: [
       commands,
       () => convert(sim),
+      // До всех потребителей энергии: накопители решают, сколько отдают зоне в этот тик.
+      () => storeEnergy(sim),
       (_, time) => produceUnits(sim, time),
       // После производства и до движения: переработка превращает привезённую руду в готовое, грузовики развезут его.
       (_, time) => refine(sim, time),

@@ -514,6 +514,7 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
         {state.power && (
           <div class={state.power.demand > state.power.produced ? 'hud__hint hud__power is-short' : 'hud__hint hud__power'}>
             {t('hud.zonePower', { demand: state.power.demand, produced: state.power.produced })}
+            {state.power.stored > 0 && t('hud.zoneStored', { stored: state.power.stored })}
             {state.power.demand > state.power.produced && t('hud.overloaded')}
           </div>
         )}
@@ -527,6 +528,15 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
         {state.shield && (
           <div class="hud__hint">
             {state.shield.down > 0 ? t('hud.shieldDown', { seconds: state.shield.down }) : t('hud.shield', { charge: state.shield.charge, capacity: state.shield.capacity })}
+          </div>
+        )}
+        {state.battery && (
+          <div class="hud__hint">
+            {t(state.battery.flow > 0 ? 'hud.batteryGiving' : state.battery.flow < 0 ? 'hud.batteryCharging' : 'hud.battery', {
+              charge: state.battery.charge,
+              capacity: state.battery.capacity,
+              flow: Math.abs(state.battery.flow),
+            })}
           </div>
         )}
         {state.army && state.army.health < 1 && <div class="hud__hint">{t('hud.armyHealth', { percent: percent(state.army.health) })}</div>}

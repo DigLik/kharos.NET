@@ -16,6 +16,8 @@ const TONES: Record<DepositKind, readonly [number, number, number, number]> = {
   silicon: [0x6e6856, 0xa9a184, 0xe0d9bc, 0xffffff],
   fuel: [0x0d0b10, 0x221d29, 0x3a3340, 0x8f86a8],
   kharite: [0x2e1247, 0x6a2fa8, 0xc06bff, 0xf3dcff],
+  lithium: [0x5a2a3e, 0xb0607e, 0xf0a0c0, 0xffe6f0],
+  uranium: [0x1f2a0a, 0x4a6a1a, 0x9bd040, 0xe8ffb0],
 }
 /** Выработанное месторождение остаётся на карте бледным следом. */
 const SPENT_ALPHA = 0.3

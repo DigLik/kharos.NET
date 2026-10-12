@@ -57,13 +57,15 @@ test('месторождения считаются из сида: одни и �
 test('у большинства точек карты все четыре вида месторождений в радиусе 150 тайлов', () => {
   // Спавн игроков случайный (как в Rust), поэтому проверяется статистика по сетке точек, а не одна точка:
   // шансы видов подобраны так, что у 8 из 10 точек карты в радиусе 150 тайлов есть все четыре вида,
-  // и ни один вид не отсутствует более чем у каждой десятой точки (вопрос 14 §6 design.md).
+  // и ни один вид не отсутствует более чем у каждой десятой точки (вопрос 14 §6 design.md). Литий и уран
+  // необязательны и лежат в своих биомах: на них гарантии нет.
+  const BASIC = ['metal', 'silicon', 'fuel', 'kharite'] as const
   const sim = createSim(options)
   const reach = 150
   let all = 0
   let points = 0
   const missing: Record<string, number> = {}
-  for (const kind of DEPOSIT_TYPES) missing[kind] = 0
+  for (const kind of BASIC) missing[kind] = 0
   for (let x = -448; x <= 448; x += 64) {
     for (let y = -448; y <= 448; y += 64) {
       points++
@@ -78,12 +80,12 @@ test('у большинства точек карты все четыре вид
           if (spot && Math.hypot(spot.x + 1 - x, spot.y + 1 - y) <= reach) kinds.add(spot.kind)
         }
       }
-      if (DEPOSIT_TYPES.every((kind) => kinds.has(kind))) all++
-      for (const kind of DEPOSIT_TYPES) if (!kinds.has(kind)) missing[kind]++
+      if (BASIC.every((kind) => kinds.has(kind))) all++
+      for (const kind of BASIC) if (!kinds.has(kind)) missing[kind]++
     }
   }
   expect(all / points).toBeGreaterThanOrEqual(0.8)
-  for (const kind of DEPOSIT_TYPES) expect(missing[kind] / points).toBeLessThanOrEqual(0.1)
+  for (const kind of BASIC) expect(missing[kind] / points).toBeLessThanOrEqual(0.1)
 })
 
 test('шахта ставится только на месторождение и без своей зоны, строит её строитель', () => {
