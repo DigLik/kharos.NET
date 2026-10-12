@@ -1136,16 +1136,19 @@ body {
   background-color: var(--night);
 }
 
-/* Главное меню: логотип и окно над слайдами. */
+/*
+ * Главное меню: логотип и окно над слайдами. Логотип стоит на одном месте, а окна растут от него вниз: переходы между
+ * экранами не двигают ни его, ни верх окна.
+ */
 .menu {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 20px;
-  padding: 16px;
+  padding: clamp(16px, 12vh, 120px) 16px 16px;
   overflow-y: auto;
   /* Действие витрины — правее меню; на узком экране меню посередине. */
   background: linear-gradient(90deg, rgba(8, 17, 28, 0.55), transparent 420px);
@@ -1154,10 +1157,12 @@ body {
   user-select: none;
 }
 
-/* Меню поверх идущей игры: сцену видно сквозь затемнение. */
+/* Меню поверх идущей игры: сцену видно сквозь затемнение; логотипа нет — окно посередине. */
 .game__pause {
   z-index: 30;
   align-items: center;
+  justify-content: center;
+  padding-top: 16px;
   background: rgba(8, 17, 28, 0.6);
   backdrop-filter: blur(2px);
 }
@@ -1284,16 +1289,27 @@ body {
 }
 
 .menu button {
-  min-height: 30px;
+  min-height: 32px;
   padding: 4px 12px;
 }
 
-.menu__primary {
-  color: var(--gold) !important;
+/* Главное действие экрана — кнопка огней команды; опасное — красная. */
+:is(.menu, .hud) button.menu__primary:not(:disabled) {
+  border-image-source: var(--skin-button-primary);
+  color: var(--text-bright);
 }
 
-.menu__danger {
-  color: var(--bad) !important;
+:is(.menu, .hud) button.menu__primary:hover:not(:disabled) {
+  border-image-source: var(--skin-button-primary-hover);
+}
+
+:is(.menu, .hud) button.menu__danger:not(:disabled) {
+  border-image-source: var(--skin-danger);
+  color: var(--text-bright);
+}
+
+.menu button:disabled {
+  color: var(--text-muted);
 }
 
 .menu__form {
@@ -1352,6 +1368,17 @@ body {
   font-size: 12px;
   font-weight: 400;
   text-transform: uppercase;
+}
+
+/* Разделы окна отбиты чертой; у первого её нет. */
+.menu__group:not(:first-child) {
+  padding-top: 10px;
+  border-top: 2px solid var(--steel-0);
+}
+
+/* В узком окне подписи ползунков короче: иначе самому ползунку не остаётся места. */
+.menu__window:not(.menu__window--wide) .menu__field--slider {
+  grid-template-columns: 88px 1fr 40px;
 }
 
 .menu__subtitle {
@@ -1441,10 +1468,22 @@ body {
   color: var(--text-muted);
 }
 
+/* Подвал окна: «Назад» слева, действия экрана справа. */
 .menu__footer {
   display: flex;
-  justify-content: center;
-  margin-top: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 2px solid var(--steel-0);
+}
+
+.menu__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
 }
 
 /* На широком экране меню — слева, а действие витрины — правее него. */

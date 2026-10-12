@@ -64,15 +64,19 @@ export function download(name: string, data: Uint8Array) {
   URL.revokeObjectURL(link.href)
 }
 
-/** Окно меню: заголовок, содержимое и кнопка «Назад», если это не главный экран. */
-function Window({ title, back, children, wide }: { title: string; back?: () => void; children: ComponentChildren; wide?: boolean }) {
+/**
+ * Окно меню: заголовок, содержимое и подвал — «Назад» слева, действия экрана справа, главное из них последним.
+ * Так на всех экранах кнопки стоят на одних и тех же местах.
+ */
+function Window({ title, back, actions, children, wide }: { title: string; back?: () => void; actions?: ComponentChildren; children: ComponentChildren; wide?: boolean }) {
   return (
     <section class={wide ? 'menu__window menu__window--wide' : 'menu__window'}>
       <h2 class="menu__title">{title}</h2>
       {children}
-      {back && (
+      {(back || actions) && (
         <div class="menu__footer">
-          <button onClick={back}>{t('common.back')}</button>
+          {back && <button onClick={back}>{t('common.back')}</button>}
+          {actions && <span class="menu__actions">{actions}</span>}
         </div>
       )}
     </section>
@@ -107,9 +111,12 @@ export function Menu({ play }: MenuProps) {
       {screen === 'main' && (
         <Window title={t('menu.title')}>
           <nav class="menu__list">
-            <button disabled={!last} title={lastTitle} onClick={() => last && play(last)}>
-              {t('common.resume')}
-            </button>
+            {/* Продолжать нечего — кнопки нет, а не мёртвая серая. Есть что — это и есть главное действие. */}
+            {last && (
+              <button class="menu__primary" title={lastTitle} onClick={() => play(last)}>
+                {t('common.resume')}
+              </button>
+            )}
             <button onClick={() => setScreen('new')}>{t('menu.newGame')}</button>
             <button
               onClick={() => {
@@ -223,8 +230,18 @@ function NewGame({ back, play, count }: { back(): void; play(launch: Launch): vo
     return Object.keys(changes).length === Object.keys(preset.generator).length && Object.entries(preset.generator).every(([key, value]) => changes[key as keyof GeneratorConfig] === value)
   })
   return (
-    <Window title={t('menu.newGame')} back={back} wide>
+    <Window
+      title={t('menu.newGame')}
+      back={back}
+      wide
+      actions={
+        <button type="submit" form="new-game" class="menu__primary">
+          {t('menu.start')}
+        </button>
+      }
+    >
       <form
+        id="new-game"
         class="menu__setup"
         onSubmit={(event) => {
           event.preventDefault()
@@ -338,9 +355,6 @@ function NewGame({ back, play, count }: { back(): void; play(launch: Launch): vo
         </div>
         <div class="menu__aside">
           <MapPreview config={generator} size={size} />
-          <button type="submit" class="menu__primary">
-            {t('menu.start')}
-          </button>
         </div>
       </form>
     </Window>
@@ -374,7 +388,21 @@ function NewWorld({ back, play, count }: { back(): void; play(launch: Launch): v
   }
   const groups = blank ? [] : GENERATOR_GROUPS
   return (
-    <Window title={t('menu.newMap')} back={back} wide>
+    <Window
+      title={t('menu.newMap')}
+      back={back}
+      wide
+      actions={
+        <>
+          <button type="button" disabled={busy} onClick={() => create(false)}>
+            {t('common.play')}
+          </button>
+          <button type="button" class="menu__primary" disabled={busy} onClick={() => create(true)}>
+            {t('menu.toEditor')}
+          </button>
+        </>
+      }
+    >
       <div class="menu__setup">
         <div class="menu__form">
           <label class="menu__field">
@@ -415,12 +443,6 @@ function NewWorld({ back, play, count }: { back(): void; play(launch: Launch): v
         </div>
         <div class="menu__aside">
           <MapPreview config={{ ...generator, ...(blank && { blank: true }) }} size={width} height={height} />
-          <button type="button" class="menu__primary" disabled={busy} onClick={() => create(true)}>
-            {t('menu.toEditor')}
-          </button>
-          <button type="button" disabled={busy} onClick={() => create(false)}>
-            {t('common.play')}
-          </button>
         </div>
       </div>
     </Window>
@@ -451,7 +473,23 @@ function Saves({ back, saves, refresh, play, create }: { back(): void; saves: Sa
     input.click()
   }
   return (
-    <Window title={t('menu.saves')} back={back} wide>
+    <Window
+      title={t('menu.saves')}
+      back={back}
+      wide
+      actions={
+        <>
+          <button onClick={() => pick(false)}>{t('menu.loadFile')}</button>
+          <button title={t('menu.fileToEditorTip')} onClick={() => pick(true)}>
+            {t('menu.fileToEditor')}
+          </button>
+          {/* Главное — «Играть» у сохранения; без сохранений главное — начать новый мир. */}
+          <button class={saves.length ? undefined : 'menu__primary'} title={t('menu.newWorldTip')} onClick={create}>
+            {t('menu.newWorld')}
+          </button>
+        </>
+      }
+    >
       {saves.length === 0 && <p class="menu__note">{t('menu.noSaves')}</p>}
       <ul class="menu__saves">
         {saves.map((slot) => (
@@ -509,15 +547,6 @@ function Saves({ back, saves, refresh, play, create }: { back(): void; saves: Sa
         ))}
       </ul>
       {error && <p class="menu__error">{error}</p>}
-      <div class="menu__inline">
-        <button class="menu__primary" title={t('menu.newWorldTip')} onClick={create}>
-          {t('menu.newWorld')}
-        </button>
-        <button onClick={() => pick(false)}>{t('menu.loadFile')}</button>
-        <button title={t('menu.fileToEditorTip')} onClick={() => pick(true)}>
-          {t('menu.fileToEditor')}
-        </button>
-      </div>
     </Window>
   )
 }
@@ -534,7 +563,15 @@ function Network({ back, play }: { back(): void; play(launch: Launch): void }) {
     play({ kind: 'server', ...target, name: cleanName(target.name) })
   }
   return (
-    <Window title={t('menu.network')} back={back}>
+    <Window
+      title={t('menu.network')}
+      back={back}
+      actions={
+        <button type="submit" form="network" class="menu__primary" disabled={!/^wss?:\/\/./.test(server.url)}>
+          {t('common.connect')}
+        </button>
+      }
+    >
       {recent.length > 0 && (
         <>
           <h3 class="menu__subtitle">{t('menu.recentServers')}</h3>
@@ -568,6 +605,7 @@ function Network({ back, play }: { back(): void; play(launch: Launch): void }) {
         </>
       )}
       <form
+        id="network"
         class="menu__form"
         onSubmit={(event) => {
           event.preventDefault()
@@ -585,14 +623,20 @@ function Network({ back, play }: { back(): void; play(launch: Launch): void }) {
         </label>
         <label class="menu__field">
           <span>{t('menu.serverAddress')}</span>
-          <input
-            value={server.url}
-            placeholder="ws://host:port"
-            onInput={(event) => {
-              const url = event.currentTarget.value.trim()
-              setServer({ ...server, url })
-            }}
-          />
+          {/* «Этот компьютер» подставляет адрес — и стоит рядом с ним, а не среди действий окна. */}
+          <span class="menu__inline">
+            <input
+              value={server.url}
+              placeholder="ws://host:port"
+              onInput={(event) => {
+                const url = event.currentTarget.value.trim()
+                setServer({ ...server, url })
+              }}
+            />
+            <button type="button" onClick={() => setServer({ ...server, url: localServerUrl() })}>
+              {t('menu.thisComputer')}
+            </button>
+          </span>
         </label>
         <label class="menu__field">
           <span>{t('menu.lag')}</span>
@@ -606,19 +650,6 @@ function Network({ back, play }: { back(): void; play(launch: Launch): void }) {
         </label>
         {isInsecure(server.url) && <p class="menu__note is-warn">{t('errors.insecure')}</p>}
         <p class="menu__note">{t('menu.sharedWorld')}</p>
-        <span class="menu__inline">
-          <button
-            type="button"
-            onClick={() => {
-              setServer({ ...server, url: localServerUrl() })
-            }}
-          >
-            {t('menu.thisComputer')}
-          </button>
-          <button type="submit" class="menu__primary" disabled={!/^wss?:\/\/./.test(server.url)}>
-            {t('common.connect')}
-          </button>
-        </span>
       </form>
     </Window>
   )

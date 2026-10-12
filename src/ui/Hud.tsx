@@ -111,8 +111,14 @@ function Tip() {
       const text = owner?.getAttribute('data-tip')
       setTip(text ? { text, card: owner!.getAttribute('data-card'), x: event.clientX, y: event.clientY } : null)
     }
+    // Щелчок гасит подсказку: кнопка могла открыть окно поверх, а подсказка осталась бы висеть под ним.
+    const onDown = () => setTip(null)
     window.addEventListener('pointermove', onMove)
-    return () => window.removeEventListener('pointermove', onMove)
+    window.addEventListener('pointerdown', onDown)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerdown', onDown)
+    }
   }, [])
   if (!tip) return null
   // Карточка берётся из CARDS при каждой отрисовке: цена и доступность в ней свежие, пока курсор стоит на месте.

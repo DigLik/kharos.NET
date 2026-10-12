@@ -148,7 +148,7 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
             <section class="menu__window">
               <h2 class="menu__title">{t('game.menu')}</h2>
               <nav class="menu__list">
-                <button autoFocus onClick={() => setPaused(false)}>
+                <button class="menu__primary" autoFocus onClick={() => setPaused(false)}>
                   {t('common.resume')}
                 </button>
                 {(launch.kind === 'battle' || launch.kind === 'sandbox') && (
@@ -164,6 +164,7 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
                 <button onClick={() => setSettingsOpen(true)}>{t('common.settings')}</button>
                 {real && !hud.defeated && (
                   <button
+                    class="menu__danger"
                     onClick={() => {
                       if (!confirm(t('game.surrenderConfirm'))) return
                       gameRef.current?.send({ type: 'surrender' })

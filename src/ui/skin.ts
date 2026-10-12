@@ -85,6 +85,9 @@ export function installSkin() {
     'button-hover': frame({ fill: STEEL[2], light: STEEL[4], dark: STEEL[0] }),
     'button-active': frame({ fill: TEAM[0], light: INK, dark: TEAM[2], edge: TEAM[2] }),
     'button-disabled': frame({ fill: STEEL[0], light: STEEL[1], dark: INK }),
+    // Главное действие экрана — выпуклая кнопка огней команды: «Начать», «Подключиться», «Играть».
+    'button-primary': frame({ fill: TEAM[1], light: TEAM[2], dark: TEAM[0] }),
+    'button-primary-hover': frame({ fill: '#3a7fe8', light: TEAM[3], dark: TEAM[0] }),
     // Награды и важное — золотая рамка; опасное — красная.
     gold: frame({ fill: DEEP, light: GOLD[2], dark: GOLD[0], edge: GOLD[0], rivets: GOLD[3] }),
     danger: frame({ fill: RED[0], light: RED[2], dark: INK, rivets: RED[2] }),
