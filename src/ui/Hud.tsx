@@ -769,6 +769,8 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
         {construction && !construction.placing && !construction.paving && (
           <div class="hud__hint">{t('hud.builderTip')}</div>
         )}
+        {/* MCV: что с ним делать — новому игроку это первый вопрос. */}
+        {conversion?.kind === 'deploy' && conversion.progress === null && <div class="hud__hint">{t('hud.mcvTip')}</div>}
         {construction?.placing && <div class="hud__hint">{t('hud.placingTip')}</div>}
       </div>
     </div>

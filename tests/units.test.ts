@@ -84,7 +84,7 @@ const tileOf = (sim: Sim, entity: Entity) => {
 test('стартовый набор появляется на проходимых тайлах, каждый на своём', () => {
   const { sim, units } = start()
   expect(units.map((entity) => sim.world.get(entity, Unit)!.type)).toEqual([
-    'mcv', 'builder', 'builder', 'infantry', 'infantry', 'infantry',
+    'mcv', 'buggy', 'buggy', 'infantry', 'infantry', 'infantry',
   ])
   const tiles = units.map((entity) => tileOf(sim, entity))
   for (const [x, y] of tiles) expect(isWalkable(sim, x, y)).toBe(true)

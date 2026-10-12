@@ -5,6 +5,7 @@ import { Terrain, isCliffFoot, terrainAt } from '../src/map/terrain'
 import { Building, Builds, CORE, Orders, Owner, Path, Position, Producer, Site, Tactics, Unit, createSim, siteAt, spawnStartingUnits, type Sim } from '../src/sim'
 import { saveDeposits } from '../src/sim/deposits'
 import { ORDERS_LIMIT } from '../src/sim/orders'
+import { addBuilders } from './builders'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }
 const TICK = 1 / 20
@@ -43,6 +44,7 @@ function start() {
     for (let x = 0; x < 400; x++) {
       if (!rock(x, y)) continue
       spawnStartingUnits(sim, 1, x + 2, y + 2)
+      addBuilders(sim, 1, x + 2, y + 2)
       sim.send(1, { type: 'deploy', unit: unitsOf(sim, 'mcv')[0] })
       seconds(sim, 6)
       return { sim, core: coreOf(sim), builders: unitsOf(sim, 'builder'), site: { x: x + 7, y: y + 4 } }
@@ -100,7 +102,7 @@ test('очередь построек: стройка закладывается
   expect(placed).toBeDefined()
   expect(sim.world.has(builder, Builds)).toBe(false)
   expect(sim.world.get(builder, Orders)!.list[0].command).toMatchObject({ type: 'assist', site: placed })
-  seconds(sim, 10)
+  seconds(sim, 20)
   expect(sim.world.get(builder, Builds)?.site ?? (sim.world.has(placed!, Site) ? -1 : placed)).toBe(placed!)
 })
 

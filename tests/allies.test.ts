@@ -217,8 +217,10 @@ test('разведка у союзников общая: после /ally каж
   expect(first.sim.vision.sees(1, at.x, at.y)).toBe(true)
   expect(unitsOf(third.sim, 2)).toEqual([])
   expect(third.sim.vision.sees(3, at.x, at.y)).toBe(false)
-  // Союзнику сущность идёт целиком, как хозяину: чем занят строитель, видно ему, но не чужому.
-  const builder = theirs.find((entity) => host.sim.world.has(entity as never, Repair))!
+  // Союзнику сущность идёт целиком, как хозяину: чем занят строитель, видно ему, но не чужому. Строителей в стартовом
+  // наборе нет — союзник заказал одного.
+  const builder = spawnUnit(host.sim, 'builder', 2, Math.floor(at.x), Math.floor(at.y))
+  run(host, all, 0.5)
   expect(first.sim.world.has(builder as never, Repair)).toBe(true)
   expect(wireOf(host.sim.world, builder as never, 3, 0).parts.has(Repair.key)).toBe(false)
 

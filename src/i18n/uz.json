@@ -579,6 +579,7 @@
     "pavingShort": "; {short} katak uchun kredit yetarli emas (sariqlar)",
     "pavingEnd": "; o‘ng tugma yoki Esc — yetarli",
     "builderTip": "Binolarni quradi va o‘zingiznikilarni tuzatadi: qurilish yoki shikastlangan binoga o‘ng tugmani bosing. Binolar — o‘ngdagi to‘rda",
+    "mcvTip": "Ko‘chma baza. Uni bo‘sh qoya yoki 3×3 poydevorga olib boring — yaxshisi kon yoniga — va «Joylashtirish»ni bosing: u quruvchilarga buyurtma beradigan va qurilish hududini belgilaydigan bosh binoga aylanadi",
     "placingTip": "Chap tugma — joylashtirish, yana va yana mumkin; o‘ng tugma yoki Esc — yetarli",
     "adminPassword": "Administrator paroli",
     "adminMode": "administrator rejimi",

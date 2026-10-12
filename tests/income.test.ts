@@ -11,6 +11,7 @@ import { Scan } from '../src/sim/components'
 import { connectAll, connectBuilding } from '../src/sim/piping'
 import { REWARDS, STARTING_CREDITS } from '../src/sim/economy'
 import { spawnUnit } from '../src/sim/units'
+import { addBuilders } from './builders'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }
 const TICK = 1 / 20
@@ -36,6 +37,7 @@ function start() {
     for (let x = 0; x < 400; x++) {
       if (!rock(x, y)) continue
       spawnStartingUnits(sim, 1, x + 2, y + 2)
+      addBuilders(sim, 1, x + 2, y + 2)
       let mcv: Entity | undefined
       for (const [entity, unit] of sim.world.query(Unit)) if (unit.type === 'mcv') mcv = entity
       sim.send(1, { type: 'deploy', unit: mcv! })

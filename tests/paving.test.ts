@@ -9,6 +9,7 @@ import {
 import { orderMove, spawnUnit, terrainSpeed } from '../src/sim/units'
 import { canDeploy } from '../src/sim/conversion'
 import { breakSlabs } from '../src/sim/combat'
+import { addBuilders } from './builders'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }
 const TICK = 1 / 20
@@ -35,6 +36,7 @@ function start(fits: (sim: Sim, x: number, y: number) => boolean = () => true) {
     for (let x = 0; x < 400; x++) {
       if (!rock(x, y) || !fits(sim, x, y)) continue
       spawnStartingUnits(sim, 1, x + 2, y + 2)
+      addBuilders(sim, 1, x + 2, y + 2)
       sim.send(1, { type: 'deploy', unit: unitsOf(sim, 'mcv')[0] })
       seconds(sim, 6)
       let core: Entity | undefined

@@ -82,8 +82,8 @@ test('приказ клиента выполняет сервер, а клиен
   const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 256 }))
   const { sim } = join(host)
   sim.advance(0)
-  // Строитель: техника, обрыв ему закрыт, но узкий проход у края ему не тесен — не то что MCV.
-  const unit = unitsOf(sim, 1).find((entity) => sim.world.get(entity, Unit)?.type === 'builder')!
+  // Багги: техника, обрыв ей закрыт, но узкий проход у края ей не тесен — не то что MCV.
+  const unit = unitsOf(sim, 1).find((entity) => sim.world.get(entity, Unit)?.type === 'buggy')!
   const from = { ...sim.world.get(unit, Position)! }
 
   // Куда-нибудь в три тайла, куда технике можно: рядом может быть обрыв.

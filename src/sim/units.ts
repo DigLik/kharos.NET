@@ -160,8 +160,11 @@ export const onFoot = (type: UnitType) => UNITS[type].kind === 'infantry'
 /** Какую долю прочности пехотинец восстанавливает сам за секунду. */
 export const INFANTRY_REGEN = 0.02
 
-/** С чем игрок появляется в мире. */
-const STARTING_UNITS: UnitType[] = ['mcv', 'builder', 'builder', 'infantry', 'infantry', 'infantry']
+/**
+ * С чем игрок появляется в мире: MCV, две багги и взвод пехоты — отбиться от первого налёта. Строителей нет: их
+ * заказывают в развёрнутом главном здании, на это есть кредиты (STARTING_CREDITS).
+ */
+const STARTING_UNITS: UnitType[] = ['mcv', 'buggy', 'buggy', 'infantry', 'infantry', 'infantry']
 
 /**
  * Может ли наземный юнит находиться в тайле: внутри карты, на песке или скале, не в здании (открытые ворота не в счёт) и не у подножия обрыва —

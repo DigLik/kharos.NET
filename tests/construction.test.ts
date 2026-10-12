@@ -11,6 +11,7 @@ import { WORK_RADIUS, wallStroke } from '../src/sim/construction'
 import { addCredits } from '../src/sim/economy'
 import { spawnUnit } from '../src/sim/units'
 import { throughJson } from './throughJson'
+import { addBuilders } from './builders'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }
 const TICK = 1 / 20
@@ -49,6 +50,7 @@ function start() {
     for (let x = 0; x < 400; x++) {
       if (!rock(x, y)) continue
       spawnStartingUnits(sim, 1, x + 2, y + 2)
+      addBuilders(sim, 1, x + 2, y + 2)
       sim.send(1, { type: 'deploy', unit: unitsOf(sim, 'mcv')[0] })
       seconds(sim, 6)
       return { sim, core: coreOf(sim), builders: unitsOf(sim, 'builder'), site: { x: x + 7, y: y + 4 } }
@@ -140,6 +142,8 @@ test('чужой юнит на площадке держит стройку, п�
 
 test('строить можно только в радиусе контроля, за кредиты и только строителями', () => {
   const { sim, builders, site } = start()
+  // Кредитов — ровно на четыре электростанции с небольшим остатком.
+  for (const [entity, player] of sim.world.query(Player)) if (player.id === 1) sim.world.set(entity, Player, { credits: 4 * BUILDINGS.generator.cost + 100 })
   const credits = creditsOf(sim, 1)
   expect(canBuild(sim, 1, 'generator', site.x + 60, site.y)).toBe(false)
   expect(canBuild(sim, 2, 'generator', site.x, site.y)).toBe(false)
