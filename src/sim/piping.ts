@@ -1,6 +1,7 @@
 import type { Entity } from '../ecs'
 import { tileKey } from '../map/terrain'
-import { BUILDINGS, CORE, UNDERGROUND_REACH, buildingSpec, isPipe, canPlace, placeBuilding, siteAt, type BuildingType } from './buildings'
+import { BUILDINGS, CORE, RESEARCH_FOR, UNDERGROUND_REACH, buildingSpec, isPipe, canPlace, placeBuilding, siteAt, type BuildingType } from './buildings'
+import { hasResearch } from './topics'
 import { Building, Inventory, Owner, Position, Site } from './components'
 import type { Sim } from './sim'
 import { assignBuilders, cancelBuild, refundOf } from './construction'
@@ -193,11 +194,13 @@ function replacePipe(sim: Sim, player: number, entity: Entity) {
 export function pipeStroke(sim: Sim, player: number, tiles: readonly number[], kind: PipeKind = 'pipe'): boolean[] {
   const taken = new Set<number>()
   const allowed: boolean[] = []
+  // Не исследованы трубы или колодцы — не годится ни один тайл.
+  const known = hasResearch(sim, player, RESEARCH_FOR[kind])
   for (let i = 0; i + 1 < tiles.length; i += 2) {
     const x = tiles[i]
     const y = tiles[i + 1]
     const fits = Number.isInteger(x) && Number.isInteger(y) && (canPlace(sim, 'pipe', x, y) || pipeSwap(sim, player, kind, x, y) !== undefined)
-    const ok = !taken.has(tileKey(x, y)) && fits && !inForeignZone(sim, player, x, y, 1, 1)
+    const ok = known && !taken.has(tileKey(x, y)) && fits && !inForeignZone(sim, player, x, y, 1, 1)
     if (ok) taken.add(tileKey(x, y))
     allowed.push(ok)
   }

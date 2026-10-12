@@ -8,6 +8,7 @@ import { pipeAt } from './piping'
 import { addCredits, pay } from './economy'
 import type { Sim } from './sim'
 import { inForeignZone } from './zones'
+import { PAVE_RESEARCH, hasResearch } from './topics'
 import { PAVE_KINDS, isPaved, type PaveKind } from './paved'
 
 export { FOUNDATION_SPEED, PAVE_KINDS, ROAD_SPEED, createPaving, isPaved, type PaveKind, type Paving } from './paved'
@@ -44,6 +45,8 @@ export function canPave(sim: Sim, player: number, kind: PaveKind, x: number, y: 
   if (kind === 'foundation' ? terrain !== Terrain.Rock && terrain !== Terrain.Sand : !isPassable(terrain)) return false
   // У подножия обрыва стоит его стенка: класть туда нельзя, как и строить, см. canPlace.
   if (isCliffFoot(sim.land, x, y)) return false
+  // Покрытие открывают исследования: фундамент, дороги, а дорогу по болоту — мосты.
+  if (!hasResearch(sim, player, PAVE_RESEARCH[kind === 'road' && terrain === Terrain.Swamp ? 'bridge' : kind])) return false
   if (sim.paving.at(x, y) !== undefined || sim.occupancy.at(x, y) !== undefined || siteAt(sim, x, y) !== undefined) return false
   return !inForeignZone(sim, player, x, y, 1, 1)
 }

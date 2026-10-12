@@ -5,7 +5,7 @@ import { createLandMemory, saveLandMemory, updateLandMemory, type LandMemory, ty
 import { buildingSpec, createOccupancy, type Occupancy } from './buildings'
 import { fight, recover } from './combat'
 import { assemble } from './assembly'
-import { research } from './research'
+import { research, triggers } from './research'
 import { scan } from './radar'
 import { gates } from './gates'
 import { materializeAlliances } from './allies'
@@ -79,9 +79,9 @@ export interface Rules {
   /** Защита новичка: сколько минут после появления игрока нельзя атаковать, см. shelter.ts. Ноль — защиты нет. */
   protection: number
   /**
-   * Темп исследований. researchScale — во сколько раз тема дороже и дольше, чем в RESEARCH; researchGrowth — во сколько
-   * раз каждая открытая или начатая тема удорожает следующую; researchSlow — во сколько раз срок длиннее сверх этого:
-   * цену держит земля (харит конечен), и растянуть срок ценой нельзя. Единицы — дерево на один матч; на сервере, где
+   * Темп исследований, см. priceOf в topics.ts. researchGrowth — во сколько раз каждый ярус сложности дороже и дольше
+   * предыдущего; researchScale — во сколько раз дороже, чем в матче; researchSlow — во сколько раз дольше: цену держит
+   * земля (харит конечен), и растянуть срок ценой нельзя. Числа по умолчанию — дерево на один матч; на сервере, где
    * мир живёт две недели, они больше, см. server/settings.ts.
    */
   researchScale: number
@@ -114,7 +114,7 @@ export const DEFAULT_RULES: Rules = {
   offlineMinutes: 30,
   protection: 10,
   researchScale: 1,
-  researchGrowth: 1,
+  researchGrowth: 1.6,
   researchSlow: 1,
   upgradeScale: 1,
   depositRenewal: 15,
@@ -144,8 +144,9 @@ export interface SimOptions {
  * 20 — двоичный файл, см. src/save/file.ts, и в нём карта мира. С неё старые сохранения поднимаются миграциями, а не
  * отбрасываются.
  * 22 — харвестера больше нет: сохранения с ним не переносятся, а отбрасываются (OLDEST_VERSION в src/save/file.ts).
+ * 23 — лаборатории вместо техцентра и дерево исследований с переработкой и армией: миграция adoptLabs в research.ts.
  */
-export const SAVE_VERSION = 22
+export const SAVE_VERSION = 23
 
 export interface SimSave extends SimOptions {
   version: typeof SAVE_VERSION
@@ -236,6 +237,7 @@ export function createSim(source: SimOptions | SimSave): Sim {
       // Цеха собирают изделия из привезённого сырья.
       (_, time) => assemble(sim, time),
       (_, time) => research(sim, time),
+      (_, time) => triggers(sim, time),
       (_, time) => scan(sim, time),
       // До движения: закрывшиеся ворота уже не пропустят.
       (_, time) => gates(sim, time),

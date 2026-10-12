@@ -874,6 +874,335 @@ body {
   box-shadow: 0 0 4px var(--good);
 }
 
+/* Подсказка в несколько строк — о теме исследования: строки с новой, длинная строка переносится. */
+.tip.tip--wrap {
+  display: block;
+  max-width: 320px;
+  white-space: pre-line;
+}
+
+/* Кнопка окна исследований на верхней полосе: готовность нынешней темы рядом. */
+.hud__tech {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+}
+
+.hud__tech small {
+  color: var(--team-light);
+}
+
+/*
+ * Окно исследований, как в Factorio: очередь сверху, ниже темы плитками по порядку зависимостей. Поверх карты, мышь
+ * держит само, как список игроков: промах мимо темы не уходит приказом по карте. Список прокручивается.
+ */
+.tech {
+  position: fixed;
+  top: 46px;
+  left: 50%;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(1180px, calc(100vw - 32px));
+  max-height: calc(100vh - 46px - 160px);
+  padding: 12px 16px;
+  transform: translateX(-50%);
+}
+
+.tech__head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.tech__head h2 {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: 20px;
+  font-weight: normal;
+  color: var(--text-bright);
+  text-shadow: 2px 2px 0 var(--ink);
+}
+
+.tech__labs {
+  color: var(--text-dim);
+}
+
+.tech .tech__close {
+  margin-left: auto;
+  padding: 0 8px;
+}
+
+/* Очередь: темы по порядку, первая — в работе. Щелчок убирает тему из очереди. */
+.tech__queue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-height: 36px;
+}
+
+.tech__label,
+.tech__empty {
+  color: var(--text-dim);
+}
+
+.hud .tech__queued {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 2px;
+}
+
+.tech__queued img {
+  width: 24px;
+  height: 24px;
+  image-rendering: pixelated;
+}
+
+.tech__queued small {
+  color: var(--team-light);
+}
+
+.hud .tech__queued.is-current {
+  border-image-source: var(--skin-button-active);
+  color: var(--text-bright);
+}
+
+.tech .tech__clear {
+  margin-left: auto;
+  padding: 2px 10px;
+}
+
+.tech__lacks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  color: var(--warn);
+}
+
+.tech__lack {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tech__lack small {
+  color: var(--text-dim);
+}
+
+.tech__list {
+  min-height: 0;
+  padding: 2px;
+  overflow: auto;
+}
+
+.tech__list h3 {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--text-muted);
+}
+
+.tech__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 6px;
+}
+
+/*
+ * Плитка темы. Цвет — доступность: зелёная — можно сейчас, жёлтая — станет можно по ходу очереди, красная — пока
+ * нельзя; открытая — приглушённая. Цветом закрашено окно значка и подчёркнуто название.
+ */
+.hud .tech__tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 2px;
+  text-align: left;
+}
+
+.tech__icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  background: rgba(255, 122, 102, 0.22);
+  box-shadow: inset 0 -3px 0 var(--bad);
+}
+
+.tech__tile.is-available .tech__icon {
+  background: rgba(143, 224, 168, 0.2);
+  box-shadow: inset 0 -3px 0 var(--good);
+}
+
+.tech__tile.is-soon .tech__icon {
+  background: rgba(240, 201, 90, 0.2);
+  box-shadow: inset 0 -3px 0 var(--gold);
+}
+
+.tech__tile.is-done .tech__icon {
+  background: rgba(97, 132, 163, 0.18);
+  box-shadow: inset 0 -3px 0 var(--steel-2);
+}
+
+.tech__tile.is-done {
+  opacity: 0.7;
+}
+
+.hud .tech__tile[aria-disabled='true'] {
+  cursor: default;
+}
+
+.hud .tech__tile.is-queued {
+  border-image-source: var(--skin-button-active);
+}
+
+.tech__icon img {
+  width: 48px;
+  height: 48px;
+  image-rendering: pixelated;
+}
+
+.tech__order {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  padding: 0 4px;
+  background: var(--team-dark);
+  color: var(--text-bright);
+  font-weight: normal;
+}
+
+.tech__bar {
+  position: absolute;
+  right: 4px;
+  bottom: 6px;
+  left: 4px;
+  height: 4px;
+  background: var(--well);
+}
+
+.tech__bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--team-light);
+}
+
+.tech__name {
+  min-height: 28px;
+  padding: 0 2px;
+  color: var(--text-bright);
+  line-height: 14px;
+}
+
+.tech__price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  padding: 0 2px;
+  color: var(--text-soft);
+}
+
+.tech__credits {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--gold);
+}
+
+.tech__time {
+  margin-left: auto;
+  color: var(--text-dim);
+}
+
+.tech__trigger {
+  padding: 0 2px;
+  color: var(--power);
+}
+
+.tech__foot {
+  color: var(--text-muted);
+}
+
+/* Подсказка темы при наведении: рядом с плиткой, поверх окна. Мышь сквозь неё проходит. */
+.tech__card {
+  position: fixed;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 330px;
+  max-height: calc(100vh - 16px);
+  padding: 8px 10px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.tech__card strong {
+  font-family: var(--font-title);
+  font-size: 20px;
+  font-weight: normal;
+  color: var(--text-bright);
+}
+
+.tech__state.is-available { color: var(--good); }
+.tech__state.is-soon { color: var(--gold); }
+.tech__state.is-locked { color: var(--bad); }
+.tech__state.is-done { color: var(--text-dim); }
+
+.tech__opens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.tech__opens span,
+.tech__line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tech__opens img,
+.tech__line img {
+  width: 24px;
+  height: 24px;
+  image-rendering: pixelated;
+}
+
+.tech__deps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tech__deps small {
+  color: var(--text-dim);
+}
+
+.tech__deps ul {
+  margin: 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--steel-2);
+  list-style: none;
+}
+
+.tech__deps > ul {
+  padding-left: 6px;
+}
+
+.tech__line.is-available { color: var(--good); }
+.tech__line.is-soon { color: var(--gold); }
+.tech__line.is-locked { color: var(--bad); }
+.tech__line.is-done { color: var(--text-dim); }
+
 /* Карточка ячейки сетки при наведении: название с клавишей, пояснение, полная цена. */
 .tip.tip--card {
   display: block;
@@ -1094,7 +1423,7 @@ body {
   white-space: nowrap;
 }
 
-/* Подсказка у курсора над месторождением. Мышь сквозь неё проходит на карту. */
+/* Подсказка у курсора над месторождением. Мышь сквозь неё проходит на карту. Выше всех окон: и окна исследований. */
 .tip {
   display: flex;
   align-items: center;
@@ -1102,7 +1431,7 @@ body {
   padding: 4px 8px;
   font-size: 12px;
   white-space: nowrap;
-  z-index: 10;
+  z-index: 30;
   pointer-events: none;
 }
 

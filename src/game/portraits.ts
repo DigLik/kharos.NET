@@ -148,3 +148,34 @@ export function pavePortrait(icon: PaveIcon, box = 0) {
   }
   return url
 }
+
+/**
+ * Значок модернизации — исследования уровня зданий: корпус здания и над ним шевроны цвета команды, по одному на уровень,
+ * до которого исследование поднимает. Рисуется один раз на размер.
+ */
+export function levelPortrait(level: number, box = 0) {
+  const key = `level:${level}:${box}`
+  let url = cache.get(key)
+  if (!url) {
+    const INK = 0x0b111b
+    const image = new Pixmap(32, 32)
+    // Корпус с окнами.
+    image.rect(5, 17, 22, 14, INK)
+    image.rect(6, 18, 20, 12, 0x2d4560)
+    image.rect(6, 18, 20, 1, 0x6184a3)
+    image.rect(6, 27, 20, 3, 0x1c2b3e)
+    for (const x of [8, 14, 20]) image.rect(x, 21, 4, 3, 0x5aa9ff)
+    // Шевроны вверх: нижний — тусклее, верхний — ярче.
+    const COLORS = [0x1f63d8, 0x5aa9ff, 0xe4f4ff]
+    for (let i = 0; i < level; i++) {
+      const y = 14 - i * 5
+      const color = COLORS[Math.min(COLORS.length - 1, i + 3 - level)]
+      image.line(9, y + 4, 16, y - 2, 4, INK)
+      image.line(16, y - 2, 23, y + 4, 4, INK)
+      image.line(9, y + 4, 16, y - 2, 2, color)
+      image.line(16, y - 2, 23, y + 4, 2, color)
+    }
+    cache.set(key, (url = toUrl(image, box)))
+  }
+  return url
+}

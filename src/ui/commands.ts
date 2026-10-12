@@ -1,7 +1,7 @@
 import type { HudState, Stack } from '../game/hud'
 import type { PaveIcon } from '../game/portraits'
 import type { PaveTool } from '../game/scene'
-import { BRIDGE_COST, BUILDINGS, UNDERGROUND_REACH, BUILDING_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, TRANSFER_CAPACITY, WARES, type Amounts, type Stance, type BuildingType, type Command, type Good, type Resource, type Topic } from '../sim'
+import { BRIDGE_COST, BUILDINGS, UNDERGROUND_REACH, BUILDING_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, TRANSFER_CAPACITY, WARES, type Amounts, type Stance, type BuildingType, type Command, type Good, type Resource } from '../sim'
 import { t } from '../i18n'
 
 /** Клавиши ячеек сетки команд по порядку: три ряда по четыре, как на клавиатуре, справа от WASD. */
@@ -35,7 +35,7 @@ const SECTIONS: Partial<Record<Page, BuildingType[]>> = {
   storage: ['metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack'],
   industry: ['smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill'],
   production: ['blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant'],
-  military: ['barracks', 'factory', 'airfield', 'techCenter', 'repairStation', 'silo'],
+  military: ['barracks', 'factory', 'airfield', 'repairStation', 'silo'],
   defense: ['wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator', 'radar'],
 }
 /** Описание здания для карточки: что делает и какие здания открывает. */
@@ -89,6 +89,8 @@ interface Actions {
   pick: (deal: Deal | null) => void
   /** Набрать подарок союзнику или бросить его (null). */
   draft: (ferry: FerryDraft | null) => void
+  /** Открыть окно исследований. */
+  tech: () => void
 }
 
 /** Стойки по порядку кнопок. */
@@ -163,7 +165,7 @@ export function dealOf(trade: NonNullable<HudState['trade']>, credits: number, b
 export function commandsOf(
   state: HudState,
   page: Page,
-  { send, place, pave, route, serve, patrol, aim, open, pick, draft }: Actions,
+  { send, place, pave, route, serve, patrol, aim, open, pick, draft, tech }: Actions,
   deal: Deal | null = null,
   ferry: FerryDraft | null = null,
 ): (Slot | null)[] {
@@ -204,7 +206,7 @@ export function commandsOf(
       }
     }
     if (page === 'root') {
-      // Раздел появляется, когда в нём открыто хоть одно здание; покрытие доступно всегда.
+      // Раздел появляется, когда в нём открыто хоть одно здание.
       const opened = (page: Page) => construction.options.some(({ building }) => sectionOf(building) === page)
       const section = (page: 'economy' | 'storage' | 'industry' | 'production' | 'military' | 'defense' | 'paving' | 'logistics') => ({
         page,
@@ -223,14 +225,19 @@ export function commandsOf(
       // У каждого раздела своё место: закрытый оставляет пустую ячейку, и кнопки не сдвигаются, когда открываются новые.
       const count = (page: Page) => construction.options.filter(({ building }) => sectionOf(building) === page).length
       sections.forEach((section, i) => (slots[i] = opened(section.page) ? { ...section, group: count(section.page) } : null))
-      slots[sections.length] = { ...section('paving'), pave: 'road', group: PAVE_TOOLS.length }
-      slots[sections.length + 1] = { ...section('logistics'), building: 'pipe', group: PIPE_TOOLS.length }
+      // Покрытие и логистику открывают исследования: раздел — с первым открытым инструментом.
+      const known = (tools: { tool: GridTool }[]) => tools.filter(({ tool }) => construction.tools.includes(tool)).length
+      slots[sections.length] = known(PAVE_TOOLS) ? { ...section('paving'), pave: 'road', group: known(PAVE_TOOLS) } : null
+      const logistics = known(PIPE_TOOLS) + count('logistics')
+      slots[sections.length + 1] = logistics ? { ...section('logistics'), building: 'pipe', group: logistics } : null
       // Разбор — сразу инструмент, без раздела. Место — то же, что у «Разобрать» здания: ячейка разворота MCV под ним
       // бывает занята, если MCV выбран вместе со строителем.
       const active = construction.paving?.tool === 'remove'
       slots[DEMOLISH] = { label: t('grid.remove'), pave: 'remove', active, title: t('grid.removeTip'), run: () => pave(active ? null : 'remove') }
     } else if (page === 'paving' || page === 'logistics') {
       ;(page === 'paving' ? PAVE_TOOLS : PIPE_TOOLS).forEach(({ tool, cost }, i) => {
+        // Неисследованный инструмент — пустая ячейка: остальные не сдвигаются.
+        if (!construction.tools.includes(tool)) return
         const active = construction.paving?.tool === tool
         slots[i] = {
           label: t(`grid.tools.${tool}`),
@@ -649,27 +656,8 @@ export function commandsOf(
 
   const { research } = state
   if (research && page === 'root' && !construction) {
-    const { lab, current } = research
-    /** Почему тему не начать: подсказка под кнопкой. */
-    const reason = (lack: NonNullable<(typeof research.topics)[number]['lack']>, after: Topic | null) =>
-      lack === 'done' ? t('grid.researchDone')
-      : lack === 'running' ? t('grid.researchRunning')
-      : lack === 'after' ? t('grid.researchAfter', { name: after ? t(`research.${after}`) : '' })
-      : lack === 'credits' ? t('grid.noCredits')
-      : t('grid.researchNoParts')
-    list(
-      research.topics.map(({ topic, cost, materials, time, lack, after }): Slot => ({
-        label: lack === 'done' ? `✓ ${t(`research.${topic}`)}` : t(`research.${topic}`),
-        cost: lack === 'done' ? undefined : cost,
-        materials: lack === 'done' ? undefined : materials,
-        about: t(`researchInfo.${topic}`),
-        active: lack === 'done' || current?.topic === topic,
-        disabled: !!lack || !!current,
-        title: lack ? reason(lack, after) : current ? t('grid.researchBusy') : t('grid.researchTip', { time }),
-        run: () => send({ type: 'research', lab, topic }),
-      })),
-    )
-    if (current) slots[CANCEL] = { label: t('grid.cancel'), title: t('grid.cancelResearchTip'), run: () => send({ type: 'cancelResearch', lab }) }
+    slots[0] = { label: t('grid.techTree'), title: t('grid.techTreeTip'), about: t('buildingInfo.lab'), run: tech }
+    if (research.topic) slots[CANCEL] = { label: t('grid.cancel'), title: t('grid.cancelResearchTip'), run: () => send({ type: 'cancelResearch' }) }
   }
 
   const { silo } = state

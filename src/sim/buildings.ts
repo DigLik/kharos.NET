@@ -210,9 +210,9 @@ export const BUILDINGS = {
   rodPlant: plant('rods'),
   // Машинный завод: машинки и тяжёлая техника. Строится из стройблоков: военная промышленность требует цеха.
   factory: { width: 3, height: 3, cost: 450, power: -5, materials: { blocks: 10 }, produces: ['buggy', 'flak', 'lancer', 'tank', 'artillery', 'tesla', 'carrier', 'mcv'] },
-  // Техцентр ведёт исследования: они открывают уровни зданий, второй тир техники и лучевую оборону. Строится
-  // из стройблоков: до него игрок должен наладить цех.
-  techCenter: { width: 3, height: 3, cost: 1000, power: -6, materials: { blocks: 15 }, sight: 8, researches: true },
+  // Лаборатория ведёт исследования: они открывают переработку, цеха, армию и уровни зданий. Нужна с самого начала —
+  // до плавильни, — поэтому дешёвая и без материалов; несколько лабораторий исследуют одну тему вместе, быстрее.
+  lab: { width: 2, height: 2, cost: 300, power: -3, researches: true },
   // Ремонтная станция чинит технику и здания вокруг себя — так же и за ту же цену, что строитель, и тоже не под
   // огнём: это пункт обслуживания в тылу. Пехота рядом поправляется быстрее. Без энергии не работает.
   repairStation: { width: 3, height: 3, cost: 500, power: -3, materials: { blocks: 8 }, repair: 5.5 },
@@ -296,7 +296,7 @@ export const BUILDING_TYPES = Object.keys(BUILDINGS) as BuildingType[]
 /** Что возводят строители. Остальные здания появятся вместе с тем, для чего они нужны. */
 export const BUILDABLE: BuildingType[] = [
   'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill', 'blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant',
-  'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack', 'accumulator', 'reactor', 'silo', 'spaceport', 'barracks', 'factory', 'airfield', 'techCenter',
+  'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack', 'accumulator', 'reactor', 'silo', 'spaceport', 'barracks', 'factory', 'airfield', 'lab',
   'repairStation', 'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator',
 ]
 
@@ -387,6 +387,7 @@ export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = 
   mine: ['generator'],
   radar: ['generator'],
   spaceport: ['generator'],
+  lab: ['generator'],
   // Переработку открывает электростанция, а не шахта: так решили, когда руду возили и харвестеры (2026-10-07).
   smelter: ['generator'],
   siliconWorks: ['generator'],
@@ -414,19 +415,47 @@ export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = 
   airfield: ['radar'],
   rocketTurret: ['radar'],
   cannonTurret: ['radar'],
-  techCenter: ['factory'],
   repairStation: ['factory'],
-  laserTurret: ['techCenter'],
-  arcTurret: ['techCenter'],
-  shieldGenerator: ['techCenter'],
-  reactor: ['techCenter', 'uraniumMill'],
-  silo: ['techCenter', 'rodPlant'],
+  laserTurret: ['radar'],
+  arcTurret: ['radar'],
+  reactor: ['uraniumMill'],
+  silo: ['rodPlant'],
 }
 
-/** Какое исследование открывает здание вдобавок к REQUIRES: без него строители его не ставят. */
+/**
+ * Какое исследование открывает здание вдобавок к REQUIRES: без него строители его не ставят. Переработку открывает
+ * исследование её руды, цех — его изделия, армию — свои темы; шахту, космопорт и накопитель — открытия. Трубы и
+ * колодцы строители в меню не берут, их тянут: темы проверяет протяжка, см. pipeStroke.
+ */
 export const RESEARCH_FOR: Partial<Record<BuildingType, Topic>> = {
-  laserTurret: 'beams',
-  arcTurret: 'beams',
+  mine: 'prospecting',
+  spaceport: 'trade',
+  wall: 'walls',
+  gate: 'gates',
+  radar: 'radar',
+  pipe: 'pipes',
+  well: 'wells',
+  accumulator: 'accumulators',
+  smelter: 'metalOre',
+  siliconWorks: 'siliconOre',
+  distillery: 'fuelOre',
+  enricher: 'khariteOre',
+  evaporator: 'lithiumOre',
+  uraniumMill: 'uraniumOre',
+  blockPlant: 'blocks',
+  ammoPlant: 'ammo',
+  partsPlant: 'parts',
+  rodPlant: 'rods',
+  barracks: 'infantry',
+  turret: 'ammo',
+  rocketTurret: 'rockets',
+  factory: 'vehicles',
+  airfield: 'aviation',
+  repairStation: 'repair',
+  laserTurret: 'lasers',
+  arcTurret: 'arcs',
+  cannonTurret: 'armor',
+  shieldGenerator: 'shields',
   reactor: 'atom',
   silo: 'warheads',
 }

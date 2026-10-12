@@ -1,4 +1,4 @@
-import { SAVE_VERSION, type SimSave } from '../sim'
+import { SAVE_VERSION, adoptLabs, type SimSave } from '../sim'
 import { t } from '../i18n'
 
 /**
@@ -24,7 +24,15 @@ export const OLDEST_VERSION = 22
 export type Sections = Map<string, Uint8Array>
 
 /** Перевод разделов из версии v в v + 1, по ключу v. Меняет разделы на месте. */
-const MIGRATIONS: Record<number, (sections: Sections) => void> = {}
+const MIGRATIONS: Record<number, (sections: Sections) => void> = {
+  // Лаборатории вместо техцентра: игроку засчитываются темы того, что у него уже стоит.
+  22: (sections) => {
+    const world = readJson<SimSave['world']>(sections.get('WRLD'))
+    if (!world) return
+    adoptLabs(world)
+    sections.set('WRLD', jsonSection(world))
+  },
+}
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()

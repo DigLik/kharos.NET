@@ -21,7 +21,7 @@ function mesa(sim: Sim, left: number, top: number, side: number) {
 }
 
 const world = () => {
-  const sim = createSim({ generator: DEFAULT_CONFIG, size: 256 })
+  const sim = createSim({ generator: DEFAULT_CONFIG, size: 256, rules: { techTree: false } })
   flat(sim, -30, -30, 60)
   return sim
 }

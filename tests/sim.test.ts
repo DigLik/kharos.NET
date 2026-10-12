@@ -6,7 +6,7 @@ import { placeBuilding } from '../src/sim/buildings'
 import { addCredits } from '../src/sim/economy'
 import { throughJson } from './throughJson'
 
-const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
+const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }
 /** Один тик симуляции: по умолчанию их двадцать в секунду. */
 const TICK = 1 / 20
 

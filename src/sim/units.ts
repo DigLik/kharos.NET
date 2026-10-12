@@ -44,7 +44,7 @@ export interface UnitSpec {
    * тиры. Строки, а не BuildingType: виды зданий сами ссылаются на виды юнитов. Имена сверяет тест.
    */
   requires?: readonly string[]
-  /** Тема исследования (Topic), без которой юнит не заказать: второй тир. Строка по той же причине; имена сверяет тест. */
+  /** Тема исследования (Topic), без которой юнит не заказать сверх темы его производителя. Строка по той же причине; имена сверяет тест. */
   research?: string
   /** Склад: сколько ресурсов юнит везёт. См. inventory.ts. */
   inventory?: number
@@ -75,8 +75,8 @@ export const UNITS = {
   truck: { speed: 3.5, turn: 4, radius: 0.45, cost: 150, buildTime: 8, kind: 'vehicle', hp: 150, sight: 6, inventory: 25, hauls: true, beam: { radius: 2, rate: 10, give: true, take: true } },
   // Пехота.
   // Огнемётчик: штурмовик ближнего боя — выжигает пехоту в окопах и здания, к броне ему не подойти.
-  flamer: { speed: 3.4, turn: 10, radius: 0.3, cost: 140, buildTime: 5, kind: 'infantry', hp: 90, weapon: 'flame' },
-  rocketeer: { speed: 2.6, turn: 10, radius: 0.3, cost: 120, buildTime: 5, kind: 'infantry', hp: 40, weapon: 'launcher' },
+  flamer: { speed: 3.4, turn: 10, radius: 0.3, cost: 140, buildTime: 5, kind: 'infantry', hp: 90, weapon: 'flame', research: 'flamer' },
+  rocketeer: { speed: 2.6, turn: 10, radius: 0.3, cost: 120, buildTime: 5, kind: 'infantry', hp: 40, weapon: 'launcher', research: 'rockets' },
   // Машинки: быстрые и хрупкие.
   // Багги: за водителем сидит пассажир с миниганом и стреляет во все стороны. Она же разведчик: видит дальше всех на земле.
   buggy: {
@@ -86,28 +86,28 @@ export const UNITS = {
   // Зенитка: быстрая машина со спаренной автопушкой, бьёт только по воздуху — далеко и сильно.
   flak: { speed: 5, turn: 4.5, radius: 0.5, cost: 350, buildTime: 8, kind: 'vehicle', hp: 170, weapon: 'flak', materials: { metal: 8 }, sight: 10 },
   // Лазеру нужен кремний.
-  lancer: { speed: 4.5, turn: 4.5, radius: 0.45, cost: 350, buildTime: 9, kind: 'vehicle', hp: 180, weapon: 'laser', materials: { metal: 8, silicon: 4 } },
+  lancer: { speed: 4.5, turn: 4.5, radius: 0.45, cost: 350, buildTime: 9, kind: 'vehicle', hp: 180, weapon: 'laser', materials: { metal: 8, silicon: 4 }, research: 'lasers' },
   // Тяжёлые: медленные, крепкие и дорогие.
   // Весь второй тир собирают с компонентами: в них харит, и без его месторождения и цеха верхней техники нет.
   // Танк бьёт ядрами из башни: она поворачивается сама, и стрелять можно на ходу. Кремний его прицела — в компонентах.
   tank: {
-    speed: 2.2, turn: 2.5, radius: 0.7, cost: 600, buildTime: 14, kind: 'heavy', hp: 450, materials: { metal: 20, parts: 2 }, requires: ['techCenter'], research: 'armor',
+    speed: 2.2, turn: 2.5, radius: 0.7, cost: 600, buildTime: 14, kind: 'heavy', hp: 450, materials: { metal: 20, parts: 2 }, research: 'armor',
     mounts: [{ turret: 'cannon', along: -0.06, across: 0 }],
   },
   // Артиллерия: гаубица на колёсном лафете. Бьёт дальше турелей, но видит меньше, чем стреляет, — ей нужен
   // разведчик; хрупкая и с мёртвой зоной вблизи, без прикрытия её съедают машинки. Второй тир.
   artillery: {
     speed: 2.4, turn: 2.2, radius: 0.6, cost: 800, buildTime: 16, kind: 'vehicle', hp: 200, weapon: 'artillery', sight: 8,
-    materials: { metal: 16, blocks: 4, parts: 2 }, requires: ['techCenter'], research: 'siege',
+    materials: { metal: 16, blocks: 4, parts: 2 }, research: 'siege',
   },
   // Разрядник: тяжёлое шасси с разрядной башней. Катушку собирают из компонентов: в них харит, и без цеха её не сделать.
   tesla: {
-    speed: 2, turn: 2.5, radius: 0.7, cost: 700, buildTime: 16, kind: 'heavy', hp: 500, materials: { metal: 15, silicon: 6, parts: 3 }, requires: ['techCenter'], research: 'armor',
+    speed: 2, turn: 2.5, radius: 0.7, cost: 700, buildTime: 16, kind: 'heavy', hp: 500, materials: { metal: 15, silicon: 6, parts: 3 }, research: 'arcs',
     mounts: [{ turret: 'arc', along: 0, across: 0 }],
   },
   // Носитель: колёсное шасси танка без своего оружия — на нём три ракетные турели и ремонтная. Ремонтной нужен компонент.
   carrier: {
-    speed: 3, turn: 2.5, radius: 0.8, cost: 1200, buildTime: 20, kind: 'vehicle', hp: 700, materials: { metal: 25, silicon: 8, parts: 1 }, requires: ['techCenter'], research: 'siege',
+    speed: 3, turn: 2.5, radius: 0.8, cost: 1200, buildTime: 20, kind: 'vehicle', hp: 700, materials: { metal: 25, silicon: 8, parts: 1 }, research: 'siege',
     mounts: [
       { turret: 'rocket', along: 0.36, across: -0.27 },
       { turret: 'rocket', along: 0.36, across: 0.27 },
@@ -119,12 +119,12 @@ export const UNITS = {
   // Летающий грузовик: везёт меньше обычного, зато вдвое быстрее и напрямик — над болотами и горами. Его сбивает ПВО.
   airTruck: { speed: 7, turn: 5, radius: 0.45, cost: 300, buildTime: 10, kind: 'air', hp: 100, sight: 8, inventory: 10, hauls: true, beam: { radius: 2, rate: 10, give: true, take: true }, materials: { fuel: 4 } },
   drone: { speed: 7.5, turn: 6, radius: 0.35, cost: 220, buildTime: 6, kind: 'air', hp: 70, weapon: 'machinegun', materials: { silicon: 3, fuel: 4 } },
-  gunship: { speed: 5, turn: 3, radius: 0.55, cost: 500, buildTime: 12, kind: 'air', hp: 200, weapon: 'launcher', materials: { metal: 12, silicon: 4, fuel: 8 } },
+  gunship: { speed: 5, turn: 3, radius: 0.55, cost: 500, buildTime: 12, kind: 'air', hp: 200, weapon: 'launcher', materials: { metal: 12, silicon: 4, fuel: 8 }, research: 'gunship' },
   // Бомбардировщик: сносит здания и колонны с воздуха, но сам по воздуху не бьёт и хрупок — его встречают ракеты,
   // турели и зенитки. Второй тир.
   bomber: {
     speed: 5.5, turn: 2.5, radius: 0.7, cost: 700, buildTime: 14, kind: 'air', hp: 180, weapon: 'bomb', sight: 7,
-    materials: { metal: 10, fuel: 12, parts: 2 }, requires: ['techCenter'], research: 'bombing',
+    materials: { metal: 10, fuel: 12, parts: 2 }, research: 'bombing',
   },
 } satisfies Record<string, UnitSpec>
 

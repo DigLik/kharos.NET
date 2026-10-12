@@ -6,6 +6,7 @@ import { TRAINING_PLAYER, orderAttack } from './combat'
 import { Armed, Building, Inventory, Owner, Path, Position, Site, Unit } from './components'
 import { orderBuild } from './construction'
 import { addCredits } from './economy'
+import { grantResearch } from './research'
 import { fortification } from './fortify'
 import { put } from './inventory'
 import { spawnSandbox } from './sandbox'
@@ -63,7 +64,7 @@ const mining: Scene = {
 
 /**
  * Что строят строители, по очереди, вокруг главного здания. Порядок — по дереву технологий (REQUIRES): каждое здание
- * открывают уже стоящие перед ним, иначе его не заложить.
+ * открывают уже стоящие перед ним, иначе его не заложить. Исследования сценка открывает сразу.
  */
 export const PLAN: BuildingType[] = ['generator', 'radar', 'generator', 'barracks', 'smelter', 'metalYard', 'matter', 'turret', 'rocketTurret', 'siliconWorks', 'siliconStore', 'cannonTurret']
 /** Через сколько секунд после конца стройки сценка начинается заново. */
@@ -83,6 +84,8 @@ function construction(): Scene {
       placeBuilding(sim.world, 'command', spot.x, spot.y, player)
       core = { x: spot.x + 1, y: spot.y + 1 }
       addCredits(sim, player, 50000)
+      // Исследования сценка не показывает: всё открыто сразу.
+      grantResearch(sim, player)
       spawnGroup(sim, ['builder', 'builder', 'builder', 'builder', 'builder', 'truck', 'truck', 'infantry', 'infantry'], player, core.x, core.y, 3)
       return true
     },

@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { REWARDS, resourceOf, type UnitType, type BuildingType, type Command, type Good, type Reward } from '../sim'
 import { GRID_KEYS, commandsOf, dealOf, keyLabel, type Deal, type FerryDraft, type Page, type Slot } from './commands'
 import { rich, t, type Key } from '../i18n'
+import { TechTree } from './TechTree'
 
 interface HudProps {
   state: HudState
@@ -76,7 +77,7 @@ function allyActions(row: PlayerRow, self: PlayerRow | undefined): { label: Key;
 }
 
 /** Значок груза цвета груза и количество; название — во всплывающей подсказке. */
-function Res({ resource, amount, of }: { resource: Good; amount?: number; of?: number }) {
+export function Res({ resource, amount, of }: { resource: Good; amount?: number; of?: number }) {
   return (
     <span class="hud__res" data-tip={t(`goods.${resource}`)}>
       <img src={goodIcon(resource)} alt="" />
@@ -86,7 +87,7 @@ function Res({ resource, amount, of }: { resource: Good; amount?: number; of?: n
 }
 
 /** Ресурсы в строку. */
-const Stacks = ({ items }: { items: Stack[] }) => (
+export const Stacks = ({ items }: { items: Stack[] }) => (
   <>
     {items.map(({ resource, amount }) => (
       <Res key={resource} resource={resource} amount={amount} />
@@ -142,7 +143,7 @@ function Tip() {
   const left = tip.x > window.innerWidth - 260
   return (
     <div
-      class="hud tip"
+      class={tip.text.includes('\n') ? 'hud tip tip--wrap' : 'hud tip'}
       style={{
         left: left ? undefined : `${tip.x + 14}px`,
         right: left ? `${window.innerWidth - tip.x + 14}px` : undefined,
@@ -708,11 +709,19 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
             {state.silo.aiming ? t('hud.launchAim') : state.silo.stage === 'launching' ? t('hud.launching', { seconds: state.silo.launch }) : state.silo.stage === 'ready' ? t('hud.warheadReady') : t('hud.warheadEmpty')}
           </div>
         ))}
-        {state.research && !state.research.current && <div class="hud__hint">{t('hud.researchIdle')}</div>}
-        {state.research?.current && (
-          <Progress value={state.research.current.progress}>
-            {t('hud.researching', { name: t(`research.${state.research.current.topic}`), percent: percent(state.research.current.progress) })}
+        {state.research && !state.research.topic && <div class="hud__hint">{t('hud.researchIdle')}</div>}
+        {state.research?.topic && (
+          <Progress value={state.research.progress}>
+            {t('hud.researching', { name: t(`research.${state.research.topic}`), percent: percent(state.research.progress) })}
           </Progress>
+        )}
+        {state.research?.topic && (
+          <div class={state.research.lack ? 'hud__hint is-short' : 'hud__hint'}>
+            {state.research.lack === 'power' ? t('hud.labNoPower')
+              : state.research.lack === 'credits' ? t('hud.labNoCredits')
+              : state.research.lack && state.research.lack !== 'idle' ? t('hud.labLacks', { name: t(`goods.${state.research.lack}`) })
+              : t('hud.labSpeed', { speed: state.research.speed })}
+          </div>
         )}
         {site && (
           <Progress value={site.progress}>
@@ -788,7 +797,7 @@ export function Hud({ state, send, place, pave, route, serve, patrol, aim, minim
   const self = state.players.find(({ own }) => own)
   const dealing = trade && !trade.order && deal && (page === 'sell' || page === 'buy') ? dealOf(trade, state.credits, page === 'buy', deal) : null
 
-  const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, patrol, aim, open: setPage, pick: setDeal, draft: setFerry }, deal, ferry) : []
+  const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, patrol, aim, open: setPage, pick: setDeal, draft: setFerry, tech: () => setTech(true) }, deal, ferry) : []
 
   // Клавиши сетки. Читаются из ref, чтобы не переподписываться на каждое обновление.
   const slotsRef = useRef(slots)
@@ -804,6 +813,18 @@ export function Hud({ state, send, place, pave, route, serve, patrol, aim, minim
       if (slot.disabled) return
       event.preventDefault()
       slot.run()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Окно исследований: открывается кнопкой на верхней полосе, клавишей R и из лаборатории, закрывается ими же и Esc.
+  const [tech, setTech] = useState(false)
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement || event.altKey || event.ctrlKey || event.metaKey || event.repeat) return
+      if (event.code === 'KeyR') setTech((open) => !open)
+      else if (event.code === 'Escape') setTech(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -890,6 +911,13 @@ export function Hud({ state, send, place, pave, route, serve, patrol, aim, minim
           {state.clock}
           {state.storm && t('hud.storm')}
         </span>
+        {/* Исследования — слева от меню. */}
+        {!state.editor && (
+          <button class={tech ? 'hud__tech is-active' : 'hud__tech'} data-tip={t('tech.openTip')} onClick={() => setTech(!tech)}>
+            {t('tech.button')}
+            {state.tech.plan[0] && <small>{Math.round((state.tech.topics.find(({ topic }) => topic === state.tech.plan[0])?.progress ?? 0) * 100)}%</small>}
+          </button>
+        )}
         <span class="hud__menu">{menu}</span>
       </header>
 
@@ -910,6 +938,8 @@ export function Hud({ state, send, place, pave, route, serve, patrol, aim, minim
           ))}
         </section>
       )}
+
+      {tech && !state.editor && <TechTree tech={state.tech} send={send} close={() => setTech(false)} />}
 
       <Tip />
       {state.chat && <Chat

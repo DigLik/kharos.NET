@@ -28,7 +28,7 @@ export type UpgradeLack = 'research' | 'credits' | 'materials'
 export const levelTopic = (level: number): Topic => (level >= 2 ? 'levels3' : 'levels2')
 
 /** Сколько груза сеть здания может отдать на его нужды сразу: что отдают склады сети по заявкам, без резерва хранилищ. */
-function stockFor(sim: Sim, building: Entity, resource: Good) {
+export function networkStock(sim: Sim, building: Entity, resource: Good) {
   let amount = 0
   for (const source of networkOf(sim, building)?.buildings ?? []) {
     if (offersOf(sim, source).includes(resource)) amount += givenBy(sim, source, resource)
@@ -38,7 +38,7 @@ function stockFor(sim: Sim, building: Entity, resource: Good) {
 
 /** Хватает ли в сети здания готового на эту цену. Долю единицы склады отдают неровно: недостачу меньше погрешности прощают, как стройке. */
 export const networkHas = (sim: Sim, building: Entity, materials: Amounts) =>
-  entriesOf(materials).every(([resource, amount]) => stockFor(sim, building, resource) >= amount - 1e-6)
+  entriesOf(materials).every(([resource, amount]) => networkStock(sim, building, resource) >= amount - 1e-6)
 
 /** Забирает готовое со складов сети здания, сначала из хранилищ. */
 export function takeFromNetwork(sim: Sim, building: Entity, materials: Amounts) {

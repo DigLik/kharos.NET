@@ -14,7 +14,7 @@ import { orderPipes, orderWells } from './piping'
 import { cancelUnit, orderUnit } from './production'
 import { setFilter, setRoute, setServe } from './routes'
 import { surrender } from './defeat'
-import { cancelResearch, startResearch } from './research'
+import { cancelResearch, dequeueResearch, planResearch } from './research'
 import { abortLaunch, cancelWarhead, orderLaunch, startWarhead } from './silos'
 import type { Topic } from './topics'
 import { resolveOrder } from './target'
@@ -91,10 +91,15 @@ export type Command = (
   | { type: 'upgrade'; building: number; builders: number[] }
   /** Отменить улучшение своего здания: цена возвращается. */
   | { type: 'cancelUpgrade'; building: number }
-  /** Начать исследование темы в своём свободном техцентре: цена списывается сразу. */
-  | { type: 'research'; lab: number; topic: Topic }
-  /** Бросить исследование своего техцентра: цена возвращается. */
-  | { type: 'cancelResearch'; lab: number }
+  /**
+   * Поставить тему в план исследований вместе с неоткрытыми предшественниками: в конец плана, front — в начало.
+   * Платят лаборатории по ходу работы.
+   */
+  | { type: 'research'; topic: Topic; front?: boolean }
+  /** Убрать тему из плана исследований вместе с темами плана, которым она нужна. */
+  | { type: 'dequeue'; topic: Topic }
+  /** Очистить план исследований: начатые темы помнят прогресс. */
+  | { type: 'cancelResearch' }
   /** Начать сборку боеголовки в своей пустой ракетной шахте: цена списывается сразу. */
   | { type: 'warhead'; silo: number }
   /** Бросить сборку боеголовки: цена возвращается. */
@@ -293,9 +298,11 @@ function run(sim: Sim, player: number, command: Command): boolean {
     case 'cancelUpgrade':
       return cancelUpgrade(sim, player, command.building as Entity)
     case 'research':
-      return startResearch(sim, player, command.lab as Entity, command.topic)
+      return planResearch(sim, player, command.topic, command.front === true)
+    case 'dequeue':
+      return dequeueResearch(sim, player, command.topic)
     case 'cancelResearch':
-      return cancelResearch(sim, player, command.lab as Entity)
+      return cancelResearch(sim, player)
     case 'warhead':
       return startWarhead(sim, player, command.silo as Entity)
     case 'cancelWarhead':

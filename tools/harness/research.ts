@@ -5,15 +5,15 @@
  *   2. Карта: сколько харита лежит на карте каждого размера и сколько — в досягаемости одной базы.
  *   3. Живая линия в симуляции: шахта харита и шахта кремния, обогащение, цех компонентов и шкафы на одной сети труб —
  *      сколько компонентов в час выходит на самом деле и за сколько кончается месторождение.
- *   4. Лестница: цена каждой темы по правилам темпа (Rules.researchScale, researchGrowth), сколько месторождений
- *      она просит и когда открывается при разном размахе базы.
+ *   4. Лестница: цена каждой темы по правилам темпа (Rules.researchScale, researchGrowth, researchSlow), сколько
+ *      месторождений харита она просит и когда открывается при разном размахе базы и числе лабораторий.
  *   5. Уровни зданий: во что обходится поднять типовую базу.
  *
  * Раздел отвечает на вопрос: на сколько хватает дерева исследований в мире, который живёт две недели.
  */
 import {
-  ASSEMBLE_RATE, BUILDINGS, DEPOSIT_KINDS, Inventory, MAX_LEVEL, PRODUCT_SPECS, REFINE_RATIO, RESEARCH, RESOURCE_SPECS, TOPICS, amountOf, connectAll, createSim,
-  cycleSeconds, depositIn, levelGain, priceAfter, topicSpec, upgradeCost, DEFAULT_RULES, type BuildingType, type DepositSpot, type Rules, type Sim, type Topic,
+  ASSEMBLE_RATE, BUILDINGS, DEPOSIT_KINDS, Inventory, MAX_LEVEL, PRODUCT_SPECS, REFINE_RATIO, RESOURCE_SPECS, TOPICS, amountOf, connectAll, createSim,
+  cycleSeconds, depositIn, levelGain, priceOf, tierOf, upgradeCost, DEFAULT_RULES, type BuildingType, type DepositSpot, type Rules, type Sim, type Topic,
 } from '../../src/sim'
 import { setWorking } from '../../src/sim/assembly'
 import { put } from '../../src/sim/inventory'
@@ -95,7 +95,7 @@ function printMap() {
   }
   printTable(['карта', 'месторожд.', 'из них харит', 'компонентов', 'деревьев'], rows, 12, 13)
   console.log('  компонентов — если весь харит карты пустить в цех; деревьев — сколько полных деревьев исследований')
-  console.log(`  по правилам сервера (×${SESSION.researchScale}, рост ×${SESSION.researchGrowth}) это кормит, если харит не продавать и не тратить на технику`)
+  console.log(`  по правилам сервера (×${SESSION.researchScale}, ярус ×${SESSION.researchGrowth}) это кормит, если харит не продавать и не тратить на технику`)
   console.log('\nХарит вокруг базы (карта 2048, базы — вдали от края)')
   printTable(
     ['радиус', 'компонентов', 'от–до', 'месторожд.'],
@@ -183,20 +183,13 @@ type Pace = Pick<Rules, 'researchScale' | 'researchGrowth' | 'researchSlow'>
 const SESSION: Rules = { ...DEFAULT_RULES, ...SESSION_RULES }
 const pace = (researchScale: number, researchGrowth: number, researchSlow = 1): Pace => ({ researchScale, researchGrowth, researchSlow })
 
-/** Типовой порядок тем: из доступных — самая дешёвая; что открыто раньше, досталось дешевле. */
-function typicalOrder(): Topic[] {
-  const order: Topic[] = []
-  while (order.length < TOPICS.length) {
-    const open = TOPICS.filter((topic) => !order.includes(topic) && (!('after' in RESEARCH[topic]) || order.includes((RESEARCH[topic] as { after: Topic }).after)))
-    order.push(open.reduce((best, topic) => (topicSpec(topic).parts < topicSpec(best).parts ? topic : best)))
-  }
-  return order
-}
+/** Типовой порядок тем: по ярусам сложности, в ярусе — как в описании. Цена от порядка не зависит. */
+const typicalOrder = (): Topic[] => [...TOPICS].sort((a, b) => tierOf(a) - tierOf(b))
 
-/** Дерево целиком по правилам темпа: ступени в типовом порядке и итог. */
+/** Дерево целиком по правилам темпа: ступени в типовом порядке и итог. Харит — в компонентах, которые тратит тема. */
 function ladder(pace: Pace) {
-  const steps = typicalOrder().map((topic, taken) => {
-    const { cost, materials, seconds } = priceAfter(topic, pace, taken)
+  const steps = typicalOrder().map((topic) => {
+    const { cost, materials, seconds } = priceOf(topic, pace)
     return { topic, cost, parts: materials.parts ?? 0, seconds }
   })
   return {
@@ -215,11 +208,11 @@ interface Scale {
 }
 
 /**
- * Когда открывается каждая ступень: один техцентр ведёт темы подряд; тема начинается, когда кончилась прошлая
- * и накоплены компоненты и кредиты. Компоненты идут потоком rate с шахты, но шахта копает не всё время: между
- * месторождениями — переезд (move секунд на каждое).
+ * Когда открывается каждая ступень: labs лабораторий ведут темы подряд вместе; тема кончается не раньше, чем кончилась
+ * прошлая и накоплены компоненты и кредиты на неё целиком. Компоненты идут потоком rate с шахты, но шахта копает
+ * не всё время: между месторождениями — переезд (move секунд на каждое).
  */
-function timeline(pace: Pace, scale: Scale, rate: number, move: number) {
+function timeline(pace: Pace, scale: Scale, rate: number, move: number, labs = 1) {
   // Доля времени, когда шахта копает: месторождение выбирается за life, потом переезд.
   const life = AVERAGE_DEPOSIT / rate
   const parts = scale.mines * rate * (life / (life + move))
@@ -231,9 +224,9 @@ function timeline(pace: Pace, scale: Scale, rate: number, move: number) {
     spentCredits += step.cost
     const byParts = spentParts / parts
     const byCredits = spentCredits / scale.income
-    const start = Math.max(free, byParts, byCredits)
-    free = start + step.seconds
-    return { ...step, start, done: free, waits: start === byParts ? 'харит' : start === byCredits ? 'кредиты' : 'техцентр' }
+    const start = Math.max(free + step.seconds / labs, byParts, byCredits)
+    free = start
+    return { ...step, start, done: free, waits: start === byParts ? 'харит' : start === byCredits ? 'кредиты' : 'лаборатории' }
   })
 }
 
@@ -241,7 +234,7 @@ function timeline(pace: Pace, scale: Scale, rate: number, move: number) {
 function printLadder(rate: number, first: number) {
   const session = SESSION
   const whole = ladder(session)
-  console.log(`\nЛестница исследований по правилам сервера: цена ×${session.researchScale}, каждая следующая тема ×${session.researchGrowth}, срок ещё ×${session.researchSlow}; порядок — от дешёвых`)
+  console.log(`\nЛестница исследований по правилам сервера: цена ×${session.researchScale}, каждый ярус ×${session.researchGrowth}, срок ещё ×${session.researchSlow}; порядок — по ярусам`)
   printTable(
     ['тема', 'кредиты', 'компон.', 'срок', 'месторожд.'],
     [
@@ -260,7 +253,7 @@ function printLadder(rate: number, first: number) {
     { name: 'средняя', mines: 2, income: 25 },
     { name: 'большая', mines: 4, income: 50 },
   ]
-  console.log(`\nКогда открывается тема: часы работы базы от готового техцентра (ч:мм), один техцентр`)
+  console.log(`\nКогда открывается тема: часы работы базы от готовой лаборатории (ч:мм), одна лаборатория`)
   const lines = scales.map((scale) => timeline(session, scale, rate, move))
   printTable(
     ['тема', ...scales.flatMap((scale) => [scale.name, 'ждёт'])],
@@ -272,21 +265,23 @@ function printLadder(rate: number, first: number) {
   console.log(`  переезд на новое месторождение — ${minutes(move)}; ждёт — чего тема дожидалась последним`)
 
   console.log('\nТо же при других правилах: всё дерево')
-  const paces: Pace[] = [pace(1, 1), pace(10, 2), pace(10, 2, 6), session, pace(10, 2, 24), pace(20, 2), pace(30, 2), pace(10, 3)]
+  const paces: Pace[] = [DEFAULT_RULES, pace(1, 3, 6), session, pace(1, 3, 20), pace(2, 3, 10), pace(1, 3.5, 10), pace(10, 2, 12)]
   printTable(
-    ['правила', 'кредиты', 'компон.', 'месторожд.', 'техцентр', ...scales.map((scale) => scale.name), 'первая'],
+    ['правила', 'кредиты', 'компон.', 'месторожд.', 'лаборат.', ...scales.map((scale) => scale.name), '4 лаб.', 'первая'],
     paces.map((pace) => {
       const tree = ladder(pace)
       return [
         `×${pace.researchScale}, ×${pace.researchGrowth}, ×${pace.researchSlow}`, tree.cost, tree.parts, round(tree.parts / AVERAGE_DEPOSIT, 1), hours(tree.seconds),
         ...scales.map((scale) => hours(timeline(pace, scale, rate, move).at(-1)!.done)),
+        hours(timeline(pace, scales[1], rate, move, 4).at(-1)!.done),
         hours(timeline(pace, scales[0], rate, move)[0].done),
       ]
     }),
     12,
     11,
   )
-  console.log('  техцентр — сколько идут сами исследования; малая, средняя, большая — когда открыто всё дерево; первая — первая тема у малой базы')
+  console.log('  лаборат. — сколько идут сами исследования одной лаборатории; малая, средняя, большая — когда открыто всё дерево')
+  console.log('  с одной лабораторией; 4 лаб. — у средней базы с четырьмя; первая — первая тема у малой базы')
 }
 
 /** Типовая база серверной сессии: что из неё поднимается уровнями и в скольких штуках. */

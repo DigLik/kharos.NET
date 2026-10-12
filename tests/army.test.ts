@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import type { Entity } from '../src/ecs'
-import { BUILDINGS, Health, Path, Player, Position, Producer, RESEARCH, RESEARCH_FOR, UNIT_TYPES, WEAPONS, canPlace, createSim, isWalkable, missingRequirements, missingResearch, unitSpec } from '../src/sim'
+import { BUILDINGS, Health, Path, Player, Position, Producer, UNIT_TYPES, WEAPONS, canPlace, createSim, isWalkable, missingResearch, unitSpec } from '../src/sim'
 import { TOWER_RANGE, orderAttack } from '../src/sim/combat'
 import { spawnUnit } from '../src/sim/units'
 import { placeBuilding } from '../src/sim/buildings'
@@ -28,38 +28,28 @@ function row(types: (keyof typeof BUILDINGS)[]) {
   throw new Error('Не нашлось места')
 }
 
-test('требования юнитов называют существующие здания, а исследования — существующие темы', () => {
+test('требования юнитов называют существующие здания', () => {
   for (const unit of UNIT_TYPES) for (const type of unitSpec(unit).requires ?? []) expect(BUILDINGS).toHaveProperty(type)
-  for (const unit of UNIT_TYPES) if (unitSpec(unit).research) expect(RESEARCH).toHaveProperty(unitSpec(unit).research!)
-  for (const topic of Object.values(RESEARCH_FOR)) expect(RESEARCH).toHaveProperty(topic)
-  for (const spec of Object.values(RESEARCH)) if ('after' in spec) expect(RESEARCH).toHaveProperty(spec.after)
 })
 
-test('тяжёлую технику не заказать без техцентра и исследования, с ними — можно', () => {
+test('тяжёлую технику не заказать без исследования, с ним — можно', () => {
   const { sim, buildings } = row(['command', 'generator', 'generator', 'factory'])
   const factory = buildings[3]
-  expect(missingRequirements(sim, 1, 'tank')).toEqual(['techCenter'])
-  expect(missingRequirements(sim, 1, 'buggy')).toEqual([])
+  expect(missingResearch(sim, 1, 'tank')).toBe('armor')
+  expect(missingResearch(sim, 1, 'buggy')).toBeUndefined()
   sim.send(1, { type: 'produce', producer: factory, unit: 'tank' })
   sim.send(1, { type: 'produce', producer: factory, unit: 'buggy' })
   sim.advance(1 / 20)
   expect(sim.world.get(factory, Producer)!.queue).toEqual(['buggy'])
 
-  const { sim: other, buildings: more } = row(['command', 'generator', 'generator', 'factory', 'techCenter'])
-  expect(missingRequirements(other, 1, 'tank')).toEqual([])
-  // Техцентра мало: танк открывает исследование.
-  expect(missingResearch(other, 1, 'tank')).toBe('armor')
-  other.send(1, { type: 'produce', producer: more[3], unit: 'tank' })
-  other.advance(1 / 20)
-  expect(other.world.get(more[3], Producer)!.queue).toEqual([])
-  for (const [entity, player] of other.world.query(Player)) if (player.id === 1) other.world.set(entity, Player, { research: ['armor'] })
-  expect(missingResearch(other, 1, 'tank')).toBeUndefined()
-  expect(missingResearch(other, 1, 'artillery')).toBe('siege')
-  other.send(1, { type: 'produce', producer: more[3], unit: 'tank' })
-  other.advance(1 / 20)
-  expect(other.world.get(more[3], Producer)!.queue).toEqual(['tank'])
-  // Чужой техцентр не в счёт.
-  expect(missingRequirements(other, 2, 'tank')).toEqual(['techCenter'])
+  for (const [entity, player] of sim.world.query(Player)) if (player.id === 1) sim.world.set(entity, Player, { research: ['armor'] })
+  expect(missingResearch(sim, 1, 'tank')).toBeUndefined()
+  expect(missingResearch(sim, 1, 'artillery')).toBe('siege')
+  sim.send(1, { type: 'produce', producer: factory, unit: 'tank' })
+  sim.advance(1 / 20)
+  expect(sim.world.get(factory, Producer)!.queue).toEqual(['buggy', 'tank'])
+  // Исследование своё у каждого игрока.
+  expect(missingResearch(sim, 2, 'tank')).toBe('armor')
 })
 
 const seconds = (sim: ReturnType<typeof createSim>, time: number) => {

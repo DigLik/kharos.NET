@@ -3,7 +3,7 @@ import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, isCliffFoot, terrainAt } from '../src/map/terrain'
 import {
-  BUILDINGS, Building, Builds, CORE, Inventory, Owner, Position, Site, Unit,
+  BUILDINGS, Building, Builds, CORE, Inventory, Owner, Player, Position, Site, TOPICS, Unit,
   canBuild, canPlace, createSim, creditsOf, isWalkable, rewardsOf, siteAt, spawnStartingUnits, type Sim,
 } from '../src/sim'
 import { BUILD_RATE, isUnlocked, placeBuilding } from '../src/sim/buildings'
@@ -257,10 +257,13 @@ test('свободный строитель сам берётся за стро�
   expect(sim.world.has(builders[0], Builds)).toBe(false)
 })
 
-test('дерево технологий: после главного здания — электростанция, после неё шахта, переработка и радар, после радара — военное', () => {
+test('дерево технологий: после главного здания — электростанция, после неё шахта, лаборатория и радар, переработка и военное — ещё и после исследований', () => {
   const { sim, site } = start()
   sim.rules.techTree = true
   expect(isUnlocked(sim, 1, 'generator')).toBe(true)
+  // Стену и радар открывают ещё и исследования.
+  expect(isUnlocked(sim, 1, 'wall')).toBe(false)
+  for (const [entity, player] of sim.world.query(Player)) if (player.id === 1) sim.world.set(entity, Player, { research: ['walls', 'radar'] })
   expect(isUnlocked(sim, 1, 'wall')).toBe(true)
   for (const type of ['matter', 'mine', 'radar', 'smelter', 'factory', 'turret', 'rocketTurret'] as const) expect(isUnlocked(sim, 1, type)).toBe(false)
   expect(canBuild(sim, 1, 'radar', site.x, site.y)).toBe(false)
@@ -272,7 +275,10 @@ test('дерево технологий: после главного здани�
   const generator = placeBuilding(sim.world, 'generator', site.x - 3, site.y + 4, 1)
   expect(isUnlocked(sim, 1, 'radar')).toBe(true)
   expect(isUnlocked(sim, 1, 'mine')).toBe(true)
-  // Переработка — без шахты: руду ей привезут харвестеры.
+  expect(isUnlocked(sim, 1, 'lab')).toBe(true)
+  // Переработку открывает электростанция и исследование своей руды.
+  for (const type of ['smelter', 'siliconWorks', 'distillery', 'enricher'] as const) expect(isUnlocked(sim, 1, type)).toBe(false)
+  for (const [entity, player] of sim.world.query(Player)) if (player.id === 1) sim.world.set(entity, Player, { research: [...TOPICS] })
   for (const type of ['smelter', 'siliconWorks', 'distillery', 'enricher'] as const) expect(isUnlocked(sim, 1, type)).toBe(true)
   expect(isUnlocked(sim, 1, 'factory')).toBe(false)
   // Чужое здание не в счёт.
@@ -280,7 +286,7 @@ test('дерево технологий: после главного здани�
 
   placeBuilding(sim.world, 'radar', site.x + 3, site.y + 4, 1)
   for (const type of ['barracks', 'factory', 'airfield', 'turret', 'rocketTurret'] as const) expect(isUnlocked(sim, 1, type)).toBe(true)
-  expect(isUnlocked(sim, 1, 'techCenter')).toBe(false)
+  expect(isUnlocked(sim, 1, 'repairStation')).toBe(false)
   // Снесли электростанцию — новый радар не заложить, но военное держится на стоящем радаре.
   sim.world.destroy(generator)
   expect(isUnlocked(sim, 1, 'radar')).toBe(false)

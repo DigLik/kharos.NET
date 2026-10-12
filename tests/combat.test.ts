@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Armed, Blast, Building, Builds, Carrier, activeRepairs, Health, Inventory, INFANTRY_REGEN, isFighter, Repair, wrap, Turret, Owner, Path, Position, Producer, Shot, UNITS, Unit, WEAPONS, buildingHp, canAttack, canPlace, createSim, driveBattle, isWalkable, powerStates, producibleBy, randomArmy, spawnBattle, zoneEconomies, type Sim } from '../src/sim'
+import { Armed, Blast, Building, Builds, Carrier, activeRepairs, Health, Inventory, INFANTRY_REGEN, isFighter, Repair, wrap, Turret, Owner, Path, Position, Producer, Shot, UNITS, Unit, WEAPONS, buildingHp, canAttack, canPlace, createSim, driveBattle, isWalkable, powerStates, producibleBy, randomArmy, spawnBattle, zoneEconomies, grantResearch, type Sim } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
 import { REPAIR_PAUSE } from '../src/sim/construction'
 import { addCredits } from '../src/sim/economy'
@@ -296,6 +296,7 @@ test('бой переживает сохранение', () => {
 test('пехоту выпускают казармы, технику — машинный завод, летающих — аэродром, космопорт только торгует; всем им нужна энергия', () => {
   const sim = createSim(options)
   addCredits(sim, 1, 10000)
+  grantResearch(sim, 1)
   const layout = [['command', 0], ['barracks', 4], ['factory', 7], ['airfield', 10], ['generator', 15], ['generator', 18], ['spaceport', 21]] as const
   let spot: { x: number; y: number } | undefined
   for (let y = -80; y < 80 && !spot; y++) {

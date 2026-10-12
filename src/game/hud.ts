@@ -7,7 +7,7 @@ import { textOf } from '../i18n'
 import {
   Assembly, BUILDABLE, isUnlocked, buyPrice, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
-  RESEARCH, Research, TOPICS, isLab, levelTopic, missingResearch, topicLack, topicPrice, type Topic, type TopicPrice, type TopicLack,
+  Research, TOPICS, PAVE_RESEARCH, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   Silo, launchLeft, warheadLack, type WarheadLack,
   Accumulator, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
@@ -192,14 +192,12 @@ export interface HudState {
     raising: { buildings: number[]; progress: number } | null
   } | null
   /**
-   * Исследования выбранного своего готового техцентра: темы с ценой и тем, что мешает начать (lack; after — тема,
-   * которую надо открыть раньше), и current — тема в работе с готовностью от 0 до 1.
+   * Выбранные свои готовые лаборатории: сколько их, их суммарная скорость (доля полной скорости одной лаборатории),
+   * почему первая из стоящих стоит (lack), и тема плана с готовностью от 0 до 1.
    */
-  research: {
-    lab: number
-    topics: { topic: Topic; cost: number; materials: Stack[]; time: string; lack: TopicLack | null; after: Topic | null }[]
-    current: { topic: Topic; progress: number } | null
-  } | null
+  research: { labs: number; speed: number; lack: LabLack | null; topic: Topic | null; progress: number } | null
+  /** Дерево технологий игрока для окна исследований, см. TechState. */
+  tech: TechState
   /**
    * Ракетная шахта: выбранная своя готовая. stage — что с боеголовкой: нет, собирается (progress от 0 до 1), готова,
    * в пуске (launch — секунд до старта). cost, materials и time — цена и срок сборки, lack — что мешает её начать.
@@ -224,6 +222,8 @@ export interface HudState {
     paving: { tool: PaveTool; cost: number; tiles: number; short: number } | null
     /** power — как здание изменит баланс энергии: больше нуля — даст, меньше — попросит; materials — что привезти на стройку. */
     options: { building: BuildingType; cost: number; affordable: boolean; power: number; materials: Stack[] }[]
+    /** Какие инструменты покрытия и логистики открыты исследованиями; мост — дорога по болоту, отдельно. */
+    tools: ('foundation' | 'road' | 'bridge' | 'pipe' | 'well')[]
   } | null
   /** Превращение выбранного: MCV разворачивается (deploy), главное здание сворачивается (pack). */
   conversion: {
@@ -263,6 +263,41 @@ export interface HudState {
 export interface Stack {
   resource: Good
   amount: number
+}
+
+/**
+ * Тема в окне исследований: ярус и предшественники, цена целиком и срок одной лаборатории, готовость от 0 до 1,
+ * каким номером она стоит в очереди (0 — её там нет), что она открывает, и status: done — открыта; available — все
+ * предшественники открыты, можно вести сейчас; soon — станет можно, когда очередь дойдёт до недостающих; locked —
+ * чего-то из нужного нет ни в открытом, ни в очереди. trigger — у темы-открытия: что должно случиться.
+ */
+export interface TopicView {
+  topic: Topic
+  tier: number
+  after: Topic[]
+  cost: number
+  materials: Stack[]
+  time: string
+  progress: number
+  status: 'done' | 'available' | 'soon' | 'locked'
+  trigger: Trigger | null
+  order: number
+  buildings: BuildingType[]
+  units: UnitType[]
+  /** Покрытие, которое открывает тема: фундамент, дорога или мост. */
+  paves: ('foundation' | 'road' | 'bridge')[]
+}
+
+/**
+ * Дерево технологий игрока: темы, план, лаборатории — сколько всего, сколько ведут тему и их суммарная скорость,
+ * чего недостаёт стоящим (lack и сколько лабораторий так стоит), и left — сколько ещё идти нынешней теме при нынешней
+ * скорости; null — она стоит или темы нет.
+ */
+export interface TechState {
+  topics: TopicView[]
+  plan: Topic[]
+  labs: { count: number; working: number; speed: number; lacks: { lack: LabLack; count: number }[] }
+  left: string | null
 }
 
 /** Груз списком в порядке GOODS, без нулей; доли округляются вниз. Руда показывается рядом с готовым. */
@@ -317,6 +352,53 @@ const clockOf = (seconds: number) => {
 
 /** Цена темы исследования для интерфейса. */
 const topicCost = ({ cost, materials, seconds }: TopicPrice) => ({ cost, materials: exactOf(materials), time: clockOf(seconds) })
+
+/** Дерево технологий игрока: темы, план и как работают его лаборатории. */
+function techOf({ sim, player }: Scene): TechState {
+  const { world } = sim
+  const known = researchOf(sim, player)
+  const plan = [...planOf(sim, player)]
+  let count = 0
+  let working = 0
+  let speed = 0
+  const lacks = new Map<LabLack, number>()
+  for (const [entity, research] of world.query(Research)) {
+    if (!isLab(sim, player, entity)) continue
+    count++
+    speed += research.speed
+    if (research.speed > 0) working++
+    if (research.lack && research.lack !== 'idle') lacks.set(research.lack as LabLack, (lacks.get(research.lack as LabLack) ?? 0) + 1)
+  }
+  for (const [entity, building] of world.query(Building)) if (buildingSpec(building.type).researches && !world.has(entity, Research) && isLab(sim, player, entity)) count++
+  const [current] = plan
+  const price = current && topicPrice(sim, current)
+  const left = price && speed > 0 ? clockOf(((1 - progressOf(sim, player, current)) * price.seconds) / speed) : null
+  return {
+    topics: TOPICS.map((topic) => {
+      const opens = unlockedBy(topic)
+      return {
+        topic,
+        tier: tierOf(topic),
+        after: [...topicsBefore(topic)],
+        ...topicCost(topicPrice(sim, topic)),
+        progress: round(progressOf(sim, player, topic)),
+        status: known.includes(topic) ? 'done'
+          : isTrigger(topic) ? 'locked'
+          : topicsBefore(topic).every((before) => known.includes(before)) ? 'available'
+          : topicsBefore(topic).every((before) => known.includes(before) || plan.includes(before)) ? 'soon'
+          : 'locked',
+        trigger: topicSpec(topic).trigger ?? null,
+        order: plan.indexOf(topic) + 1,
+        buildings: opens.filter((type): type is BuildingType => type in BUILDINGS),
+        units: opens.filter((type): type is UnitType => type in UNITS),
+        paves: (Object.keys(PAVE_RESEARCH) as (keyof typeof PAVE_RESEARCH)[]).filter((kind) => PAVE_RESEARCH[kind] === topic),
+      }
+    }),
+    plan,
+    labs: { count, working, speed: round(speed), lacks: [...lacks].map(([lack, count]) => ({ lack, count })) },
+    left,
+  }
+}
 
 /** Остаток защиты новичка для интерфейса: вверх до десятка секунд, чтобы он не перерисовывался каждый тик. */
 function protectionOf({ sim, player }: Scene) {
@@ -447,18 +529,13 @@ export function readHud(scene: Scene): HudState {
         if (lack === 'research' || (lack === 'materials' && !level.next.lack)) level.next.lack = lack
       }
     }
-    if (!research && built && ready && isLab(sim, player, entity)) {
+    if (built && ready && isLab(sim, player, entity)) {
       const running = world.get(entity, Research)
-      research = {
-        lab: entity,
-        topics: TOPICS.map((topic) => ({
-          topic,
-          ...topicCost(topicPrice(sim, player, topic)),
-          lack: topicLack(sim, player, entity, topic) ?? null,
-          after: 'after' in RESEARCH[topic] ? (RESEARCH[topic].after as Topic) : null,
-        })),
-        current: running ? { topic: running.topic as Topic, progress: round(Math.min(1, running.progress / Math.max(1, running.ticks))) } : null,
-      }
+      const [topic = null] = planOf(sim, player)
+      research ??= { labs: 0, speed: 0, lack: null, topic, progress: topic ? round(progressOf(sim, player, topic)) : 0 }
+      research.labs++
+      research.speed = round(research.speed + (running?.speed ?? 0))
+      if (running?.lack && !research.lack) research.lack = running.lack as LabLack
     }
     const warhead = spec?.warhead
     if (!silo && warhead && ready && isOwn(sim, player, entity)) {
@@ -652,11 +729,15 @@ export function readHud(scene: Scene): HudState {
     demolish,
     level,
     research,
+    tech: techOf(scene),
     silo,
     construction: counts.has('builder')
       ? {
           placing: scene.placing,
           paving: pavingOf(scene),
+          tools: ([['foundation', PAVE_RESEARCH.foundation], ['road', PAVE_RESEARCH.road], ['bridge', PAVE_RESEARCH.bridge], ['pipe', RESEARCH_FOR.pipe], ['well', RESEARCH_FOR.well]] as const)
+            .filter(([, topic]) => hasResearch(sim, player, topic))
+            .map(([tool]) => tool),
           options: BUILDABLE.filter((type) => isUnlocked(sim, player, type)).map((type) => ({
             building: type,
             cost: BUILDINGS[type].cost,

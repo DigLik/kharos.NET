@@ -69,10 +69,11 @@ export const Path = component('Path', () => ({ points: [] as number[], goalX: 0,
  * earned — заработанная доля кредита, ещё не дошедшая до целого. rewards — какие награды игрок уже получил, по порядку.
  * away — сколько он заработал за нынешнее отсутствие, см. Rules.offlineIncome; в сети — ноль. camera — где у него
  * камера в начале игры: середина экрана в тайлах и масштаб, x, y, zoom; пусто — у его юнитов. Задаёт редактор.
- * research — какие темы игрок исследовал, по порядку, см. research.ts. safe — до какого тика у него защита новичка,
+ * research — какие темы игрок исследовал, по порядку; plan — какие его лаборатории ведут по очереди, первая — нынешняя;
+ * progress — какая доля начатых тем уже сделана и оплачена; см. research.ts. safe — до какого тика у него защита новичка,
  * см. shelter.ts; ноль — её нет.
  */
-export const Player = component('Player', () => ({ id: 0, credits: 0, earned: 0, rewards: [] as string[], away: 0, camera: [] as number[], research: [] as string[], safe: 0, allies: [] as number[], head: -1, offered: [] as number[], asked: [] as number[] }), { tracked: true })
+export const Player = component('Player', () => ({ id: 0, credits: 0, earned: 0, rewards: [] as string[], away: 0, camera: [] as number[], research: [] as string[], plan: [] as string[], progress: {} as Record<string, number>, safe: 0, allies: [] as number[], head: -1, offered: [] as number[], asked: [] as number[] }), { tracked: true })
 
 /**
  * Производство юнитов: есть у MCV и у главного здания.
@@ -351,10 +352,10 @@ export const Batch = component('Batch', () => ({ from: -1, to: -1, resource: 'me
 export const Upgrade = component('Upgrade', { progress: 0, scale: 1 })
 
 /**
- * Исследование, которое ведёт техцентр: topic — тема (см. RESEARCH в research.ts), progress — сколько тиков оно уже
- * идёт; при нехватке энергии растёт медленнее. Компонент есть, только пока оно идёт. Цена списана при заказе.
+ * Как работает лаборатория, см. research.ts: speed — с какой долей полной скорости она вела тему в последний тик,
+ * lack — почему стоит или замедлилась (LabLack), пусто — работает в полную силу. Сама тема — в плане игрока.
  */
-export const Research = component('Research', { topic: '', progress: 0, cost: 0, parts: 0, ticks: 0 })
+export const Research = component('Research', { speed: 0, lack: '' })
 
 /** Ворота, см. gates.ts: open — створка поднята, через них ходят. Компонент появляется у готовых ворот. */
 export const Gate = component('Gate', { open: false })
