@@ -1244,7 +1244,10 @@ body {
   margin-top: 6px;
 }
 
+/* Предпросмотр карты стоит на месте, пока форма слева прокручивается в окне. */
 .menu__aside {
+  position: sticky;
+  top: 0;
   display: flex;
   flex: none;
   flex-direction: column;
@@ -1279,6 +1282,11 @@ body {
   .menu__setup {
     flex-direction: column-reverse;
     align-items: stretch;
+  }
+
+  /* Карта над формой: прилипнув, она закрыла бы поля. */
+  .menu__aside {
+    position: static;
   }
 
   .preview__map {
