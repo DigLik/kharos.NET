@@ -5,12 +5,12 @@ in vec2 vUV;
 out vec4 finalColor;
 
 uniform sampler2D uMap; // окно мира вокруг камеры, свёрнутое в тор: r = тип местности, g = биом, b = глубина в песках (у гор — радиус вершины), a = рельеф (у гор — смещение до центра вершины)
-// Размер экрана в CSS-пикселях.
+// Размер того, во что рисуем: экран в CSS-пикселях или карта в сетке местности, см. texelGrid.ts.
 uniform vec2 uScreenSize;
-uniform vec2 uCamera; // центр экрана в тайлах, по модулю WINDOW
+uniform vec2 uCamera; // центр экрана (карты) в тайлах, по модулю WINDOW
 uniform float uZoom; // пикселей на тайл
-uniform float uTime;
-uniform float uGrid;
+uniform float uTime; // уже ступенями: анимация болот покадровая
+uniform float uPixel; // тайлов мира на физический пиксель экрана
 uniform vec3 uDunes; // порог полей барханов в эрге, в красных пустошах и их отступ от других зон
 
 const int SWAMP = 0;
@@ -479,10 +479,10 @@ vec3 terrainColor(vec2 worldP, float detail, vec4 wall) {
 
 void main() {
   vec2 screenP = uCamera + (vUV - 0.5) * uScreenSize / uZoom;
-  // Шаг в мире на один физический пиксель экрана.
-  vec2 pixelX = dFdx(screenP);
-  vec2 pixelY = dFdy(screenP);
-  float texelPixels = 1.0 / (pixelX.x * TEXELS_PER_TILE);
+  // Шаг в мире на один физический пиксель экрана. Не dFdx: вблизи рисуем не в экран, а в карту в сетке местности.
+  vec2 pixelX = vec2(uPixel, 0.0);
+  vec2 pixelY = vec2(0.0, uPixel);
+  float texelPixels = 1.0 / (uPixel * TEXELS_PER_TILE);
 
   vec3 color;
   if (texelPixels >= SMOOTH_BELOW_PIXELS) {
@@ -500,10 +500,5 @@ void main() {
       + terrainColor(screenP - pixelX * 0.125 - pixelY * 0.375, detail, wall)
     );
   }
-
-  vec2 edge = abs(fract(screenP) - 0.5);
-  float line = smoothstep(0.5 - 1.5 / uZoom, 0.5, max(edge.x, edge.y));
-  color *= 1.0 - 0.3 * line * uGrid * smoothstep(10.0, 24.0, uZoom);
-
   finalColor = vec4(color, 1.0);
 }

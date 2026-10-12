@@ -1,14 +1,13 @@
-import { SCREEN_VERTEX, bindScreen, createProgram, createQuads, createTarget, drawQuad, setBlend } from '../gl'
+import { bindScreen, createProgram, createQuads, createTarget, setBlend } from '../gl'
 import type { Scene } from '../game/scene'
-import type { Pass, View } from '../render/renderer'
+import type { Pass } from '../render/renderer'
+import { blitTexelGrid, createBlitProgram, createTexelGrid, fitTexelGrid } from '../render/texelGrid'
 
 /** Цвет, которым огни освещают землю, и цвет их ореола. */
 const LIGHT_COLOR = [0xa8 / 255, 0xd0 / 255, 0xff / 255]
 const BLOOM_COLOR = [0x5a / 255, 0xa9 / 255, 0xff / 255]
 /** Яркость ореолов огней днём; к ночи растёт до 1. */
 const DAY_BLOOM = 0.35
-/** Пикселей местности на тайл. */
-const TEXELS_PER_TILE = 16
 /** Огни слабее этого не рисуются. */
 const MIN_LEVEL = 0.02
 
@@ -145,24 +144,6 @@ void main() {
 }
 `
 
-const BLIT_FRAGMENT = `#version 300 es
-precision highp float;
-in vec2 vUV;
-uniform sampler2D uTexture;
-uniform vec2 uSpan;   // сколько тайлов помещается на экране
-uniform vec2 uScale;  // как карта освещённости переводит тайлы в свои координаты
-uniform vec2 uOffset;
-out vec4 finalColor;
-
-void main() {
-  // Карта освещённости меньше экрана: в ней один пиксель на пиксель местности. Берём ближайший, без сглаживания.
-  vec2 tile = (vUV - 0.5) * uSpan + uOffset;
-  vec2 uv = vec2(tile.x * uScale.x, -tile.y * uScale.y) * 0.5 + 0.5;
-  ivec2 size = textureSize(uTexture, 0);
-  finalColor = texelFetch(uTexture, clamp(ivec2(floor(uv * vec2(size))), ivec2(0), size - 1), 0);
-}
-`
-
 /**
  * Проход освещения. Затемнение — умножение картинки на карту освещённости: цвет времени суток плюс пятна
  * от огней, которые возвращают земле её дневной цвет. Поверх — ореолы самих огней.
@@ -171,15 +152,15 @@ void main() {
  */
 export function createLightingPass(gl: WebGL2RenderingContext, scene: Scene, casters: Pass[] = []): Pass {
   const spotProgram = createProgram(gl, SPOT_VERTEX, SPOT_FRAGMENT)
-  const blitProgram = createProgram(gl, SCREEN_VERTEX, BLIT_FRAGMENT)
+  const blitProgram = createBlitProgram(gl)
   const cut = createQuads(gl, spotProgram, { aSpot: 4 })
   const bloom = createQuads(gl, spotProgram, { aSpot: 4 })
   const lightmap = createTarget(gl)
   const beamProgram = createProgram(gl, BEAM_VERTEX, BEAM_FRAGMENT)
   const beams = createQuads(gl, beamProgram, { aBeam: 4, aCone: 4 })
   const occluders = createTarget(gl)
-  /** Юниформы для карт освещённости и силуэтов: у них свой размер и свой сдвиг. */
-  const mapView: View = { uScreenSize: new Float32Array(2), uScale: new Float32Array(2), uOffset: new Float32Array(2), uZoom: 1, uTime: 0 }
+  /** Карты освещённости и силуэтов: у них свой размер и свой сдвиг. */
+  const grid = createTexelGrid()
 
   return {
     draw(frame) {
@@ -205,24 +186,9 @@ export function createLightingPass(gl: WebGL2RenderingContext, scene: Scene, cas
         beams.push(rays[i] - camera.x, rays[i + 1] - camera.y, rays[i + 2], rays[i + 3], rays[i + 4], rays[i + 5], rays[i + 6], rays[i + 7])
       }
 
-      // Свет одинаков в пределах пикселя местности, поэтому карты освещённости и силуэтов рисуются в сетке местности:
-      // вблизи это в десятки раз меньше пикселей, чем на экране. Издалека, когда пиксель местности мельче
-      // экранного, карты совпадают с экраном.
-      const density = gl.drawingBufferWidth / frame.width
-      const close = camera.zoom * density > TEXELS_PER_TILE
-      const perTile = close ? TEXELS_PER_TILE : camera.zoom * density
-      const mapWidth = close ? 2 * (Math.ceil((frame.width / 2 / camera.zoom) * perTile) + 1) : gl.drawingBufferWidth
-      const mapHeight = close ? 2 * (Math.ceil((frame.height / 2 / camera.zoom) * perTile) + 1) : gl.drawingBufferHeight
-      // Центр карты встаёт на узел сетки местности, чтобы её пиксели совпали с пикселями земли.
-      const snap = (value: number) => (close ? value - Math.round(value * perTile) / perTile : 0)
-      mapView.uScreenSize[0] = mapWidth
-      mapView.uScreenSize[1] = mapHeight
-      mapView.uScale[0] = (perTile * 2) / mapWidth
-      mapView.uScale[1] = (perTile * 2) / mapHeight
-      mapView.uOffset[0] = snap(camera.x)
-      mapView.uOffset[1] = snap(camera.y)
-      mapView.uZoom = perTile
-      mapView.uTime = view.uTime
+      // Свет одинаков в пределах пикселя местности, поэтому карты освещённости и силуэтов рисуются в сетке местности.
+      fitTexelGrid(grid, frame)
+      const { view: mapView, width: mapWidth, height: mapHeight } = grid
 
       if (light < 1 && beams.count) {
         // Карта силуэтов: по ней лучи узнают, что им загораживает землю.
@@ -248,9 +214,7 @@ export function createLightingPass(gl: WebGL2RenderingContext, scene: Scene, cas
 
         bindScreen(gl)
         setBlend(gl, 'multiply')
-        const span = [frame.width / camera.zoom, frame.height / camera.zoom]
-        blitProgram.use({ uTexture: lightmap.texture, uSpan: span, uScale: mapView.uScale, uOffset: mapView.uOffset })
-        drawQuad(gl)
+        blitTexelGrid(gl, blitProgram, grid, frame, lightmap.texture)
         setBlend(gl, 'add')
       }
 

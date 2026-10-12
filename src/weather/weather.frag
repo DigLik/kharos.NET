@@ -12,6 +12,7 @@ uniform float uTime;
 uniform vec2 uWind; // тайлов в секунду
 uniform vec2 uDrift; // путь, пройденный ветром, по модулю WINDOW
 uniform float uPrecipitation; // 0 — ясно, 1 — буря
+uniform float uPixel; // тайлов мира на физический пиксель экрана
 
 // Должны совпадать с terrain.frag.
 const int WINDOW = 512;
@@ -161,7 +162,8 @@ void over(inout vec4 result, vec3 color, float alpha) {
 
 void main() {
   vec2 screenP = uCamera + (vUV - 0.5) * uScreenSize / uZoom;
-  float texelPixels = 1.0 / (dFdx(screenP).x * TEXELS_PER_TILE);
+  // Не dFdx: вблизи рисуем не в экран, а в карту в сетке местности.
+  float texelPixels = 1.0 / (uPixel * TEXELS_PER_TILE);
   // Издалека тексели мельче пикселя экрана: дизеринг и штрихи дождя там дали бы рябь.
   float detail = clamp(texelPixels * 2.0 - 1.0, 0.0, 1.0);
 

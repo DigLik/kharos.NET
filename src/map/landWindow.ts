@@ -24,6 +24,8 @@ export interface LandWindow {
    * uCamera — центр экрана в тайлах по модулю WINDOW.
    */
   readonly uniforms: { uMap: Texture; uCamera: Float32Array }
+  /** Растёт, когда в окне меняются тайлы: так проходы знают, что нарисованное по нему устарело. */
+  readonly revision: number
   /**
    * Подгружает чанки вокруг точки обзора. Если местность сменилась, окно забывает загруженное
    * и читает чанки заново; правленые чанки (см. setTile) — тоже. Зум не должен быть меньше minZoom().
@@ -41,12 +43,17 @@ export function createLandWindow(gl: WebGL2RenderingContext): LandWindow {
   /** С какой правкой чанк лёг в слот, см. chunkRevision: правленый чанк пишется заново. */
   const slotRevision = new Float64Array(WINDOW_CHUNKS * WINDOW_CHUNKS)
   let loaded: Land | null = null
+  let windowRevision = 0
 
   return {
     uniforms,
+    get revision() {
+      return windowRevision
+    },
     update(land, camera, screenWidth, screenHeight) {
       if (land !== loaded) {
         loaded = land
+        windowRevision++
         slotChunkX.fill(NaN)
         slotChunkY.fill(NaN)
       }
@@ -71,6 +78,7 @@ export function createLandWindow(gl: WebGL2RenderingContext): LandWindow {
           slotChunkX[slot] = chunkX
           slotChunkY[slot] = chunkY
           slotRevision[slot] = revision
+          windowRevision++
         }
       }
 
