@@ -1,15 +1,19 @@
-import type { Entity, Time } from '../ecs'
+import type { DataOf, Entity, Time } from '../ecs'
 import { tileKey } from '../map/terrain'
+import { allied } from './allies'
 import { onTurn, ownerOf, turnToward, wrap } from './common'
-import { Path, Position, Unit } from './components'
+import { Converting, Path, Position, Unit } from './components'
 import { SEARCH_LIMIT, isClear, searchCut, searchedTiles, withSearchQuota } from './path'
 import type { Sim } from './sim'
-import { JAM_TRIES, UNITS, canStand, fastestOf, flies, onFoot, orderMove, roadInSight, stepAside, terrainSpeed } from './units'
+import { JAM_TRIES, UNITS, canStand, fastestOf, flies, onFoot, orderMove, roadInSight, terrainSpeed } from './units'
 
-/** Сколько тиков юнит ждёт, не в силах сдвинуться, прежде чем проложить путь заново. */
-const WAIT_TICKS = 20
-/** Через сколько тиков ожидания юнит просит своего стоящего соседа уступить дорогу. */
-const YIELD_TICKS = 4
+/**
+ * Сколько тиков юнит может не подбираться к точке пути ближе, чем подобрался, прежде чем проложить путь заново.
+ * Считается не «сдвинулся ли», а «приблизился ли»: ёрзающий на месте в толпе тоже застрял.
+ */
+const WAIT_TICKS = 30
+/** На сколько тайлов надо подобраться к точке пути ближе прежнего, чтобы это считалось продвижением. */
+const PROGRESS = 0.05
 /** Сколько раз путь к одной точке прокладывается заново, прежде чем юнит сдастся и встанет. */
 const MAX_TRIES = JAM_TRIES
 /**
@@ -17,56 +21,46 @@ const MAX_TRIES = JAM_TRIES
  * Дальше он цель не бросает — приказ не отменяется оттого, что по дороге мешали, — а пробует снова раз в WAIT_TICKS.
  */
 const GIVE_UP_REACH = 4
-/** На сколько тайлов вперёд юнит смотрит, нет ли на пути другого юнита. */
-const LOOK_AHEAD = 0.6
-/** На столько тайлов юнитам можно заходить друг в друга: без допуска они цеплялись бы, проходя вплотную. */
-const OVERLAP = 0.02
-/** Промежуточная точка пути засчитывается, когда юнит подошёл к ней на столько тайлов. */
-const REACHED = 0.2
+/**
+ * Промежуточная точка пути засчитывается, когда юнит подошёл к ней на столько тайлов. Объезжая соседей, он редко
+ * проходит точно через точку: требуй точности — кружил бы вокруг неё.
+ */
+const REACHED = 0.6
 /**
  * Последняя точка пути занята другим юнитом: тогда юнит, подъехав к ней на столько тайлов сверх их радиусов,
- * считает, что приехал. Иначе двое с одной целью кружили бы друг вокруг друга без конца.
+ * считает, что приехал. Иначе двое с одной целью толкались бы за неё без конца.
  */
 const SETTLE = 1
-/** Насколько дальше своего радиуса от последней точки юнит, упёршись в соседа, считает, что доехал. */
-const NEARLY = 0.5
 /** Во сколько раз круг разворота считается шире настоящего, когда решается, попадёт ли юнит в точку на ходу. */
 const ORBIT_MARGIN = 1.3
 /**
- * Куда юнит пробует свернуть, если прямо занято: отклонения от нужного направления в радианах, по порядку.
- * Сначала вправо — так двое встречных расходятся в разные стороны, а не зеркалят друг друга.
+ * На сколько секунд вперёд юнит предвидит сближение с соседями. Дальше — рано сворачивать: сосед успеет уйти сам;
+ * ближе — поздно: тяжёлая машина не успеет довернуть.
  */
-const DETOURS = [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05, 1.4, -1.4, 1.75, -1.75]
-/** Те же отклонения, но сначала влево: для того, кто уже объезжает помеху слева, см. Path.side. */
-const MIRRORED = DETOURS.map((detour) => -detour)
-/**
- * Через сколько тиков ожидания юнит отодвигает плечом своего встречного едущего — вбок, на PUSH за тик. Две толпы,
- * едущие навстречу, иначе упирались бы стенкой в стенку: в плотной толпе уступить некуда.
- */
-const PUSH_TICKS = 10
-const PUSH = 0.08
-/**
- * На сколько сворачивает тот, у кого право проезда, когда впереди едущий: он не объезжает, а ждёт, пока уступят.
- * Объезжай оба — кружили бы друг вокруг друга хороводом.
- */
-const PRIORITY_DETOUR = 0.7
-/** Сколько юнитов за тик прокладывают путь заново и сколько уступают дорогу; остальные ждут следующего тика. */
+const HORIZON = 1.2
+/** Насколько, в радианах, курс может отличаться от направления на точку, чтобы считалось, что юнит едет прямо к ней. */
+const AIMED = 0.05
+/** Сколько тайлов зазора юнит держит до соседей сверх их радиусов, объезжая их. */
+const GAP = 0.1
+/** Насколько сильно предвиденное сближение уводит юнит в сторону, против желания ехать к точке. */
+const AVOIDANCE = 2
+/** Сколько раз за тик разводятся зашедшие друг в друга: одного прохода мало, когда расталкивают цепочкой. */
+const SEPARATIONS = 2
+/** Сколько юнитов за тик прокладывают путь заново; остальные ждут следующего тика. */
 const LOST_SEARCHES = 8
-const YIELD_SEARCHES = 8
 /** Сколько тайлов за тик вместе осматривают перепрокладывающие путь; остальные ждут следующего тика. */
 const LOST_TILES = 8000
 /** Раз во сколько тиков идущий юнит смотрит, не показалась ли в обзоре дорога. */
 const ROAD_LOOK_TICKS = 20
 /**
- * Насколько дальше суммы радиусов сосед ещё может помешать за тик: юнит смотрит вперёд на LOOK_AHEAD, а шагает
- * не дальше — самый быстрый проходит за тик меньше половины тайла.
+ * На сколько тайлов дальше суммы радиусов юнит замечает соседей: самый быстрый проезжает за HORIZON больше тайла,
+ * а встречный — столько же навстречу.
  */
-const NEIGHBOUR_REACH = LOOK_AHEAD + 0.1
-/**
- * Сторона ячейки сетки, по которой ищутся соседи, в тайлах. Больше любого расстояния, на котором мешают друг другу
- * юниты не крупнее LARGE: тогда соседи — в девяти ячейках вокруг. Чем мельче ячейка, тем меньше в толпе лишних.
- */
-const CELL = 2.5
+const SENSE = 2.5
+/** Сторона ячейки сетки, по которой ищутся соседи, в тайлах. Чем мельче, тем меньше в толпе лишних проверок. */
+const CELL = 2
+/** На сколько тайлов тело могло сдвинуться за тик от места, по которому строилась сетка: ходом и расталкиванием. */
+const DRIFT = 1
 /** Юниты крупнее этого радиуса — редкость: в сетку они не кладутся, их проверяет каждый. */
 const LARGE = 0.9
 
@@ -74,62 +68,79 @@ interface Body {
   entity: Entity
   position: { x: number; y: number }
   radius: number
+  /** Масса для расталкивания: крупный сдвигает мелкого сильнее, чем тот его. */
+  mass: number
+  /** Скорость за прошлый тик, тайлов в секунду: по ней соседи предвидят, где он будет. */
+  vx: number
+  vy: number
   /** Летающий: с наземными он не сталкивается. */
   air: boolean
   /** Пехота: ей можно к подножию обрыва, см. isWalkable. */
   foot: boolean
-  /** Едет куда-то: тогда из двух встречных уступает тот, у кого номер больше. */
+  /** Едет куда-то: стоящего своего едущий сдвигает с дороги. */
   moving: boolean
-  unit: { facing: number }
+  /** Разворачивается в здание: с места его не сдвинуть. */
+  rooted: boolean
   owner: number
 }
 
 /**
- * Раз в тик: двигает юниты по их путям. Юнит поворачивает не мгновенно, а со своей скоростью поворота,
- * и едет туда, куда смотрит, — поэтому на поворотах описывает дугу. Другие юниты для него препятствия:
- * он не входит в них и пробует объехать. Летающие летят по прямой над всем и мешают только друг другу.
+ * Раз в тик: двигает юниты по их путям. Юнит едет к точке пути, предвидя сближение с соседями по их скорости и
+ * сворачивая заранее; союзник, что едет рядом в ту же сторону, ему не помеха. Поворачивает он не мгновенно, а со
+ * своей скоростью поворота, и едет туда, куда смотрит, — поэтому на поворотах описывает дугу. В стену не упирается,
+ * а скользит вдоль неё. Зашедших друг в друга после хода расталкивает: едущий сдвигает стоящего своего, тяжёлый —
+ * лёгкого; стоящего чужого не сдвинуть. Летающие летят по прямой над всем и мешают только друг другу.
  */
 export function moveUnits(sim: Sim, time: Time) {
   const { world } = sim
   const cells = new Map<number, Body[]>()
   const large: Body[] = []
+  const bodies = new Map<Entity, Body>()
   // Клиент рисует юнит между прошлым и нынешним положением, поэтому прошлое запоминается у всех, даже у стоящих.
   for (const [entity, position, unit] of world.query(Position, Unit)) {
+    const { radius, speed } = UNITS[unit.type]
+    // Скорость за прошлый тик — по тому, где юнит был тогда. Телепорт (выселение из-под здания) скоростью не считается.
+    let vx = (position.x - unit.prevX) / time.step
+    let vy = (position.y - unit.prevY) / time.step
+    if (Math.hypot(vx, vy) > speed * 1.5) vx = vy = 0
     unit.prevX = position.x
     unit.prevY = position.y
     unit.prevFacing = unit.facing
-    // Сетка строится по местам на начало тика: за тик юнит сдвигается куда меньше, чем на ячейку.
-    const key = tileKey(Math.floor(position.x / CELL), Math.floor(position.y / CELL))
-    const body = { entity, position, radius: UNITS[unit.type].radius, air: flies(unit.type), foot: onFoot(unit.type), moving: world.has(entity, Path), unit, owner: ownerOf(sim, entity) }
-    if (body.radius > LARGE) {
+    const body: Body = {
+      entity, position, radius, mass: radius * radius, vx, vy, air: flies(unit.type), foot: onFoot(unit.type),
+      moving: world.has(entity, Path), rooted: world.has(entity, Converting), owner: ownerOf(sim, entity),
+    }
+    bodies.set(entity, body)
+    if (radius > LARGE) {
       large.push(body)
       continue
     }
+    // Сетка строится по местам на начало тика; за тик юнит сдвигается куда меньше, чем на ячейку.
+    const key = tileKey(Math.floor(position.x / CELL), Math.floor(position.y / CELL))
     const cell = cells.get(key)
     if (cell) cell.push(body)
     else cells.set(key, [body])
   }
 
-  /**
-   * Соседи юнита в (x, y), которых он может задеть за тик: и глядя вперёд, и шагнув. Собираются раз на юнит,
-   * а не на каждый пробуемый обход: в толпе их пробуется до десятка.
-   */
+  /** Соседи тела, чьи края ближе reach тайлов к его краю. Массив один на все поиски — обходить его сразу. */
   const neighbours: Body[] = []
-  const gather = (self: Entity, air: boolean, radius: number, x: number, y: number) => {
+  const gather = (self: Body, reach: number) => {
     neighbours.length = 0
+    const { x, y } = self.position
     const check = (other: Body) => {
-      if (other.entity === self || other.air !== air) return
-      const reach = radius + other.radius + NEIGHBOUR_REACH
+      if (other === self || other.air !== self.air) return
+      const far = self.radius + other.radius + reach
       const offsetX = other.position.x - x
       const offsetY = other.position.y - y
-      if (offsetX * offsetX + offsetY * offsetY < reach * reach) neighbours.push(other)
+      if (offsetX * offsetX + offsetY * offsetY < far * far) neighbours.push(other)
     }
-    // Крупному юниту мешают и те, что дальше соседних ячеек.
-    const span = radius > LARGE ? Math.ceil((radius + LARGE + NEIGHBOUR_REACH) / CELL) : 1
-    const cellX = Math.floor(x / CELL)
-    const cellY = Math.floor(y / CELL)
-    for (let cy = cellY - span; cy <= cellY + span; cy++) {
-      for (let cx = cellX - span; cx <= cellX + span; cx++) {
+    // Ячейки — те, что накрывает круг досягаемости, с запасом на то, что за тик тела сдвинулись от мест, по которым
+    // строилась сетка.
+    const far = self.radius + LARGE + reach + DRIFT
+    const right = Math.floor((x + far) / CELL)
+    const bottom = Math.floor((y + far) / CELL)
+    for (let cy = Math.floor((y - far) / CELL); cy <= bottom; cy++) {
+      for (let cx = Math.floor((x - far) / CELL); cx <= right; cx++) {
         const cell = cells.get(tileKey(cx, cy))
         if (cell) for (const other of cell) check(other)
       }
@@ -137,55 +148,161 @@ export function moveUnits(sim: Sim, time: Time) {
     for (const other of large) check(other)
   }
 
-  /** Кого из соседей юнит заденет, пройдя по прямой из (fromX, fromY) в (toX, toY). Соседей собирает gather. */
-  const collides = (radius: number, fromX: number, fromY: number, toX: number, toY: number) => {
-    const dx = toX - fromX
-    const dy = toY - fromY
-    const lengthSquared = dx * dx + dy * dy
-    for (const other of neighbours) {
-      const reach = radius + other.radius - OVERLAP
-      const offsetX = other.position.x - fromX
-      const offsetY = other.position.y - fromY
-      const along = offsetX * dx + offsetY * dy
-      // Уже стоят друг в друге (так бывает сразу после появления): расходиться можно, сближаться нельзя.
-      if (offsetX * offsetX + offsetY * offsetY < reach * reach) {
-        if (along > 0) return other
-        continue
-      }
-      const share = lengthSquared ? Math.min(1, Math.max(0, along / lengthSquared)) : 0
-      const gapX = offsetX - dx * share
-      const gapY = offsetY - dy * share
-      if (gapX * gapX + gapY * gapY < reach * reach) return other
-    }
-    return undefined
-  }
-
   /**
-   * Юнит, ехавший в сторону heading, отодвигает встречного other вбок — в ту сторону, куда тот и так ближе, —
-   * если там тому свободно. Так двое протискиваются плечом к плечу, не заходя друг в друга.
+   * Куда юниту ехать, чтобы не столкнуться: направление к точке (dirX, dirY) со скоростью speed, отведённое от соседей,
+   * с которыми он сблизится за HORIZON. Сближение считается по скорости соседа: идущий впереди в ту же сторону не
+   * мешает, встречного объезжают заранее. Лоб в лоб оба берут вправо — и расходятся, а не зеркалят друг друга.
    */
-  const push = (heading: number, x: number, y: number, other: Body) => {
-    const sideX = -Math.sin(heading)
-    const sideY = Math.cos(heading)
-    const sign = (other.position.x - x) * sideX + (other.position.y - y) * sideY >= 0 ? 1 : -1
-    const toX = other.position.x + sideX * sign * PUSH
-    const toY = other.position.y + sideY * sign * PUSH
-    if (!canStand(sim, other.air, Math.floor(toX), Math.floor(toY), other.foot)) return
-    gather(other.entity, other.air, other.radius, other.position.x, other.position.y)
-    if (collides(other.radius, other.position.x, other.position.y, toX, toY)) return
-    other.position.x = toX
-    other.position.y = toY
+  const steer = (self: Body, dirX: number, dirY: number, speed: number) => {
+    gather(self, SENSE)
+    let awayX = 0
+    let awayY = 0
+    const ownX = dirX * speed
+    const ownY = dirY * speed
+    for (const other of neighbours) {
+      const offsetX = other.position.x - self.position.x
+      const offsetY = other.position.y - self.position.y
+      // Скорость юнита относительно соседа: как сосед видит его приближение.
+      const relativeX = ownX - other.vx
+      const relativeY = ownY - other.vy
+      const closing = relativeX * relativeX + relativeY * relativeY
+      const reach = self.radius + other.radius + GAP
+      // Когда они будут ближе всего — и насколько.
+      const when = closing > 1e-6 ? (offsetX * relativeX + offsetY * relativeY) / closing : 0
+      // Расходятся — не мешает; зашедших друг в друга разведёт расталкивание.
+      if (when <= 0 || when > HORIZON) continue
+      const missX = offsetX - relativeX * when
+      const missY = offsetY - relativeY * when
+      const miss = Math.hypot(missX, missY)
+      if (miss >= reach) continue
+      // Уходит от того места, где был бы сосед; прямо на него — вправо от сближения.
+      const length = Math.sqrt(closing)
+      const sideX = miss > 1e-3 ? -missX / miss : -relativeY / length
+      const sideY = miss > 1e-3 ? -missY / miss : relativeX / length
+      const urgency = (1 - when / HORIZON) * ((reach - miss) / reach)
+      awayX += sideX * urgency
+      awayY += sideY * urgency
+    }
+    return Math.atan2(dirY + awayY * AVOIDANCE, dirX + awayX * AVOIDANCE)
   }
 
-  /** Стоят ли вплотную к юниту только те, кто на начало тика ехать никуда не собирался, — и есть ли такие вообще. */
-  const amongIdle = (entity: Entity) => {
-    const position = world.get(entity, Position)!
-    const { type } = world.get(entity, Unit)!
-    gather(entity, flies(type), UNITS[type].radius, position.x, position.y)
-    return neighbours.length > 0 && neighbours.every((other) => !other.moving)
+  /** Можно ли телу встать в точку: местность пускает, или оно уже внутри здания и выходит из него. */
+  const open = (body: Body, x: number, y: number, inside: boolean) => inside || canStand(sim, body.air, Math.floor(x), Math.floor(y), body.foot)
+
+  // Ход. Пути меняются после всех проходов: во время них состав мира трогать нельзя.
+  const movers: { entity: Entity; body: Body; path: DataOf<[typeof Path]>[0]; walled: boolean; inside: boolean }[] = []
+  /** Увидевшие дорогу на ходу: перестраивают путь с ней. */
+  const roadward: { entity: Entity; x: number; y: number; near: number }[] = []
+  for (const [entity, position, unit, path] of world.query(Position, Unit, Path)) {
+    const body = bodies.get(entity)!
+    const { points } = path
+    const { speed, turn, radius } = UNITS[unit.type]
+    // Путь проложен без дороги, а она показалась в обзоре — юнит прикинет путь заново. Смотрит не каждый тик.
+    if (!path.roads && fastestOf(unit.type) > 1 && onTurn(time, entity, ROAD_LOOK_TICKS) && roadInSight(sim, entity)) {
+      roadward.push({ entity, x: path.goalX, y: path.goalY, near: path.near })
+    }
+    // Юнит, под которым выросло здание, выходит из него: внутри здания тайлы ему не преграда.
+    const inside = !canStand(sim, body.air, Math.floor(position.x), Math.floor(position.y), body.foot)
+    const mover = { entity, body, path, walled: false, inside }
+    movers.push(mover)
+    if (body.rooted) continue
+    const dx = points[0] - position.x
+    const dy = points[1] - position.y
+    const distance = Math.hypot(dx, dy)
+    const wanted = distance ? Math.atan2(dy, dx) : unit.facing
+    const last = points.length === 2
+    // К последней точке юнит подъезжает прямо: объезжая соседей у самой цели, он вертелся бы вокруг неё.
+    const heading = distance && !(last && distance < radius + SETTLE) ? steer(body, dx / distance, dy / distance, speed) : wanted
+
+    unit.facing = turnToward(unit.facing, heading, turn * time.step)
+    // Чем сильнее юнит смотрит в сторону, тем медленнее едет; развернувшись больше чем на четверть оборота, крутится на месте.
+    const askew = Math.abs(wrap(heading - unit.facing))
+    // Песок и болото замедляют наземных: см. terrainSpeed.
+    let move = speed * terrainSpeed(sim, unit.type, Math.floor(position.x), Math.floor(position.y)) * time.step * Math.max(0, Math.cos(askew))
+    // Точка внутри круга, который юнит описывает на полном ходу: в неё не попасть, сколько ни кружи.
+    // Тогда он доворачивает на месте. Запас — на то, что поворот идёт шагами. Объезжающий соседа едет не к точке,
+    // а мимо него: стой он доворачивать к точке, от которой его отводят, — не тронулся бы никогда.
+    const off = Math.abs(wrap(wanted - unit.facing))
+    const avoiding = Math.abs(wrap(heading - wanted)) > AIMED
+    if (!avoiding && distance < ((2 * speed) / turn) * Math.sin(Math.min(off, Math.PI / 2)) * ORBIT_MARGIN) move = 0
+    if (!move) continue
+    // Глядя точно на точку пути, юнит приходит в неё ровно, без перелёта.
+    if (unit.facing === wanted && move >= distance) {
+      if (open(body, points[0], points[1], inside)) {
+        position.x = points[0]
+        position.y = points[1]
+      } else mover.walled = true
+      continue
+    }
+    const stepX = Math.cos(unit.facing) * move
+    const stepY = Math.sin(unit.facing) * move
+    if (open(body, position.x + stepX, position.y + stepY, inside)) {
+      position.x += stepX
+      position.y += stepY
+      continue
+    }
+    // Впереди непроходимое — скользит вдоль него: по той оси, по которой можно и которая ближе к точке.
+    const alongX = open(body, position.x + stepX, position.y, inside) ? stepX * dx : -Infinity
+    const alongY = open(body, position.x, position.y + stepY, inside) ? stepY * dy : -Infinity
+    if (alongX > 0 && alongX >= alongY) position.x += stepX
+    else if (alongY > 0) position.y += stepY
+    else mover.walled = true
   }
 
-  // Пути меняются после обхода: во время него состав мира трогать нельзя.
+  // Расталкивание: зашедших друг в друга разводят. Начинают те, кто ехал, — стоящие, которых сдвинули, продолжают
+  // цепочку. Стоящих вдали никто не трогает: армия без дела ничего не стоит.
+  const pushed = new Set<Body>(movers.map((mover) => mover.body))
+  /** Сдвигается ли тело, когда в него въехал by: своё — да, стоящее чужое — нет, как и разворачивающееся. */
+  const yields = (body: Body, by: Body) => !body.rooted && (body.moving || body.owner === by.owner || allied(sim, body.owner, by.owner))
+  for (let pass = 0, moved = true; pass < SEPARATIONS && moved; pass++) {
+    moved = false
+    for (const body of [...pushed]) {
+      gather(body, 0)
+      for (const other of neighbours) {
+        let normalX = other.position.x - body.position.x
+        let normalY = other.position.y - body.position.y
+        const distance = Math.hypot(normalX, normalY)
+        const overlap = body.radius + other.radius - distance
+        if (overlap <= 0) continue
+        if (distance > 1e-6) {
+          normalX /= distance
+          normalY /= distance
+        } else {
+          // Стоят точка в точку: расходятся в сторону, заданную номерами, — одинаково при каждом прогоне.
+          const angle = (body.entity * 7 + other.entity * 13) % 360
+          normalX = Math.cos(angle)
+          normalY = Math.sin(angle)
+        }
+        // Доли сдвига: едущий стоящего своего сдвигает целиком, в остальных случаях — по массе.
+        const bodyFree = yields(body, other)
+        const otherFree = yields(other, body)
+        let bodyShare = !bodyFree ? 0 : !otherFree ? 1 : other.mass / (body.mass + other.mass)
+        if (bodyFree && otherFree && body.moving !== other.moving) bodyShare = body.moving ? 0 : 1
+        let otherShare = otherFree ? 1 - bodyShare : 0
+        const otherX = other.position.x + normalX * overlap * otherShare
+        const otherY = other.position.y + normalY * overlap * otherShare
+        // Не пускает местность — сдвигается другой.
+        if (otherShare && !open(other, otherX, otherY, false)) {
+          otherShare = 0
+          bodyShare = bodyFree ? 1 : 0
+        }
+        const bodyX = body.position.x - normalX * overlap * bodyShare
+        const bodyY = body.position.y - normalY * overlap * bodyShare
+        if (bodyShare && open(body, bodyX, bodyY, false)) {
+          body.position.x = bodyX
+          body.position.y = bodyY
+          moved = true
+        }
+        if (otherShare) {
+          moved = true
+          other.position.x = otherX
+          other.position.y = otherY
+          pushed.add(other)
+        }
+      }
+    }
+  }
+
   const stopped: Entity[] = []
   const lost: { entity: Entity; x: number; y: number; tries: number; near: number }[] = []
   /**
@@ -193,11 +310,8 @@ export function moveUnits(sim: Sim, time: Time) {
    * её занял сосед.
    */
   const further: { entity: Entity; x: number; y: number; tries: number; near: number; blocked?: [number, number] }[] = []
-  const asked: { entity: Entity; by: Entity; x: number; y: number; heading: number; room: number }[] = []
-  /** Увидевшие дорогу на ходу: перестраивают путь с ней. */
-  const roadward: { entity: Entity; x: number; y: number; near: number }[] = []
   /** Юнит не может идти дальше: прокладывает путь заново или, если уже пробовал, встаёт. */
-  const giveUp = (entity: Entity, path: { goalX: number; goalY: number; tries: number; near: number; wait: number; direct: boolean; stuck: boolean }, walled = true) => {
+  const giveUp = (entity: Entity, path: { goalX: number; goalY: number; tries: number; near: number; wait: number; direct: boolean; stuck: boolean }, walled: boolean) => {
     const position = world.get(entity, Position)!
     const close = Math.hypot(position.x - path.goalX - 0.5, position.y - path.goalY - 0.5) <= path.near + GIVE_UP_REACH
     // Ехал напрямую: упёрся в местность или здание — путь ему проложит planPaths, по очереди с другими упёршимися.
@@ -212,135 +326,58 @@ export function moveUnits(sim: Sim, time: Time) {
     // Сверх нормы — юнит просто ждёт дальше и попробует в следующий тик.
     else if (lost.length < LOST_SEARCHES) lost.push({ entity, x: path.goalX, y: path.goalY, tries: Math.min(path.tries + 1, MAX_TRIES), near: path.near })
   }
+  /** Кто стоит в точке (x, y), не давая юниту в неё встать: тот, чей край ближе края юнита. */
+  const occupant = (self: Body, x: number, y: number) => {
+    gather(self, SENSE)
+    return neighbours.find((other) => Math.hypot(other.position.x - x, other.position.y - y) < self.radius + other.radius)
+  }
 
-  for (const [entity, position, unit, path] of world.query(Position, Unit, Path)) {
+  for (const { entity, body, path, walled } of movers) {
     const { points } = path
-    const { speed, turn, radius } = UNITS[unit.type]
-    const air = flies(unit.type)
-    const foot = onFoot(unit.type)
-    // Путь проложен без дороги, а она показалась в обзоре — юнит прикинет путь заново. Смотрит не каждый тик.
-    if (!path.roads && fastestOf(unit.type) > 1 && onTurn(time, entity, ROAD_LOOK_TICKS) && roadInSight(sim, entity)) {
-      roadward.push({ entity, x: path.goalX, y: path.goalY, near: path.near })
-    }
-    const dx = points[0] - position.x
-    const dy = points[1] - position.y
-    const distance = Math.hypot(dx, dy)
-    const wanted = distance ? Math.atan2(dy, dx) : unit.facing
-
-    // Юнит, под которым выросло здание, выходит из него: внутри здания тайлы ему не преграда.
-    const inside = !canStand(sim, air, Math.floor(position.x), Math.floor(position.y), foot)
-
-    gather(entity, air, radius, position.x, position.y)
-    // Куда ехать: прямо к точке пути, а если там другой юнит — в ближайшую свободную сторону.
-    const look = Math.min(distance, LOOK_AHEAD)
-    let heading: number | undefined
-    /** Кто стоит прямо на пути к точке. */
-    const ahead = collides(radius, position.x, position.y, position.x + Math.cos(wanted) * look, position.y + Math.sin(wanted) * look)
-    // Право проезда: из двух встречных объезжает тот, у кого номер больше, другой ждёт. Объезжай оба — кружили бы
-    // друг вокруг друга хороводом. Заждавшиеся отодвигают своих встречных, см. PUSH_TICKS.
-    const oncoming = ahead?.moving && Math.cos(ahead.unit.facing - wanted) < 0
-    const yielding = oncoming && ahead!.entity < entity
-    const side = path.side
-    for (const detour of side < 0 ? MIRRORED : DETOURS) {
-      if (oncoming && !yielding && Math.abs(detour) > PRIORITY_DETOUR) break
-      const angle = wanted + detour
-      const lookX = position.x + Math.cos(angle) * look
-      const lookY = position.y + Math.sin(angle) * look
-      // Прямой путь проверен, когда прокладывался; в стороне от него может оказаться стена.
-      if (detour && !inside && !canStand(sim, air, Math.floor(lookX), Math.floor(lookY), foot)) continue
-      if (detour ? collides(radius, position.x, position.y, lookX, lookY) : ahead) continue
-      heading = wrap(angle)
-      path.side = Math.sign(detour)
-      break
-    }
-    // Промежуточную точку занял тот, кто мешает проехать прямо, а юнит уже рядом: точка пропускается — он едет
-    // к следующей. Иначе крутился бы у занятой точки, которую не засчитать, пока на неё не встанешь.
-    // Пропускается, только если следующая видна отсюда по прямой: путь спрямлён от точки к точке, и напрямик мимо
-    // пропущенной может оказаться скала — юнит упёрся бы в неё и, перепрокладывая тот же путь, бросил бы цель.
-    if (ahead && points.length > 2 && distance < radius + ahead.radius + SETTLE && Math.hypot(ahead.position.x - points[0], ahead.position.y - points[1]) < radius + ahead.radius) {
-      if (air || isClear((x, y) => canStand(sim, air, x, y, foot), position.x, position.y, points[2], points[3])) {
-        points.splice(0, 2)
-        continue
-      }
-    }
-    // Последнюю точку занял тот, кто мешает проехать прямо, или он едет к ней же: ближе не подъехать — юнит встаёт,
-    // где стоит. Иначе кружил бы вокруг точки, объезжая соседа, хороводом.
-    if (ahead && points.length === 2) {
-      const reach = radius + ahead.radius
-      // Едущего к той же точке пропускает тот, у кого номер больше: двое кружили бы друг вокруг друга.
-      const taken = (ahead.moving && ahead.entity < entity) || Math.hypot(ahead.position.x - points[0], ahead.position.y - points[1]) < reach
-      // Почти доехал, а прямо мешает сосед: юнит встаёт. Точка внутри круга разворота, и, объезжая, он вертелся бы на месте.
-      if ((taken && distance < reach + SETTLE) || distance < radius + NEARLY) {
-        // Путь к далёкой цели кончается раньше неё: тогда это не приезд, и юнит ищет путь дальше отсюда.
-        const arrived = path.near ? (points[0] - path.goalX - 0.5) ** 2 + (points[1] - path.goalY - 0.5) ** 2 <= (path.near + 1) ** 2 : Math.floor(points[0]) === path.goalX && Math.floor(points[1]) === path.goalY
-        if (arrived || air) stopped.push(entity)
-        else further.push({ entity, x: path.goalX, y: path.goalY, tries: 0, near: path.near, blocked: [Math.floor(points[0]), Math.floor(points[1])] })
-        continue
-      }
-    }
-    // Объезжая стоящего, сменил сторону — с обеих не пройти, стоящие плотно: просит его отойти.
-    if (ahead && !ahead.moving && side && path.side === -side && asked.length < YIELD_SEARCHES) {
-      asked.push({ entity: ahead.entity, by: entity, x: position.x, y: position.y, heading: wrap(wanted), room: radius + ahead.radius + 1 })
-    }
-    const direct = heading === wrap(wanted)
-    // Свободной стороны нет, а прямо — юнит: он ждёт на месте, доворачивая к точке. Поехай он, куда смотрит, —
-    // описывал бы дугу за дугой вокруг соседа хороводом.
-    const boxed = heading === undefined && ahead !== undefined
-    heading ??= wrap(wanted)
-
-    unit.facing = turnToward(unit.facing, heading, turn * time.step)
-    const aligned = unit.facing === heading
-
-    // Чем сильнее юнит смотрит в сторону, тем медленнее едет; развернувшись больше чем на четверть оборота, крутится на месте.
-    const askew = Math.abs(wrap(heading - unit.facing))
-    // Песок и болото замедляют наземных: см. terrainSpeed.
-    let move = speed * terrainSpeed(sim, unit.type, Math.floor(position.x), Math.floor(position.y)) * time.step * Math.max(0, Math.cos(askew))
-    // Точка внутри круга, который юнит описывает на полном ходу: в неё не попасть, сколько ни кружи.
-    // Тогда он доворачивает на месте. Запас — на то, что поворот идёт шагами.
-    if (direct && distance < ((2 * speed) / turn) * Math.sin(Math.min(askew, Math.PI / 2)) * ORBIT_MARGIN) move = 0
-    // Глядя точно на точку пути, юнит приходит в неё ровно, без перелёта.
-    const arrives = aligned && direct && move >= distance
-    if (arrives) move = distance
-    if (boxed || move > 0) {
-      const nextX = arrives ? points[0] : position.x + Math.cos(unit.facing) * move
-      const nextY = arrives ? points[1] : position.y + Math.sin(unit.facing) * move
-      const open = inside || canStand(sim, air, Math.floor(nextX), Math.floor(nextY), foot)
-      const blocker = boxed ? ahead : open ? collides(radius, position.x, position.y, nextX, nextY) : undefined
-      if (open && !blocker) {
-        position.x = nextX
-        position.y = nextY
-        path.wait = 0
-      } else if (!open && aligned && direct) {
-        // Пока юнит шёл, на пути что-то построили: ждать нечего. Но исчерпавший попытки перепрокладывает не каждый тик.
-        if (path.tries < MAX_TRIES || ++path.wait >= WAIT_TICKS) giveUp(entity, path)
-        continue
-      } else if (++path.wait >= WAIT_TICKS) {
-        giveUp(entity, path, !blocker)
-        continue
-      } else if (blocker?.moving && path.wait >= PUSH_TICKS && blocker.owner === ownerOf(sim, entity) && Math.cos(blocker.unit.facing - wanted) < 0) {
-        push(wanted, position.x, position.y, blocker)
-      } else if (blocker && path.wait === YIELD_TICKS && asked.length < YIELD_SEARCHES) {
-        const room = radius + blocker.radius + 1
-        asked.push({ entity: blocker.entity, by: entity, x: position.x, y: position.y, heading: wrap(wanted), room })
-      }
-    } else if (!distance) {
-      path.wait = 0
-    }
-
-    const last = points.length === 2
+    const { position, radius, air } = body
     const left = Math.hypot(points[0] - position.x, points[1] - position.y)
-    // В последнюю точку юнит встаёт точно, промежуточные проезжает по дуге.
-    if (left === 0 || (!last && left < REACHED)) {
+    const last = points.length === 2
+    const blocker = left < radius + LARGE + SETTLE ? occupant(body, points[0], points[1]) : undefined
+    // Промежуточную точку занял сосед, а юнит уже рядом: точка пропускается — он едет к следующей. Иначе крутился бы
+    // у занятой точки, которую не засчитать. Пропускается, только если следующая видна отсюда по прямой: путь спрямлён
+    // от точки к точке, и напрямик мимо пропущенной может оказаться скала.
+    if (blocker && !last && left < radius + blocker.radius + SETTLE) {
+      if (air || isClear((x, y) => canStand(sim, air, x, y, body.foot), position.x, position.y, points[2], points[3])) {
+        points.splice(0, 2)
+        path.best = -1
+        path.wait = 0
+        continue
+      }
+    }
+    // Последнюю точку занял тот, кого не сдвинуть, — чужой или разворачивающийся, — или свой, что едет туда же: ближе
+    // не подъехать, юнит встаёт, где стоит. Иначе толкался бы за неё без конца. Стоящего своего он сдвинет плечом.
+    const settled = blocker && last && left < radius + blocker.radius + SETTLE && (!yields(blocker, body) || (blocker.moving && blocker.entity < entity))
+    if (left === 0 || settled || (!last && left < REACHED)) {
       points.splice(0, 2)
       path.tries = 0
-      if (!points.length) {
-        // Поиск пути ограничен, и до далёкой цели путь мог кончиться раньше неё: оттуда юнит ищет дальше.
-        const tileX = Math.floor(position.x)
-        const tileY = Math.floor(position.y)
-        const reached = path.near ? (tileX - path.goalX) ** 2 + (tileY - path.goalY) ** 2 <= path.near ** 2 : tileX === path.goalX && tileY === path.goalY
-        if (reached || air) stopped.push(entity)
-        else further.push({ entity, x: path.goalX, y: path.goalY, tries: 0, near: path.near })
+      path.best = -1
+      path.wait = 0
+      if (points.length) continue
+      // Путь к далёкой цели кончается раньше неё: тогда это не приезд, и юнит ищет путь дальше отсюда.
+      const reached = path.near
+        ? (position.x - path.goalX - 0.5) ** 2 + (position.y - path.goalY - 0.5) ** 2 <= (path.near + 1) ** 2
+        : (Math.floor(position.x) === path.goalX && Math.floor(position.y) === path.goalY) || (!!settled && Math.hypot(position.x - path.goalX - 0.5, position.y - path.goalY - 0.5) < radius + SETTLE + 1)
+      if (reached || air) stopped.push(entity)
+      else {
+        // Вернуть точку: пока путь ищется (а норма тика могла кончиться), юнит едет к ней же.
+        points.push(position.x, position.y)
+        further.push({ entity, x: path.goalX, y: path.goalY, tries: 0, near: path.near, blocked: settled ? [Math.floor(blocker!.position.x), Math.floor(blocker!.position.y)] : undefined })
       }
+      continue
+    }
+    // Продвижение: подобрался к точке ближе прежнего — ждать нечего. Иначе считает тики, а не дождавшись — ищет путь.
+    if (path.best < 0 || left < path.best - PROGRESS) {
+      path.best = left
+      path.wait = 0
+    } else if (++path.wait >= WAIT_TICKS) {
+      giveUp(entity, path, walled)
+      path.wait = 0
+      path.best = -1
     }
   }
 
@@ -350,19 +387,14 @@ export function moveUnits(sim: Sim, time: Time) {
   // первый в тике получает полный поиск, а долгий повторный (см. orderMove) норму не перешагнёт.
   withSearchQuota(LOST_TILES + SEARCH_LIMIT, () => {
     for (const { entity, x, y, near, blocked } of further) {
-      // Поиски сверх нормы тика отложены: юнит постоит и поищет в следующий тик.
-      const path = world.get(entity, Path)!
-      if (searchedTiles() - searchedBefore >= LOST_TILES) {
-        const position = world.get(entity, Position)!
-        path.points.push(position.x, position.y)
-        continue
-      }
-      const before = world.get(entity, Position)!
-      const fromX = Math.floor(before.x)
-      const fromY = Math.floor(before.y)
+      // Поиски сверх нормы тика отложены: юнит постоит у последней точки и поищет в следующий тик.
+      if (searchedTiles() - searchedBefore >= LOST_TILES) continue
+      const position = world.get(entity, Position)!
+      const fromX = Math.floor(position.x)
+      const fromY = Math.floor(position.y)
       orderMove(sim, entity, x, y, undefined, 0, near)
       // Ближе к цели не подойти — встаёт: иначе искал бы на месте каждый тик. Так и когда новый путь кончается там же,
-      // где прежний, а в тот тайл не встать — его занял сосед: юнит упирался бы в него и искал бы путь каждый тик.
+      // где стоит сосед, не дававший встать в прежний конец: юнит упирался бы в него и искал бы путь каждый тик.
       const next = world.get(entity, Path)
       const end = next?.points.length ? [Math.floor(next.points.at(-2)!), Math.floor(next.points.at(-1)!)] : undefined
       if (end && ((end[0] === fromX && end[1] === fromY) || (end[0] === blocked?.[0] && end[1] === blocked[1]))) world.remove(entity, Path)
@@ -374,24 +406,20 @@ export function moveUnits(sim: Sim, time: Time) {
       orderMove(sim, entity, x, y, undefined, 0, near)
     }
     for (const { entity, x, y, tries, near } of lost) {
-      // Не уложившиеся в норму ждут дальше: их путь цел, и в следующий тик они попробуют снова.
+      // Не уложившиеся в норму ждут дальше: их путь цел, и после следующего ожидания они попробуют снова.
       if (searchedTiles() - searchedBefore >= LOST_TILES) break
       const before = world.get(entity, Path)?.points
       orderMove(sim, entity, x, y, undefined, tries, near)
       // Нового пути нет — не из-за нормы, а потому, что юнита обступили со всех сторон. Обступили те, кто уже стоит
-      // без приказа, — значит, он упёрся в доехавших и сам доехал: встаёт, исчерпав попытки. С приказом он искал бы
-      // путь каждый тик и не отвечал бы на огонь. Обступили такие же застрявшие — затор разойдётся: юнит ждёт
-      // до следующей попытки, а не ищет снова в следующий тик.
+      // без приказа, — значит, он упёрся в доехавших и сам доехал: встаёт, исчерпав попытки. С приказом он не отвечал
+      // бы на огонь. Обступили такие же застрявшие — затор разойдётся: юнит ждёт до следующей попытки.
       const path = world.get(entity, Path)
       if (!path || path.points !== before || searchCut()) continue
-      if (tries >= MAX_TRIES && amongIdle(entity)) world.remove(entity, Path)
-      else path.wait = 0
+      const body = bodies.get(entity)!
+      gather(body, GAP)
+      if (tries >= MAX_TRIES && neighbours.length > 0 && neighbours.every((other) => !other.moving)) world.remove(entity, Path)
     }
   })
-  // Дорогу уступают только своим: чужой юнит стоит, где стоял.
-  for (const { entity, by, x, y, heading, room } of asked) {
-    if (ownerOf(sim, entity) === ownerOf(sim, by)) stepAside(sim, entity, x, y, heading, room)
-  }
 }
 
 /** Сколько тайлов за тик осматривают поиски пути упёршихся юнитов, ехавших напрямую. */

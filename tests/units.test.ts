@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { isBuildable, terrainAt } from '../src/map/terrain'
 import { Owner, Path, Position, UNITS, Unit, canPlace, createSim, isWalkable, spawnStartingUnits, type Sim, type UnitType } from '../src/sim'
 import { SEARCH_LIMIT, findPath, isClear, searchCut, searchedTiles, smoothPath, withSearchQuota } from '../src/sim/path'
-import { orderMove, spawnUnit, stepAside } from '../src/sim/units'
+import { orderMove, spawnUnit } from '../src/sim/units'
 import { placeBuilding } from '../src/sim/buildings'
 import { throughJson } from './throughJson'
 
@@ -207,19 +207,6 @@ test('толпа, посланная в одну точку, доезжает: �
   expect(units.filter((entity) => sim.world.has(entity, Path))).toEqual([])
 })
 
-test('уступающий дорогу, которому вбок не отойти, едет в целый тайл, а не в дробный', () => {
-  const sim = createSim(options)
-  const { x, y } = field(sim)
-  const standing = spawnUnit(sim, 'tank', 1, x + 10, y + 4)
-  // Просящий едет на восток: вбок — это север и юг, на room тайлов. Оба места заняты стоящими.
-  const room = UNITS.tank.radius * 2 + 1
-  for (const sign of [1, -1]) spawnUnit(sim, 'tank', 1, x + 10, Math.floor(y + 4.5 + sign * room))
-  stepAside(sim, standing, x + 8.5, y + 4.5, 0, room)
-  const path = sim.world.get(standing, Path)!
-  // Дробная цель недостижима: юнит перепрокладывал бы к ней путь вечно и держал бы соседей.
-  expect(Number.isInteger(path.goalX) && Number.isInteger(path.goalY)).toBe(true)
-})
-
 test('встречные юниты расходятся, не проходя друг сквозь друга', () => {
   for (const type of ['infantry', 'builder', 'mcv'] as UnitType[]) {
     const sim = createSim(options)
@@ -270,7 +257,7 @@ test('двое, посланные в одну или соседние точк�
   }
 })
 
-test('быстрый юнит обгоняет медленного, а потом уступает ему дорогу', () => {
+test('быстрый юнит обгоняет медленного, а медленный потом объезжает вставшего у него на пути', () => {
   const sim = createSim(options)
   const { x, y } = field(sim)
   const slow = spawnUnit(sim, 'mcv', 1, x + 5, y + 4)
@@ -279,9 +266,8 @@ test('быстрый юнит обгоняет медленного, а пото
   sim.send(1, { type: 'move', units: [fast], x: x + 23, y: y + 4 })
   runApart(sim, [slow, fast])
   expect(tileOf(sim, slow)).toEqual([x + 27, y + 4])
-  // Строитель пришёл первым и встал на пути MCV; тот попросил его отойти.
+  // Строитель пришёл первым и встал на пути MCV; тот объехал его или сдвинул плечом — недалеко от своего места.
   const [tileX, tileY] = tileOf(sim, fast)
-  expect([tileX, tileY]).not.toEqual([x + 23, y + 4])
   expect(Math.hypot(tileX - x - 23, tileY - y - 4)).toBeLessThan(4)
 })
 

@@ -335,8 +335,6 @@ export const JAM_TRIES = 3
 
 /** Сколько тайлов осматривает поиск пути, когда к цели надо только подойти на расстояние. */
 const APPROACH_LIMIT = 3000
-/** Сколько тайлов осматривает поиск пути, когда юнит уступает дорогу. */
-const STEP_ASIDE_LIMIT = 300
 
 /** Дальше скольких колец от цели места группе не ищутся: армия в тысячи юнитов встаёт плотнее, а не расползается. */
 const MAX_GROUP_RADIUS = 40
@@ -463,7 +461,7 @@ export function orderMove(sim: Sim, entity: Entity, x: number, y: number, ignore
   if (air) {
     // Летающему преград нет: он летит к цели по прямой.
     if (!inBounds(sim, x, y)) return void world.remove(entity, Path)
-    world.add(entity, Path({ points: [x + 0.5, y + 0.5], goalX: x, goalY: y, wait: 0, tries, near, direct: false, stuck: false, slot: false }))
+    world.add(entity, Path({ points: [x + 0.5, y + 0.5], goalX: x, goalY: y, wait: 0, tries, near, direct: false, stuck: false, best: -1, slot: false }))
     return
   }
   const fromX = Math.floor(position.x)
@@ -519,7 +517,7 @@ export function orderMove(sim: Sim, entity: Entity, x: number, y: number, ignore
     tiles.map((value) => value + 0.5),
     slowness,
   )
-  if (points.length) world.add(entity, Path({ points, goalX: x, goalY: y, wait: 0, tries, near, roads: fastest < 1, direct: false, stuck: false, slot: false }))
+  if (points.length) world.add(entity, Path({ points, goalX: x, goalY: y, wait: 0, tries, near, roads: fastest < 1, direct: false, stuck: false, best: -1, slot: false }))
   // Из затора пока не выбраться: приказ остаётся, юнит попробует снова.
   else if (!jam) world.remove(entity, Path)
 }
@@ -554,7 +552,7 @@ function aimAtTiles(sim: Sim, units: Entity[], tiles: number[]) {
     const at = Math.min(i * 2, tiles.length - 2)
     const x = tiles[at]
     const y = tiles[at + 1]
-    world.add(entity, Path({ points: [x + 0.5, y + 0.5], goalX: x, goalY: y, wait: 0, tries: 0, near: 0, roads: false, direct: true, stuck: false, slot: false }))
+    world.add(entity, Path({ points: [x + 0.5, y + 0.5], goalX: x, goalY: y, wait: 0, tries: 0, near: 0, roads: false, direct: true, stuck: false, best: -1, slot: false }))
   })
 }
 
@@ -567,49 +565,6 @@ function sendToTiles(sim: Sim, units: Entity[], tiles: number[], group: Readonly
     orderMove(sim, entity, tiles[at], tiles[at + 1], group)
   })
 }
-
-/**
- * Просит стоящий юнит уступить дорогу тому, кто идёт из (fromX, fromY) в направлении heading: отойти вбок
- * от линии его движения на room тайлов. Отходит в ту сторону, с которой уже стоит; если там занято — в другую.
- */
-export function stepAside(sim: Sim, entity: Entity, fromX: number, fromY: number, heading: number, room: number) {
-  const { world } = sim
-  const position = world.get(entity, Position)
-  const unit = world.get(entity, Unit)
-  if (!position || !unit || world.has(entity, Path) || world.has(entity, Converting)) return
-  // Грузовик под лучом место не уступает: иначе ждущий очереди сгонял бы того, кто грузится.
-  if (world.get(entity, Hauler)?.loading) return
-  const sideX = -Math.sin(heading)
-  const sideY = Math.cos(heading)
-  const side = (position.x - fromX) * sideX + (position.y - fromY) * sideY >= 0 ? 1 : -1
-  const air = flies(unit.type)
-  const taken = standingUnits(sim, new Set([entity]), UNITS[unit.type].radius, air)
-  for (const sign of [side, -side]) {
-    const x = Math.floor(position.x + sideX * sign * room)
-    const y = Math.floor(position.y + sideY * sign * room)
-    if (!canStand(sim, air, x, y, onFoot(unit.type)) || taken.has(tileKey(x, y))) continue
-    // Отойти надо на пару тайлов: если туда не пройти, обход издалека не нужен.
-    orderMove(sim, entity, x, y, undefined, 0, 0, STEP_ASIDE_LIMIT)
-    return
-  }
-  // Оба бока закрыты — например, юнит стоит в щели у обрыва. Тогда на любой свободный тайл рядом, подальше от
-  // просящего: иначе тот так и ждал бы его.
-  // room — в тайлах, а freeTilesNear считает кольцами через GROUP_SPACING; дробное кольцо дало бы дробный тайл, и
-  // приехать в него юнит не смог бы никогда — перепрокладывал бы путь каждые пару тиков.
-  const tiles = freeTilesNear(sim, Math.floor(position.x), Math.floor(position.y), ASIDE_CHOICES, Math.ceil(room / GROUP_SPACING), taken, air)
-  let best = -1
-  let farthest = -Infinity
-  for (let i = 0; i < tiles.length; i += 2) {
-    const distance = Math.hypot(tiles[i] + 0.5 - fromX, tiles[i + 1] + 0.5 - fromY)
-    if (!canStand(sim, air, tiles[i], tiles[i + 1], onFoot(unit.type)) || distance <= farthest) continue
-    best = i
-    farthest = distance
-  }
-  if (best >= 0) orderMove(sim, entity, tiles[best], tiles[best + 1], undefined, 0, 0, STEP_ASIDE_LIMIT)
-}
-
-/** Из скольких свободных тайлов рядом выбирает stepAside, когда отойти вбок нельзя. */
-const ASIDE_CHOICES = 8
 
 /** Наземные юниты, чей центр лежит внутри прямоугольника в тайлах. Летающие не в счёт: земли они не занимают. */
 export function unitsIn(sim: Sim, x: number, y: number, width: number, height: number) {
