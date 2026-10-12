@@ -6,7 +6,7 @@ import { Building, Builds, Converting, Health, Inventory, Owner, Path, Pave, Pos
 import { reserveLeft } from './deposits'
 import { amountOf } from './inventory'
 import { entriesOf, totalOf } from './resources'
-import { addCredits, creditsOf, pay, reward, spend } from './economy'
+import { addCredits, creditsOf, reward, spend } from './economy'
 import { overbuiltPlants, powerSupply } from './income'
 import type { Sim } from './sim'
 import { PAVE_LIMIT, buildSpeed, paveCost } from './paving'
@@ -263,11 +263,26 @@ export function assignBuilders(sim: Sim, player: number, site: Entity, units: En
 }
 
 /**
- * Закладывает площадку под здание и посылает к ней строителей. Кредиты списываются сразу.
- * Возвращает площадку или undefined, если заложить не вышло.
+ * Свободные кредиты игрока: на счету, за вычетом того, что он ещё доплатит за свои начатые и заложенные стройки, —
+ * их оплачивают по ходу работы. Новую стройку закладывают только на свободные: иначе одни и те же кредиты обещали бы
+ * нескольким стройкам, и все встали бы на полпути.
+ */
+export function freeCredits(sim: Sim, player: number) {
+  let owed = 0
+  for (const [, site, owner] of sim.world.query(Site, Owner)) {
+    if (owner.player !== player || site.demolish) continue
+    owed += BUILDINGS[site.type].cost * Math.max(0, 1 - site.progress / siteTicks(site.type, sim.time.step))
+  }
+  return creditsOf(sim, player) - owed
+}
+
+/**
+ * Закладывает площадку под здание и посылает к ней строителей. Заложить можно, когда свободных кредитов хватает
+ * на здание целиком (см. freeCredits), но списываются они по ходу стройки, см. construct. Возвращает площадку
+ * или undefined, если заложить не вышло.
  */
 export function orderBuild(sim: Sim, player: number, type: BuildingType, x: number, y: number, builders: Entity[]) {
-  if (!canBuild(sim, player, type, x, y) || !pay(sim, player, BUILDINGS[type].cost)) return undefined
+  if (!canBuild(sim, player, type, x, y) || freeCredits(sim, player) < BUILDINGS[type].cost) return undefined
   const site = sim.world.spawn(Position({ x, y }), Site({ type }), Owner({ player }))
   // Материалы привезут грузовики: площадка заказывает их у своей зоны, см. logistics.ts.
   const materials = buildingSpec(type).materials
@@ -298,16 +313,19 @@ export function wallStroke(sim: Sim, player: number, tiles: readonly number[], t
 }
 
 /**
- * Закладывает протянутую стену или ворота — type (тайлы x, y подряд, по порядку протяжки) и посылает к ней строителей. Платят за каждый
- * тайл сразу; куда нельзя (см. wallStroke) — не кладут; кончились кредиты — дальше стена не тянется. Возвращает,
- * сколько заложено.
+ * Закладывает протянутую стену или ворота — type (тайлы x, y подряд, по порядку протяжки) и посылает к ней строителей.
+ * Куда нельзя (см. wallStroke) — не кладут; дальше, чем хватает кредитов на всю протяжку, стена не тянется, хотя платят
+ * за неё по ходу стройки. Возвращает, сколько заложено.
  */
 export function orderWalls(sim: Sim, player: number, tiles: readonly number[], builders: Entity[], type: 'wall' | 'gate' = 'wall') {
   const allowed = wallStroke(sim, player, tiles.slice(0, PAVE_LIMIT * 2), type)
   let first: Entity | undefined
   let count = 0
+  let budget = freeCredits(sim, player)
   for (let i = 0; i < allowed.length; i++) {
     if (!allowed[i]) continue
+    if (budget < BUILDINGS[type].cost) break
+    budget -= BUILDINGS[type].cost
     const site = orderBuild(sim, player, type, tiles[i * 2], tiles[i * 2 + 1], [])
     if (site === undefined) break
     first ??= site
@@ -323,22 +341,26 @@ export function orderWalls(sim: Sim, player: number, tiles: readonly number[], b
  * могут быть вне своей зоны: их стройка подождёт, пока зону не дотянут ближние.
  */
 /**
- * Отменяет стройку: площадка или недостроенное здание исчезает, кредиты возвращаются целиком.
- * Отмена разбора оставляет здание целым: денег за него ещё не выдавали.
+ * Отменяет стройку: площадка или недостроенное здание исчезает, возвращается цена того, что стоит, — построенной
+ * доли (уплачено за неё было столько же; разбитое врагом не возвращается). Отмена разбора оставляет здание целым:
+ * денег за него ещё не выдавали.
  */
 export function cancelBuild(sim: Sim, player: number, site: Entity) {
   if (!isOwnSite(sim, player, site)) return false
-  const { type, demolish } = sim.world.get(site, Site)!
+  const { type, demolish, progress } = sim.world.get(site, Site)!
   if (demolish) {
     sim.world.remove(site, Site)
     return true
   }
-  addCredits(sim, player, BUILDINGS[type].cost)
+  addCredits(sim, player, Math.floor(BUILDINGS[type].cost * Math.min(1, progress / siteTicks(type, sim.time.step))))
   // Привезённые материалы остаются на земле.
   dropCargo(sim, site)
   sim.world.destroy(site)
   return true
 }
+
+/** С какой доли прочности начинается недостроенное здание: ноль значил бы, что оно уже разбито. */
+const SITE_FLOOR = 0.02
 
 /** Какую долю цены возвращает разбор готового здания. */
 export const DEMOLISH_REFUND = 0.5
@@ -742,12 +764,20 @@ export function construct(sim: Sim) {
       // Стройка давит брошенный под ней груз.
       clearDrops(sim, position.x, position.y, BUILDINGS[site.type].width, BUILDINGS[site.type].height)
       const durability = durabilityOf(sim, site.type, position.x, position.y)
-      world.add(entity, Health({ value: durability, max: durability }))
+      world.add(entity, Health({ value: durability * SITE_FLOOR, max: durability }))
     }
-    // Дальше привезённых материалов стройка не идёт. Фундамент под основанием меняет скорость стройки.
+    // Прочность недостроенного — доля построенного: урон откатывает стройку, и разбитое строят и оплачивают заново.
+    const total = siteTicks(site.type, time.step)
+    const health = world.get(entity, Health)!
+    site.progress = Math.min(site.progress, (total * health.value) / health.max)
+    // Дальше привезённых материалов стройка не идёт. Фундамент под основанием меняет скорость стройки. Платят по ходу:
+    // за каждую построенную долю — та же доля цены; кончились кредиты — стройка стоит.
     const speed = buildSpeed(sim, site.type, position.x, position.y)
-    site.progress = Math.max(site.progress, Math.min(site.progress + count * speed, siteTicks(site.type, time.step) * materialShare(sim, entity)))
-    if (site.progress < siteTicks(site.type, time.step)) continue
+    const reached = Math.min(site.progress + count * speed, total * materialShare(sim, entity))
+    if (reached > site.progress && spend(sim, player, ((reached - site.progress) / total) * BUILDINGS[site.type].cost)) site.progress = reached
+    health.value = Math.max(health.value, health.max * Math.max(SITE_FLOOR, site.progress / total))
+    if (site.progress < total) continue
+    health.value = health.max
     world.remove(entity, Site)
     // Материалы ушли в здание; склад у готового здания свой.
     world.remove(entity, Inventory)

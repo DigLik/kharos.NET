@@ -6,7 +6,7 @@ import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
   Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
-  awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
+  awaitsMaterials, buildTicks, canDemolish, freeCredits, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   Research, TOPICS, PAVE_RESEARCH, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
@@ -175,6 +175,8 @@ export interface HudState {
     progress: number
     /** Здание разбирают: готовность идёт к нулю. */
     demolish: boolean
+    /** Стройка платится по ходу, а у игрока нет кредитов: она стоит. */
+    broke: boolean
   } | null
   /** Разбор выбранных своих готовых зданий, которые можно разобрать. refund — сколько кредитов вернётся за все, с оплаченными заказами. */
   demolish: { buildings: number[]; refund: number } | null
@@ -428,6 +430,8 @@ export function readHud(scene: Scene): HudState {
   const { sim, player, selection } = scene
   const { world } = sim
   const credits = creditsOf(sim, player)
+  // Свободные — за вычетом недоплаченного за свои стройки: на них закладывают новые, см. freeCredits.
+  const free = freeCredits(sim, player)
 
   const counts = new Map<UnitType, number>()
   let building: BuildingType | null = null
@@ -672,7 +676,7 @@ export function readHud(scene: Scene): HudState {
     const work = world.get(entity, Site)
     if (work) {
       const progress = round(Math.min(1, work.progress / siteTicks(work.type, sim.time.step)))
-      site = { entity, started: world.has(entity, Building), blocked: isSiteBlocked(sim, entity), progress, demolish: work.demolish }
+      site = { entity, started: world.has(entity, Building), blocked: isSiteBlocked(sim, entity), progress, demolish: work.demolish, broke: !work.demolish && credits < 1 }
     }
     if (canDemolish(sim, player, entity)) {
       demolish ??= { buildings: [], refund: 0 }
@@ -777,7 +781,7 @@ export function readHud(scene: Scene): HudState {
           options: BUILDABLE.filter((type) => isUnlocked(sim, player, type)).map((type) => ({
             building: type,
             cost: BUILDINGS[type].cost,
-            affordable: credits >= BUILDINGS[type].cost,
+            affordable: free >= BUILDINGS[type].cost,
             power: powerOf(type, economy),
             materials: exactOf(buildingSpec(type).materials ?? {}),
           })),

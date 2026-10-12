@@ -1,5 +1,5 @@
 import { tileKey } from '../map/terrain'
-import { BUILDINGS, DEPOSIT_SIZE, Owner, Pave, PAVE_LIMIT, canBuild, canPlace, canPave, creditsOf, depositNear, paveCost, buildingWithin, pipeAt, pipeStroke, wallStroke, isWellPair, wellsKept, UNDERGROUND_REACH, type BuildingSpec, type BuildingType } from '../sim'
+import { BUILDINGS, DEPOSIT_SIZE, Owner, Pave, PAVE_LIMIT, canBuild, canPlace, canPave, creditsOf, depositNear, freeCredits, paveCost, buildingWithin, pipeAt, pipeStroke, wallStroke, isWellPair, wellsKept, UNDERGROUND_REACH, type BuildingSpec, type BuildingType } from '../sim'
 import type { PaveTool, Scene } from './scene'
 
 /** Где встанет здание, которое игрок сейчас выбирает место: левый верхний тайл основания и годится ли место. */
@@ -57,7 +57,7 @@ function wellStrokeOf(scene: Scene, from: { x: number; y: number }, tile: { x: n
   const single = tiles.length === 2
   const valid = (single || isWellPair(tiles)) && fresh > 0
   const price = (cost / 2) * fresh
-  const affordable = creditsOf(sim, player) >= price
+  const affordable = freeCredits(sim, player) >= price
   return {
     tool: 'well',
     tiles,
@@ -111,8 +111,9 @@ export function paveStrokeOf(scene: Scene): PaveStroke | null {
   const { sim, player } = scene
   const allowed: boolean[] = []
   const short: boolean[] = []
-  // Кредиты списываются по тайлу в том же порядке: на что не хватит, то и не ляжет.
-  const credits = creditsOf(sim, player)
+  // Кредиты считаются по тайлу в том же порядке: на что не хватит, то и не ляжет. Трубы и стены платят по ходу
+  // стройки и закладываются на свободные кредиты, покрытие — сразу.
+  const credits = tool === 'pipe' || tool === 'wall' || tool === 'gate' ? freeCredits(sim, player) : creditsOf(sim, player)
   let cost = 0
   if (tool === 'pipe' || tool === 'wall' || tool === 'gate') {
     // Труба и стена тянутся цепочкой: на чём кончились кредиты, дальше уже не лягут, см. orderPipes и orderWalls.

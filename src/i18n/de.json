@@ -576,6 +576,7 @@
     "interceptorNoCredits": "Raketen {count} von {capacity}: die nächste braucht {cost} Credits",
     "interceptorNoMaterials": "Raketen {count} von {capacity}: im Netz fehlt etwas — nötig sind {materials}",
     "building": "Im Bau — {percent}",
+    "buildingBroke": "Steht bei {percent}: der Bau wird laufend bezahlt, und es fehlen Credits",
     "blocked": "Der Platz ist von Einheiten belegt",
     "waitsBuilder": "Wartet auf ein Baufahrzeug",
     "deploying": "Fährt aus",

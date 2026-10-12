@@ -576,6 +576,7 @@
     "interceptorNoCredits": "Raketalar {count}/{capacity}: keyingisi uchun {cost} kredit kerak",
     "interceptorNoMaterials": "Raketalar {count}/{capacity}: tarmoqda yetishmaydi — {materials} kerak",
     "building": "Qurilmoqda — {percent}",
+    "buildingBroke": "{percent} da to‘xtadi: qurilish borishi bilan to‘lanadi, kredit esa yo‘q",
     "blocked": "Joy bo‘linmalar bilan band",
     "waitsBuilder": "Quruvchini kutmoqda",
     "deploying": "Ochilmoqda",

@@ -9,6 +9,7 @@ import { BATCH } from '../src/sim/pipes'
 import { networkOf, zonesOf } from '../src/sim/zones'
 import { pipeStroke, pipeSwap, unlinked, wellPartners } from '../src/sim/piping'
 import { addCredits, creditsOf } from '../src/sim/economy'
+import { freeCredits } from '../src/sim/construction'
 import { spawnUnit } from '../src/sim/units'
 import { apply } from '../src/sim/commands'
 import { throughJson } from './throughJson'
@@ -179,12 +180,12 @@ test('«Снять» убирает и трубы: заложенную — ср
   const built = placeBuilding(sim.world, 'pipe', x + 3, y + 1, 1)
   sim.send(1, { type: 'pipes', tiles: [x + 10, y + 1], builders: [] })
   run(sim, 1)
-  const credits = creditsOf(sim, 1)
+  const credits = freeCredits(sim, 1)
   sim.send(1, { type: 'unpave', tiles: [x + 3, y + 1, x + 10, y + 1], builders: [builder] })
   run(sim, 1)
-  // Заложенная отменилась с полным возвратом; готовую разбирают.
+  // Заложенная отменилась: она ничего не стоила, обещанное ей вернулось в свободные; готовую разбирают.
   expect(siteAt(sim, x + 10, y + 1)).toBeUndefined()
-  expect(creditsOf(sim, 1) - credits).toBeGreaterThanOrEqual(5)
+  expect(freeCredits(sim, 1) - credits).toBeGreaterThanOrEqual(5)
   expect(sim.world.get(built, Site)?.demolish).toBe(true)
   run(sim, 20 * 10)
   expect(sim.world.alive(built)).toBe(false)
@@ -203,16 +204,16 @@ test('колодцы кладут парой (по прямой, от 2 до 10 
   for (const tiles of [[x, y, x + 4, y + 1], [x, y, x + 1, y], [x, y, x + 11, y]]) sim.send(1, { type: 'wells', tiles, builders: [] })
   run(sim, 1)
   expect(wells()).toBe(0)
-  const credits = creditsOf(sim, 1)
+  const credits = freeCredits(sim, 1)
   sim.send(1, { type: 'wells', tiles: [x, y, x + 8, y], builders: [] })
   run(sim, 1)
   expect(wells()).toBe(2)
-  expect(credits - creditsOf(sim, 1)).toBe(80)
+  expect(credits - freeCredits(sim, 1)).toBe(80)
   // И по одному: щелчок без протяжки.
   sim.send(1, { type: 'wells', tiles: [x + 12, y], builders: [] })
   run(sim, 1)
   expect(wells()).toBe(3)
-  expect(credits - creditsOf(sim, 1)).toBe(120)
+  expect(credits - freeCredits(sim, 1)).toBe(120)
 })
 
 test('«Разобрать» рамкой разбирает здания, только целиком попавшие в неё', () => {
@@ -279,25 +280,25 @@ test('колодец кладут вместо своей трубы и труб
   addCredits(sim, 1, 1000)
   lay(sim, x, y, 3)
   placeBuilding(sim.world, 'well', x + 8, y, 1)
-  let credits = creditsOf(sim, 1)
+  let credits = freeCredits(sim, 1)
   sim.send(1, { type: 'wells', tiles: [x + 1, y], builders: [] })
   sim.send(2, { type: 'wells', tiles: [x, y], builders: [] })
   run(sim, 1)
   expect([kindAt(sim, x, y), kindAt(sim, x + 1, y), kindAt(sim, x + 2, y)]).toEqual(['pipe', 'well?', 'pipe'])
-  expect(credits - creditsOf(sim, 1)).toBe(BUILDINGS.well.cost - refundOf('pipe'))
+  expect(credits - freeCredits(sim, 1)).toBe(BUILDINGS.well.cost - refundOf('pipe'))
   // Обратно: труба поверх заложенного колодца (возврат целиком) и поверх готового (как за разбор).
-  credits = creditsOf(sim, 1)
+  credits = freeCredits(sim, 1)
   sim.send(1, { type: 'pipes', tiles: [x + 1, y, x + 8, y], builders: [] })
   run(sim, 1)
   expect([kindAt(sim, x + 1, y), kindAt(sim, x + 8, y)]).toEqual(['pipe?', 'pipe?'])
-  expect(credits - creditsOf(sim, 1)).toBe(2 * BUILDINGS.pipe.cost - BUILDINGS.well.cost - refundOf('well'))
+  expect(credits - freeCredits(sim, 1)).toBe(2 * BUILDINGS.pipe.cost - BUILDINGS.well.cost - refundOf('well'))
   // Колодец на своём колодце и труба на своей трубе — не кладутся.
   placeBuilding(sim.world, 'well', x + 12, y, 1)
-  credits = creditsOf(sim, 1)
+  credits = freeCredits(sim, 1)
   sim.send(1, { type: 'wells', tiles: [x + 12, y], builders: [] })
   sim.send(1, { type: 'pipes', tiles: [x, y], builders: [] })
   run(sim, 1)
-  expect(creditsOf(sim, 1)).toBe(credits)
+  expect(freeCredits(sim, 1)).toBe(credits)
   // Чужую трубу не заменить.
   placeBuilding(sim.world, 'pipe', x + 5, y + 3, 2)
   run(sim, 1)
@@ -311,28 +312,28 @@ test('протяжка колодца от своего колодца закл�
   addCredits(sim, 1, 1000)
   const well = placeBuilding(sim.world, 'well', x, y, 1)
   lay(sim, x, y + 2, 2)
-  let credits = creditsOf(sim, 1)
+  let credits = freeCredits(sim, 1)
   // От стоящего колодца дальше 10 тайлов и не по прямой — никак; по прямой — один новый.
   sim.send(1, { type: 'wells', tiles: [x, y, x + 11, y], builders: [] })
   sim.send(1, { type: 'wells', tiles: [x, y, x + 6, y + 1], builders: [] })
   run(sim, 1)
-  expect(creditsOf(sim, 1)).toBe(credits)
+  expect(freeCredits(sim, 1)).toBe(credits)
   sim.send(1, { type: 'wells', tiles: [x, y, x + 6, y], builders: [] })
   run(sim, 1)
   expect(sim.world.alive(well)).toBe(true)
   expect([kindAt(sim, x, y), kindAt(sim, x + 6, y)]).toEqual(['well', 'well?'])
-  expect(credits - creditsOf(sim, 1)).toBe(BUILDINGS.well.cost)
+  expect(credits - freeCredits(sim, 1)).toBe(BUILDINGS.well.cost)
   expect(wellPartners(sim, 1, x + 6, y)).toEqual([{ x, y, ready: true }])
   // Оба конца уже колодцы — класть нечего.
-  credits = creditsOf(sim, 1)
+  credits = freeCredits(sim, 1)
   sim.send(1, { type: 'wells', tiles: [x, y, x + 6, y], builders: [] })
   run(sim, 1)
-  expect(creditsOf(sim, 1)).toBe(credits)
+  expect(freeCredits(sim, 1)).toBe(credits)
   // От трубы: труба уходит, колодцев два.
   sim.send(1, { type: 'wells', tiles: [x + 1, y + 2, x + 9, y + 2], builders: [] })
   run(sim, 1)
   expect([kindAt(sim, x, y + 2), kindAt(sim, x + 1, y + 2), kindAt(sim, x + 9, y + 2)]).toEqual(['pipe', 'well?', 'well?'])
-  expect(credits - creditsOf(sim, 1)).toBe(2 * BUILDINGS.well.cost - refundOf('pipe'))
+  expect(credits - freeCredits(sim, 1)).toBe(2 * BUILDINGS.well.cost - refundOf('pipe'))
 })
 
 test('укладка труб не стирает очередь строителя и не срывает его с работы; с Shift встаёт в очередь всем', () => {

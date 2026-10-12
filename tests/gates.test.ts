@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { BUILDINGS, GATE_CLOSE, Position, Site, canPlace, createSim, creditsOf, isOpenGate, isWalkable, wallStroke, type Sim } from '../src/sim'
+import { BUILDINGS, GATE_CLOSE, Position, Site, canPlace, createSim, creditsOf, freeCredits, isOpenGate, isWalkable, wallStroke, type Sim } from '../src/sim'
 import { addCredits } from '../src/sim/economy'
 import { isWall, placeBuilding } from '../src/sim/buildings'
 import { Gate } from '../src/sim/components'
@@ -80,7 +80,7 @@ test('ворота тянутся линией, и секции вплотную
   const row = y - 8
   const tiles = [0, 1, 2, 3, 4].flatMap((dx) => [x + dx, row])
   expect(wallStroke(sim, 1, tiles, 'gate').every(Boolean)).toBe(true)
-  const credits = creditsOf(sim, 1)
+  const credits = freeCredits(sim, 1)
   addCredits(sim, 1, 1000)
   sim.send(1, { type: 'walls', tiles, builders: [], gate: true })
   sim.advance(TICK)
@@ -88,7 +88,7 @@ test('ворота тянутся линией, и секции вплотную
   const sites: Entity[] = []
   for (const [entity, site] of sim.world.query(Site)) if (site.type === 'gate') sites.push(entity)
   expect(sites).toHaveLength(5)
-  expect(creditsOf(sim, 1)).toBeCloseTo(credits + 1000 - 5 * BUILDINGS.gate.cost, 0)
+  expect(freeCredits(sim, 1)).toBeCloseTo(credits + 1000 - 5 * BUILDINGS.gate.cost, 0)
 
   // Готовые ворота шириной в пять тайлов.
   const wide = [0, 1, 2, 3, 4].map((dx) => placeBuilding(sim.world, 'gate', x + dx, row + 4, 1))

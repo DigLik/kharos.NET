@@ -745,7 +745,9 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
                 ? t('hud.demolishing', { percent: percent(site.progress) })
                 : t('hud.waitsToDemolish')
               : site.started
-                ? t('hud.building', { percent: percent(site.progress) })
+                ? site.broke
+                  ? t('hud.buildingBroke', { percent: percent(site.progress) })
+                  : t('hud.building', { percent: percent(site.progress) })
                 : site.blocked
                   ? t('hud.blocked')
                   : t('hud.waitsBuilder')}

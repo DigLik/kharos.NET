@@ -576,6 +576,7 @@
     "interceptorNoCredits": "Mísseis {count} de {capacity}: o próximo custa {cost} créditos",
     "interceptorNoMaterials": "Mísseis {count} de {capacity}: falta na rede — precisa de {materials}",
     "building": "Em construção — {percent}",
+    "buildingBroke": "Parada em {percent}: a obra é paga conforme avança, e não há créditos",
     "blocked": "O local está ocupado por unidades",
     "waitsBuilder": "Aguarda um construtor",
     "deploying": "Implantando",

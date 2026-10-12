@@ -3,11 +3,11 @@ import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, isCliffFoot, terrainAt } from '../src/map/terrain'
 import {
-  BUILDINGS, Building, Builds, CORE, Inventory, Owner, Player, Position, Site, TOPICS, Unit,
-  canBuild, canPlace, createSim, creditsOf, isWalkable, rewardsOf, siteAt, spawnStartingUnits, type Sim,
+  BUILDINGS, Building, Builds, CORE, Inventory, REWARDS, Owner, Player, Position, Site, TOPICS, Unit,
+  Health, canBuild, canPlace, createSim, creditsOf, freeCredits, isWalkable, rewardsOf, siteAt, spawnStartingUnits, type Sim,
 } from '../src/sim'
 import { BUILD_RATE, isUnlocked, placeBuilding } from '../src/sim/buildings'
-import { WORK_RADIUS, wallStroke } from '../src/sim/construction'
+import { WORK_RADIUS, siteTicks, wallStroke } from '../src/sim/construction'
 import { addCredits } from '../src/sim/economy'
 import { spawnUnit } from '../src/sim/units'
 import { throughJson } from './throughJson'
@@ -59,12 +59,14 @@ function start() {
   throw new Error('В мире не нашлось места под базу')
 }
 
-test('строитель возводит здание: кредиты списаны, площадка проходима, готовое здание занимает тайлы', () => {
+test('строитель возводит здание: кредиты списаны по ходу, площадка проходима, готовое здание занимает тайлы', () => {
   const { sim, builders, site } = start()
   const credits = creditsOf(sim, 1)
   sim.send(1, { type: 'build', building: 'generator', x: site.x, y: site.y, builders: [builders[0]] })
   sim.advance(TICK)
-  expect(creditsOf(sim, 1)).toBe(credits - BUILDINGS.generator.cost)
+  // Закладка ничего не списывает, но обещает цену стройке: свободных кредитов меньше.
+  expect(creditsOf(sim, 1)).toBe(credits)
+  expect(freeCredits(sim, 1)).toBe(credits - BUILDINGS.generator.cost)
   const entity = siteAt(sim, site.x + 1, site.y + 1)!
   expect(sim.world.get(entity, Site)).toEqual({ type: 'generator', progress: 0, demolish: false })
   // Пока строитель не доехал, площадка никому не мешает, но второе здание на неё не поставить.
@@ -79,6 +81,11 @@ test('строитель возводит здание: кредиты спис�
 
   seconds(sim, BUILDINGS.generator.cost / BUILD_RATE)
   expect(sim.world.has(entity, Site)).toBe(false)
+  // Списано по ходу — цена целиком; назад пришли награда за электростанцию и доход главного здания за стройку.
+  const spent = credits + REWARDS.generator - creditsOf(sim, 1)
+  expect(spent).toBeLessThanOrEqual(BUILDINGS.generator.cost)
+  expect(spent).toBeGreaterThan(BUILDINGS.generator.cost - 40)
+  expect(sim.world.get(entity, Health)!.value).toBe(sim.world.get(entity, Health)!.max)
   expect(sim.world.get(entity, Building)!.type).toBe('generator')
   // Первый генератор приносит награду.
   expect(rewardsOf(sim, 1)).toEqual(['deploy', 'generator'])
@@ -98,8 +105,8 @@ test('два строителя строят вдвое быстрее одно�
     seconds(sim, 2)
     return sim.world.get(entity, Site)!.progress - before
   }
-  expect(progress(1)).toBe(40)
-  expect(progress(2)).toBe(80)
+  expect(progress(1)).toBeCloseTo(40, 6)
+  expect(progress(2)).toBeCloseTo(80, 6)
 })
 
 test('свои юниты уходят с площадки, и только потом начинается стройка', () => {
@@ -163,14 +170,15 @@ test('строить можно только в радиусе контроля,
   expect(siteAt(sim, site.x, site.y)).toBeDefined()
   expect(sim.world.count(Builds)).toBe(0)
 
-  // Площадки можно закладывать и без строителей: кредиты списываются за каждую.
+  // Площадки можно закладывать и без строителей: каждая обещает свою цену из свободных кредитов.
   for (const y of [site.y - 3, site.y + 3, site.y + 6]) {
     expect(canBuild(sim, 1, 'generator', site.x, y)).toBe(true)
     sim.send(1, { type: 'build', building: 'generator', x: site.x, y, builders: [] })
     sim.advance(TICK)
   }
   expect(sim.world.count(Site)).toBe(4)
-  expect(creditsOf(sim, 1)).toBe(credits - 4 * BUILDINGS.generator.cost)
+  expect(creditsOf(sim, 1)).toBe(credits)
+  expect(freeCredits(sim, 1)).toBe(credits - 4 * BUILDINGS.generator.cost)
 
   // На пятую уже не хватает.
   sim.send(1, { type: 'build', building: 'generator', x: site.x + 3, y: site.y, builders: [] })
@@ -353,8 +361,57 @@ test('стена протяжкой: закладывается по тайла�
     seconds(sim, TICK)
     let sites = 0
     for (const [, site] of sim.world.query(Site)) if (site.type === 'wall') sites++
-    return { sites, left: creditsOf(sim, 1) }
+    return { sites, left: freeCredits(sim, 1) }
   }
   expect(stroke(BUILDINGS.wall.cost * 20)).toEqual({ sites: 9, left: BUILDINGS.wall.cost * 11 })
   expect(stroke(BUILDINGS.wall.cost * 4)).toEqual({ sites: 4, left: 0 })
+})
+
+test('недостроенное здание держит удар по построенному: урон откатывает стройку, отмена возвращает цену того, что стоит', () => {
+  const { sim, builders, site } = start()
+  const credits = creditsOf(sim, 1)
+  sim.send(1, { type: 'build', building: 'generator', x: site.x, y: site.y, builders })
+  const total = siteTicks('generator', TICK)
+  let entity: Entity | undefined
+  for (let i = 0; i < 600; i++) {
+    sim.advance(TICK)
+    entity = sim.occupancy.at(site.x, site.y)
+    if (entity !== undefined && sim.world.get(entity, Site)!.progress >= total / 2) break
+  }
+  const health = () => sim.world.get(entity!, Health)!
+  const share = () => sim.world.get(entity!, Site)!.progress / total
+  // Прочность — доля построенного, списано — та же доля цены (с точностью до дохода главного здания за стройку).
+  expect(health().value / health().max).toBeCloseTo(share(), 2)
+  expect(credits - creditsOf(sim, 1)).toBeGreaterThan(BUILDINGS.generator.cost * share() - 20)
+  expect(credits - creditsOf(sim, 1)).toBeLessThanOrEqual(BUILDINGS.generator.cost * share() + 1)
+
+  // Удар сносит половину построенного: стройка откатывается, строить и платить снова.
+  health().value = (health().max * share()) / 2
+  sim.advance(TICK)
+  expect(share()).toBeLessThan(0.3)
+  const standing = share()
+  const before = creditsOf(sim, 1)
+  sim.send(1, { type: 'cancelBuild', site: entity! })
+  sim.advance(TICK)
+  expect(sim.world.alive(entity!)).toBe(false)
+  const back = creditsOf(sim, 1) - before
+  expect(back).toBeGreaterThan(BUILDINGS.generator.cost * standing - 20)
+  expect(back).toBeLessThan(BUILDINGS.generator.cost * 0.3)
+})
+
+test('без кредитов стройка стоит, а свободных на новую закладку не хватает', () => {
+  const { sim, builders, site } = start()
+  sim.send(1, { type: 'build', building: 'generator', x: site.x, y: site.y, builders })
+  seconds(sim, 8)
+  const entity = sim.occupancy.at(site.x, site.y)!
+  // Деньги ушли на другое: стройка встаёт там, где кончились.
+  for (const [player, data] of sim.world.query(Player)) if (data.id === 1) sim.world.set(player, Player, { credits: 0, earned: 0 })
+  const stuck = sim.world.get(entity, Site)!.progress
+  seconds(sim, 1)
+  expect(sim.world.get(entity, Site)!.progress).toBeLessThan(stuck + 2)
+  expect(freeCredits(sim, 1)).toBeLessThan(0)
+  expect(canBuild(sim, 1, 'generator', site.x, site.y + 4)).toBe(true)
+  sim.send(1, { type: 'build', building: 'generator', x: site.x, y: site.y + 4, builders: [] })
+  sim.advance(TICK)
+  expect(sim.world.count(Site)).toBe(1)
 })

@@ -576,6 +576,7 @@
     "interceptorNoCredits": "Missiles {count} of {capacity}: the next one needs {cost} credits",
     "interceptorNoMaterials": "Missiles {count} of {capacity}: the network is short — needs {materials}",
     "building": "Under construction — {percent}",
+    "buildingBroke": "Stalled at {percent}: construction is paid as it goes, and you have no credits",
     "blocked": "The site is blocked by units",
     "waitsBuilder": "Waiting for a builder",
     "deploying": "Deploying",

@@ -576,6 +576,7 @@
     "interceptorNoCredits": "Ракет {count} з {capacity}: на збирання наступної потрібно {cost} кредитів",
     "interceptorNoMaterials": "Ракет {count} з {capacity}: у мережі бракує — потрібно {materials}",
     "building": "Будується — {percent}",
+    "buildingBroke": "Стоїть на {percent}: будівництво оплачується по ходу, а кредитів немає",
     "blocked": "Місце зайняте юнітами",
     "waitsBuilder": "Чекає будівельника",
     "deploying": "Розгортається",
