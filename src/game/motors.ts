@@ -1,6 +1,7 @@
 import type { Audio } from '../audio/audio'
 import { MOTORS, MOTOR_NAMES, type Motor, type MotorName } from '../audio/motorSynth'
 import type { MotorSound, MotorVoice } from '../audio/motorVoice'
+import type { SoundName } from '../audio/sounds'
 import type { Entity } from '../ecs'
 import { Position, Unit, unitSpec, wrap, type UnitType } from '../sim'
 import { HANDLING, createDrive, driveSound, stepDrive, type Drive, type Handling } from './drive'
@@ -36,6 +37,8 @@ const CROWD_CLARITY = 0.4
 /** Громкость стартера и тормоза против мотора. */
 const START_VOLUME = 0.9
 const BRAKE_VOLUME = 0.7
+/** Чаще этого, в секундах, стартер и тормоз не звучат: колонна по одному приказу заводится не хором. */
+const EVENT_GAP = 0.25
 /** Медленнее этого юнит стоит: тики, где его не сдвинули, — ещё не остановка, если они не дольше STOP_HOLD секунд. */
 const STILL = 0.06
 const STOP_HOLD = 0.3
@@ -83,6 +86,13 @@ export function createMotors(scene: Scene, audio: Audio) {
   const crowds = new Map<MotorName, Crowd>()
   let steps = 0
   let stepsSide = 0
+  let clock = 0
+  const last = new Map<'start' | 'brake', number>()
+  const event = (kind: 'start' | 'brake', name: SoundName, volume: number, side: number) => {
+    if (volume <= 0.01 || clock - (last.get(kind) ?? -Infinity) < EVENT_GAP) return
+    last.set(kind, clock)
+    audio.play(name, volume, side * 0.8)
+  }
 
   const release = (car: Car) => {
     car.voice?.release()
@@ -113,6 +123,7 @@ export function createMotors(scene: Scene, audio: Audio) {
 
   return {
     update(seconds: number) {
+      clock += seconds
       const { world, time } = scene.sim
       const seen = new Set<Entity>()
       const heard: { car: Car; score: number; near: number; side: number; sound: Omit<MotorSound, 'volume' | 'pan' | 'clarity'> }[] = []
@@ -141,10 +152,10 @@ export function createMotors(scene: Scene, audio: Audio) {
         }
         measure(car, position.x, position.y, unit.facing, time.tick, time.step, seconds)
         const motor: Motor = MOTORS[name]
-        const event = stepDrive(car.drive, motor, HANDLINGS[name], car.target, seconds)
+        const happened = stepDrive(car.drive, motor, HANDLINGS[name], car.target, seconds)
         const loudness = LOUDNESS[name] * near
-        if (event === 'start' && motor.start) audio.play(motor.start, loudness * START_VOLUME, side * 0.8)
-        if (event === 'brake') audio.play('airBrake', loudness * BRAKE_VOLUME, side * 0.8)
+        if (happened === 'start' && motor.start) event('start', motor.start, loudness * START_VOLUME, side)
+        if (happened === 'brake') event('brake', 'airBrake', loudness * BRAKE_VOLUME, side)
         // Заглохший слышен ещё секунду: мотор сбегает с оборотов.
         const { drive } = car
         if (near <= 0 || (drive.phase === 'off' && drive.timer > 1)) {

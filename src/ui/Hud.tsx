@@ -1,6 +1,7 @@
 import { complete, quoteName } from '../net/chatCommands'
 import type { ComponentChildren } from 'preact'
 import type { HudState, Stack } from '../game/hud'
+import { GRID_PRESS, type GridPress } from '../game/interfaceSounds'
 import { MINIMAP_SIZE, type Minimap } from '../game/minimap'
 import type { PaveTool } from '../game/scene'
 import { buildingPortrait, pavePortrait, unitPortrait } from '../game/portraits'
@@ -797,7 +798,10 @@ export function Hud({ state, send, place, pave, route, serve, patrol, aim, minim
       if (event.target instanceof HTMLInputElement || event.altKey || event.ctrlKey || event.metaKey || event.repeat) return
       const i = (GRID_KEYS as readonly string[]).indexOf(event.code)
       const slot = i >= 0 ? slotsRef.current[i] : null
-      if (!slot || slot.disabled) return
+      if (!slot) return
+      // Клавиша звучит, как нажатая кнопка: звук интерфейса слушает это событие, см. interfaceSounds.ts.
+      window.dispatchEvent(new CustomEvent<GridPress>(GRID_PRESS, { detail: { disabled: !!slot.disabled, group: slot.group !== undefined } }))
+      if (slot.disabled) return
       event.preventDefault()
       slot.run()
     }

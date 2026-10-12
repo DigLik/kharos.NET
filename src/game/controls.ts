@@ -1,6 +1,7 @@
 import type { Entity } from '../ecs'
 import { type BuildingType, Building, Site, Producer, Hauler, type UnitType, Owner, Position, isOwn, UNITS, Unit, canFight, isStop, siteAt, BUILDINGS, BRIDGE_COST, FOUNDATION_COST, ROAD_COST, Silo, creditsOf } from '../sim'
 import type { CameraMotion } from './cameraMotion'
+import { DENIED } from './interfaceSounds'
 import { paveStrokeOf, placementOf } from './placing'
 import type { Scene } from './scene'
 
@@ -246,7 +247,7 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
       if (placement?.allowed) {
         const { type, x, y } = placement
         scene.sim.send(scene.player, { type: 'build', building: type, x, y, builders: [...scene.selection], queue: event.shiftKey })
-      }
+      } else if (placement) window.dispatchEvent(new Event(DENIED))
     } else if (button === LEFT) {
       const box = scene.selectionBox
       scene.selectionBox = null

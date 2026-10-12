@@ -2,8 +2,8 @@ import { createAmbience, type Ambience, type Mood } from './ambience'
 import { createFlight, type Flight, type Noises } from './flight'
 import { MOTOR_NAMES, RUNNING, RUNNING_NAMES, motorLoop, type MotorName, type RunningName } from './motorSynth'
 import { createMotorVoice, type MotorBuffers, type MotorVoice } from './motorVoice'
-import { ALL_SOUNDS, ALL_SOUND_NAMES, INTERFACE_SOUNDS, WORLD_SOUNDS, type SoundName } from './sounds'
-import { DISTANT_NAMES, DISTANT_SOUNDS, LOOPS, LOOP_NAMES, SOUND_VARIANTS, noiseLoop, reverbImpulse, type DistantName, type LoopName, type NoiseColor } from './synth'
+import { ALL_LOOPS, ALL_LOOP_NAMES, ALL_SOUNDS, ALL_SOUND_NAMES, INTERFACE_SOUNDS, WORLD_SOUND_NAMES, type LoopName, type SoundName } from './sounds'
+import { DISTANT_NAMES, DISTANT_SOUNDS, SOUND_VARIANTS, noiseLoop, reverbImpulse, type DistantName, type NoiseColor } from './synth'
 
 /** Больше звуков разом не звучит: в большом бою остальные пропускаются. */
 const MAX_VOICES = 32
@@ -184,6 +184,19 @@ export function createAudio(): Audio {
     let impulse: AudioBuffer
     const steps = [
       ...ALL_SOUND_NAMES.filter((name) => !INTERFACE_SOUNDS.has(name)).map((name) => () => synthesize(name)),
+      ...ALL_LOOP_NAMES.map((name) => () => {
+        const buffer = toBuffer([ALL_LOOPS[name](rate)])
+        const source = context!.createBufferSource()
+        source.buffer = buffer
+        source.loop = true
+        const gain = context!.createGain()
+        gain.gain.value = 0
+        const panner = context!.createStereoPanner()
+        source.connect(gain).connect(panner).connect(world)
+        // Петли разной длины начинаются вразнобой: так их стыки не совпадают.
+        source.start(0, Math.random() * buffer.duration)
+        loops.set(name, { gain, panner })
+      }),
       ...RUNNING_NAMES.map((name) => () => runnings.set(name, toBuffer([RUNNING[name](rate)]))),
       ...MOTOR_NAMES.map((name) => () => motors.set(name, { idle: toBuffer([motorLoop(rate, name, false)]), load: toBuffer([motorLoop(rate, name, true)]) })),
       ...NOISE_SECONDS.map(([color, seconds]) => () => {
@@ -202,19 +215,6 @@ export function createAudio(): Audio {
       if (steps.length) setTimeout(work)
     }
     setTimeout(work)
-    for (const name of LOOP_NAMES) {
-      const buffer = toBuffer([LOOPS[name](rate)])
-      const source = context.createBufferSource()
-      source.buffer = buffer
-      source.loop = true
-      const gain = context.createGain()
-      gain.gain.value = 0
-      const panner = context.createStereoPanner()
-      source.connect(gain).connect(panner).connect(world)
-      // Петли разной длины начинаются вразнобой: так их стыки не совпадают.
-      source.start(0, Math.random() * buffer.duration)
-      loops.set(name, { gain, panner })
-    }
   }
   const events = ['pointerdown', 'keydown'] as const
   for (const event of events) window.addEventListener(event, start)
@@ -239,7 +239,7 @@ export function createAudio(): Audio {
       gain.gain.value = volume
       const panner = context.createStereoPanner()
       panner.pan.value = Math.max(-1, Math.min(1, pan))
-      source.connect(gain).connect(panner).connect(buses.get(INTERFACE_SOUNDS.has(name) ? 'interface' : WORLD_SOUNDS.has(name) ? 'world' : 'battle')!)
+      source.connect(gain).connect(panner).connect(buses.get(INTERFACE_SOUNDS.has(name) ? 'interface' : WORLD_SOUND_NAMES.has(name) ? 'world' : 'battle')!)
       voices++
       source.onended = () => {
         voices--

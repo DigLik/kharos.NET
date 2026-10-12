@@ -1,7 +1,7 @@
 import type { Audio } from '../audio/audio'
 import type { SoundName } from '../audio/sounds'
 import type { Entity } from '../ecs'
-import { Unit, type Command, type Sim } from '../sim'
+import { Unit, resolveOrder, type Command, type Sim } from '../sim'
 
 /** Громкость звуков интерфейса: тише боя, но слышна поверх него. */
 const VOLUME = 0.35
@@ -23,6 +23,19 @@ const ORDER_SOUNDS: Partial<Record<Command['type'], SoundName>> = {
   build: 'place',
   pave: 'place',
   unpave: 'place',
+  pipes: 'place',
+  walls: 'place',
+  wells: 'place',
+}
+
+/** Событие окна: нажата клавиша сетки команд. Сетка шлёт его, звук слушает — так им не нужно знать друг о друге. */
+export const GRID_PRESS = 'kharos:grid-press'
+/** Событие окна: игрок пытался сделать нельзя — например, строить на запретном месте. */
+export const DENIED = 'kharos:denied'
+export interface GridPress {
+  disabled: boolean
+  /** Клавиша открывает раздел, а не действие. */
+  group: boolean
 }
 
 /**
@@ -48,13 +61,22 @@ export function createInterfaceSounds(sim: Sim, audio: Audio) {
     hovered = cell
     if (cell && !cell.disabled) play('hover', HOVER_VOLUME)
   }
+  const denied = () => play('deny')
+  const key = (event: Event) => {
+    const { disabled, group } = (event as CustomEvent<GridPress>).detail
+    play(disabled ? 'deny' : group ? 'open' : 'click')
+  }
   document.addEventListener('pointerdown', down, true)
   document.addEventListener('pointerover', over)
+  window.addEventListener(GRID_PRESS, key)
+  window.addEventListener(DENIED, denied)
 
   // Приказ звучит, когда уходит хосту: так одинаково для мыши, горячих клавиш и мини-карты.
   const send = sim.send.bind(sim)
+  // Приказ точкой звучит тем, во что он выльется: по врагу — атакой, по стройке — закладкой, иначе — движением.
   sim.send = (player, command) => {
-    const sound = ORDER_SOUNDS[command.type]
+    let sound = ORDER_SOUNDS[command.type]
+    if (command.type === 'order') sound = ORDER_SOUNDS[resolveOrder(sim, player, command.units as Entity[], command, undefined, false)[0]?.type ?? 'move'] ?? 'order'
     if (sound) play(sound)
     return send(player, command)
   }
@@ -76,6 +98,8 @@ export function createInterfaceSounds(sim: Sim, audio: Audio) {
     destroy() {
       document.removeEventListener('pointerdown', down, true)
       document.removeEventListener('pointerover', over)
+      window.removeEventListener(GRID_PRESS, key)
+      window.removeEventListener(DENIED, denied)
       sim.send = send
     },
   }

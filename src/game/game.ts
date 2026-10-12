@@ -22,6 +22,7 @@ import { createFogPass } from './fogPass'
 import { createAlerts } from './alerts'
 import { createMachines } from './machines'
 import { createMotors } from './motors'
+import { createWorldSounds } from './worldSounds'
 import { createInterfaceSounds } from './interfaceSounds'
 import { createShake } from './shake'
 import { createSoundscape } from './soundscape'
@@ -230,6 +231,7 @@ export function createGame(
   const interfaceSounds = audio ? createInterfaceSounds(session.sim, audio) : null
   const machines = audio && createMachines(scene, audio)
   const motors = audio && createMotors(scene, audio)
+  const worldSounds = audio && createWorldSounds(scene, audio)
 
   const saveCamera = () => slot && storeCamera(slot, camera)
   let sinceSave = 0
@@ -345,6 +347,7 @@ export function createGame(
     if (!(session.sim as { editor?: boolean }).editor) scene.alerts?.update(seconds)
     machines?.update(seconds)
     motors?.update(seconds)
+    worldSounds?.update(seconds)
     interfaceSounds?.update(seconds, scene.selection)
     shake.update(seconds)
 

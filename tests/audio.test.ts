@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { ALL_SOUNDS as SOUNDS, ALL_SOUND_NAMES as SOUND_NAMES } from '../src/audio/sounds'
+import { ALL_LOOPS, ALL_LOOP_NAMES, ALL_SOUNDS as SOUNDS, ALL_SOUND_NAMES as SOUND_NAMES } from '../src/audio/sounds'
 import { DISTANT_NAMES, DISTANT_SOUNDS, NOISE_LEVEL, SOUND_VARIANTS, noiseLoop, reverbImpulse } from '../src/audio/synth'
 
 const RATE = 44100
@@ -10,7 +10,7 @@ test('звуки синтезируются: конечные, не тишина
     for (const data of variants) {
       // Щелчки интерфейса — сотые доли секунды; короче — уже не звук, а треск.
       expect(data.length).toBeGreaterThan(RATE * 0.02)
-      expect(data.length).toBeLessThan(RATE * 2)
+      expect(data.length).toBeLessThan(RATE * 7)
       let peak = 0
       let energy = 0
       for (const value of data) {
@@ -87,4 +87,19 @@ test('отклик эха: стерео, разные уши, гаснет к к
   }
   const tenth = Math.floor(left.length / 10)
   expect(energy(left, left.length - tenth, left.length)).toBeLessThan(energy(left, 0, tenth) / 1000)
+})
+
+test('фоновые петли: конечные, не тишина, пик — единица', () => {
+  for (const name of ALL_LOOP_NAMES) {
+    const data = ALL_LOOPS[name](RATE)
+    let peak = 0
+    let energy = 0
+    for (const value of data) {
+      peak = Math.max(peak, Math.abs(value))
+      energy += value * value
+    }
+    expect(Number.isFinite(energy)).toBe(true)
+    expect(peak).toBeCloseTo(1)
+    expect(Math.sqrt(energy / data.length)).toBeGreaterThan(0.02)
+  }
 })
