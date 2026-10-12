@@ -444,7 +444,8 @@
     "abortLaunch": "Start abbrechen",
     "abortLaunchTip": "Die Rakete hebt nicht ab, der Sprengkopf bleibt im Silo",
     "techTree": "Forschung",
-    "techTreeTip": "Technologiebaum öffnen (R)"
+    "techTreeTip": "Technologiebaum öffnen (R)",
+    "armyLimit": "Armeelimit: {used} von {limit} belegt, diese Einheit braucht {supply}"
   },
   "hud": {
     "players": "Spieler",
@@ -597,7 +598,8 @@
     "labNoPower": "Zu wenig Energie: das Labor arbeitet langsamer",
     "labNoCredits": "Zu wenig Credits: das Labor steht",
     "labLacks": "Fehlt im Netz des Labors: {name}",
-    "labSpeed": "Tempo der ausgewählten Labore: ×{speed}"
+    "labSpeed": "Tempo der ausgewählten Labore: ×{speed}",
+    "army": "Armee: {used} von {limit}"
   },
   "research": {
     "science": "Wissenschaftliche Methode",

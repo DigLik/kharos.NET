@@ -444,7 +444,8 @@
     "abortLaunch": "Uchirishni bekor qilish",
     "abortLaunchTip": "Raketa ko‘tarilmaydi, jangovar kallak shaxtada qoladi",
     "techTree": "Tadqiqotlar",
-    "techTreeTip": "Texnologiyalar daraxtini ochish (R)"
+    "techTreeTip": "Texnologiyalar daraxtini ochish (R)",
+    "armyLimit": "Qo‘shin chegarasi: {limit} dan {used} band, bu bo‘linmaga {supply} kerak"
   },
   "hud": {
     "players": "O‘yinchilar",
@@ -597,7 +598,8 @@
     "labNoPower": "Energiya yetishmaydi: laboratoriya sekinroq ishlaydi",
     "labNoCredits": "Kredit yetishmaydi: laboratoriya to‘xtagan",
     "labLacks": "Laboratoriya tarmog‘ida yo‘q: {name}",
-    "labSpeed": "Tanlangan laboratoriyalar tezligi: ×{speed}"
+    "labSpeed": "Tanlangan laboratoriyalar tezligi: ×{speed}",
+    "army": "Qo‘shin: {used}/{limit}"
   },
   "research": {
     "science": "Ilmiy usul",

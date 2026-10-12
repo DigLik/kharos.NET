@@ -95,6 +95,11 @@ export interface Rules {
    * месторождения конечны.
    */
   depositRenewal: number
+  /**
+   * Лимит армии игрока: сколько места (SUPPLY в units.ts) занимают его юниты и заказы в очередях вместе. Заказ сверх
+   * лимита не принимается; ноль — лимита нет. Держит и хост: тысячи юнитов на игрока он не разошлёт.
+   */
+  armyLimit: number
 }
 
 export const DEFAULT_RULES: Rules = {
@@ -119,6 +124,7 @@ export const DEFAULT_RULES: Rules = {
   researchSlow: 1,
   upgradeScale: 1,
   depositRenewal: 15,
+  armyLimit: 200,
 }
 
 export interface SimOptions {

@@ -444,7 +444,8 @@
     "abortLaunch": "Cancelar lanzamiento",
     "abortLaunchTip": "El misil no despega y la ojiva se queda en el silo",
     "techTree": "Investigación",
-    "techTreeTip": "Abrir el árbol tecnológico (R)"
+    "techTreeTip": "Abrir el árbol tecnológico (R)",
+    "armyLimit": "Límite de ejército: ocupado {used} de {limit}, esta unidad necesita {supply}"
   },
   "hud": {
     "players": "Jugadores",
@@ -597,7 +598,8 @@
     "labNoPower": "Falta energía: el laboratorio trabaja más despacio",
     "labNoCredits": "Faltan créditos: el laboratorio se ha detenido",
     "labLacks": "Falta en la red del laboratorio: {name}",
-    "labSpeed": "Velocidad de los laboratorios seleccionados: ×{speed}"
+    "labSpeed": "Velocidad de los laboratorios seleccionados: ×{speed}",
+    "army": "Ejército: {used} de {limit}"
   },
   "research": {
     "science": "Método científico",

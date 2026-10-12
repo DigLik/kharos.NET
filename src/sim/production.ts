@@ -2,7 +2,7 @@ import type { Entity, Time } from '../ecs'
 import { tileKey } from '../map/terrain'
 import { BUILDINGS, buildingSpec, missingBuildings, type BuildingType } from './buildings'
 import { isOwn, ownerOf } from './common'
-import { Building, Converting, Inventory, Position, Producer, Site, Unit } from './components'
+import { Building, Converting, Inventory, Owner, Position, Producer, Site, Unit } from './components'
 import { addCredits, pay, reward } from './economy'
 import { powerSupply } from './income'
 import { put, take } from './inventory'
@@ -10,7 +10,7 @@ import { missingFor } from './logistics'
 import { hasResearch, type Topic } from './topics'
 import { entriesOf } from './resources'
 import type { Sim } from './sim'
-import { UNITS, freeTilesNear, orderGroupMove, spawnUnit, unitSpec, type UnitType } from './units'
+import { SUPPLY, UNITS, freeTilesNear, orderGroupMove, spawnUnit, unitSpec, type UnitType } from './units'
 
 const NOTHING: UnitType[] = []
 
@@ -44,11 +44,24 @@ export const QUEUE_LIMIT = 5
 /** Среди скольких ближайших тайлов ищется свободный выход для готового юнита. */
 const EXIT_CANDIDATES = 24
 
+/** Сколько места в лимите армии занято у игрока: его юниты и заказы во всех его очередях, см. Rules.armyLimit. */
+export function armyOf(sim: Sim, player: number) {
+  let used = 0
+  for (const [, unit, owner] of sim.world.query(Unit, Owner)) if (owner.player === player) used += SUPPLY[unit.type]
+  for (const [, producer, owner] of sim.world.query(Producer, Owner)) {
+    if (owner.player === player) for (const unit of producer.queue) used += SUPPLY[unit]
+  }
+  return used
+}
+
+/** Не влезет ли юнит в лимит армии игрока. */
+export const overLimit = (sim: Sim, player: number, unit: UnitType) => sim.rules.armyLimit > 0 && armyOf(sim, player) + SUPPLY[unit] > sim.rules.armyLimit
+
 /** Сколько тиков строится юнит. */
 export const buildTicks = (unit: UnitType, step: number) => Math.round(UNITS[unit].buildTime / step)
 
 /**
- * Заказывает юнит. Кредиты списываются сразу; материалы (UnitSpec.materials) производитель заказывает у своей
+ * Заказывает юнит, если он влезает в лимит армии (overLimit). Кредиты списываются сразу; материалы (UnitSpec.materials) производитель заказывает у своей
  * зоны, когда заказ дойдёт до начала очереди, и тратит их в начале работы. Возвращает, принят ли заказ.
  */
 export function orderUnit(sim: Sim, player: number, entity: Entity, unit: UnitType) {
@@ -56,7 +69,7 @@ export function orderUnit(sim: Sim, player: number, entity: Entity, unit: UnitTy
   if (!producer || !isOwn(sim, player, entity)) return false
   if (!producibleBy(sim, entity).includes(unit) || producer.queue.length >= QUEUE_LIMIT) return false
   if (missingRequirements(sim, player, unit).length || missingResearch(sim, player, unit)) return false
-  if (!pay(sim, player, UNITS[unit].cost)) return false
+  if (overLimit(sim, player, unit) || !pay(sim, player, UNITS[unit].cost)) return false
   producer.queue.push(unit)
   return true
 }

@@ -444,7 +444,8 @@
     "abortLaunch": "Annuler le lancement",
     "abortLaunchTip": "Le missile ne décolle pas, l’ogive reste dans le silo",
     "techTree": "Recherche",
-    "techTreeTip": "Ouvrir l’arbre technologique (R)"
+    "techTreeTip": "Ouvrir l’arbre technologique (R)",
+    "armyLimit": "Limite d’armée : {used} sur {limit} occupés, cette unité en demande {supply}"
   },
   "hud": {
     "players": "Joueurs",
@@ -597,7 +598,8 @@
     "labNoPower": "Manque d’énergie : le laboratoire travaille plus lentement",
     "labNoCredits": "Manque de crédits : le laboratoire est à l’arrêt",
     "labLacks": "Manque dans le réseau du laboratoire : {name}",
-    "labSpeed": "Vitesse des laboratoires sélectionnés : ×{speed}"
+    "labSpeed": "Vitesse des laboratoires sélectionnés : ×{speed}",
+    "army": "Armée : {used} sur {limit}"
   },
   "research": {
     "science": "Méthode scientifique",

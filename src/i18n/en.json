@@ -444,7 +444,8 @@
     "abortLaunch": "Abort launch",
     "abortLaunchTip": "The missile does not lift off, the warhead stays in the silo",
     "techTree": "Research",
-    "techTreeTip": "Open the tech tree (R)"
+    "techTreeTip": "Open the tech tree (R)",
+    "armyLimit": "Army limit: {used} of {limit} taken, this unit needs {supply}"
   },
   "hud": {
     "players": "Players",
@@ -597,7 +598,8 @@
     "labNoPower": "Not enough power: the laboratory works slower",
     "labNoCredits": "Not enough credits: the laboratory has stopped",
     "labLacks": "Missing in the laboratory network: {name}",
-    "labSpeed": "Speed of the selected laboratories: ×{speed}"
+    "labSpeed": "Speed of the selected laboratories: ×{speed}",
+    "army": "Army: {used} of {limit}"
   },
   "research": {
     "science": "Scientific Method",

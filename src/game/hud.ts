@@ -5,7 +5,7 @@ import { knownReserve } from './knownReserve'
 import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
-  Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
+  armyOf, overLimit, Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
   awaitsMaterials, buildTicks, canDemolish, freeCredits, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   Research, TOPICS, PAVE_RESEARCH, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
@@ -273,8 +273,10 @@ export interface HudState {
     /** Здание, а не MCV: ему можно поставить точку сбора. rally — она, если поставлена. */
     building: boolean
     rally: boolean
-    /** missing — каких зданий не хватает для заказа, research — какого исследования. */
-    options: { unit: UnitType; cost: number; affordable: boolean; materials: Stack[]; missing: BuildingType[]; research: Topic | null }[]
+    /** missing — каких зданий не хватает для заказа, research — какого исследования; capped — не влезает в лимит армии. */
+    options: { unit: UnitType; cost: number; affordable: boolean; materials: Stack[]; missing: BuildingType[]; research: Topic | null; capped: boolean }[]
+    /** Лимит армии: сколько занято юнитами и заказами и сколько всего; null — лимита нет. */
+    army: { used: number; limit: number } | null
   } | null
 }
 
@@ -826,7 +828,9 @@ export function readHud(scene: Scene): HudState {
       materials: exactOf(unitSpec(unit).materials ?? {}),
       missing: missingRequirements(sim, player, unit),
       research: missingResearch(sim, player, unit) ?? null,
+      capped: overLimit(sim, player, unit),
     })),
+    army: sim.rules.armyLimit > 0 ? { used: armyOf(sim, player), limit: sim.rules.armyLimit } : null,
   }
   return state
 }

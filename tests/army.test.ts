@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import type { Entity } from '../src/ecs'
-import { BUILDINGS, Health, Path, Player, Position, Producer, UNIT_TYPES, WEAPONS, canPlace, createSim, isWalkable, missingResearch, unitSpec } from '../src/sim'
+import { BUILDINGS, Health, Path, Player, Position, Producer, SUPPLY, UNIT_TYPES, armyOf, overLimit, WEAPONS, canPlace, createSim, isWalkable, missingResearch, unitSpec } from '../src/sim'
 import { TOWER_RANGE, orderAttack } from '../src/sim/combat'
 import { spawnUnit } from '../src/sim/units'
 import { placeBuilding } from '../src/sim/buildings'
@@ -125,4 +125,30 @@ test('армия доходит по пересечённой местности
   })
   expect(far).toEqual([])
   expect(units.filter((unit) => sim.world.has(unit, Path))).toEqual([])
+})
+
+test('лимит армии: юниты и заказы в очередях занимают место по весу, сверх лимита заказ не принимается', () => {
+  const { sim, buildings } = row(['command', 'generator', 'generator', 'factory', 'barracks'])
+  const [, , , factory, barracks] = buildings
+  sim.rules.armyLimit = 10
+  // Стартовых юнитов нет: занято только то, что поставим. MCV в счёт не идёт.
+  spawnUnit(sim, 'mcv', 1, 0, 0)
+  for (let i = 0; i < 3; i++) spawnUnit(sim, 'infantry', 1, i, 2)
+  expect(armyOf(sim, 1)).toBe(3 * SUPPLY.infantry)
+  // Две багги в очереди — ещё 4: занято 7.
+  sim.send(1, { type: 'produce', producer: factory, unit: 'buggy' })
+  sim.send(1, { type: 'produce', producer: factory, unit: 'buggy' })
+  sim.advance(1 / 20)
+  expect(armyOf(sim, 1)).toBe(7)
+  // Третья багги (2) влезает впритык — 9, а за ней и пехотинец (1) — 10; дальше — ничего.
+  sim.send(1, { type: 'produce', producer: factory, unit: 'buggy' })
+  sim.send(1, { type: 'produce', producer: barracks, unit: 'infantry' })
+  sim.send(1, { type: 'produce', producer: barracks, unit: 'infantry' })
+  sim.advance(1 / 20)
+  expect(sim.world.get(factory, Producer)!.queue).toEqual(['buggy', 'buggy', 'buggy'])
+  expect(sim.world.get(barracks, Producer)!.queue).toEqual(['infantry'])
+  expect(overLimit(sim, 1, 'infantry')).toBe(true)
+  // Ноль — лимита нет.
+  sim.rules.armyLimit = 0
+  expect(overLimit(sim, 1, 'tank')).toBe(false)
 })

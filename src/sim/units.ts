@@ -130,6 +130,30 @@ export const UNITS = {
 
 export type UnitType = keyof typeof UNITS
 export const UNIT_TYPES = Object.keys(UNITS) as UnitType[]
+
+/**
+ * Сколько места юнит занимает в лимите армии (Rules.armyLimit): пехота и рабочие — по одному, лёгкая техника — два,
+ * тяжёлая и ударная авиация — три, носитель — четыре. MCV не в счёт: базу поднять заново можно всегда.
+ */
+export const SUPPLY: Record<UnitType, number> = {
+  mcv: 0,
+  builder: 1,
+  infantry: 1,
+  truck: 1,
+  flamer: 1,
+  rocketeer: 1,
+  buggy: 2,
+  flak: 2,
+  lancer: 2,
+  tank: 3,
+  artillery: 3,
+  tesla: 3,
+  carrier: 4,
+  airTruck: 2,
+  drone: 2,
+  gunship: 3,
+  bomber: 3,
+}
 /** Описание вида юнита со всеми необязательными полями. */
 export const unitSpec = (type: UnitType): UnitSpec => UNITS[type]
 

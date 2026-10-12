@@ -1,7 +1,7 @@
 import type { HudState, Stack } from '../game/hud'
 import type { PaveIcon } from '../game/portraits'
 import type { PaveTool } from '../game/scene'
-import { BRIDGE_COST, BUILDINGS, UNDERGROUND_REACH, BUILDING_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, TRANSFER_CAPACITY, WARES, type Amounts, type Stance, type BuildingType, type Command, type Good, type Resource } from '../sim'
+import { BRIDGE_COST, BUILDINGS, SUPPLY, UNDERGROUND_REACH, BUILDING_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, TRANSFER_CAPACITY, WARES, type Amounts, type Stance, type BuildingType, type Command, type Good, type Resource } from '../sim'
 import { t } from '../i18n'
 
 /** Клавиши ячеек сетки команд по порядку: три ряда по четыре, как на клавиатуре, справа от WASD. */
@@ -283,16 +283,18 @@ export function commandsOf(
   // Страницы торговли закрывают собой заказ техники и разбор.
   if (production && page === 'root') {
     list(
-      production.options.map(({ unit, cost, affordable, materials, missing, research }) => ({
+      production.options.map(({ unit, cost, affordable, materials, missing, research, capped }) => ({
         label: t(`units.${unit}`),
         unit,
         cost,
         materials,
-        disabled: !affordable || production.full || missing.length > 0 || !!research,
+        disabled: !affordable || production.full || missing.length > 0 || !!research || capped,
         title: missing.length
           ? t('grid.needs', { list: missing.map((type) => t(`buildings.${type}`)).join(', ') })
           : research ? t('grid.needsResearch', { name: t(`research.${research}`) })
-          : production.full ? t('grid.queueFull') : affordable ? undefined : t('grid.noCredits'),
+          : production.full ? t('grid.queueFull')
+          : capped && production.army ? t('grid.armyLimit', { used: production.army.used, limit: production.army.limit, supply: SUPPLY[unit] })
+          : affordable ? undefined : t('grid.noCredits'),
         run: () => send({ type: 'produce', producer: production.producer, unit }),
       })),
     )
