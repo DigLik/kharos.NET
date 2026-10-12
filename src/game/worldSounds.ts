@@ -2,8 +2,8 @@ import type { Audio } from '../audio/audio'
 import type { LoopName, SoundName } from '../audio/sounds'
 import type { Entity } from '../ecs'
 import {
-  Accumulator, BUILDINGS, Beam, Building, Converting, Drop, Glare, Mark, Missile, Owner, Pave, Player, Position, Producer, Reactor, Shield, Silo, Site, Turret, Unit,
-  activeRepairs, buildingSpec, isBurning, powerStates, wrap,
+  Accumulator, BUILDINGS, Batch, Beam, Building, Converting, Deposit, Doomed, Drop, Glare, Hauler, Health, Mark, Missile, Off, Owner, Pave, Player, Position, Producer, Reactor,
+  Shield, Silo, Site, Trade, Transfer, Turret, Unit, activeRepairs, buildingSpec, isBurning, isDefeated, powerStates, protectionLeft, wrap,
 } from '../sim'
 import { Gate, Scan } from '../sim/components'
 import { nearness, sideOf } from './hearing'
@@ -16,7 +16,7 @@ const PERIOD = 0.1
 const HEARING = 0.6
 /** Громкость петель при «полном» звучании. */
 const LEVELS: Partial<Record<LoopName, number>> = {
-  overload: 0.4, construct: 0.28, weld: 0.16, tractor: 0.1, servo: 0.12, reactor: 0.3, dome: 0.06, hydraulic: 0.3, steam: 0.4, rocket: 0.6, charge: 0.05,
+  flow: 0.12, overload: 0.4, construct: 0.28, weld: 0.16, tractor: 0.1, servo: 0.12, reactor: 0.3, dome: 0.06, hydraulic: 0.3, steam: 0.4, rocket: 0.6, charge: 0.05,
 }
 /** Сколько вблизи звучащих набирают полную громкость петли: 1 − e^(−сумма/SATURATE). */
 const SATURATE = 2
@@ -24,12 +24,16 @@ const SATURATE = 2
 const VOLUMES: Partial<Record<SoundName, number>> = {
   doorsLocked: 0.7, liftoff: 1.1, nukeBlast: 1.6, shieldHit: 0.35, shieldDown: 0.6, shieldUp: 0.35, gate: 0.45, built: 0.5, collapse: 0.45,
   deploy: 0.5, rollout: 0.45, crates: 0.35, paved: 0.25, radar: 0.1,
+  shipLaunch: 0.8, shipLand: 0.8, depleted: 0.4, powerOn: 0.35, powerOff: 0.35, cargo: 0.3, surrender: 0.6,
 }
+/** Подобранный груз и снятое покрытие тише: это не событие, а уборка. */
+const QUIET = 0.5
 /** Уведомления слышны, где бы ни была камера. */
 const NOTICE_VOLUME = 0.4
 /** Чаще этого, в секундах, один звук не повторяется: ворота закрываются всей стеной, дороги ложатся пачкой. */
 const MIN_GAP: Partial<Record<SoundName, number>> = {
   gate: 0.15, paved: 0.2, crates: 0.15, shieldHit: 0.08, built: 0.2, rollout: 0.3, radar: 15, brownout: 10, countdown: 0.5, unitReady: 0.5, researched: 1, upgraded: 0.5,
+  gift: 1, surrender: 5, powerOn: 0.15, powerOff: 0.15, cargo: 0.2, chat: 0.15, chatSystem: 0.15, coins: 0.3, delivered: 0.5,
 }
 /** Строящееся работает, пока его прогресс менялся не раньше этого, в секундах: стройка без материалов молчит. */
 const WORK_HOLD = 0.6
@@ -63,8 +67,11 @@ interface SiteMemory {
  * варит, луч грузовика гудит, башни жужжат, купол щита поёт, накопитель свистит, шахта в пуске воет гидравликой,
  * парит и ревёт двигателем, ракета ревёт в полёте. Разовые — по сверке с прошлым кадром: створки встали, ракета
  * стартовала, ядерный взрыв, щит принял удар, пробит, поднялся, ворота, достроено, разобрано, MCV разворачивается,
- * машина выехала из завода, упал груз, легло покрытие, импульс радара. И уведомления игроку: машина готова, изучено,
- * улучшено, боеголовка готова, награда, сеть перегружена, отсчёт до удара.
+ * машина выехала из завода, упал или подобран груз, легло или снято покрытие, импульс радара, корабль космопорта
+ * взлетел или сел, рубильник здания, кузов полон или пуст, месторождение выработано, станция сгорела от перегруза,
+ * капитуляция. Трубы журчат там, докуда дотёк груз. И уведомления игроку: машина готова, изучено, улучшено,
+ * боеголовка готова, награда, деньги за продажу, груз доставлен, подарок, сеть перегружена, защита новичка кончилась,
+ * отсчёт до удара, поражение, сообщение в чате.
  */
 export function createWorldSounds(scene: Scene, audio: Audio) {
   let since = PERIOD
@@ -80,14 +87,28 @@ export function createWorldSounds(scene: Scene, audio: Audio) {
   let shields = new Map<Entity, { hit: number; up: boolean }>()
   let gates = new Map<Entity, boolean>()
   let sites = new Map<Entity, SiteMemory>()
-  let converting = new Set<Entity>()
-  let units = new Set<Entity>()
-  let drops = new Set<Entity>()
+    let units = new Set<Entity>()
   let paves = new Map<Entity, boolean>()
   let scans = new Map<Entity, number>()
   let levels = new Map<Entity, number>()
   let glares = new Set<Entity>()
   let research = -1
+  let trades = new Map<Entity, { buy: boolean; flying: boolean; at: { x: number; y: number } }>()
+  let transfers = new Map<Entity, { x: number; y: number; to: number }>()
+  let owners = new Map<Entity, number>()
+  let doomed = 0
+  let spent = new Map<Entity, boolean>()
+  let switched = new Map<Entity, boolean>()
+  let loads = new Map<Entity, boolean>()
+  let crates = new Map<Entity, { x: number; y: number }>()
+  let removing = new Map<Entity, { x: number; y: number }>()
+  let packing = new Map<Entity, { x: number; y: number }>()
+  let burning = new Map<Entity, { x: number; y: number; health: number }>()
+  let sheltered = false
+  let states: ReturnType<typeof powerStates> = new Map()
+  let statesTick = -1
+  let lines = -1
+  let lost = false
   let rewards = -1
   let overloaded = false
   let countdown = Infinity
@@ -98,16 +119,16 @@ export function createWorldSounds(scene: Scene, audio: Audio) {
     sum.set(name, (sum.get(name) ?? 0) + near)
     side.set(name, (side.get(name) ?? 0) + near * sideOf(scene, x))
   }
-  const play = (name: SoundName, x: number, y: number, reach = HEARING) => {
-    const level = (VOLUMES[name] ?? 0.4) * nearness(scene, x, y, reach)
+  const play = (name: SoundName, x: number, y: number, reach = HEARING, volume = 1) => {
+    const level = (VOLUMES[name] ?? 0.4) * volume * nearness(scene, x, y, reach)
     if (level <= 0.01 || clock - (last.get(name) ?? -Infinity) < (MIN_GAP[name] ?? 0)) return
     last.set(name, clock)
     audio.play(name, level, sideOf(scene, x) * 0.8)
   }
-  const notice = (name: SoundName) => {
+  const notice = (name: SoundName, volume = NOTICE_VOLUME) => {
     if (clock - (last.get(name) ?? -Infinity) < (MIN_GAP[name] ?? 0)) return
     last.set(name, clock)
-    audio.play(name, NOTICE_VOLUME, 0)
+    audio.play(name, volume, 0)
   }
   const centerOf = (entity: Entity) => {
     const { world } = scene.sim
@@ -204,25 +225,24 @@ export function createWorldSounds(scene: Scene, audio: Audio) {
       }
       sites = nextSites
 
-      // MCV разворачивается или сворачивается.
-      const nextConverting = new Set<Entity>()
-      for (const [entity] of world.query(Converting)) {
-        nextConverting.add(entity)
-        if (!fresh && !converting.has(entity) && world.has(entity, Position)) {
-          const { x, y } = centerOf(entity)
-          play('deploy', x, y)
-        }
+      // MCV разворачивается или сворачивается; кончил — новое на месте старого, и встаёт с лязгом.
+      const nextPacking = new Map<Entity, { x: number; y: number }>()
+      for (const [entity] of world.query(Converting, Position)) {
+        const at = centerOf(entity)
+        nextPacking.set(entity, at)
+        if (!fresh && !packing.has(entity)) play('deploy', at.x, at.y)
       }
+      if (!fresh) for (const [entity, at] of packing) if (!world.has(entity, Position)) play('built', at.x, at.y)
       // Сворачивание кончается тем, что здание пропадает, а машина появляется: смотреть надо на прошлый кадр.
-      const packing = converting.size > 0
-      converting = nextConverting
+      const unpacked = packing.size > 0
+      packing = nextPacking
 
       // Новая своя машина у своего завода — выехала из него.
       const nextUnits = new Set<Entity>()
       for (const [entity, unit, position] of world.query(Unit, Position)) {
         nextUnits.add(entity)
         // Свёрнутое главное здание — тоже новая машина, но не из завода.
-        if (fresh || units.has(entity) || !own(entity) || (unit.type === 'mcv' && packing)) continue
+        if (fresh || units.has(entity) || !own(entity) || (unit.type === 'mcv' && unpacked)) continue
         let best: { x: number; y: number } | null = null
         let bestDistance = 5
         for (const [factory, , , , owner] of world.query(Producer, Building, Position, Owner)) {
@@ -241,19 +261,154 @@ export function createWorldSounds(scene: Scene, audio: Audio) {
       }
       units = nextUnits
 
-      const nextDrops = new Set<Entity>()
+      // Груз: упал — удар ящиков; подобрали — тише.
+      const nextCrates = new Map<Entity, { x: number; y: number }>()
       for (const [entity, , position] of world.query(Drop, Position)) {
-        nextDrops.add(entity)
-        if (!fresh && !drops.has(entity)) play('crates', position.x, position.y)
+        nextCrates.set(entity, { x: position.x, y: position.y })
+        if (!fresh && !crates.has(entity)) play('crates', position.x, position.y)
       }
-      drops = nextDrops
+      if (!fresh) for (const [entity, at] of crates) if (!nextCrates.has(entity)) play('crates', at.x, at.y, HEARING, QUIET)
+      crates = nextCrates
 
+      // Покрытие: легло — шлепок; сняли — тише.
       const nextPaves = new Map<Entity, boolean>()
+      const nextRemoving = new Map<Entity, { x: number; y: number }>()
       for (const [entity, pave, position] of world.query(Pave, Position)) {
         nextPaves.set(entity, pave.done)
+        if (pave.remove) nextRemoving.set(entity, { x: position.x + 0.5, y: position.y + 0.5 })
         if (!fresh && pave.done && paves.get(entity) === false) play('paved', position.x + 0.5, position.y + 0.5)
       }
+      if (!fresh) for (const [entity, at] of removing) if (!nextPaves.has(entity)) play('paved', at.x, at.y, HEARING, QUIET)
       paves = nextPaves
+      removing = nextRemoving
+
+      // Корабль космопорта: продажа улетает и приносит деньги, покупка садится с грузом.
+      const nextTrades = new Map<Entity, { buy: boolean; flying: boolean; at: { x: number; y: number } }>()
+      for (const [entity, trade] of world.query(Trade, Position)) {
+        const flying = trade.buy || trade.total > 0
+        const at = centerOf(entity)
+        nextTrades.set(entity, { buy: trade.buy, flying, at })
+        const before = trades.get(entity)
+        if (!fresh && flying && !trade.buy && !before?.flying) play('shipLaunch', at.x, at.y)
+      }
+      if (!fresh) {
+        for (const [entity, before] of trades) {
+          if (nextTrades.has(entity) || !before.flying) continue
+          if (before.buy) {
+            play('shipLand', before.at.x, before.at.y)
+            notice('delivered')
+          } else notice('coins')
+        }
+      }
+      trades = nextTrades
+
+      // Корабль с подарком союзнику: взлетает из порта, садится у его главного здания.
+      const nextTransfers = new Map<Entity, { x: number; y: number; to: number }>()
+      for (const [entity, transfer] of world.query(Transfer, Position)) {
+        nextTransfers.set(entity, { x: transfer.x, y: transfer.y, to: transfer.to })
+        if (!fresh && !transfers.has(entity)) {
+          const at = centerOf(entity)
+          play('shipLaunch', at.x, at.y)
+        }
+      }
+      if (!fresh) {
+        for (const [entity, before] of transfers) {
+          if (nextTransfers.has(entity)) continue
+          play('shipLand', before.x, before.y)
+          if (before.to === player) notice('gift')
+        }
+      }
+      transfers = nextTransfers
+
+      // Чужое стало своим: подарили юниты или здания.
+      const nextOwners = new Map<Entity, number>()
+      let given = false
+      for (const [entity, owner] of world.query(Owner)) {
+        nextOwners.set(entity, owner.player)
+        const before = owners.get(entity)
+        if (before !== undefined && before !== owner.player && owner.player === player) given = true
+      }
+      if (!fresh && given) notice('gift')
+      owners = nextOwners
+
+      // Капитуляция: база гибнет волной.
+      let doom = 0
+      let doomAt: { x: number; y: number } | null = null
+      let ownDoom = false
+      for (const [entity, , position] of world.query(Doomed, Position)) {
+        doom++
+        doomAt ??= position
+        if (own(entity)) ownDoom = true
+      }
+      if (!fresh && doom && !doomed) {
+        if (ownDoom) notice('surrender', NOTICE_VOLUME * 1.5)
+        else if (doomAt) play('surrender', doomAt.x, doomAt.y, HEARING * 3)
+      }
+      doomed = doom
+
+      // Месторождение выработано.
+      const nextSpent = new Map<Entity, boolean>()
+      for (const [entity, deposit, position] of world.query(Deposit, Position)) {
+        nextSpent.set(entity, deposit.spent)
+        if (!fresh && deposit.spent && spent.get(entity) === false) play('depleted', position.x, position.y)
+      }
+      spent = nextSpent
+
+      // Рубильник: здание выключили или включили.
+      const nextSwitched = new Map<Entity, boolean>()
+      for (const [entity] of world.query(Building, Position)) {
+        const off = world.has(entity, Off)
+        nextSwitched.set(entity, off)
+        const before = switched.get(entity)
+        if (fresh || before === undefined || before === off) continue
+        const { x, y } = centerOf(entity)
+        play(off ? 'powerOff' : 'powerOn', x, y)
+      }
+      switched = nextSwitched
+
+      // Свой грузовик загрузился доверху или опустел.
+      const nextLoads = new Map<Entity, boolean>()
+      for (const [entity, hauler, position] of world.query(Hauler, Position)) {
+        nextLoads.set(entity, hauler.full)
+        const before = loads.get(entity)
+        if (!fresh && before !== undefined && before !== hauler.full) play('cargo', position.x, position.y)
+      }
+      loads = nextLoads
+
+      // Станция сгорела от перегруза: пропала без взрыва, с прочностью на нуле.
+      // Состояние сетей меняется только с тиком: считать его каждый кадр незачем.
+      if (time.tick !== statesTick) {
+        statesTick = time.tick
+        states = powerStates(sim)
+      }
+      const nextBurning = new Map<Entity, { x: number; y: number; health: number }>()
+      for (const [entity, state] of states) {
+        const health = world.get(entity, Health)
+        if (state === 'overload' && health && world.has(entity, Position)) nextBurning.set(entity, { ...centerOf(entity), health: health.value / health.max })
+      }
+      if (!fresh) for (const [entity, before] of burning) if (!world.has(entity, Position) && before.health < 0.05) play('collapse', before.x, before.y)
+      burning = nextBurning
+
+      // Своя защита новичка кончилась.
+      const shelter = protectionLeft(sim, player) > 0
+      if (!fresh && sheltered && !shelter) notice('protectionOver')
+      sheltered = shelter
+
+      // Поражение.
+      const defeated = time.tick > 0 && isDefeated(sim, player)
+      if (!fresh && defeated && !lost) notice('defeat', NOTICE_VOLUME * 1.5)
+      lost = defeated
+
+      // Чат: новое сообщение от других — звонок, от сервера — ниже.
+      const chat = (sim as { chat?: readonly { player: number; system?: boolean }[] }).chat
+      if (chat) {
+        if (!fresh && lines >= 0 && chat.length > lines) {
+          const fresher = chat.slice(lines - chat.length).filter((line) => line.system || line.player !== player)
+          if (fresher.some((line) => !line.system)) notice('chat')
+          else if (fresher.length) notice('chatSystem')
+        }
+        lines = chat.length
+      }
 
       const nextScans = new Map<Entity, number>()
       for (const [entity, scan] of world.query(Scan)) {
@@ -292,7 +447,7 @@ export function createWorldSounds(scene: Scene, audio: Audio) {
 
       // Перегруз: трещат перегруженные станции; своя сеть только что перегрузилась — сигнал.
       let overload = false
-      for (const [entity, state] of powerStates(sim)) {
+      for (const [entity, state] of states) {
         if (state !== 'overload' || !world.has(entity, Position)) continue
         const { x, y } = centerOf(entity)
         add('overload', x, y)
@@ -334,6 +489,19 @@ export function createWorldSounds(scene: Scene, audio: Audio) {
         if (share < DOORS) add('hydraulic', x, y)
         if (share >= STEAM) add('steam', x, y, (share - STEAM) / (1 - STEAM))
         if (share >= RISE) add('rocket', x, y, ((share - RISE) / (1 - RISE)) ** 2)
+      }
+      for (const [entity] of world.query(Converting, Position)) {
+        const { x, y } = centerOf(entity)
+        add('hydraulic', x, y, 0.6)
+      }
+      // Трубы: груз в пути звучит там, докуда дотёк.
+      for (const [, batch] of world.query(Batch)) {
+        const share = (time.tick + time.alpha - batch.sent) / Math.max(1, batch.arrive - batch.sent)
+        if (share < 0 || share > 1) continue
+        const points = batch.path.filter((node) => world.has(node as Entity, Position)).map((node) => centerOf(node as Entity))
+        if (!points.length) continue
+        const at = points[Math.min(points.length - 1, Math.floor(share * points.length))]
+        add('flow', at.x, at.y)
       }
       for (const [, missile] of world.query(Missile)) {
         const at = missileAt(missile, time.tick + time.alpha, time.step)

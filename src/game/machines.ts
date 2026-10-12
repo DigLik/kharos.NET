@@ -1,7 +1,7 @@
 import type { Audio } from '../audio/audio'
 import type { LoopName } from '../audio/sounds'
 import type { Entity } from '../ecs'
-import { Assembly, Building, Inventory, Owner, Position, Producer, Reactor, Site, amountOf, buildingSpec, isBurning } from '../sim'
+import { Assembly, Building, Inventory, Owner, Position, Producer, Reactor, Silo, Site, amountOf, buildingSpec, isBurning } from '../sim'
 import { nearness, sideOf } from './hearing'
 import type { Scene } from './scene'
 
@@ -68,7 +68,9 @@ export function createMachines(scene: Scene, audio: Audio) {
         if (spec.extract && inventory && busy(entity, Object.values(inventory.items).reduce((total, amount) => total + (amount ?? 0), 0))) add('drill', x, y)
         const assembly = world.get(entity, Assembly)
         const producer = world.get(entity, Producer)
-        const work = assembly ? assembly.progress : spec.refines && inventory ? amountOf(inventory, spec.refines) : producer?.queue.length ? producer.progress : undefined
+        const silo = world.get(entity, Silo)
+        // Шахта собирает боеголовку — тоже цех.
+        const work = silo ? silo.progress : assembly ? assembly.progress : spec.refines && inventory ? amountOf(inventory, spec.refines) : producer?.queue.length ? producer.progress : undefined
         if (work !== undefined && busy(entity, work)) add('machinery', x, y)
       }
       for (const entity of activity.keys()) if (!world.has(entity, Building)) activity.delete(entity)

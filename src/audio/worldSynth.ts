@@ -332,6 +332,170 @@ function beep(rate: number, variant: number) {
   })
 }
 
+
+/**
+ * Шаг: удар подошвы — короткий глухой толчок — и шорох того, по чему ступили. grit — сколько хруста камешков,
+ * soft — насколько глухо (песок, грязь), hard — звонкий щелчок по бетону, wet — чавканье болота.
+ */
+function step(rate: number, variant: number, surface: { grit: number; soft: number; hard: number; wet: number }) {
+  const next = random(variant + 3001)
+  const thud = lowpass(rate, 160 + next() * 60)
+  const scuff = bandpass(rate, surface.soft ? 900 : 2200 + next() * 800, 1.2)
+  const click = bandpass(rate, 3200 + next() * 600, 5)
+  const slurp = bandpass(rate, 500, 3)
+  const length = surface.soft ? 0.2 : 0.12
+  return render(rate, length, variant, (t, noise) => {
+    const n = noise()
+    const crunch = next() < 0.06 * decay(t, 0.03) ? 1 : 0
+    return (
+      thud(n) * decay(t, 0.015) * 2.5 +
+      scuff(n) * attack(t, 0.004) * decay(t, surface.soft ? 0.06 : 0.025) * (0.5 + surface.soft) +
+      click(n) * decay(t, 0.004) * surface.hard * 2 +
+      click(crunch) * surface.grit * 3 +
+      slurp(n) * Math.sin(Math.PI * Math.min(1, t / length)) * surface.wet * 1.5
+    )
+  })
+}
+
+/** Лазер попал: шипение прожжённого металла — шум, который тает, с тонким звоном. */
+function sizzle(rate: number, variant: number) {
+  const hiss = highpass(rate, 3500)
+  let phase = variant
+  return render(rate, 0.35, variant, (t, noise) => {
+    phase += (2 * Math.PI * 2600) / rate
+    return hiss(noise()) * attack(t, 0.005) * decay(t, 0.1) * 1.2 + Math.sin(phase) * decay(t, 0.05) * 0.2
+  })
+}
+
+/** Огонь лизнул цель: потрескивание горящего — щелчки поверх тихого гула пламени. */
+function burn(rate: number, variant: number) {
+  const next = random(variant + 3101)
+  const roar = lowpass(rate, 500)
+  const pop = bandpass(rate, 1800, 2)
+  return render(rate, 0.5, variant, (t, noise) => {
+    const n = noise()
+    const crack = next() < 0.004 ? 1 : 0
+    return roar(n) * decay(t, 0.2) * 1.4 + pop(crack) * 4 * decay(t, 0.3)
+  })
+}
+
+/** Разряд ударил в цель: сухой щелчок и треск. */
+function zap(rate: number, variant: number) {
+  const snap = highpass(rate, 2000)
+  const body = bandpass(rate, 700, 2)
+  return render(rate, 0.18, variant, (t, noise) => {
+    const n = noise()
+    return snap(n) * decay(t, 0.008) * 1.5 + body(n) * decay(t, 0.03) * (0.6 + 0.4 * Math.sign(Math.sin(2 * Math.PI * 90 * t)))
+  })
+}
+
+/** Корабль космопорта взлетает: прогрев, рёв двигателей нарастает и уходит вверх, светлея и стихая. */
+function shipLaunch(rate: number, variant: number) {
+  let t = 0
+  const roar = lowpass(rate, () => 300 + 2500 * Math.min(1, t / 1.2))
+  const deep = lowpass(rate, 90)
+  let phase = 0
+  return render(rate, 3.5, variant, (time, noise) => {
+    t = time
+    const n = noise()
+    phase += (2 * Math.PI * (300 + 900 * Math.min(1, time / 1.5))) / rate
+    const swell = attack(time, 1) * decay(Math.max(0, time - 1.3), 0.9)
+    return (roar(n) * 2 + deep(n) * 2.5 + Math.sin(phase) * 0.12) * swell
+  })
+}
+
+/** Корабль садится: рёв спускается сверху и тяжелеет, касание — глухой удар, шипит сброс давления. */
+function shipLand(rate: number, variant: number) {
+  let t = 0
+  const roar = lowpass(rate, () => 2500 - 2100 * Math.min(1, t / 2))
+  const deep = lowpass(rate, 90)
+  const hiss = highpass(rate, 2500)
+  const touch = lowpass(rate, 150)
+  return render(rate, 3.5, variant, (time, noise) => {
+    t = time
+    const n = noise()
+    const engine = (roar(n) * 2 + deep(n) * 2) * attack(time, 0.8) * (time < 2.2 ? 1 : decay(time - 2.2, 0.15))
+    const thump = time > 2.2 ? touch(n) * decay(time - 2.2, 0.08) * 6 : touch(0)
+    const vent = time > 2.4 ? hiss(n) * attack(time - 2.4, 0.03) * decay(time - 2.4, 0.35) * 0.8 : 0
+    return engine + thump + vent
+  })
+}
+
+/** Деньги пришли: звон монет — несколько ярких металлических ударов вразнобой. */
+function coins(rate: number, variant: number) {
+  const next = random(variant + 3201)
+  const hits = Array.from({ length: 5 }, (_, i) => ({ at: i * 0.05 + next() * 0.03, ring: metal(2400 + next() * 900, 0.08, variant * 10 + i) }))
+  return render(rate, 0.6, variant, (t) => {
+    let output = 0
+    for (const hit of hits) if (t >= hit.at) output += hit.ring(t - hit.at)
+    return output
+  })
+}
+
+/** Подарок: звонкий восходящий перебор. */
+function gift(rate: number, variant: number) {
+  return chime(rate, variant, [523, 659, 784, 1047, 1319], 0.06, 0.3)
+}
+
+/** Поражение: тяжёлый низкий аккорд, который сползает вниз и гаснет. */
+function defeat(rate: number, variant: number) {
+  const notes = [110, 130.8, 164.8]
+  return render(rate, 4, variant, (t) => {
+    const slide = (1 - 0.06 * Math.min(1, t / 3)) * (1 + variant * 0.006)
+    let output = 0
+    for (const note of notes) {
+      const f = note * slide
+      output += (Math.sin(2 * Math.PI * f * t) + Math.sin(2 * Math.PI * f * 2 * t) * 0.3 + Math.sin(2 * Math.PI * f * 3 * t) * 0.12) / notes.length
+    }
+    return output * attack(t, 0.15) * decay(t, 1.4)
+  })
+}
+
+/** Капитуляция: долгий низкий гудок сирены — база гибнет волной. */
+function surrender(rate: number, variant: number) {
+  let phase = 0
+  return render(rate, 3, variant, (t) => {
+    phase += (2 * Math.PI * (150 + 40 * Math.sin(Math.PI * Math.min(1, t / 3))) * (1 + variant * 0.01)) / rate
+    return (Math.sin(phase) + Math.sign(Math.sin(phase)) * 0.2 + Math.sin(phase * 1.5) * 0.3) * attack(t, 0.3) * Math.min(1, (3 - t) / 0.6)
+  })
+}
+
+/** Месторождение выработано: бур сбегает с оборотов и глохнет, два низких тона. */
+function depleted(rate: number, variant: number) {
+  const grit = lowpass(rate, 900)
+  let phase = 0
+  return render(rate, 1.4, variant, (t, noise) => {
+    phase += (2 * Math.PI * 95 * decay(t, 0.5)) / rate
+    const drill = ((((phase / (2 * Math.PI)) % 1) * 2 - 1) * 0.4 + grit(noise())) * decay(t, 0.35)
+    const tones = (t > 0.5 ? Math.sin(2 * Math.PI * 330 * t) * decay(t - 0.5, 0.15) : 0) + (t > 0.75 ? Math.sin(2 * Math.PI * 247 * t) * decay(t - 0.75, 0.25) : 0)
+    return drill + tones * 0.5
+  })
+}
+
+/** Рубильник: щелчок и гул, который уходит вниз (выключили) или поднимается (включили). */
+function power(rate: number, variant: number, on: boolean) {
+  const click = bandpass(rate, 1500, 3)
+  let phase = 0
+  return render(rate, 0.8, variant, (t, noise) => {
+    const sweep = on ? Math.min(1, t / 0.5) : 1 - Math.min(1, t / 0.6)
+    phase += (2 * Math.PI * (40 + 80 * sweep)) / rate
+    const hum = (Math.sin(phase) + Math.sin(phase * 2) * 0.4) * (on ? attack(t, 0.1) * Math.min(1, (0.8 - t) / 0.3) : decay(t, 0.3))
+    return click(noise()) * decay(t, 0.006) * 4 + hum * 0.6
+  })
+}
+
+/** Кузов полон или пуст: глухой удар груза о металл. */
+function cargo(rate: number, variant: number) {
+  const thud = lowpass(rate, 220)
+  const ring = metal(260 + variant * 20, 0.12, variant + 3301)
+  return render(rate, 0.4, variant, (t, noise) => thud(noise()) * decay(t, 0.03) * 3 + ring(t) * 0.35)
+}
+
+/** Звонок чата: мягкий короткий тон; системное сообщение — ниже. */
+function chat(rate: number, variant: number, note: number) {
+  return chime(rate, variant, [note], 0.05, 0.12)
+}
+
 export const WORLD_SOUNDS = {
   flame,
   flak,
@@ -361,6 +525,28 @@ export const WORLD_SOUNDS = {
   upgraded: (rate: number, variant: number) => chime(rate, variant, [587, 880], 0.1, 0.3),
   warheadReady: (rate: number, variant: number) => chime(rate, variant, [440, 415, 440], 0.16, 0.4),
   reward: (rate: number, variant: number) => chime(rate, variant, [784, 988, 1175], 0.07, 0.3),
+  delivered: (rate: number, variant: number) => chime(rate, variant, [659, 784, 659], 0.08, 0.25),
+  protectionOver: (rate: number, variant: number) => chime(rate, variant, [880, 659, 523], 0.14, 0.3),
+  /** Шаги: по скале — хрустят камешки, по песку — шуршат, по болоту — чавкают, по бетону — стучат. */
+  step: (rate: number, variant: number) => step(rate, variant, { grit: 1, soft: 0, hard: 0.2, wet: 0 }),
+  stepSand: (rate: number, variant: number) => step(rate, variant, { grit: 0.2, soft: 1, hard: 0, wet: 0 }),
+  stepMud: (rate: number, variant: number) => step(rate, variant, { grit: 0, soft: 0.6, hard: 0, wet: 1 }),
+  stepHard: (rate: number, variant: number) => step(rate, variant, { grit: 0.3, soft: 0, hard: 1, wet: 0 }),
+  sizzle,
+  burn,
+  zap,
+  shipLaunch,
+  shipLand,
+  coins,
+  gift,
+  defeat,
+  surrender,
+  depleted,
+  powerOn: (rate: number, variant: number) => power(rate, variant, true),
+  powerOff: (rate: number, variant: number) => power(rate, variant, false),
+  cargo,
+  chat: (rate: number, variant: number) => chat(rate, variant, 1175),
+  chatSystem: (rate: number, variant: number) => chat(rate, variant, 784),
 } satisfies Record<string, (rate: number, variant: number) => Float32Array>
 
 /** Перегрузка электростанции: треск дуг — шум, рвущийся на вспышки, — поверх надсадного гудения сети с перегрузом. */
@@ -484,5 +670,22 @@ function charge(rate: number) {
   return loop(rate, 2, (t) => Math.sin(2 * Math.PI * 3200 * t) * 0.3 + Math.sin(2 * Math.PI * 1600 * t) * 0.3 * (0.6 + 0.4 * Math.sin(2 * Math.PI * 2 * t)))
 }
 
+/** Трубы: груз течёт — глухое журчание и шорох в металле. */
+function flow(rate: number) {
+  const gurgle = bandpass(rate, 350, 4)
+  const rush = lowpass(rate, 700)
+  const swirl = random(2401)
+  let level = 0.5
+  let until = 0
+  return loop(rate, 3, (t, noise) => {
+    if (t >= until) {
+      level = 0.3 + swirl() * 0.7
+      until = t + 0.03 + swirl() * 0.08
+    }
+    const n = noise()
+    return gurgle(n) * level * 2 + rush(n) * 0.8
+  })
+}
+
 /** Петли мира: громкость каждой задаёт worldSounds.ts в game. */
-export const WORLD_LOOPS = { overload, construct, weld, tractor, servo, reactor, dome, hydraulic, steam, rocket, charge } satisfies Record<string, (rate: number) => Float32Array>
+export const WORLD_LOOPS = { overload, construct, weld, tractor, servo, reactor, dome, hydraulic, steam, rocket, charge, flow } satisfies Record<string, (rate: number) => Float32Array>

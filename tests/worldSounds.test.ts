@@ -5,7 +5,7 @@ import { Camera } from '../src/game/camera'
 import type { Scene } from '../src/game/scene'
 import { createWorldSounds } from '../src/game/worldSounds'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Building, Glare, Position, Shield, Site, createSim } from '../src/sim'
+import { Building, Glare, Off, Owner, Position, Shield, Site, Trade, createSim } from '../src/sim'
 import { Gate } from '../src/sim/components'
 import { placeBuilding } from '../src/sim/buildings'
 
@@ -64,4 +64,18 @@ test('ядерный взрыв слышен, вспыхнув', () => {
   sim.world.spawn(Position({ x: 3, y: 3 }), Glare({ radius: 12, until: 1000 }))
   update()
   expect(played).toEqual(['nukeBlast'])
+})
+
+test('рубильник, корабль с покупкой, подарок', () => {
+  const { sim, played, update } = setup()
+  const port = placeBuilding(sim.world, 'spaceport', 3, 3, 1)
+  const factory = placeBuilding(sim.world, 'generator', -3, 3, 2)
+  update()
+  sim.world.add(port, Off())
+  sim.world.add(port, Trade({ resource: 'metal', wanted: 10, left: 10, total: 10, buy: true }))
+  update()
+  sim.world.remove(port, Trade)
+  sim.world.get(factory, Owner)!.player = 1
+  update()
+  expect(played).toEqual(['powerOff', 'shipLand', 'delivered', 'gift'])
 })

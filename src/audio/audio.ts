@@ -31,7 +31,7 @@ export interface Audio {
   loop(name: LoopName, volume: number, pan: number): void
   /**
    * Свой голос мотора для машины, которую слышно отдельно: running — чем звучит её ход, squeal — скрипит ли она
-   * разворотом. null — звук ещё не готов: тогда машину слышно в общей петле.
+   * разворотом: гусеницы — скрежетом траков, колёса — визгом шин. null — звук ещё не готов: тогда машину слышно в общей петле.
    */
   motor(name: MotorName, running: RunningName | null, squeal: boolean): MotorVoice | null
   /** Раз в кадр: ветер полёта камеры, speed — от 0 (стоит) до 1 (несётся во весь опор). */
@@ -258,7 +258,7 @@ export function createAudio(): Audio {
     motor(name, running, squeal) {
       const buffers = motors.get(name)
       if (!context || context.state !== 'running' || !buffers || (running && !runnings.has(running))) return null
-      return createMotorVoice(context, buses.get('world')!, buffers, running ? runnings.get(running)! : null, squeal ? (runnings.get('squeal') ?? null) : null)
+      return createMotorVoice(context, buses.get('world')!, buffers, running ? runnings.get(running)! : null, squeal ? (runnings.get(running === 'clatter' ? 'squeal' : 'screech') ?? null) : null)
     },
     flight(seconds, speed) {
       if (context?.state === 'running') flight?.update(seconds, speed)

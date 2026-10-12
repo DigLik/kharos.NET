@@ -258,6 +258,20 @@ function squeal(rate: number) {
   })
 }
 
+/** Визг шин в крутом повороте: тон резины, дрожащий от проскальзывания, и шорох. */
+function screech(rate: number) {
+  const tire = bandpass(rate, 1150, 12)
+  const second = bandpass(rate, 2300, 16)
+  const slip = wanderer(1501)
+  let phase = 0
+  return loop(rate, LOOP_SECONDS, (t, noise) => {
+    const n = noise()
+    const wobble = 1 + 0.03 * Math.sin(2 * Math.PI * 7 * t) + 0.02 * (slip(t * 15) - 0.5)
+    phase += (2 * Math.PI * 1150 * wobble) / rate
+    return Math.sin(phase) * (0.3 + 0.2 * slip(t * 6)) + tire(n) * 1.5 + second(n) * 0.8
+  })
+}
+
 /** Плавное число от 0 до 1, которое бродит: за единицу аргумента — шаг к новому случайному значению. */
 function wanderer(seed: number) {
   const value = (step: number) => random(seed * 7919 + step + 1)()
@@ -270,7 +284,7 @@ function wanderer(seed: number) {
 }
 
 /** Петли хода: что звучит под мотором. */
-export const RUNNING = { clatter, roll, squeal } satisfies Record<string, (rate: number) => Float32Array>
+export const RUNNING = { clatter, roll, squeal, screech } satisfies Record<string, (rate: number) => Float32Array>
 export type RunningName = keyof typeof RUNNING
 export const RUNNING_NAMES = Object.keys(RUNNING) as RunningName[]
 

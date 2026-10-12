@@ -58,6 +58,9 @@ const STILL = 0.06
 const BRAKE_FROM = 0.35
 /** За сколько секунд винты летающего раскручиваются со взлёта. */
 const SPOOL = 2.5
+/** Шины визжат, когда машина поворачивает быстрее этой доли своего предела и едет быстрее этой доли скорости. */
+const SCREECH_TURN = 0.5
+const SCREECH_SPEED = 0.5
 /** Как быстро обороты и газ догоняют нужные, в секундах. */
 const RPM_LAG = 0.12
 const THROTTLE_LAG = 0.08
@@ -154,7 +157,10 @@ export function driveSound(drive: Drive, motor: Motor, turn: number): Omit<Motor
     level: running ? (air ? 0.4 + 0.6 * drive.spool : 0.55 + 0.45 * drive.throttle) : 0,
     running: Math.min(1, drive.speed * 1.2),
     runningRate: drive.speed,
-    // Гусеницы скрипят, когда машина вертится почти на месте.
-    squeal: motor.running === 'clatter' && running ? Math.min(1, turn) * Math.max(0, 1 - drive.speed * 3) : 0,
+    // Гусеницы скрипят, когда машина вертится почти на месте; шины визжат в крутом повороте на ходу.
+    squeal: !running ? 0
+      : motor.running === 'clatter' ? Math.min(1, turn) * Math.max(0, 1 - drive.speed * 3)
+      : motor.running === 'roll' ? Math.max(0, Math.min(1, (turn - SCREECH_TURN) / (1 - SCREECH_TURN))) * Math.max(0, drive.speed - SCREECH_SPEED) / (1 - SCREECH_SPEED)
+      : 0,
   }
 }

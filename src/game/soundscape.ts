@@ -20,6 +20,12 @@ const SHOT_SOUNDS: Record<WeaponType, { name: SoundName; volume: number }> = {
   flak: { name: 'flak', volume: 0.45 },
   coreGun: { name: 'laser', volume: 0.6 },
 }
+/**
+ * Лучевое оружие бьёт сразу и без взрыва: попадание звучит само, в точке цели — лазер прожигает, огонь потрескивает,
+ * разряд щёлкает.
+ */
+const HIT_SOUNDS: Partial<Record<WeaponType, SoundName>> = { laser: 'sizzle', coreGun: 'sizzle', flame: 'burn', arc: 'zap' }
+const BEAM_HIT_VOLUME = 0.3
 /** Взрывы: меньше SMALL_BLAST — попадание пули, оно щёлкает тихо; от BIG_BLAST — гибель техники или здания. */
 const SMALL_BLAST = 0.3
 const HIT_VOLUME = 0.12
@@ -45,7 +51,7 @@ const SHAKE_REACH_PER_SIZE = 8
 /** Чаще этого, в секундах, один и тот же звук не повторяется: сотня винтовок звучит как одна очередь, а не как гул. */
 const MIN_GAP: Partial<Record<SoundName, number>> = {
   rifle: 0.04, machinegun: 0.035, cannon: 0.08, launcher: 0.06, laser: 0.06, arc: 0.08, blast: 0.05, bigBlast: 0.1,
-  flame: 0.12, flak: 0.06, artillery: 0.1, bombFall: 0.15, ricochet: 0.05, wreck: 0.1, collapse: 0.2,
+  flame: 0.12, flak: 0.06, artillery: 0.1, bombFall: 0.15, ricochet: 0.05, wreck: 0.1, collapse: 0.2, sizzle: 0.06, burn: 0.15, zap: 0.05,
 }
 /** За краем экрана звук стихает на этом расстоянии, в долях полуширины экрана. */
 const HEARING = 0.8
@@ -100,6 +106,8 @@ export function createSoundscape(scene: Scene, audio: Audio, shake: ReturnType<t
         if (age !== undefined && shot.age >= age) continue
         const sound = SHOT_SOUNDS[shot.weapon]
         play(sound.name, sound.volume, shot.fromX, shot.fromY)
+        const hit = HIT_SOUNDS[shot.weapon]
+        if (hit && !shot.blocked) play(hit, BEAM_HIT_VOLUME, shot.toX, shot.toY)
         if (shot.weapon === 'cannon') jolt(CANNON_SHAKE_SIZE, shot.fromX, shot.fromY)
       }
       shots = nextShots

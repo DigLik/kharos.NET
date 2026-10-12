@@ -16,9 +16,11 @@ export const ALL_LOOP_NAMES = Object.keys(ALL_LOOPS) as LoopName[]
 export const INTERFACE_SOUNDS = new Set<SoundName>([
   'click', 'hover', 'open', 'deny', 'select', 'selectBuilding', 'place', 'order', 'attackOrder', 'attacked', 'spotted', 'found', 'nuke',
   'unitReady', 'researched', 'upgraded', 'warheadReady', 'reward', 'countdown', 'brownout',
+  'delivered', 'protectionOver', 'coins', 'gift', 'defeat', 'surrender', 'chat', 'chatSystem',
 ])
 /** Звуки мира: работа техники и зданий. Остальные разовые звуки — бой. */
 export const WORLD_SOUND_NAMES = new Set<SoundName>([
   ...(Object.keys(MOTOR_SOUNDS) as SoundName[]),
   'doorsLocked', 'liftoff', 'gate', 'built', 'deploy', 'rollout', 'crates', 'paved', 'radar', 'shieldDown', 'shieldUp',
+  'step', 'stepSand', 'stepMud', 'stepHard', 'shipLaunch', 'shipLand', 'depleted', 'powerOn', 'powerOff', 'cargo',
 ])
