@@ -1,5 +1,5 @@
 import type { Component, Entity, World } from '../ecs'
-import { Accumulator, Armed, Assembly, Attached, Blast, Builds, Burst, Drop, Hauler, Health, Inventory, Mark, Missile, Owner, Path, Position, Producer, Reactor, Repair, Scan, Shot, Silo, SAVED, Tactics, Trade, Turret, Unit } from '../sim/components'
+import { Accumulator, Armed, Assembly, Attached, Blast, Builds, Burst, Chaser, Drop, Hauler, Health, Interceptor, Inventory, Mark, Missile, Owner, Path, Position, Producer, Reactor, Repair, Scan, Shot, Silo, SAVED, Tactics, Trade, Turret, Unit } from '../sim/components'
 import { quantize, type Motion } from './codec'
 
 /** До скольких знаков после запятой округляются дробные числа в сети: тысячная тайла глазу не видна. */
@@ -35,7 +35,7 @@ function wire(component: Component<any>, data: any, tick: number): object | unde
     const { prevX: _x, prevY: _y, age, ...rest } = data
     return { ...rest, born: tick - age }
   }
-  if (component === Blast) return { size: data.size, life: data.life, born: tick - data.age }
+  if (component === Blast) return { size: data.size, life: data.life, lift: data.lift, born: tick - data.age }
   // Сколько горит стержень, тает каждый тик; клиенту хватает знать, горит ли он.
   if (component === Reactor) return { left: data.left > 0 ? 1 : 0 }
   // Где ракета сейчас, клиент считает сам по старту и тику: иначе она уходила бы каждый тик. Куда она летит, знает
@@ -61,9 +61,9 @@ export interface Wired {
 
 /**
  * Что о своём знает только хозяин: склад, очередь производства, работа грузовиков, копателей и строителей, сборка,
- * торговля, тактика, куда смотрит радар. Чужому это незачем рисовать, а знать — нечестно.
+ * торговля, тактика, куда смотрит радар, заряжен ли перехватчик. Чужому это незачем рисовать, а знать — нечестно.
  */
-const PRIVATE = new Set([Inventory, Producer, Hauler, Assembly, Trade, Tactics, Builds, Repair, Scan, Accumulator, Reactor].map((component) => component.key))
+const PRIVATE = new Set([Inventory, Producer, Hauler, Assembly, Trade, Tactics, Builds, Repair, Scan, Accumulator, Reactor, Interceptor].map((component) => component.key))
 
 /**
  * Сущность глазами игрока viewer: своё и ничьё — целиком, чужое — без PRIVATE и без цели стрелка; у чужой шахты —
@@ -108,7 +108,7 @@ export function sharedWireOf(world: World, entity: Entity, tick: number): Wired 
     const shown = wire(component, data, tick)
     if (shown !== undefined) parts.set(component.key, JSON.stringify(shown, round))
   }
-  const owner = world.get(entity, Owner)?.player ?? world.get(entity, Missile)?.player
+  const owner = world.get(entity, Owner)?.player ?? world.get(entity, Missile)?.player ?? world.get(entity, Chaser)?.player
   return { parts, owner, drop: world.has(entity, Drop), motion: motionOf(world, entity) }
 }
 

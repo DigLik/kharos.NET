@@ -187,7 +187,7 @@ export function createMinimap(scene: Scene) {
       for (const alert of scene.alerts?.current() ?? []) {
         if (alert.age > ALERT_SECONDS) continue
         const pulse = (alert.age * 2) % 1
-        context.strokeStyle = alert.kind === 'attacked' || alert.kind === 'nuke' ? FOE : alert.kind === 'found' ? '#8fe0a8' : '#ffd27a'
+        context.strokeStyle = alert.kind === 'attacked' || alert.kind === 'nuke' ? FOE : alert.kind === 'found' || alert.kind === 'intercepted' ? '#8fe0a8' : '#ffd27a'
         context.globalAlpha = 1 - pulse
         context.lineWidth = 2
         context.beginPath()

@@ -5,7 +5,7 @@ import { Pixmap } from '../../render/pixmap'
 import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'
 import type { Entity } from '../../ecs'
-import { Assembly, BUILDINGS, BUILDING_TYPES, Building, Inventory, Owner, Position, Reactor, Research, Silo, Site, amountOf, buildingSpec, isBurning, isOpenGate, isPipe, siteTicks, type BuildingType } from '../../sim'
+import { Assembly, BUILDINGS, BUILDING_TYPES, Building, Interceptor, Inventory, Owner, Position, Reactor, Research, Silo, Site, amountOf, buildingSpec, isBurning, isOpenGate, isPipe, siteTicks, type BuildingType } from '../../sim'
 import { placementOf } from '../placing'
 import type { Scene } from '../scene'
 import { ART_FRAMES, ART_TILE, BUILDING_ART, GATE_OPEN_VARIANT, SILO_DOOR_STEPS, SILO_RISE_STEPS, WALL_CONNECTION, type BuildingArt } from './buildingArt'
@@ -155,6 +155,8 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene): P
       }
       const wallVariant = (position: { x: number; y: number }, type: BuildingType, entity?: Entity) => {
         if (type === 'silo') return entity === undefined ? 0 : siloVariant(entity)
+        // Перехватчик: сколько труб пакета заряжено. Чужой — всегда пустым: это знает хозяин.
+        if (type === 'interceptor') return entity === undefined ? 0 : (world.get(entity, Interceptor)?.missiles ?? 0)
 
         if (isPipe(type)) {
           let variant = 0
@@ -197,9 +199,10 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene): P
       for (const [entity, position, building] of world.query(Position, Building)) {
         const site = world.get(entity, Site)
         // Реактор работает, пока горит стержень: это видно сразу, без догадок по складу. Шахта — пока в ней готовая
-        // боеголовка, лаборатория — пока ведёт тему: это она сообщает сама.
-        let working = !site && ((world.has(entity, Reactor) && isBurning(scene.sim, entity)) || world.get(entity, Silo)?.ready === true || (world.get(entity, Research)?.speed ?? 0) > 0)
-        const value = !site && !working && BUILDING_ART[building.type].working ? workOf(entity, building.type) : undefined
+        // боеголовка, перехватчик — пока в нём есть ракета (у чужого не видно), лаборатория — пока ведёт тему: это они
+        // сообщают сами.
+        let working = !site && ((world.has(entity, Reactor) && isBurning(scene.sim, entity)) || world.get(entity, Silo)?.ready === true || (world.get(entity, Interceptor)?.missiles ?? 0) > 0 || (world.get(entity, Research)?.speed ?? 0) > 0)
+        const value = !site && !working && BUILDING_ART[building.type].working && building.type !== 'interceptor' ? workOf(entity, building.type) : undefined
         if (value !== undefined) {
           const state = activity.get(entity) ?? { value, until: 0 }
           if (Math.abs(value - state.value) > 1e-9) state.until = time + WORK_HOLD

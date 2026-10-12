@@ -2,7 +2,7 @@ import type { Entity, World } from '../ecs'
 import { tileKey } from '../map/terrain'
 import { alliesIn } from './allies'
 import { BUILDINGS, buildingSpec } from './buildings'
-import { Attached, Batch, Building, Glare, Mark, Missile, Off, Owner, Player, Position, Scan, Shot, Site, Unit } from './components'
+import { Attached, Batch, Building, Chaser, Glare, Mark, Missile, Off, Owner, Player, Position, Scan, Shot, Site, Unit } from './components'
 import type { Sim } from './sim'
 import type { Bounds } from './sim'
 import { TURRETS } from './turrets'
@@ -346,6 +346,12 @@ export function sightingOf(world: World, entity: Entity): Sighting {
   // Ракета летит над всем без места на карте: видна там, где она сейчас.
   const missile = world.get(entity, Missile)
   if (missile) return { rule: SEEN, owner: missile.player, x: Math.floor(missile.x), y: Math.floor(missile.y), width: 1, height: 1 }
+  // Ракета-перехватчик видна, где видно её старт, встречу или середину пути: летит она секунду-другую.
+  const chaser = world.get(entity, Chaser)
+  if (chaser) {
+    const points = [chaser.fromX, chaser.fromY, chaser.toX, chaser.toY, (chaser.fromX + chaser.toX) / 2, (chaser.fromY + chaser.toY) / 2]
+    return { rule: SEEN, owner: chaser.player, x: 0, y: 0, width: 0, height: 0, points }
+  }
   if (!world.has(entity, Position)) return TO_EVERYONE
   // Турель видна там же и тем же, что её носитель.
   const parent = world.get(entity, Attached)?.parent

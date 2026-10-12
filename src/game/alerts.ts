@@ -1,6 +1,7 @@
 import type { Audio } from '../audio/audio'
 import type { Entity } from '../ecs'
-import { Building, Health, Mark, Owner, Position, Shot, Unit, alliesIn, buildingSpec } from '../sim'
+import { Building, Chaser, Health, Mark, Missile, Owner, Position, Shot, Unit, alliesIn, buildingSpec } from '../sim'
+import { missileAt } from './missiles'
 import { tileKey } from '../map/terrain'
 import { DEPOSIT_SIZE } from '../sim/deposits'
 import type { Scene } from './scene'
@@ -19,13 +20,15 @@ const MAX_ALERTS = 4
  */
 const HIT_REACH = 3
 const HIT_MEMORY = 1.5
+/** Своя ракета пропала дальше этого, в тайлах, от точки удара — значит, сбита, а не долетела. */
+const DOWNED_REACH = 2
 /** Громкость сигналов: они слышны всегда, где бы ни была камера. */
 const VOLUME = 0.7
 
-export type AlertKind = 'attacked' | 'spotted' | 'found' | 'nuke'
+export type AlertKind = 'attacked' | 'spotted' | 'found' | 'nuke' | 'intercepted'
 
 /** Что сказать об уведомлении: ключ строки в разделе hud.alerts словаря. */
-export type AlertText = 'spotted' | 'baseAttacked' | 'unitsAttacked' | 'oreFound' | 'nukeLaunched' | 'nukeIncoming'
+export type AlertText = 'spotted' | 'baseAttacked' | 'unitsAttacked' | 'oreFound' | 'nukeLaunched' | 'nukeIncoming' | 'nukeIntercepted' | 'nukeDowned'
 
 export interface Alert {
   kind: AlertKind
@@ -44,8 +47,9 @@ export interface Alert {
  * в копии мира — это враги в виду. Об атаке предупреждают раз: снова — когда враги пропали из виду и напали опять.
  * О замеченном — не чаще SPOTTED_GAP. Игрок узнал о новом месторождении — разведал его юнитом или радаром — «найдено
  * месторождение», не чаще FOUND_GAP. Чужая метка ядерного удара — «ядерный пуск» (место пуска, видно с радаром)
- * или «ядерный удар» (точка удара, видна тем, чьё под ней), каждая один раз. Каждое уведомление — строка в ленте,
- * сигнал и метка на мини-карте.
+ * или «ядерный удар» (точка удара, видна тем, чьё под ней), каждая один раз. Свой или союзный перехватчик выпустил
+ * ракету — «ракета перехвачена»; своя ядерная пропала, не долетев, — «нашу ракету сбили». Каждое уведомление — строка
+ * в ленте, сигнал и метка на мини-карте.
  */
 export function createAlerts(scene: Scene, audio: Audio | null) {
   let clock = 0
@@ -62,6 +66,10 @@ export function createAlerts(scene: Scene, audio: Audio | null) {
   let foundAt = -Infinity
   /** Метки ядерного удара, о которых уже сказали. */
   let nukes = new Set<Entity>()
+  let chasers = new Set<Entity>()
+  /** Свои ядерные ракеты в полёте: где были в прошлый кадр и куда летят. */
+  let flights = new Map<Entity, { x: number; y: number; toX: number; toY: number }>()
+  let flightsOf: unknown
 
   const raise = (kind: AlertKind, text: AlertText, x: number, y: number) => {
     alerts.push({ kind, text, x, y, at: clock })
@@ -102,6 +110,28 @@ export function createAlerts(scene: Scene, audio: Audio | null) {
         raise('nuke', mark.kind === 'launch' ? 'nukeLaunched' : 'nukeIncoming', position.x, position.y)
       }
       nukes = nextNukes
+
+      const nextChasers = new Set<Entity>()
+      for (const [entity, chaser] of world.query(Chaser)) {
+        nextChasers.add(entity)
+        if (!chasers.has(entity) && (chaser.player === player || allies.includes(chaser.player))) raise('intercepted', 'nukeIntercepted', chaser.toX, chaser.toY)
+      }
+      chasers = nextChasers
+      const { time } = scene.sim
+      // Другой мир — перезаход или новая партия: пропавшие ракеты прежнего не сбиты.
+      if (flightsOf !== scene.sim) flights.clear()
+      flightsOf = scene.sim
+      const nextFlights = new Map<Entity, { x: number; y: number; toX: number; toY: number }>()
+      for (const [entity, missile] of world.query(Missile)) {
+        if (missile.blind) continue
+        const { x, y } = missileAt(missile, time.tick + time.alpha, time.step)
+        nextFlights.set(entity, { x, y, toX: missile.toX, toY: missile.toY })
+      }
+      // Своя ракета пропала далеко от точки удара: её сбили. Долетевшая пропадает в самой точке.
+      for (const [entity, flight] of flights) {
+        if (!nextFlights.has(entity) && Math.hypot(flight.toX - flight.x, flight.toY - flight.y) > DOWNED_REACH) raise('nuke', 'nukeDowned', flight.x, flight.y)
+      }
+      flights = nextFlights
       if (spotted !== undefined && clock - spottedAt >= SPOTTED_GAP) {
         spottedAt = clock
         const { x, y } = world.get(spotted, Position)!

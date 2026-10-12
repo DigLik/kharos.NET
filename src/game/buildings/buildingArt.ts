@@ -1736,8 +1736,59 @@ const silo: BuildingArt = {
   },
 }
 
+/**
+ * Перехватчик, 2×2: бетонная плита, на поворотном станке — пакет из четырёх пусковых труб, нацеленный в небо; слева —
+ * будка с плоской антенной наведения. Вариант — сколько ракет готово: в торцах заряженных труб виден красный нос,
+ * пустые темны. working — есть хоть одна: лампа зелёная, у пустого — жёлтая и мигает.
+ */
+const interceptor: BuildingArt = {
+  ...BUILDINGS.interceptor,
+  variants: BUILDINGS.interceptor.intercept.capacity + 1,
+  working: true,
+  draw(g, t, light, variant = 0, working = false) {
+    const CONCRETE: Tones = [0x4f4c47, 0x77736b, 0x9d988e, 0xbfb9ae, 0xe0dbd1]
+    slab(g, 0, 2, 32, 30, 3, CONCRETE)
+    for (let x = 2; x < 30; x += 4) {
+      g.rect(x, 27, 2, 1, HAZARD[1])
+      g.rect(x + 2, 27, 2, 1, HAZARD[0])
+    }
+    // Будка наведения и антенна над ней: плоская решётка под наклоном, по ней бежит огонёк.
+    slab(g, 2, 13, 10, 12, 3, IRON)
+    windows(g, [4], 17)
+    g.rect(3, 5, 9, 8, INK)
+    g.rect(4, 6, 7, 6, STEEL[1])
+    for (let x = 5; x < 11; x += 2) for (let y = 7; y < 12; y += 2) g.rect(x, y, 1, 1, STEEL[3])
+    bulb(g, light, 4 + Math.round(chase(t, 0) * 5), 6, chase(t, 0))
+    // Станок и пакет труб: смотрит вверх и вправо.
+    tower(g, 21, 21, 5, 2, IRON)
+    const [fromX, fromY, toX, toY] = [18, 22, 25, 9]
+    g.line(fromX, fromY, toX, toY, 11, INK)
+    g.line(fromX, fromY, toX, toY, 9, STEEL[1])
+    g.line(fromX - 2.5, fromY, toX - 2.5, toY, 2, STEEL[3])
+    g.line(fromX + 3, fromY + 0.5, toX + 3, toY + 0.5, 1.5, STEEL[0])
+    // Торцы труб — квадратом два на два; заряженные — с носом ракеты, первыми тратятся верхние.
+    g.rect(toX - 5, toY - 5, 10, 10, INK)
+    g.rect(toX - 4, toY - 4, 8, 8, STEEL[2])
+    g.rect(toX - 4, toY - 4, 8, 1, STEEL[3])
+    const ports = [[toX - 2, toY - 2], [toX + 2, toY - 2], [toX - 2, toY + 2], [toX + 2, toY + 2]] as const
+    ports.forEach(([x, y], i) => {
+      const loaded = i >= ports.length - variant
+      g.circle(x, y, 1.9, loaded ? IRON[3] : DARK)
+      if (loaded) {
+        g.circle(x, y, 1.2, FIRE[1])
+        g.rect(Math.floor(x) - 1, Math.floor(y) - 1, 1, 1, FIRE[3])
+      }
+    })
+    const ready = working ? 0x5fe08a : 0xe0b84a
+    g.rect(14, 22, 3, 3, INK)
+    g.rect(15, 23, 1, 1, ready)
+    light(15.5, 23.5, 1.5, working ? 0.6 : 0.2 + 0.3 * pulse(t * 2))
+  },
+}
+
 export const BUILDING_ART = {
   silo,
+  interceptor,
   rodPlant,
   rodRack,
   reactor,

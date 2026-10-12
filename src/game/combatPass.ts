@@ -6,8 +6,8 @@ import { createLineProgram, createLines } from '../render/lines'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Beam, Blast, Building, Ghost, Health, Mark, Missile, Position, Shield, Shot, Silo, UNITS, Unit, WEAPONS, activeRepairs, buildingSpec, flies, type RepairLink, type WeaponSpec } from '../sim'
-import { missileAt } from './missiles'
+import { BUILDINGS, Beam, Blast, Building, Chaser, Ghost, Health, Mark, Missile, Position, Shield, Shot, Silo, UNITS, Unit, WEAPONS, activeRepairs, buildingSpec, flies, type RepairLink, type WeaponSpec } from '../sim'
+import { chaserAt, missileAt } from './missiles'
 import { GOOD_COLORS } from './resourceColors'
 import type { Scene } from './scene'
 import type { TeamColors } from './units/unitArt'
@@ -56,6 +56,8 @@ const MUZZLE_TICKS = 1
 /** Ядерная ракета: длина корпуса в тайлах и через сколько тайлов пути она оставляет клуб дыма. */
 const MISSILE_BODY = 0.9
 const MISSILE_SMOKE_STEP = 0.35
+/** Длина корпуса ракеты-перехватчика в тайлах. */
+const CHASER_BODY = 0.5
 /** Пар из ствола шахты в пуске: с какой доли срока он идёт и сколько клубов в секунду в самом конце. */
 const STEAM_FROM = 0.45
 const STEAM_RATE = 40
@@ -397,6 +399,28 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene): { 
         last.y += (y - last.y) * share
       }
     }
+    // Ракета-перехватчик: тонкий белый след от станка до встречи.
+    for (const [entity, chaser] of world.query(Chaser)) {
+      alive.add(entity)
+      const { x, y, lift } = chaserAt(chaser, clock)
+      const last = trails.get(entity)
+      if (!last) {
+        trails.set(entity, { x, y: y - lift })
+        for (let i = 0; i < 8; i++) puff(chaser.fromX + spread(1), chaser.fromY + spread(1), 0.6 + Math.random() * 0.4, 1.5, 0.9, 0.7, spread(1.5), spread(1.5))
+        continue
+      }
+      const distance = Math.hypot(x - last.x, y - lift - last.y)
+      const count = Math.min(24, Math.floor(distance / MISSILE_SMOKE_STEP))
+      for (let i = 1; i <= count; i++) {
+        const share = (i * MISSILE_SMOKE_STEP) / distance
+        puff(last.x + (x - last.x) * share + spread(0.05), last.y + (y - lift - last.y) * share + spread(0.05), 0.3, 1.5, 0.95, 0.6, spread(0.2), spread(0.2))
+      }
+      if (count) {
+        const share = (count * MISSILE_SMOKE_STEP) / distance
+        last.x += (x - last.x) * share
+        last.y += (y - lift - last.y) * share
+      }
+    }
     // Шахта в пуске парит из открытого ствола, и чем ближе старт, тем гуще.
     const launchTicks = Math.round(BUILDINGS.silo.warhead.launch / time.step)
     for (const [, silo, building, position] of world.query(Silo, Building, Position)) {
@@ -417,7 +441,7 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene): { 
       // После взрыва остаётся тёмный дым: чем больше взрыв, тем его больше и тем дольше он висит.
       const count = Math.round(3 + blast.size * 4)
       for (let i = 0; i < count; i++) {
-        puff(position.x + spread(blast.size), position.y + spread(blast.size), blast.size * (0.5 + Math.random() * 0.4), 1.4 + blast.size, 0.3, 0.75, spread(0.5), spread(0.5))
+        puff(position.x + spread(blast.size), position.y - blast.lift + spread(blast.size), blast.size * (0.5 + Math.random() * 0.4), 1.4 + blast.size, 0.3, 0.75, spread(0.5), spread(0.5))
       }
     }
     for (const [entity, shot, position] of world.query(Shot, Position)) {
@@ -564,7 +588,7 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene): { 
         for (const [, blast, position] of world.query(Blast, Position)) {
           const left = 1 - ageOf(blast, time.alpha)
           const reach = blast.size * 16
-          lights.add(position.x, position.y, reach * BLAST_LIGHT * left, reach * (BLAST_LIGHT / 2) * left, left)
+          lights.add(position.x, position.y - blast.lift, reach * BLAST_LIGHT * left, reach * (BLAST_LIGHT / 2) * left, left)
         }
         for (const [, shot, position] of world.query(Shot, Position)) {
           const weapon: WeaponSpec = WEAPONS[shot.weapon]
@@ -581,6 +605,10 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene): { 
         for (const [, missile] of world.query(Missile)) {
           const { x, y, lift } = missileAt(missile, time.tick + time.alpha, time.step)
           lights.add(x, y - lift, 18, 8, 0.9)
+        }
+        for (const [, chaser] of world.query(Chaser)) {
+          const { x, y, lift } = chaserAt(chaser, time.tick + time.alpha)
+          lights.add(x, y - lift, 12, 5, 0.8)
         }
 
         repairs = activeRepairs(scene.sim)
@@ -660,13 +688,14 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene): { 
 
         for (const [, blast, position] of world.query(Blast, Position)) {
           if (!visible(position.x, position.y)) continue
+          const y = position.y - blast.lift
           const age = ageOf(blast, alpha)
           const frame = atlas.frames[Math.min(BLAST_FRAMES - 1, Math.floor(age * BLAST_FRAMES))]
           const size = blast.size * BLAST_SCALE
           // К концу дым тает.
           const level = Math.min(1, (1 - age) * 3)
           blasts.push(
-            position.x - camera.x - size / 2, position.y - camera.y - size / 2, size, size,
+            position.x - camera.x - size / 2, y - camera.y - size / 2, size, size,
             frame.u, frame.v, frame.width, frame.height,
             level, level, level, level,
           )
@@ -766,6 +795,26 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene): { 
           line(solid, tailX, tailY - lift, x, y - lift, 6, SHELL)
           line(solid, tailX, tailY - lift, x, y - lift, 4, ROCKET)
           dot(solid, x, y - lift, 3, WRECK)
+        }
+
+        // Ракета-перехватчик: тонкая и белая, с пламенем; тень на земле.
+        for (const [, chaser] of world.query(Chaser)) {
+          const clock = scene.sim.time.tick + alpha
+          const { x, y, lift } = chaserAt(chaser, clock)
+          if (!visible(x, y) && !visible(x, y - lift)) continue
+          // Корпус смотрит туда, куда она летит на экране: в начале — круто вверх. Направление — по точке чуть раньше.
+          const back = chaserAt(chaser, clock - 0.5)
+          const screenX = x - back.x
+          const screenY = y - lift - (back.y - back.lift)
+          const reach = Math.hypot(screenX, screenY) || 1
+          const dx = (screenX / reach) * CHASER_BODY
+          const dy = (screenY / reach) * CHASER_BODY
+          const tailX = x - dx
+          const tailY = y - lift - dy
+          dot(solid, x, y, 3, SHELL, 0.25)
+          line(glow, tailX - dx * 0.4, tailY - dy * 0.4, tailX, tailY, 4, FLAME)
+          dot(glow, tailX, tailY, 6, EMBER, 0.8)
+          line(solid, tailX, tailY, x, y - lift, 3, ROCKET)
         }
 
         // Метки ядерного удара. Место пуска — янтарное кольцо, которое расходится волнами. Точка удара — кольца взрыва

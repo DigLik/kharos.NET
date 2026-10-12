@@ -36,7 +36,7 @@ const SECTIONS: Partial<Record<Page, BuildingType[]>> = {
   industry: ['smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill'],
   production: ['blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant'],
   military: ['barracks', 'factory', 'airfield', 'repairStation', 'silo'],
-  defense: ['wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator', 'radar'],
+  defense: ['wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator', 'interceptor', 'radar'],
 }
 /** Описание здания для карточки: что делает и какие здания открывает. */
 function aboutOf(building: BuildingType) {

@@ -2,12 +2,12 @@ import type { Audio } from '../audio/audio'
 import type { LoopName, SoundName } from '../audio/sounds'
 import type { Entity } from '../ecs'
 import {
-  Accumulator, BUILDINGS, Batch, Beam, Building, Converting, Deposit, Doomed, Drop, Glare, Hauler, Health, Mark, Missile, Off, Owner, Pave, Player, Position, Producer, Reactor,
+  Accumulator, BUILDINGS, Batch, Beam, Building, Chaser, Converting, Deposit, Doomed, Drop, Glare, Hauler, Health, Mark, Missile, Off, Owner, Pave, Player, Position, Producer, Reactor,
   Shield, Silo, Site, Trade, Transfer, Turret, Unit, activeRepairs, buildingSpec, isBurning, isDefeated, powerStates, protectionLeft, wrap,
 } from '../sim'
 import { Gate, Scan } from '../sim/components'
 import { nearness, sideOf } from './hearing'
-import { missileAt } from './missiles'
+import { chaserAt, missileAt } from './missiles'
 import type { Scene } from './scene'
 
 /** Раз во сколько секунд пересчитываются петли: они меняются плавно, и чаще не нужно. */
@@ -92,6 +92,8 @@ export function createWorldSounds(scene: Scene, audio: Audio) {
   let scans = new Map<Entity, number>()
   let levels = new Map<Entity, number>()
   let glares = new Set<Entity>()
+  /** Ракеты-перехватчики в полёте: новая — старт со станка. */
+  let chasers = new Set<Entity>()
   let research = -1
   let trades = new Map<Entity, { buy: boolean; flying: boolean; at: { x: number; y: number } }>()
   let transfers = new Map<Entity, { x: number; y: number; to: number }>()
@@ -174,6 +176,14 @@ export function createWorldSounds(scene: Scene, audio: Audio) {
         if (!fresh && !glares.has(entity)) play('nukeBlast', position.x, position.y, NUKE_HEARING)
       }
       glares = nextGlares
+
+      // Перехватчик: старт ракеты со станка — тот же рёв, что у шахты, но короче слышен.
+      const nextChasers = new Set<Entity>()
+      for (const [entity, chaser] of world.query(Chaser)) {
+        nextChasers.add(entity)
+        if (!fresh && !chasers.has(entity)) play('liftoff', chaser.fromX, chaser.fromY, NUKE_HEARING / 3, 0.7)
+      }
+      chasers = nextChasers
 
       // Отсчёт перед ударом по своим: метка удара видна тем, чьё под ней.
       let left = Infinity
@@ -506,6 +516,10 @@ export function createWorldSounds(scene: Scene, audio: Audio) {
       for (const [, missile] of world.query(Missile)) {
         const at = missileAt(missile, time.tick + time.alpha, time.step)
         add('rocket', at.x, at.y)
+      }
+      for (const [, chaser] of world.query(Chaser)) {
+        const at = chaserAt(chaser, time.tick + time.alpha)
+        add('rocket', at.x, at.y, 0.5)
       }
 
       for (const [name, level] of Object.entries(LEVELS) as [LoopName, number][]) {

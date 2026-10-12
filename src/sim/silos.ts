@@ -1,7 +1,8 @@
 import type { Entity } from '../ecs'
 import { BUILDINGS, buildingSpec, isReady } from './buildings'
 import { rectDistance } from './common'
-import { Building, Burst, Glare, Mark, Missile, Off, Owner, Position, Silo, Site } from './components'
+import { allied } from './allies'
+import { Blast, Building, Burst, Chaser, Glare, Interceptor, Mark, Missile, Off, Owner, Position, Silo, Site } from './components'
 import { addCredits, creditsOf, pay } from './economy'
 import { powerSupply } from './income'
 import { unprotect } from './shelter'
@@ -21,6 +22,11 @@ import { networkHas, returnToNetwork, takeFromNetwork } from './upgrades'
  * удара видят те, чьи здания или юниты в радиусе взрыва. Взрыв — Burst: бьёт всех без разбора, щит его не держит,
  * под защитой новичка урона нет (см. fight в combat.ts). Вспышка взрыва (Glare) на GLARE секунд снимает туман по всему
  * его кругу у всех игроков: виден и сам взрыв, и что от него осталось.
+ *
+ * Защита — перехватчик. Ракеты-перехватчики он собирает сам, по одной, пока включён и их меньше ёмкости. Каждой
+ * сбивает одну чужую ракету (не свою и не союзника), чья точка удара в его круге, когда та в этот круг входит: решено сразу,
+ * а ракета-перехватчик летит к точке встречи на курсе и успевает раньше удара всегда — и на краю круга. Чужим не видно,
+ * сколько ракет у перехватчика: это знает только хозяин.
  */
 
 /** Сколько секунд место пуска отмечено у игроков с радаром. */
@@ -29,6 +35,16 @@ export const LAUNCH_MARK = 60
 export const WARNING = 15
 /** Сколько секунд вспышка взрыва открывает всем его круг. */
 export const GLARE = 5
+
+/**
+ * Высота полёта ядерной ракеты над землёй, в тайлах, и за сколько секунд она её набирает после старта и теряет перед
+ * ударом. На симуляцию высота не влияет, но по ней рисуются и ракета, и её встреча с перехватчиком, и вспышка сбитой.
+ */
+export const CRUISE = 2.5
+export const CLIMB = 3
+
+/** На какой высоте ракета, которая летит age секунд и которой осталось left тайлов до точки удара. */
+export const missileLift = (age: number, left: number) => CRUISE * Math.max(0, Math.min(1, age / CLIMB, left / (BUILDINGS.silo.warhead.speed * CLIMB)))
 
 /** Боеголовка шахты этого вида; у других зданий — undefined. */
 const warheadOf = (sim: Sim, silo: Entity) => {
@@ -127,23 +143,122 @@ function playersNear(sim: Sim, x: number, y: number, radius: number) {
   return [...players]
 }
 
+/** Перехватчик этого вида; у других зданий — undefined. */
+const interceptOf = (sim: Sim, entity: Entity) => {
+  const type = sim.world.get(entity, Building)?.type
+  return type === undefined ? undefined : buildingSpec(type).intercept
+}
+
+/** Почему перехватчик не собирает ракету: выключен, не хватает кредитов или готового в сети. */
+export type InterceptorLack = 'off' | 'credits' | 'materials'
+
+/** Что мешает перехватчику начать сборку следующей ракеты; undefined — ничего, он уже собирает или полон. */
+export function interceptorLack(sim: Sim, entity: Entity): InterceptorLack | undefined {
+  const spec = interceptOf(sim, entity)
+  const state = sim.world.get(entity, Interceptor)
+  const player = sim.world.get(entity, Owner)?.player ?? 0
+  if (!spec || !state || state.ticks > 0 || state.missiles >= spec.capacity) return undefined
+  if (sim.world.has(entity, Off)) return 'off'
+  if (creditsOf(sim, player) < spec.cost) return 'credits'
+  return networkHas(sim, entity, spec.materials) ? undefined : 'materials'
+}
+
 /** Сколько тиков ещё лететь ракете: по оставшемуся пути. */
 const flightLeft = (sim: Sim, missile: { x: number; y: number; toX: number; toY: number }, speed: number) =>
   Math.ceil(Math.hypot(missile.toX - missile.x, missile.toY - missile.y) / (speed * sim.time.step))
 
 /**
- * Раз в тик, до боя: шахты собирают боеголовки и пускают ракеты, ракеты летят и рвутся — их взрыв бьёт в этот же
- * бой; метки, чей срок вышел, пропадают.
+ * Через сколько тиков ракета-перехватчик со скоростью speed из (x, y) встретит ядерную ракету: в тик +k, до своего
+ * шага, ракета пролетела k шагов, а на шаге left − 1 долетает. Не успевает по скорости — встреча в последний тик
+ * до удара: перехват уже решён, скорость перехватчика только для картинки. Ноль — сбить сразу.
+ */
+function meetTicks(sim: Sim, missile: { x: number; y: number; toX: number; toY: number }, x: number, y: number, speed: number) {
+  const { step } = sim.time
+  const flight = BUILDINGS.silo.warhead.speed * step
+  const reach = Math.hypot(missile.toX - missile.x, missile.toY - missile.y)
+  const last = Math.ceil(reach / flight) - 1
+  for (let k = 1; k < last; k++) {
+    const flown = Math.min(reach, flight * k) / (reach || 1)
+    const meetX = missile.x + (missile.toX - missile.x) * flown
+    const meetY = missile.y + (missile.toY - missile.y) * flown
+    if (Math.hypot(meetX - x, meetY - y) <= speed * step * k) return k
+  }
+  return Math.max(0, last)
+}
+
+/**
+ * Перехватчики: включённый, у которого ракет меньше ёмкости, начинает сборку следующей, как только хватает кредитов
+ * и готового в сети, — цена списывается сразу; сборка идёт долей энергии. С ракетами он стреляет по чужой ядерной,
+ * которая вошла в его круг и метит в него же, — по ракете на каждую; из нескольких — ближайший к ней. power — доли
+ * энергии, считаются по нужде.
+ */
+function intercept(sim: Sim, power: () => Map<Entity, number>) {
+  const { world, time } = sim
+  const armed: { entity: Entity; player: number; x: number; y: number; radius: number; speed: number }[] = []
+  for (const [entity, state, building, position, owner] of world.query(Interceptor, Building, Position, Owner)) {
+    const spec = buildingSpec(building.type)
+    if (!spec.intercept || world.has(entity, Site) || world.has(entity, Off)) continue
+    if (state.ticks > 0) {
+      state.progress += power().get(entity) ?? 0
+      if (state.progress >= state.ticks) Object.assign(state, { progress: 0, ticks: 0, missiles: state.missiles + 1 })
+    } else if (!interceptorLack(sim, entity) && state.missiles < spec.intercept.capacity && pay(sim, owner.player, spec.intercept.cost)) {
+      takeFromNetwork(sim, entity, spec.intercept.materials)
+      Object.assign(state, { progress: 0, ticks: Math.round(spec.intercept.seconds / time.step) })
+    }
+    if (state.missiles > 0) armed.push({ entity, player: owner.player, x: position.x + spec.width / 2, y: position.y + spec.height / 2, ...spec.intercept })
+  }
+  if (!armed.length) return
+  for (const [entity, missile] of world.query(Missile)) {
+    if (missile.hunted >= 0) continue
+    let best: (typeof armed)[number] | undefined
+    let bestReach = Infinity
+    for (const guard of armed) {
+      if (guard.player === missile.player || allied(sim, guard.player, missile.player)) continue
+      if (!world.get(guard.entity, Interceptor)?.missiles) continue
+      const reach = Math.hypot(missile.x - guard.x, missile.y - guard.y)
+      if (reach > guard.radius || reach >= bestReach || Math.hypot(missile.toX - guard.x, missile.toY - guard.y) > guard.radius) continue
+      best = guard
+      bestReach = reach
+    }
+    if (!best) continue
+    world.get(best.entity, Interceptor)!.missiles--
+    const k = meetTicks(sim, missile, best.x, best.y, best.speed)
+    missile.hunted = time.tick + k
+    if (k === 0) continue
+    const reach = Math.hypot(missile.toX - missile.x, missile.toY - missile.y) || 1
+    const ahead = Math.min(reach, BUILDINGS.silo.warhead.speed * time.step * k)
+    world.spawn(
+      Chaser({
+        fromX: best.x,
+        fromY: best.y,
+        toX: missile.x + ((missile.toX - missile.x) * ahead) / reach,
+        toY: missile.y + ((missile.toY - missile.y) * ahead) / reach,
+        lift: missileLift((time.tick + k - missile.born) * time.step, reach - ahead),
+        born: time.tick,
+        arrive: time.tick + k,
+        player: best.player,
+        missile: entity,
+      }),
+    )
+  }
+}
+
+/** Размер вспышки сбитой ракеты, в тайлах: картинка, урона нет. */
+const AIRBURST = 1.5
+
+/**
+ * Раз в тик, до боя: шахты собирают боеголовки и пускают ракеты, перехватчики собирают свои и стреляют, ракеты
+ * летят и рвутся — их взрыв бьёт в этот же бой, — или гибнут от перехватчика; метки, чей срок вышел, пропадают.
  */
 export function launchMissiles(sim: Sim) {
   const { world, time } = sim
   let supply: Map<Entity, number> | undefined
+  const power = () => (supply ??= powerSupply(sim))
   const fired: { silo: Entity; player: number; x: number; y: number; toX: number; toY: number }[] = []
   for (const [entity, silo, building, position, owner] of world.query(Silo, Building, Position, Owner)) {
     if (silo.ticks > 0 && !silo.ready && !world.has(entity, Off)) {
       // Энергии не хватает — сборка идёт медленнее. Считается недёшево, поэтому только когда что-то собирают.
-      supply ??= powerSupply(sim)
-      silo.progress += supply.get(entity) ?? 0
+      silo.progress += power().get(entity) ?? 0
       if (silo.progress >= silo.ticks) Object.assign(silo, { progress: 0, ticks: 0, cost: 0, ready: true })
     }
     const warhead = buildingSpec(building.type).warhead
@@ -151,10 +266,16 @@ export function launchMissiles(sim: Sim) {
     const { width, height } = buildingSpec(building.type)
     fired.push({ silo: entity, player: owner.player, x: position.x + width / 2, y: position.y + height / 2, toX: silo.toX, toY: silo.toY })
   }
+  intercept(sim, power)
   // Ракета несёт боеголовку шахты: вид шахты один.
   const { speed, blast } = BUILDINGS.silo.warhead
   const arrived: Entity[] = []
+  const downed: Entity[] = []
   for (const [entity, missile] of world.query(Missile)) {
+    if (missile.hunted >= 0 && time.tick >= missile.hunted) {
+      downed.push(entity)
+      continue
+    }
     const reach = Math.hypot(missile.toX - missile.x, missile.toY - missile.y)
     const step = speed * time.step
     if (reach <= step) {
@@ -170,6 +291,14 @@ export function launchMissiles(sim: Sim) {
     if (left > Math.round(WARNING / time.step)) continue
     const viewers = playersNear(sim, missile.toX, missile.toY, blast.radius).filter((viewer) => viewer !== missile.player)
     missile.mark = world.spawn(Position({ x: missile.toX, y: missile.toY }), Mark({ kind: 'strike', until: time.tick + left, player: missile.player, viewers }))
+  }
+  // Сбитая гибнет в воздухе: вспышка без урона, метка точки удара пропадает.
+  for (const entity of downed) {
+    const missile = world.get(entity, Missile)!
+    if (missile.mark >= 0 && world.has(missile.mark as Entity, Mark)) world.destroy(missile.mark as Entity)
+    const lift = missileLift((time.tick - missile.born) * time.step, Math.hypot(missile.toX - missile.x, missile.toY - missile.y))
+    world.spawn(Position({ x: missile.x, y: missile.y }), Blast({ size: AIRBURST, lift, life: Math.round((0.25 + AIRBURST * 0.2) / time.step) }))
+    world.destroy(entity)
   }
   for (const entity of arrived) {
     const missile = world.get(entity, Missile)!
@@ -190,5 +319,6 @@ export function launchMissiles(sim: Sim) {
   const expired: Entity[] = []
   for (const [entity, mark] of world.query(Mark)) if (time.tick >= mark.until) expired.push(entity)
   for (const [entity, glare] of world.query(Glare)) if (time.tick >= glare.until) expired.push(entity)
+  for (const [entity, chaser] of world.query(Chaser)) if (time.tick >= chaser.arrive) expired.push(entity)
   for (const entity of expired) world.destroy(entity)
 }

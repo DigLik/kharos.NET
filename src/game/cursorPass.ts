@@ -2,7 +2,7 @@ import { setBlend } from '../gl'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites, createWhiteTexture } from '../render/sprites'
 import type { Entity } from '../ecs'
-import { BUILDINGS, Building, CONTROL_RADIUS, Silo, Hauler, Position, Tactics, allZones, wellPartners, type BuildingType } from '../sim'
+import { BUILDINGS, Building, CONTROL_RADIUS, Silo, Hauler, Owner, Position, Tactics, allZones, buildingSpec, wellPartners, type BuildingType } from '../sim'
 import { paveStrokeOf, placementOf } from './placing'
 import type { Scene } from './scene'
 
@@ -27,6 +27,9 @@ const ROUTE_DOT = 3
 /** Подземный отрезок колодца, с которым свяжется ставящийся. */
 const LINK: Color = [0.4, 0.75, 1]
 const ROUTE_STEP = 0.5
+/** Круг, который защищает перехватчик: пунктир шагом GUARD_STEP тайлов. */
+const GUARD: Color = [0.55, 1, 0.85]
+const GUARD_STEP = 1.5
 
 /** Маршрут на карте: остановки прямоугольниками основания; closed — замкнут по кругу, а не ещё набирается. */
 interface DrawnRoute {
@@ -135,6 +138,26 @@ export function outlineOf(zone: readonly number[]) {
  * В остальное время ничего не рисует.
  * Ставить выше освещения, чтобы ночью не темнела.
  */
+/**
+ * Круги перехватчиков, которые показать: центры и радиусы в тайлах. Выбранные — всегда; пока ставится перехватчик —
+ * его круг под указателем и круги всех своих.
+ */
+function guardsOf(scene: Scene, placement: { type: BuildingType; x: number; y: number } | null) {
+  const { world } = scene.sim
+  const guards: { x: number; y: number; radius: number }[] = []
+  const add = (type: BuildingType, x: number, y: number) => {
+    const { width, height, intercept } = buildingSpec(type)
+    if (intercept) guards.push({ x: x + width / 2, y: y + height / 2, radius: intercept.radius })
+  }
+  const placing = placement !== null && !!buildingSpec(placement.type).intercept
+  if (placing) add(placement.type, placement.x, placement.y)
+  for (const [entity, building, position] of world.query(Building, Position)) {
+    if (!buildingSpec(building.type).intercept) continue
+    if (scene.selection.has(entity) || (placing && world.get(entity, Owner)?.player === scene.player)) add(building.type, position.x, position.y)
+  }
+  return guards
+}
+
 export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass {
   const program = createSpriteProgram(gl)
   const rects = createSprites(gl, program)
@@ -162,7 +185,8 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
       const routes = routesOf(scene)
       // Наводка ядерного удара: под указателем — круг взрыва и его ядра. Наводить можно только готовую боеголовку.
       const aim = scene.aiming !== null && scene.sim.world.get(scene.aiming, Silo)?.ready ? scene.camera.pointerTile : null
-      if (!placement && !stroke && !routes.length && !aim) return
+      const guards = guardsOf(scene, placement)
+      if (!placement && !stroke && !routes.length && !aim && !guards.length) return
 
       /** Прямоугольник в тайлах от камеры. */
       const rect = (x: number, y: number, width: number, height: number, [r, g, b]: Color, alpha: number) =>
@@ -270,6 +294,16 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
             const tile = i >> 1
             area(stroke.tiles[i], stroke.tiles[i + 1], 1, 1, stroke.allowed[tile] ? good : stroke.short[tile] ? SHORT : FORBIDDEN)
           }
+        }
+      }
+
+      // Круги перехватчиков: выбранных и, пока ставится новый, всех своих — видно, где защиты ещё нет.
+      for (const { x, y, radius } of guards) {
+        const size = ROUTE_DOT / camera.zoom
+        const dots = Math.ceil((Math.PI * 2 * radius) / GUARD_STEP)
+        for (let i = 0; i < dots; i++) {
+          const a = (i / dots) * Math.PI * 2
+          rect(x + Math.cos(a) * radius - camera.x - size / 2, y + Math.sin(a) * radius - camera.y - size / 2, size, size, GUARD, BORDER_ALPHA)
         }
       }
 

@@ -9,7 +9,7 @@ import {
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   Research, TOPICS, PAVE_RESEARCH, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
-  Silo, launchLeft, warheadLack, type WarheadLack,
+  Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
   Accumulator, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
 import { paveStrokeOf } from './placing'
@@ -214,6 +214,22 @@ export interface HudState {
     time: string
     lack: WarheadLack | null
     aiming: boolean
+  } | null
+  /**
+   * Перехватчик: выбранный свой готовый. missiles из capacity — сколько ракет готово; assembling — следующая собирается
+   * (progress от 0 до 1). cost, materials и time — цена и срок сборки, radius — круг защиты; lack — почему он, неполный,
+   * не собирает следующую.
+   */
+  interceptor: {
+    missiles: number
+    capacity: number
+    assembling: boolean
+    progress: number
+    cost: number
+    materials: Stack[]
+    time: string
+    radius: number
+    lack: InterceptorLack | null
   } | null
   /** Что можно построить, если среди выбранного есть строитель. */
   construction: {
@@ -420,6 +436,7 @@ export function readHud(scene: Scene): HudState {
   let level: HudState['level'] = null
   let research: HudState['research'] = null
   let silo: HudState['silo'] = null
+  let interceptor: HudState['interceptor'] = null
   /** Готовое на улучшение всех выбранных вместе. */
   const upgradeMaterials: Amounts = {}
   let deposit: HudState['deposit'] = null
@@ -554,6 +571,21 @@ export function readHud(scene: Scene): HudState {
           lack: warheadLack(sim, player, entity) ?? null,
           aiming: scene.aiming === entity,
         }
+      }
+    }
+    const guard = spec?.intercept
+    const charge = guard && world.get(entity, Interceptor)
+    if (!interceptor && charge && ready && isOwn(sim, player, entity)) {
+      interceptor = {
+        missiles: charge.missiles,
+        capacity: guard.capacity,
+        assembling: charge.ticks > 0,
+        progress: charge.ticks > 0 ? round(Math.min(1, charge.progress / charge.ticks)) : 0,
+        cost: guard.cost,
+        materials: exactOf(guard.materials),
+        time: clockOf(guard.seconds),
+        radius: guard.radius,
+        lack: interceptorLack(sim, entity) ?? null,
       }
     }
     if (ready && spec!.ammo && inventory) ammo = { have: Math.floor(amountOf(inventory, 'ammo')), capacity: inventory.capacity }
@@ -734,6 +766,7 @@ export function readHud(scene: Scene): HudState {
     research,
     tech: techOf(scene),
     silo,
+    interceptor,
     construction: counts.has('builder')
       ? {
           placing: scene.placing,

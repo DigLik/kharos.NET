@@ -1,8 +1,4 @@
-import { BUILDINGS } from '../sim'
-
-/** Высота полёта ядерной ракеты над землёй, в тайлах, и за сколько секунд она её набирает после старта и теряет перед ударом. */
-const CRUISE = 2.5
-const CLIMB = 3
+import { BUILDINGS, missileLift } from '../sim'
 
 /** Ракета, какой её знает клиент: см. Missile в components.ts. */
 interface Flight {
@@ -27,13 +23,35 @@ export function missileAt(missile: Flight, clock: number, step: number) {
   const headingY = (missile.toY - missile.fromY) / reach
   const age = Math.max(0, (clock - missile.born) * step)
   const flown = missile.blind ? speed * age : Math.min(reach, speed * age)
-  const climb = Math.min(1, age / CLIMB)
-  const descent = missile.blind ? 1 : Math.min(1, (reach - flown) / (speed * CLIMB))
   return {
     x: missile.fromX + headingX * flown,
     y: missile.fromY + headingY * flown,
-    lift: CRUISE * Math.min(climb, descent),
+    lift: missileLift(age, missile.blind ? Infinity : reach - flown),
     headingX,
     headingY,
+  }
+}
+
+/** Ракета-перехватчик, какой её знает клиент: см. Chaser в components.ts. */
+interface Chase {
+  fromX: number
+  fromY: number
+  toX: number
+  toY: number
+  lift: number
+  born: number
+  arrive: number
+}
+
+/**
+ * Где ракета-перехватчик в момент clock: как missileAt. Со станка она уходит круто вверх и к встрече выравнивается
+ * на высоте ракеты: так её след читается как запуск с земли, а не как выстрел вдоль неё.
+ */
+export function chaserAt(chaser: Chase, clock: number) {
+  const share = Math.min(1, Math.max(0, (clock - chaser.born) / Math.max(1, chaser.arrive - chaser.born)))
+  return {
+    x: chaser.fromX + (chaser.toX - chaser.fromX) * share,
+    y: chaser.fromY + (chaser.toY - chaser.fromY) * share,
+    lift: chaser.lift * (1 - (1 - share) ** 2),
   }
 }

@@ -1,7 +1,7 @@
 import type { Entity, World } from '../ecs'
 import { Terrain, isBuildable, isCliffFoot, terrainAt, tileKey } from '../map/terrain'
 import { isOwn } from './common'
-import { Accumulator, Assembly, Building, Gate, Health, Inventory, Reactor, Repair, Owner, Position, Producer, Shield, Silo, Site } from './components'
+import { Accumulator, Assembly, Building, Gate, Health, Interceptor, Inventory, Reactor, Repair, Owner, Position, Producer, Shield, Silo, Site } from './components'
 import { equipStorage, type BeamSpec } from './inventory'
 import { ORE_SPECS, PRODUCT_SPECS, WARES, stockedFor, type Amounts, type Good, type Ore, type Product } from './resources'
 import type { Sim } from './sim'
@@ -125,6 +125,12 @@ export interface BuildingSpec {
     speed: number
     blast: { radius: number; core: number; damage: number }
   }
+  /**
+   * Перехватчик: собирает ракеты-перехватчики по одной — cost кредитов и materials из сети, seconds секунд при полной
+   * энергии — сам, пока их меньше capacity. Каждая сбивает одну чужую ядерную ракету, чья точка удара не дальше radius
+   * тайлов от его центра, когда та входит в этот круг; ракета-перехватчик летит speed тайлов в секунду. См. silos.ts.
+   */
+  intercept?: { radius: number; cost: number; materials: Amounts; seconds: number; speed: number; capacity: number }
 }
 
 /** На сколько тайлов от своего центра расширяет зону готовая труба или колодец. */
@@ -237,6 +243,13 @@ export const BUILDINGS = {
     width: 3, height: 3, cost: 3000, power: -10, materials: { blocks: 20, parts: 10 }, meltdown: { radius: 4, damage: 600 },
     warhead: { cost: 2000, materials: { rods: 20, parts: 10 }, seconds: 180, launch: 30, speed: 8, blast: { radius: 12, core: 6, damage: 3000 } },
   },
+  // Перехватчик: защита от ядерного удара. Без урана — его с орбиты не купить, и защита из урана оставила бы
+  // беззащитным каждого, кто сел не в рыжих пустошах. Дешевле удара (2100 против 5000 с лишним), но строится заранее.
+  // Держит четыре ракеты: залп из нескольких шахт один перехватчик тоже встречает.
+  interceptor: {
+    width: 2, height: 2, cost: 1500, power: -4, materials: { parts: 8 },
+    intercept: { radius: 80, cost: 600, materials: { parts: 4, fuel: 10 }, seconds: 60, speed: 30, capacity: 4 },
+  },
   // Генератор материи — базовый доход: превращает энергию в кредиты. Первая электростанция окупает его быстро,
   // дальше теснота делает каждый следующий всё дороже. Он страховка на случай, когда линий добычи нет (§4.3 шаг 3):
   // одной электростанции хватает на два генератора.
@@ -298,7 +311,7 @@ export const BUILDING_TYPES = Object.keys(BUILDINGS) as BuildingType[]
 export const BUILDABLE: BuildingType[] = [
   'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill', 'blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant',
   'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack', 'accumulator', 'reactor', 'silo', 'spaceport', 'barracks', 'factory', 'airfield', 'lab',
-  'repairStation', 'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator',
+  'repairStation', 'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator', 'interceptor',
 ]
 
 /** Выше этого уровня здания не улучшают. */
@@ -421,6 +434,8 @@ export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = 
   arcTurret: ['radar'],
   reactor: ['uraniumMill'],
   silo: ['rodPlant'],
+  // Перехватчик своей темы не просит: защита не должна ждать дерева. Радар нужен — им он видит ракету.
+  interceptor: ['radar'],
 }
 
 /**
@@ -589,6 +604,7 @@ export function equip(world: World, entity: Entity, type: BuildingType) {
   if (spec.battery) world.add(entity, Accumulator())
   if (spec.burns) world.add(entity, Reactor())
   if (spec.warhead) world.add(entity, Silo())
+  if (spec.intercept) world.add(entity, Interceptor())
   if (spec.produces && !spec.inventory) {
     equipStorage(world, entity, { inventory: PRODUCER_HOLD })
   }

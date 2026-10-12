@@ -234,8 +234,11 @@ export const Shot = component('Shot', {
   air: false,
 })
 
-/** Взрыв: только картинка, урон уже нанесён. size — радиус в тайлах; age и life — как у выстрела. */
-export const Blast = component('Blast', { size: 1, age: 0, life: 0 })
+/**
+ * Взрыв: только картинка, урон уже нанесён. size — радиус в тайлах; age и life — как у выстрела; lift — на какой высоте
+ * над землёй, в тайлах: сбитая ракета рвётся в воздухе.
+ */
+export const Blast = component('Blast', { size: 1, age: 0, life: 0, lift: 0 })
 
 /**
  * Турель: отдельная сущность на юните-носителе, см. turrets.ts. angle — её поворот относительно носителя, в радианах
@@ -309,10 +312,24 @@ export const Silo = component('Silo', { progress: 0, ticks: 0, cost: 0, ready: f
 /**
  * Ядерная ракета в полёте (silos.ts). Места на карте (Position) у неё нет: она летит над всем по прямой из (fromX, fromY)
  * в (toX, toY) с тика born, и клиент сам ведёт её по этим числам; x и y — где она сейчас, по ним её видят. player — чья.
- * mark — метка точки удара (Mark), −1 — её ещё нет. blind — только у копии чужой ракеты на клиенте: (toX, toY) у неё
- * не точка удара, а точка на курсе, см. seenBy в wire.ts.
+ * mark — метка точки удара (Mark), −1 — её ещё нет. hunted — тик, когда её собьёт уже выпущенный перехватчик, −1 — по ней
+ * не стреляли. blind — только у копии чужой ракеты на клиенте: (toX, toY) у неё не точка удара, а точка на курсе,
+ * см. seenBy в wire.ts.
  */
-export const Missile = component('Missile', { fromX: 0, fromY: 0, toX: 0, toY: 0, born: 0, x: 0, y: 0, player: 0, mark: -1, blind: false })
+export const Missile = component('Missile', { fromX: 0, fromY: 0, toX: 0, toY: 0, born: 0, x: 0, y: 0, player: 0, mark: -1, hunted: -1, blind: false })
+
+/**
+ * Перехватчик (silos.ts): сборка ракеты-перехватчика, как боеголовки у шахты, — ticks её срок при полной энергии,
+ * progress — сколько собрано, ticks ноль — сборки нет; missiles — сколько готовых ракет ждут чужую ядерную.
+ */
+export const Interceptor = component('Interceptor', { progress: 0, ticks: 0, missiles: 0 })
+
+/**
+ * Ракета-перехватчик в полёте (silos.ts): как у ядерной, места на карте нет — летит из (fromX, fromY) с тика born
+ * и встречает ядерную ракету missile над точкой (toX, toY) на высоте lift в тик arrive; тогда обе гибнут. player — чей
+ * перехватчик.
+ */
+export const Chaser = component('Chaser', { fromX: 0, fromY: 0, toX: 0, toY: 0, lift: 0, born: 0, arrive: 0, player: 0, missile: -1 })
 
 /**
  * Метка на карте, которую видят не по обзору, а по списку viewers: место ядерного пуска (kind launch) — игроки
@@ -374,4 +391,4 @@ export const Scan = component('Scan', { x: 0, y: 0, tick: -1, wait: 0 })
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Mark, Glare]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare]

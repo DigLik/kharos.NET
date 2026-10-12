@@ -709,6 +709,21 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
             {state.silo.aiming ? t('hud.launchAim') : state.silo.stage === 'launching' ? t('hud.launching', { seconds: state.silo.launch }) : state.silo.stage === 'ready' ? t('hud.warheadReady') : t('hud.warheadEmpty')}
           </div>
         ))}
+        {state.interceptor && (() => {
+          const { missiles: count, capacity, assembling, progress, lack, radius, cost, materials } = state.interceptor
+          if (assembling) return <Progress value={progress}>{t('hud.interceptorAssembling', { count, capacity, percent: percent(progress) })}</Progress>
+          return (
+            <div class="hud__hint">
+              {lack === 'off'
+                ? t('hud.interceptorOff', { count, capacity })
+                : lack === 'credits'
+                  ? t('hud.interceptorNoCredits', { count, capacity, cost })
+                  : lack === 'materials'
+                    ? t('hud.interceptorNoMaterials', { count, capacity, materials: materials.map(({ resource, amount }) => `${amount} ${t(`goods.${resource}`)}`).join(', ') })
+                    : t('hud.interceptorReady', { count, capacity, radius })}
+            </div>
+          )
+        })()}
         {state.research && !state.research.topic && <div class="hud__hint">{t('hud.researchIdle')}</div>}
         {state.research?.topic && (
           <Progress value={state.research.progress}>
