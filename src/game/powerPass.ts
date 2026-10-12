@@ -4,7 +4,8 @@ import { createAtlas } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Building, buildingSpec, Ghost, Health, Position, Shield, Site, powerStates, unlinked, type PowerState } from '../sim'
+import { BUILDINGS, Building, Position, powerStates, unlinked, type PowerState } from '../sim'
+import { STATUS_BAR, STATUS_GAP, STATUS_STACK, statusBarsOf, statusLift } from './statusBars'
 import type { Scene } from './scene'
 
 /** Сторона картинки молнии в пикселях: молния растягивается на всё здание. */
@@ -26,9 +27,6 @@ const ICON_TILES = 0.75
 const ICON_PERIOD = 1
 const ICON_SHOWN = 0.7
 
-/** Высота полоски прочности в пикселях экрана и её отступ от нижнего края здания в тайлах. */
-const BAR_HEIGHT = 3
-const BAR_GAP = 0.1
 
 /** Простое воспроизводимое случайное число от 0 до 1 по двум целым. */
 function noise(a: number, b: number) {
@@ -98,12 +96,10 @@ const BAR_GOOD: Color = [0.45, 0.9, 0.55]
 const BAR_BAD: Color = [1, 0.35, 0.25]
 /** Запас щита генератора. */
 const BAR_SHIELD: Color = [0.3, 0.55, 1]
-/** Зазор между полосами прочности и щита, в пикселях экрана. */
-const BAR_STACK = 1
 
 /**
  * Проход нехватки энергии: молнии перегруза на электростанциях, значок над зданиями, которые из-за нехватки
- * работают медленнее, значок «Не подключено к сети» над своими зданиями со складом без труб, полоска прочности под повреждёнными зданиями и синяя полоска запаса под генераторами щита. Ставить выше освещения, чтобы ночью не темнело.
+ * работают медленнее, значок «Не подключено к сети» над своими зданиями со складом без труб, над зданиями — полоски прочности повреждённых и синие полоски запаса генераторов щита, см. statusBars.ts. Ставить выше освещения, чтобы ночью не темнело.
  */
 export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene): Pass {
   const bolts = Array.from({ length: BOLTS }, (_, i) => drawBolt(i))
@@ -135,7 +131,8 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene): Pass 
       const halfHeight = height / 2 / camera.zoom + 2
       const step = Math.floor(time * BOLT_RATE)
       const iconOn = (time % ICON_PERIOD) / ICON_PERIOD < ICON_SHOWN
-      const barHeight = BAR_HEIGHT / camera.zoom
+      const barHeight = STATUS_BAR / camera.zoom
+      const stack = STATUS_STACK / camera.zoom
 
       sprites.clear()
       for (const [entity, position, building] of world.query(Position, Building)) {
@@ -155,44 +152,34 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene): Pass 
             1, 1, 1, 1,
           )
         }
-        // Два значка сразу — рядом, а не друг на друге.
+        // Значки — над полосами состояния, два сразу — рядом, а не друг на друге.
+        const lifted = y - statusLift(world, entity, camera.zoom)
         const loose = unlinked(sim, scene.player, entity)
         const shift = loose && state === 'starved' ? ICON_TILES / 2 : 0
         if (loose && iconOn) {
           sprites.push(
-            x + spec.width / 2 - ICON_TILES / 2 - shift, y - ICON_TILES / 2, ICON_TILES, ICON_TILES,
+            x + spec.width / 2 - ICON_TILES / 2 - shift, lifted - ICON_TILES / 2, ICON_TILES, ICON_TILES,
             looseFrame.u, looseFrame.v, looseFrame.width, looseFrame.height,
             1, 1, 1, 1,
           )
         }
         if (state === 'starved' && iconOn) {
           sprites.push(
-            x + spec.width / 2 - ICON_TILES / 2 + shift, y - ICON_TILES / 2, ICON_TILES, ICON_TILES,
+            x + spec.width / 2 - ICON_TILES / 2 + shift, lifted - ICON_TILES / 2, ICON_TILES, ICON_TILES,
             iconFrame.u, iconFrame.v, iconFrame.width, iconFrame.height,
             1, 1, 1, 1,
           )
         }
-        const record = world.get(entity, Health)
-        const health = record?.value ?? 1
-        const max = record?.max ?? 1
-        // У строящегося прочность — та же доля построенного, что на полосе стройки над ним: вторую не рисуем.
-        const raising = world.get(entity, Site)
-        let top = y + spec.height + BAR_GAP
-        if (health < max && !(raising && !raising.demolish)) {
-          const share = health / max
-          const [r, g, b] = share > 0.5 ? BAR_GOOD : BAR_BAD
+        // Полосы над крышей, сверху вниз: прочность, под ней запас щита. Нижняя — вплотную к крыше.
+        const { health, shield } = statusBarsOf(world, entity)
+        const rows: [number, Color][] = []
+        if (health !== undefined) rows.push([health, health > 0.5 ? BAR_GOOD : BAR_BAD])
+        if (shield !== undefined) rows.push([shield, BAR_SHIELD])
+        rows.forEach(([share, color], i) => {
+          const top = y - STATUS_GAP - (rows.length - i) * barHeight - (rows.length - 1 - i) * stack
           sprites.push(x, top, spec.width, barHeight, whiteU, whiteV, 0, 0, ...BAR_BACK, 1)
-          sprites.push(x, top, spec.width * Math.max(0, share), barHeight, whiteU, whiteV, 0, 0, r, g, b, 1)
-          top += barHeight + BAR_STACK / camera.zoom
-        }
-        // Запас щита — синей полосой сразу под прочностью, а у целого здания — на её месте. Видна всегда, пока генератор
-        // готов: погашенный купол — пустая полоса. Призрак в тумане её не показывает: что с его щитом сейчас, не видно.
-        const dome = buildingSpec(building.type).shield
-        const shield = !raising && dome ? world.get(entity, Shield) : undefined
-        if (shield && !world.has(entity, Ghost)) {
-          sprites.push(x, top, spec.width, barHeight, whiteU, whiteV, 0, 0, ...BAR_BACK, 1)
-          sprites.push(x, top, spec.width * Math.min(1, Math.max(0, shield.charge / dome!.capacity)), barHeight, whiteU, whiteV, 0, 0, ...BAR_SHIELD, 1)
-        }
+          sprites.push(x, top, spec.width * share, barHeight, whiteU, whiteV, 0, 0, ...color, 1)
+        })
       }
 
       setBlend(gl, 'alpha')

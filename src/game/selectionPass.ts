@@ -6,6 +6,7 @@ import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
 import { Armed, Attached, BUILDINGS, Building, Converting, Orders, Owner, Path, Position, Producer, Site, UNITS, Unit, buildTicks, networkOf, siteTicks } from '../sim'
 import type { Scene } from './scene'
+import { statusLift } from './statusBars'
 import { drawnPosition } from './units/unitsPass'
 
 /** Сторона картинки кольца в пикселях. */
@@ -246,7 +247,8 @@ export function createSelectionPass(gl: WebGL2RenderingContext, scene: Scene): P
         const bounds = boundsOf(entity)
         if (!bounds) return
         const height = BAR_HEIGHT * pixel
-        const top = bounds.y - BAR_GAP - height
+        // Над полосами прочности и щита здания, см. statusBars.ts.
+        const top = bounds.y - statusLift(world, entity, camera.zoom) - BAR_GAP - height
         rect(bounds.x - pixel, top - pixel, bounds.width + pixel * 2, height + pixel * 2, BAR_BACK)
         rect(bounds.x, top, bounds.width * Math.min(1, Math.max(0, value)), height, color)
       }
