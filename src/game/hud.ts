@@ -663,7 +663,9 @@ export function readHud(scene: Scene): HudState {
     const record = world.get(entity, Health)
     const left = record?.value ?? 1
     const max = record?.max ?? 1
-    if (built && left < max) {
+    // У строящегося прочность — та же доля построенного, что и полоса стройки: вторая полоса её только повторяла бы.
+    const raising = world.get(entity, Site)
+    if (built && left < max && !(raising && !raising.demolish)) {
       health = round(left / max)
       repair = repairCostOf(BUILDINGS[built.type].cost, left, sim.rules.repairCost, max)
     }
