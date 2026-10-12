@@ -1153,7 +1153,8 @@ body {
   justify-content: flex-start;
   gap: 20px;
   padding: clamp(16px, 12vh, 120px) 16px 16px;
-  overflow-y: auto;
+  /* Страница меню не прокручивается: высокое окно сжимается до экрана и прокручивает своё содержимое. */
+  overflow: hidden;
   /* Действие витрины — правее меню; на узком экране меню посередине. */
   background: linear-gradient(90deg, rgba(8, 17, 28, 0.55), transparent 420px);
   color: var(--text);
@@ -1192,8 +1193,26 @@ body {
 }
 
 .menu__window {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
   width: min(280px, 100%);
+  min-height: 0;
   padding: 14px;
+}
+
+.menu__title,
+.menu__footer {
+  flex: none;
+}
+
+.menu__body {
+  min-height: 0;
+  margin-right: -6px;
+  padding-right: 6px;
+  overflow-y: auto;
+  scrollbar-color: var(--steel-2) transparent;
+  scrollbar-width: thin;
 }
 
 .menu__window--wide {
@@ -1214,9 +1233,6 @@ body {
 .menu__setup .menu__form {
   flex: 1;
   min-width: 0;
-  max-height: 70vh;
-  overflow-y: auto;
-  padding-right: 4px;
 }
 
 .menu__more summary {
@@ -1271,9 +1287,6 @@ body {
     aspect-ratio: 1;
   }
 
-  .menu__setup .menu__form {
-    max-height: none;
-  }
 }
 
 .menu__title {
@@ -1443,10 +1456,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 50vh;
   margin: 0 0 10px;
   padding: 0;
-  overflow-y: auto;
   list-style: none;
 }
 

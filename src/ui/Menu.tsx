@@ -66,13 +66,15 @@ export function download(name: string, data: Uint8Array) {
 
 /**
  * Окно меню: заголовок, содержимое и подвал — «Назад» слева, действия экрана справа, главное из них последним.
- * Так на всех экранах кнопки стоят на одних и тех же местах.
+ * Так на всех экранах кнопки стоят на одних и тех же местах. Окно не выше экрана: длинное содержимое прокручивается
+ * внутри него.
  */
 function Window({ title, back, actions, children, wide }: { title: string; back?: () => void; actions?: ComponentChildren; children: ComponentChildren; wide?: boolean }) {
   return (
     <section class={wide ? 'menu__window menu__window--wide' : 'menu__window'}>
       <h2 class="menu__title">{title}</h2>
-      {children}
+      {/* Прокручивается только содержимое: страница меню не едет, заголовок и подвал с кнопками всегда видны. */}
+      <div class="menu__body">{children}</div>
       {(back || actions) && (
         <div class="menu__footer">
           {back && <button onClick={back}>{t('common.back')}</button>}
