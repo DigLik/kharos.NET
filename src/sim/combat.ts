@@ -8,6 +8,7 @@ import { NONE, isOwn, onTurn, ownerOf, rectDistance, turnToward, wrap } from './
 import { Armed, Blast, Building, Converting, Doomed, Health, Inventory, Off, Owner, Path, Pave, Position, Shot, Site, Tactics, Turret, Unit } from './components'
 import { releaseHauler } from './hauling'
 import { powerSupply } from './income'
+import { repairStations } from './construction'
 import { amountOf, take } from './inventory'
 import { searchCut, searchedTiles, withSearchQuota } from './path'
 import { protectedPlayers, protectionLeft, unprotect } from './shelter'
@@ -312,10 +313,27 @@ function wallOnPath(sim: Sim, player: number, x0: number, y0: number, x1: number
   return undefined
 }
 
-/** Раз в тик: те, чья прочность восстанавливается сама (Health.regen), понемногу поправляются — кроме задетых в этот тик. */
+/** Во сколько раз быстрее поправляется сама пехота у своей работающей ремонтной станции (с полной энергией). */
+export const STATION_REGEN = 4
+
+/**
+ * Раз в тик: те, чья прочность восстанавливается сама (Health.regen), понемногу поправляются — кроме задетых в этот тик.
+ * У своей ремонтной станции — быстрее, на долю её энергии.
+ */
 export function recover(sim: Sim) {
-  for (const [, health] of sim.world.query(Health)) {
-    if (health.regen > 0 && health.hit !== sim.time.tick && health.value < health.max) health.value = Math.min(health.max, health.value + health.regen * sim.time.step)
+  const { world } = sim
+  const stations = repairStations(sim)
+  for (const [entity, health] of world.query(Health)) {
+    if (health.regen <= 0 || health.hit === sim.time.tick || health.value >= health.max) continue
+    let boost = 1
+    if (stations.length) {
+      const position = world.get(entity, Position)
+      const player = ownerOf(sim, entity)
+      for (const station of stations) {
+        if (position && station.player === player && Math.hypot(position.x - station.x, position.y - station.y) <= station.radius) boost = Math.max(boost, 1 + (STATION_REGEN - 1) * station.share)
+      }
+    }
+    health.value = Math.min(health.max, health.value + health.regen * boost * sim.time.step)
   }
 }
 

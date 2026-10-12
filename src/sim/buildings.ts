@@ -81,7 +81,10 @@ export interface BuildingSpec {
    * Поэтому отдача от них падает, и ставить их без счёта невыгодно.
    */
   crowding?: boolean
-  /** Готовое здание строит и чинит всё своё в этом радиусе, в тайлах от своего центра до края цели. */
+  /**
+   * Готовое здание чинит повреждённые свои здания и юниты в этом радиусе, в тайлах от своего центра до края цели,
+   * а пехоте там помогает поправляться быстрее (STATION_REGEN). Не строит. Работает с долей энергии своей зоны.
+   */
   repair?: number
   /**
    * Труба сети: наземная (surface) связывает соседние по стороне трубы и здания; колодец (well) — ещё и с ближайшим
@@ -176,6 +179,9 @@ export const BUILDINGS = {
   // Техцентр ведёт исследования: они открывают уровни зданий, второй тир техники и лучевую оборону. Строится
   // из стройблоков: до него игрок должен наладить цех.
   techCenter: { width: 3, height: 3, cost: 1000, power: -6, materials: { blocks: 15 }, sight: 8, researches: true },
+  // Ремонтная станция чинит технику и здания вокруг себя — так же и за ту же цену, что строитель, и тоже не под
+  // огнём: это пункт обслуживания в тылу. Пехота рядом поправляется быстрее. Без энергии не работает.
+  repairStation: { width: 3, height: 3, cost: 500, power: -3, materials: { blocks: 8 }, repair: 5.5 },
   // Аэродром выпускает летающих: им нужно топливо, бомбардировщику ещё и техцентр.
   airfield: { width: 4, height: 3, cost: 500, power: -4, materials: { metal: 15, blocks: 5 }, produces: ['airTruck', 'drone', 'gunship', 'bomber'] },
   // Электростанция.
@@ -235,7 +241,7 @@ export const BUILDING_TYPES = Object.keys(BUILDINGS) as BuildingType[]
 export const BUILDABLE: BuildingType[] = [
   'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'blockPlant', 'ammoPlant', 'partsPlant',
   'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'blockYard', 'ammoBunker', 'partsLocker', 'spaceport', 'barracks', 'factory', 'airfield', 'techCenter',
-  'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret',
+  'repairStation', 'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret',
 ]
 
 /** Выше этого уровня здания не улучшают. */
@@ -339,6 +345,7 @@ export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = 
   rocketTurret: ['radar'],
   cannonTurret: ['radar'],
   techCenter: ['factory'],
+  repairStation: ['factory'],
   laserTurret: ['techCenter'],
   arcTurret: ['techCenter'],
 }

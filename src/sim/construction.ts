@@ -7,7 +7,7 @@ import { reserveLeft } from './deposits'
 import { amountOf } from './inventory'
 import { entriesOf, totalOf } from './resources'
 import { addCredits, creditsOf, pay, reward, spend } from './economy'
-import { overbuiltPlants } from './income'
+import { overbuiltPlants, powerSupply } from './income'
 import type { Sim } from './sim'
 import { PAVE_LIMIT, buildSpeed, paveCost } from './paving'
 import { clearDrops, dropCargo } from './drops'
@@ -457,6 +457,25 @@ const WORK_INSET = 0.4
 /** Насколько точно юнит-ремонтник должен смотреть на цель, чтобы работать, в радианах. */
 const REPAIR_AIM = 0.2
 
+/**
+ * Работающие ремонтные станции (BuildingSpec.repair): готовые, не выключенные и с энергией. share — доля энергии
+ * зоны, с которой станция работает; центр — середина здания.
+ */
+export function repairStations(sim: Sim) {
+  const { world } = sim
+  const stations: { entity: Entity; player: number; x: number; y: number; radius: number; share: number }[] = []
+  let supply: Map<Entity, number> | undefined
+  for (const [entity, repair, building, position, owner] of world.query(Repair, Building, Position, Owner)) {
+    if (world.has(entity, Site)) continue
+    // Выключенный потребитель и потребитель вне сети в долях энергии не значатся; здание без расхода работает всегда.
+    const share = (buildingSpec(building.type).power ?? 0) < 0 ? ((supply ??= powerSupply(sim)).get(entity) ?? 0) : 1
+    if (share <= 0) continue
+    const { width, height } = BUILDINGS[building.type]
+    stations.push({ entity, player: owner.player, x: position.x + width / 2, y: position.y + height / 2, radius: repair.radius, share })
+  }
+  return stations
+}
+
 /** Смотрит ли ремонтник на то, над чем работает. */
 function isAimed(sim: Sim, link: RepairLink) {
   const turner = turnerOf(sim, link.from)
@@ -471,13 +490,15 @@ function isAimed(sim: Sim, link: RepairLink) {
 export function repairLinks(sim: Sim): RepairLink[] {
   const { world } = sim
   const links: RepairLink[] = []
-  const repairers: { entity: Entity; player: number; x: number; y: number; radius: number; rate: number; site?: number; carrier: Entity }[] = []
+  const repairers: { entity: Entity; player: number; x: number; y: number; radius: number; rate: number; site?: number; carrier: Entity; station: boolean }[] = []
   for (const [entity, repair, position, owner] of world.query(Repair, Position, Owner)) {
     // На ходу, разворачиваясь и недостроенным не работают; турель — работает и на ходу носителя.
-    if (world.has(entity, Path) || world.has(carrierOf(sim, entity), Converting) || world.has(entity, Site)) continue
-    const building = world.get(entity, Building)
-    const { width, height } = building ? BUILDINGS[building.type] : { width: 0, height: 0 }
-    repairers.push({ entity, player: owner.player, x: position.x + width / 2, y: position.y + height / 2, radius: repair.radius, rate: repair.rate, site: world.get(entity, Builds)?.site, carrier: carrierOf(sim, entity) })
+    if (world.has(entity, Path) || world.has(carrierOf(sim, entity), Converting) || world.has(entity, Site) || world.has(entity, Building)) continue
+    repairers.push({ entity, player: owner.player, x: position.x, y: position.y, radius: repair.radius, rate: repair.rate, site: world.get(entity, Builds)?.site, carrier: carrierOf(sim, entity), station: false })
+  }
+  for (const station of repairStations(sim)) {
+    const repair = world.get(station.entity, Repair)!
+    repairers.push({ ...station, rate: repair.rate * station.share, carrier: station.entity, station: true })
   }
   if (!repairers.length) return links
 
@@ -516,6 +537,8 @@ export function repairLinks(sim: Sim): RepairLink[] {
     for (const target of targets) {
       // Себя и свой носитель ремонтник не чинит.
       if (target.player !== repairer.player || target.entity === repairer.carrier) continue
+      // Станция только чинит: стройки, покрытия, разбор и улучшения — работа строителя.
+      if (repairer.station && (target.upgrade || world.has(target.entity, Site) || world.has(target.entity, Pave))) continue
       if (target.ordered && repairer.site !== target.entity) continue
       const distance = distanceTo(target.work, repairer.x, repairer.y)
       if (distance > repairer.radius) continue
