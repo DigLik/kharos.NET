@@ -4,7 +4,7 @@ import { createSpriteProgram, createSprites } from '../render/sprites'
 import type { Scene } from './scene'
 
 /** Насколько тёмен тайл: не разведанный, разведанный и тот, что виден сейчас. */
-const FOG_ALPHA = [0.94, 0.5, 0] as const
+export const FOG_ALPHA = [0.94, 0.5, 0] as const
 
 /**
  * Туман войны: чего игрок не видит, затемнено — разведанное наполовину, остальное почти дочерна. Тайл — пиксель
