@@ -65,6 +65,8 @@ export interface Slot {
   materials?: Stack[]
   disabled?: boolean
   active?: boolean
+  /** Переключатель: лампа в углу горит, пока включено (true), и гаснет красным выключенное. */
+  lamp?: boolean
   /** Что это такое: описание на карточке. */
   about?: string
   /** Пояснение или почему кнопка недоступна. */
@@ -437,7 +439,7 @@ export function commandsOf(
     slots[0] = {
       label: assembly.on ? t('common.turnOff') : t('common.turnOn'),
       good: assembly.recipe,
-      active: assembly.on,
+      lamp: assembly.on,
       title: assembly.on
         ? t('grid.plantOffTip')
         : t('grid.plantOnTip'),
@@ -449,7 +451,7 @@ export function commandsOf(
   if (switchable && page === 'root' && !slots[SWITCH]) {
     slots[SWITCH] = {
       label: switchable.on ? t('common.turnOff') : t('common.turnOn'),
-      active: switchable.on,
+      lamp: switchable.on,
       title: switchable.on ? t('grid.switchOffTip') : t('grid.switchOnTip'),
       run: () => switchable.buildings.forEach((building) => send({ type: 'work', building, on: !switchable.on })),
     }

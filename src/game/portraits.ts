@@ -22,35 +22,71 @@ function drawMounts(image: Pixmap, mounts: MountSpec[] | undefined, angle: numbe
   }
 }
 
-/** Пиксмап в адрес картинки для <img>. */
-function toUrl(image: Pixmap) {
+/**
+ * Пиксмап в адрес картинки для <img>. Прозрачные поля обрезаются; с box картинка вписывается в квадрат box×box:
+ * мелкий спрайт увеличивается в целое число раз — пиксели остаются ровными, — а крупный уменьшается сглаженно.
+ * Такой квадрат показывается 1:1, без растяжения стилями.
+ */
+function toUrl(image: Pixmap, box = 0) {
+  const { width, height, data } = image
+  let left = width
+  let top = height
+  let right = -1
+  let bottom = -1
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!data[(y * width + x) * 4 + 3]) continue
+      if (x < left) left = x
+      if (x > right) right = x
+      if (y < top) top = y
+      if (y > bottom) bottom = y
+    }
+  }
+  if (right < 0) left = top = right = bottom = 0
+  const source = document.createElement('canvas')
+  source.width = width
+  source.height = height
+  source.getContext('2d')!.putImageData(new ImageData(new Uint8ClampedArray(data), width, height), 0, 0)
+  const w = right - left + 1
+  const h = bottom - top + 1
   const canvas = document.createElement('canvas')
-  canvas.width = image.width
-  canvas.height = image.height
+  canvas.width = box || w
+  canvas.height = box || h
   const context = canvas.getContext('2d')!
-  context.putImageData(new ImageData(new Uint8ClampedArray(image.data), image.width, image.height), 0, 0)
+  const fit = box ? Math.min(box / w, box / h) : 1
+  // Вдвое и больше — в целое число раз; от одного до двух — как есть, без сглаживания: иначе крупное здание
+  // осталось бы в окне портрета маленьким. Меньше одного — сглаженно, выпадение пикселей заметнее.
+  const scale = fit >= 2 ? Math.floor(fit) : fit
+  context.imageSmoothingEnabled = scale < 1
+  context.imageSmoothingQuality = 'high'
+  const dw = Math.round(w * scale)
+  const dh = Math.round(h * scale)
+  context.drawImage(source, left, top, w, h, Math.floor((canvas.width - dw) / 2), Math.floor((canvas.height - dh) / 2), dw, dh)
   return canvas.toDataURL()
 }
 
 const cache = new Map<string, string>()
 
-/** Портрет юнита для панели выбранного: тот же спрайт, что на карте, в цветах стороны. Рисуется один раз. */
-export function unitPortrait(type: UnitType, team: Team = 'own') {
-  const key = `unit:${team}:${type}`
+/**
+ * Портрет юнита для панели выбранного: тот же спрайт, что на карте, в цветах стороны, вписанный в квадрат box
+ * (см. toUrl). Рисуется один раз на размер.
+ */
+export function unitPortrait(type: UnitType, box = 0, team: Team = 'own') {
+  const key = `unit:${team}:${type}:${box}`
   let url = cache.get(key)
   if (!url) {
     const image = new Pixmap(UNIT_FRAME, UNIT_FRAME)
     image.originX = image.originY = UNIT_FRAME / 2
     UNIT_ART[type](image, ANGLE, TEAMS[team], 0)
     drawMounts(image, unitSpec(type).mounts, ANGLE, team)
-    cache.set(key, (url = toUrl(image)))
+    cache.set(key, (url = toUrl(image, box)))
   }
   return url
 }
 
-/** Портрет здания: первый кадр его анимации. */
-export function buildingPortrait(type: BuildingType) {
-  const key = `building:${type}`
+/** Портрет здания: первый кадр его анимации, вписанный в квадрат box. */
+export function buildingPortrait(type: BuildingType, box = 0) {
+  const key = `building:${type}:${box}`
   let url = cache.get(key)
   if (!url) {
     const art = BUILDING_ART[type]
@@ -63,7 +99,7 @@ export function buildingPortrait(type: BuildingType) {
       image.originY += (art.height * ART_TILE) / 2
       drawMounts(image, mounts, ANGLE)
     }
-    cache.set(key, (url = toUrl(image)))
+    cache.set(key, (url = toUrl(image, box)))
   }
   return url
 }
@@ -80,9 +116,9 @@ const PAVE_TILES: Record<PaveIcon, ['foundation' | 'road' | 'bridge', number][][
   bridge: [[['bridge', 2], ['bridge', 8]]],
 }
 
-/** Значок покрытия для сетки команд. Рисуется один раз. */
-export function pavePortrait(icon: PaveIcon) {
-  const key = `pave:${icon}`
+/** Значок покрытия для сетки команд, вписанный в квадрат box. Рисуется один раз на размер. */
+export function pavePortrait(icon: PaveIcon, box = 0) {
+  const key = `pave:${icon}:${box}`
   let url = cache.get(key)
   if (!url) {
     const rows = PAVE_TILES[icon]
@@ -108,7 +144,7 @@ export function pavePortrait(icon: PaveIcon) {
       image.line(7, 7, 25, 25, 2, 0xe0402c)
       image.line(25, 7, 7, 25, 2, 0xe0402c)
     }
-    cache.set(key, (url = toUrl(image)))
+    cache.set(key, (url = toUrl(image, box)))
   }
   return url
 }

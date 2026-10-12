@@ -42,6 +42,11 @@ interface HudProps {
 
 const percent = (value: number) => `${Math.round(value * 100)}%`
 
+/** Стороны квадратов под картинки, в пикселях экрана: портреты рисуются ровно под них, см. portraits.ts. */
+const PORTRAIT = 96
+const TILE = 32
+const QUEUED = 24
+
 /** Строка списка игроков, см. HudState. */
 type PlayerRow = HudState['players'][number]
 
@@ -113,9 +118,12 @@ function Tip() {
   // Карточка берётся из CARDS при каждой отрисовке: цена и доступность в ней свежие, пока курсор стоит на месте.
   const card = tip.card !== null ? CARDS.get(tip.card) : undefined
   if (card) {
-    // Карточка — над сеткой команд, правым краем у курсора: сетка у правого края экрана.
+    // Карточка — над сеткой команд, правым краем у курсора: сетка у правого края экрана. Над всей сеткой, а не
+    // над курсором — иначе она закрывает соседние ячейки, о которых и рассказывает.
+    const grid = document.querySelector('.bar__grid')?.getBoundingClientRect()
+    const above = grid ? window.innerHeight - grid.top + 12 : window.innerHeight - tip.y + 24
     return (
-      <div class="hud tip tip--card" style={{ right: `${Math.max(8, window.innerWidth - tip.x - 40)}px`, bottom: `${window.innerHeight - tip.y + 24}px` }}>
+      <div class="hud tip tip--card" style={{ right: `${Math.max(8, window.innerWidth - tip.x - 40)}px`, bottom: `${above}px` }}>
         {card}
       </div>
     )
@@ -356,10 +364,10 @@ function MinimapView({ minimap, lookAt, moveSelected }: Pick<HudProps, 'minimap'
 
 /** Картинка ячейки: портрет здания или юнита, значок груза или покрытия, или ничего. */
 function SlotImage({ slot }: { slot: Slot }) {
-  if (slot.building) return <img src={buildingPortrait(slot.building)} alt="" />
-  if (slot.unit) return <img src={unitPortrait(slot.unit)} alt="" />
+  if (slot.building) return <img src={buildingPortrait(slot.building, TILE)} alt="" />
+  if (slot.unit) return <img src={unitPortrait(slot.unit, TILE)} alt="" />
   if (slot.good) return <img class="bar__good" src={goodIcon(slot.good)} alt="" />
-  if (slot.pave) return <img src={pavePortrait(slot.pave)} alt="" />
+  if (slot.pave) return <img src={pavePortrait(slot.pave, TILE)} alt="" />
   return null
 }
 
@@ -392,6 +400,9 @@ function SlotCard({ slot, hotkey }: { slot: Slot; hotkey: string }) {
   )
 }
 
+/** Есть ли у ячейки картинка: без неё название и цена занимают всю ширину. */
+const pictured = (slot: Slot) => !!(slot.building || slot.unit || slot.good || slot.pave)
+
 /** Сетка команд 4×3: ячейка — кнопка со своей клавишей. */
 function CommandGrid({ slots }: { slots: (Slot | null)[] }) {
   return (
@@ -403,19 +414,28 @@ function CommandGrid({ slots }: { slots: (Slot | null)[] }) {
         return (
           <button
             key={i}
-            class={['bar__cell', slot.group !== undefined && 'bar__cell--group', slot.active && 'is-active'].filter(Boolean).join(' ')}
+            class={['bar__cell', slot.group !== undefined && 'bar__cell--group', slot.active && 'is-active', !pictured(slot) && 'is-bare']
+              .filter(Boolean)
+              .join(' ')}
             disabled={slot.disabled}
             data-tip={slot.label}
             data-card={String(i)}
             onClick={slot.run}
           >
             <SlotImage slot={slot} />
+            {slot.lamp !== undefined && <span class={slot.lamp ? 'bar__lamp is-on' : 'bar__lamp'} />}
+            <span class="bar__label">{slot.label}</span>
             <kbd>{key}</kbd>
-            {slot.group !== undefined && <span class="bar__count">{slot.group}</span>}
-            <span class="bar__label">{slot.group !== undefined ? `${slot.label} ▸` : slot.label}</span>
-            {/* В ячейке — только кредиты: полная цена с ресурсами и энергией — в карточке при наведении. */}
+            {/* В ячейке — только кредиты: полная цена с ресурсами и энергией — в карточке при наведении. У раздела —
+                сколько в нём кнопок. */}
             <span class="bar__price">
-              {slot.cost !== undefined && <b class={slot.gain ? 'is-gain' : undefined}>{slot.gain ? `+${slot.cost}` : slot.cost}</b>}
+              {slot.group !== undefined && `${slot.group} ▸`}
+              {slot.cost !== undefined && (
+                <b class={slot.gain ? 'is-gain' : undefined}>
+                  <span class="hud__coin" />
+                  {slot.gain ? `+${slot.cost}` : slot.cost}
+                </b>
+              )}
               {slot.cost === undefined && slot.materials?.length ? <small>…</small> : null}
             </span>
           </button>
@@ -467,14 +487,14 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
               data-tip={t('hud.narrowTip', { name: t(`units.${type}`) })}
               onClick={(event) => narrow(type, event.shiftKey)}
             >
-              <img src={unitPortrait(type)} alt="" />
+              <img src={unitPortrait(type, TILE)} alt="" />
               {count > 1 && <b>{count}</b>}
             </button>
           ))}
         </div>
       ) : (
         <button class="bar__portrait" data-tip={t('hud.showOnMap')} onClick={lookAtSelection}>
-          <img src={building !== null ? buildingPortrait(building) : unitPortrait(units[0].type)} alt="" />
+          <img src={building !== null ? buildingPortrait(building, PORTRAIT) : unitPortrait(units[0].type, PORTRAIT)} alt="" />
           <span class="bar__health" style={{ width: percent(health) }} data-low={health < 0.35 || undefined} />
         </button>
       )}
@@ -689,7 +709,7 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
             <Progress value={production.progress}>{t(`units.${production.queue[0]}`)}</Progress>
             <div class="bar__queue">
               {production.queue.map((unit, i) => (
-                <img key={i} src={unitPortrait(unit)} alt={t(`units.${unit}`)} data-tip={t(`units.${unit}`)} />
+                <img key={i} src={unitPortrait(unit, QUEUED)} alt={t(`units.${unit}`)} data-tip={t(`units.${unit}`)} />
               ))}
             </div>
           </>
@@ -927,7 +947,12 @@ export function Hud({ state, send, place, pave, route, serve, patrol, minimap, l
           />
         ) : (
           <div class="bar__info bar__info--empty">
-            {t('hud.nothingSelected')}
+            {/* Подсказка по управлению — по предложению в строке. */}
+            {t('hud.nothingSelected')
+              .split(/(?<=\.)\s+/)
+              .map((line) => (
+                <div key={line}>{line}</div>
+              ))}
           </div>
         )}
         {!state.editor && <CommandGrid slots={selected ? slots : Array(GRID_KEYS.length).fill(null)} />}

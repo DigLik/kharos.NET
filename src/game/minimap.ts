@@ -5,7 +5,7 @@ import { cssColor } from './resourceColors'
 import type { Scene } from './scene'
 
 /** Сторона мини-карты в пикселях холста. Карта квадратная: один пиксель — несколько тайлов. */
-export const MINIMAP_SIZE = 192
+export const MINIMAP_SIZE = 132
 /** Сколько миллисекунд за кадр можно тратить на подготовку местности мини-карты. */
 const BUDGET = 4
 
