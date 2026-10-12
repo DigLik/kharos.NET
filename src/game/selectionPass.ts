@@ -4,7 +4,7 @@ import { createAtlas } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Building, Converting, Orders, Owner, Path, Position, Producer, Site, UNITS, Unit, buildTicks, networkOf, siteTicks } from '../sim'
+import { Armed, Attached, BUILDINGS, Building, Converting, Orders, Owner, Path, Position, Producer, Site, UNITS, Unit, buildTicks, networkOf, siteTicks } from '../sim'
 import type { Scene } from './scene'
 import { drawnPosition } from './units/unitsPass'
 
@@ -34,6 +34,9 @@ const QUEUE_ALPHA = 0.55
 
 type Color = readonly [number, number, number]
 const SELECTED: Color = [0.35, 1, 0.45]
+/** Пунктир к цели выбранного стрелка и рамка на ней. */
+const TARGET: Color = [1, 0.35, 0.3]
+const TARGET_ALPHA = 0.7
 const BAR_BACK: Color = [0.03, 0.05, 0.08]
 const BAR_CONVERTING: Color = [1, 0.8, 0.3]
 const BAR_PRODUCING: Color = [0.35, 0.65, 1]
@@ -121,22 +124,48 @@ export function createSelectionPass(gl: WebGL2RenderingContext, scene: Scene): P
         frame(goalX, goalY, PATH_GOAL, PATH_GOAL, pixel * 2, SELECTED)
       }
 
-      /** Середина сущности в тайлах мира: юнита — где он, здания или площадки — середина основания. */
+      /** Середина сущности в тайлах мира: юнита — где он нарисован, здания или площадки — середина основания. */
       const centerOf = (target: number) => {
         const entity = target as Entity
         const position = world.get(entity, Position)
         if (!position) return null
         const type = world.get(entity, Building)?.type ?? world.get(entity, Site)?.type
-        if (!type) return { x: position.x, y: position.y }
+        const unit = world.get(entity, Unit)
+        if (!type) return unit ? drawnPosition(position, unit, time.alpha) : { x: position.x, y: position.y }
         return { x: position.x + BUILDINGS[type].width / 2, y: position.y + BUILDINGS[type].height / 2 }
       }
       /** Пунктир от (fromX, fromY) к (toX, toY) в тайлах мира. */
-      const dashes = (fromX: number, fromY: number, toX: number, toY: number, alpha: number) => {
+      const dashes = (fromX: number, fromY: number, toX: number, toY: number, alpha: number, color = SELECTED) => {
         const length = Math.hypot(toX - fromX, toY - fromY)
         for (let along = 0; along < length; along += PATH_STEP) {
           const x = toX + ((fromX - toX) / length) * along
           const y = toY + ((fromY - toY) / length) * along
-          rect(x - camera.x - dot / 2, y - camera.y - dot / 2, dot, dot, SELECTED, alpha)
+          rect(x - camera.x - dot / 2, y - camera.y - dot / 2, dot, dot, color, alpha)
+        }
+      }
+      // Цели выбранных стрелков: пунктир от стрелка к тому, в кого он целится, — его или турелей на нём. Цель хост
+      // шлёт только хозяину, поэтому у чужих выбранных её нет. Одна цель — одна рамка, сколько бы ни целилось.
+      const aims = new Map<Entity, Entity[]>()
+      const aim = (shooter: Entity, target: number) => {
+        if (target < 0 || !scene.selection.has(shooter)) return
+        const list = aims.get(shooter) ?? []
+        if (!list.includes(target as Entity)) list.push(target as Entity)
+        aims.set(shooter, list)
+      }
+      for (const entity of scene.selection) aim(entity, world.get(entity, Armed)?.target ?? -1)
+      for (const [, attached, armed] of world.query(Attached, Armed)) aim(attached.parent as Entity, armed.target)
+      const marked = new Set<Entity>()
+      for (const [shooter, targets] of aims) {
+        const from = centerOf(shooter)
+        if (!from) continue
+        for (const target of targets) {
+          const to = centerOf(target)
+          if (!to) continue
+          dashes(from.x, from.y, to.x, to.y, TARGET_ALPHA, TARGET)
+          if (marked.has(target)) continue
+          marked.add(target)
+          const size = PATH_GOAL * 2
+          frame(to.x - camera.x - size / 2, to.y - camera.y - size / 2, size, size, pixel * 2, TARGET)
         }
       }
       // Очередь приказов: от конца нынешнего пути через места следующих приказов.
