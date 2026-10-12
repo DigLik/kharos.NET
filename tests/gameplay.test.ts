@@ -23,15 +23,26 @@ function arena(sim: Sim, width: number, height: number) {
   throw new Error(`Не нашлось площадки ${width}×${height}`)
 }
 
-/** Бой двух отрядов равной цены на ровном поле: true — победил первый. */
+/**
+ * Побеждает ли первый отряд второй равной цены: в большинстве боёв на ровном поле с разной дистанцией. Один бой —
+ * дело случая: исход меняется от того, как юниты расставились, а проверяется, есть ли у юнита контр-юнит.
+ */
 function beats(ownType: UnitType, foeType: UnitType) {
+  return GAPS.filter((gap) => wins(ownType, foeType, gap)).length > GAPS.length / 2
+}
+
+/** Дистанции между передними рядами в боях, по которым судит beats. */
+const GAPS = [5, 7, 9]
+
+/** Бой двух отрядов равной цены на ровном поле: true — победил первый. gap — дистанция между передними рядами. */
+function wins(ownType: UnitType, foeType: UnitType, gap: number) {
   const sim = createSim(options)
   const ownCount = Math.max(1, Math.floor(DUEL_BUDGET / UNITS[ownType].cost))
   const foeCount = Math.max(1, Math.floor(DUEL_BUDGET / UNITS[foeType].cost))
   const own = Array<UnitType>(ownCount).fill(ownType)
   const foe = Array<UnitType>(foeCount).fill(foeType)
   const spot = arena(sim, 20 + Math.ceil(Math.max(ownCount, foeCount) / 3) * 2, 16)
-  spawnBattle(sim, 1, spot.x + 14, spot.y + 8, own, foe, 7)
+  spawnBattle(sim, 1, spot.x + 14, spot.y + 8, own, foe, gap)
   for (let spent = 0; spent < 240; spent += 0.25) {
     if (!driveBattle(sim, 1)) break
     sim.advance(0.25)

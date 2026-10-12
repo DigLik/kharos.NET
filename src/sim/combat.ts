@@ -13,7 +13,7 @@ import { searchCut, searchedTiles, withSearchQuota } from './path'
 import { protectedPlayers, protectionLeft, unprotect } from './shelter'
 import type { Sim } from './sim'
 import { TURRETS, carrierOf, turnerOf, turretsOf } from './turrets'
-import { UNITS, flies, orderMove, unitSpec, type UnitSpec } from './units'
+import { UNITS, flies, isWalkable, onFoot, orderMove, unitSpec, type UnitSpec } from './units'
 import { WEAPONS, type Armor, type ShotKind, type WeaponSpec, type WeaponType } from './weapons'
 import { LEASH, clearTactics, leaveHome, stanceOf } from './tactics'
 import { unitSight } from './vision'
@@ -144,6 +144,111 @@ function gridOf(marks: Map<Entity, Mark>) {
 /** Расстояние от точки до края цели в тайлах. */
 function distanceTo(mark: Mark, x: number, y: number) {
   return Math.max(0, rectDistance(mark.left, mark.top, mark.width, mark.height, x, y) - mark.radius)
+}
+
+/**
+ * На сколько тайлов ближе дальности выстрела место у цели. Меньше, чем CHASE_MARGIN: стреляющий корпусом по дороге к
+ * месту молчит, и место должно быть там, где он и так встал бы, — у края выстрела, а не глубже.
+ */
+const SLOT_MARGIN = 0.5
+/** Сколько тайлов оставляют между собой соседи на местах вокруг цели, сверх своих радиусов. */
+const SLOT_GAP = 0.4
+/** Ближе стольких тайлов к своему месту гонящийся, уже достающий до цели, встаёт стрелять. */
+const SLOT_REACH = 0.75
+/** Сколько тиков подряд гонящийся, уже достающий до цели, может простоять в заторе по пути к месту: дальше он стреляет, где стоит. */
+const SLOT_PATIENCE = 10
+/** Ближе стольких тайлов к своему месту гонящийся прокладывает путь к нему заново при каждой проверке погони. */
+const SLOT_REPLAN = 4
+/** Сторона ячейки, по которой slotsAround ищет занятые места рядом: не меньше, чем два самых крупных радиуса с зазором. */
+const SLOT_CELL = 2.5
+/** Ближе стольких тайлов к месту за целью не должно быть других врагов: иначе место — в строю чужой армии, см. slotsAround. */
+const GUARD_RANGE = 4
+/** Насколько кольца мест у разных нападающих могут разниться, чтобы считаться одним: см. slotsAround. */
+const FULL_RING = 0.25
+
+/** Гонящийся за целью: носитель, на сколько ему подойти к краю цели и стоит ли он уже на выстреле. */
+interface Pursuer {
+  entity: Entity
+  x: number
+  y: number
+  radius: number
+  reach: number
+  foot: boolean
+  /** Уже стреляет с места: его место — где стоит. */
+  settled: boolean
+  player: number
+}
+
+/**
+ * Места вокруг цели для гонящихся за ней: каждому — точка на расстоянии его выстрела от края цели, как можно ближе
+ * к той стороне, с которой он подходит, и не ближе SLOT_GAP к соседям. Немногие с дальним оружием встают дугой со
+ * своей стороны, а когда на дуге тесно — лишние занимают места дальше по кругу, и дуга замыкается в кольцо.
+ * Без мест все ехали бы в одну ближайшую точку: передние вставали бы стрелять, задние упирались бы в них.
+ * За цель — дальше четверти круга от своей стороны — встают, только если там нет других врагов (guarded): одинокую цель
+ * толпа обступает, а цель в строю чужой армии — нет, иначе лишние шли бы на места сквозь этот строй.
+ * Сначала места занимают уже стреляющие, потом гонящиеся — от ближних к дальним. Кому места не нашлось, в ответе нет.
+ */
+function slotsAround(sim: Sim, target: Mark, pursuers: readonly Pursuer[], guarded: (x: number, y: number, player: number) => boolean) {
+  const slots = new Map<Entity, { x: number; y: number }>()
+  // Занятые места — по ячейкам SLOT_CELL: проверять каждое место против всех занятых — квадрат от числа нападающих.
+  const taken = new Map<number, { x: number; y: number; radius: number }[]>()
+  const take = (x: number, y: number, radius: number) => {
+    const key = tileKey(Math.floor(x / SLOT_CELL), Math.floor(y / SLOT_CELL))
+    const cell = taken.get(key)
+    if (cell) cell.push({ x, y, radius })
+    else taken.set(key, [{ x, y, radius }])
+  }
+  const free = (x: number, y: number, radius: number) => {
+    const cellX = Math.floor(x / SLOT_CELL)
+    const cellY = Math.floor(y / SLOT_CELL)
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (const other of taken.get(tileKey(cellX + dx, cellY + dy)) ?? []) {
+          if (Math.hypot(other.x - x, other.y - y) < other.radius + radius + SLOT_GAP) return false
+        }
+      }
+    }
+    return true
+  }
+  const centerX = target.left + target.width / 2
+  const centerY = target.top + target.height / 2
+  const order = [...pursuers].sort((a, b) => Number(b.settled) - Number(a.settled) || Math.hypot(a.x - centerX, a.y - centerY) - Math.hypot(b.x - centerX, b.y - centerY))
+  // Кольца, на которых места уже не нашлось: занятых мест только прибавляется, и такому же или крупнее там его не найти.
+  // Без этого в толпе каждый следующий перебирал бы весь круг впустую.
+  const full: { ring: number; radius: number }[] = []
+  for (const pursuer of order) {
+    if (pursuer.settled) {
+      take(pursuer.x, pursuer.y, pursuer.radius)
+      continue
+    }
+    const bearing = Math.atan2(pursuer.y - centerY, pursuer.x - centerX)
+    const ring = pursuer.reach + target.radius + Math.min(target.width, target.height) / 2
+    if (full.some((other) => Math.abs(other.ring - ring) < FULL_RING && other.radius <= pursuer.radius)) continue
+    // Шаг по кругу — полместа: так соседи встают плотно, но друг в друга не заходят.
+    const step = (pursuer.radius + SLOT_GAP / 2) / Math.max(1, ring)
+    for (let k = 0; k * step <= Math.PI; k++) {
+      let found: { x: number; y: number } | undefined
+      for (const angle of k ? [bearing + k * step, bearing - k * step] : [bearing]) {
+        const dx = Math.cos(angle)
+        const dy = Math.sin(angle)
+        // Точка, где луч из центра выходит из основания цели, и от неё — на выстрел наружу.
+        const edge = Math.min(dx ? target.width / 2 / Math.abs(dx) : Infinity, dy ? target.height / 2 / Math.abs(dy) : Infinity)
+        const out = (Number.isFinite(edge) ? edge : 0) + target.radius + pursuer.reach
+        const x = centerX + dx * out
+        const y = centerY + dy * out
+        if (!isWalkable(sim, Math.floor(x), Math.floor(y), pursuer.foot) || !free(x, y, pursuer.radius)) continue
+        if (k * step > Math.PI / 2 && guarded(x, y, pursuer.player)) continue
+        found = { x, y }
+        break
+      }
+      if (!found) continue
+      slots.set(pursuer.entity, found)
+      take(found.x, found.y, pursuer.radius)
+      break
+    }
+    if (!slots.has(pursuer.entity)) full.push({ ring, radius: pursuer.radius })
+  }
+  return slots
 }
 
 function collectMarks(sim: Sim) {
@@ -456,6 +561,41 @@ export function fight(sim: Sim) {
   const shooters: { entity: Entity; armed: { target: number; chase: boolean; cooldown: number; stuck: number; ordered: boolean } }[] = []
   for (const [entity, armed] of world.query(Armed)) shooters.push({ entity, armed })
 
+  /**
+   * Кто за какой целью гонится — наземные носители, на начало тика: им раздаются места вокруг цели, см. slotsAround.
+   * У носителя с несколькими турелями подход — по самой короткой из погонь: на месте должны доставать все.
+   */
+  const pursuers = new Map<Entity, Map<Entity, Pursuer>>()
+  for (const { entity, armed } of shooters) {
+    if (!armed.chase || armed.target === NONE) continue
+    const carrier = carrierOf(sim, entity)
+    const unit = world.get(carrier, Unit)
+    const position = world.get(carrier, Position)
+    const weapon = weaponOf(sim, entity)
+    if (!unit || !position || !weapon || flies(unit.type)) continue
+    const spec: WeaponSpec = WEAPONS[weapon]
+    const reach = Math.max((spec.minRange ?? 0) + SLOT_MARGIN, spec.range - SLOT_MARGIN)
+    const target = marks.get(armed.target as Entity)
+    let around = pursuers.get(armed.target as Entity)
+    if (!around) pursuers.set(armed.target as Entity, (around = new Map()))
+    const known = around.get(carrier)
+    if (known && known.reach <= reach) continue
+    const settled = !world.has(carrier, Path) && !!target && distanceTo(target, position.x, position.y) <= spec.range
+    around.set(carrier, { entity: carrier, x: position.x, y: position.y, radius: UNITS[unit.type].radius, reach, foot: onFoot(unit.type), settled, player: ownerOf(sim, carrier) })
+  }
+  /** Места вокруг целей; раздаются, когда за местом впервые в тике обращаются. */
+  const slots = new Map<Entity, Map<Entity, { x: number; y: number }>>()
+  const slotOf = (target: Mark, carrier: Entity) => {
+    let around = slots.get(target.entity)
+    if (!around) {
+      // Есть ли у места другие враги, кроме самой цели.
+      const guarded = (x: number, y: number, player: number) =>
+        near(x, y, GUARD_RANGE).some((mark) => mark.entity !== target.entity && hostile(player, mark.player) && !friends.get(player)?.includes(mark.player) && !dead.has(mark.entity) && distanceTo(mark, x, y) <= GUARD_RANGE)
+      slots.set(target.entity, (around = slotsAround(sim, target, [...(pursuers.get(target.entity)?.values() ?? [])], guarded)))
+    }
+    return around.get(carrier)
+  }
+
   /** Гонится ли носитель или одна из его турелей за целью: тогда его путь проложил бой, а не игрок. */
   const inChase = (carrier: Entity) => [carrier, ...turretsOf(sim, carrier)].some((gunner) => {
     const armed = world.get(gunner, Armed)
@@ -562,20 +702,27 @@ export function fight(sim: Sim) {
       else if (mounted && chasing.has(mover)) continue
       // Вставший трогается снова не каждый тик, а не нашедший пути — всё реже: искать его без конца слишком дорого.
       else if (onTurn(time, entity, moving ? CHASE_TICKS : SCAN_TICKS << Math.min(armed.stuck, STUCK_LIMIT))) {
-        const goalX = Math.floor(target.x)
-        const goalY = Math.floor(target.y)
-        // Цель с места не сошла — прежний путь годится.
+        // Едет на своё место вокруг цели; не нашлось места — просто на выстрел от неё.
+        const slot = slotOf(target, mover)
+        const goalX = Math.floor(slot ? slot.x : target.x)
+        const goalY = Math.floor(slot ? slot.y : target.y)
+        // Цель с места не сошла — прежний путь годится. Но у самого места путь к нему прокладывается заново: проложенный,
+        // пока соседи ещё ехали, ведёт сквозь тех, кто с тех пор встал стрелять.
         const path = world.get(mover, Path)
-        if (path && Math.abs(path.goalX - goalX) <= 1 && Math.abs(path.goalY - goalY) <= 1) continue
+        const carrierAt = world.get(mover, Position)!
+        const close = !!slot && Math.hypot(carrierAt.x - slot.x, carrierAt.y - slot.y) < SLOT_REPLAN
+        if (path && !close && path.slot === !!slot && Math.abs(path.goalX - goalX) <= 1 && Math.abs(path.goalY - goalY) <= 1) continue
         // Остальные дождутся своей очереди: сотня поисков пути за тик — заметная запинка.
         if (searches++ >= CHASE_SEARCHES || searchedTiles() - searchedBefore >= CHASE_TILES) continue
         // Идти надо не в саму цель, а на выстрел от неё: цель занята, а к зданию или в гущу врагов и не подойти.
-        const near = Math.max(0, weapon.range - CHASE_MARGIN) + Math.max(target.width, target.height) / 2
+        const near = slot ? 0 : Math.max(0, weapon.range - CHASE_MARGIN) + Math.max(target.width, target.height) / 2
         chasing.add(mover)
         withSearchQuota(CHASE_TILES - (searchedTiles() - searchedBefore), () => {
           orderMove(sim, mover, goalX, goalY, undefined, 0, near)
+          const next = world.get(mover, Path)
+          if (next && slot) next.slot = true
           // Не нашедший пути ищет всё реже; тот, чей поиск оборвала норма, — не в счёт: путь у него, может, и есть.
-          if (world.has(mover, Path)) armed.stuck = 0
+          if (next) armed.stuck = 0
           else if (!searchCut()) armed.stuck++
         })
       }
@@ -589,7 +736,13 @@ export function fight(sim: Sim) {
     // На выстреле: гнавшийся встаёт. Идущий по приказу игрока не стреляет — цели у него нет; турель на едущем
     // по приказу носителе стреляет, но носитель не останавливает.
     // Патрульный встаёт драться и продолжит обход, когда бой кончится.
-    if (moving && (!mounted || armed.chase || patrolling)) world.remove(mover, Path)
+    // Гонящийся, который едет на своё место у цели, на выстрел попадает раньше, чем на место: он едет дальше, освобождая
+    // подход задним, а турель на нём стреляет на ходу. Застрял в заторе по пути — стреляет, где стоит.
+    const path = moving ? world.get(mover, Path) : undefined
+    const carrierAt = world.get(mover, Position)!
+    const toSlot = !!path?.slot && armed.chase && path.wait < SLOT_PATIENCE && Math.hypot(carrierAt.x - path.goalX - 0.5, carrierAt.y - path.goalY - 0.5) > SLOT_REACH
+    if (toSlot && !mounted) continue
+    if (moving && !toSlot && (!mounted || armed.chase || patrolling)) world.remove(mover, Path)
 
     const wanted = Math.atan2(target.y - self.y, target.x - self.x)
     const { body: aimer } = turner

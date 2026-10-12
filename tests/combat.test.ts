@@ -430,7 +430,8 @@ test('гонящийся идёт на выстрел от цели, а не в 
   sim.send(1, { type: 'attack', units: [tank], target })
   seconds(sim, 1)
   const path = sim.world.get(tank, Path)!
-  expect(path.near).toBeGreaterThan(0)
+  // Путь ведёт на его место у цели, см. slotsAround: оно на выстреле, а не в самой цели.
+  expect(path.slot).toBe(true)
   // Путь кончается не ближе дальности выстрела с запасом, но в пределах выстрела.
   const reach = Math.hypot(path.points[path.points.length - 2] - 30.5, path.points[path.points.length - 1] - 0.5)
   expect(reach).toBeLessThanOrEqual(WEAPONS.cannon.range)

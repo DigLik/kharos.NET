@@ -463,7 +463,7 @@ export function orderMove(sim: Sim, entity: Entity, x: number, y: number, ignore
   if (air) {
     // Летающему преград нет: он летит к цели по прямой.
     if (!inBounds(sim, x, y)) return void world.remove(entity, Path)
-    world.add(entity, Path({ points: [x + 0.5, y + 0.5], goalX: x, goalY: y, wait: 0, tries, near, direct: false, stuck: false }))
+    world.add(entity, Path({ points: [x + 0.5, y + 0.5], goalX: x, goalY: y, wait: 0, tries, near, direct: false, stuck: false, slot: false }))
     return
   }
   const fromX = Math.floor(position.x)
@@ -519,7 +519,7 @@ export function orderMove(sim: Sim, entity: Entity, x: number, y: number, ignore
     tiles.map((value) => value + 0.5),
     slowness,
   )
-  if (points.length) world.add(entity, Path({ points, goalX: x, goalY: y, wait: 0, tries, near, roads: fastest < 1, direct: false, stuck: false }))
+  if (points.length) world.add(entity, Path({ points, goalX: x, goalY: y, wait: 0, tries, near, roads: fastest < 1, direct: false, stuck: false, slot: false }))
   // Из затора пока не выбраться: приказ остаётся, юнит попробует снова.
   else if (!jam) world.remove(entity, Path)
 }
@@ -554,7 +554,7 @@ function aimAtTiles(sim: Sim, units: Entity[], tiles: number[]) {
     const at = Math.min(i * 2, tiles.length - 2)
     const x = tiles[at]
     const y = tiles[at + 1]
-    world.add(entity, Path({ points: [x + 0.5, y + 0.5], goalX: x, goalY: y, wait: 0, tries: 0, near: 0, roads: false, direct: true, stuck: false }))
+    world.add(entity, Path({ points: [x + 0.5, y + 0.5], goalX: x, goalY: y, wait: 0, tries: 0, near: 0, roads: false, direct: true, stuck: false, slot: false }))
   })
 }
 
