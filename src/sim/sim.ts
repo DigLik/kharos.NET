@@ -13,6 +13,7 @@ import { apply, type Command } from './commands'
 import { Building, Carrier, Inventory, Position, SAVED, Site, Unit } from './components'
 import { mountTurrets } from './turrets'
 import { adoptLegacyDeposits, createDeposits, saveDeposits, type DepositLayer, type DepositsSave } from './deposits'
+import { renewDeposits } from './renewal'
 import { unitSpec } from './units'
 import type { Entity } from '../ecs'
 import { REPAIR_COST, REPAIR_PAUSE, REPAIR_SPEED, construct } from './construction'
@@ -86,6 +87,11 @@ export interface Rules {
   researchSlow: number
   /** Во сколько раз уровни зданий дороже и дольше, чем в матче, см. upgradeCost. */
   upgradeScale: number
+  /**
+   * Через сколько минут после выработки месторождения в другом месте карты появляется новое, см. renewal.ts. Ноль —
+   * месторождения конечны.
+   */
+  depositRenewal: number
 }
 
 export const DEFAULT_RULES: Rules = {
@@ -109,6 +115,7 @@ export const DEFAULT_RULES: Rules = {
   researchGrowth: 1,
   researchSlow: 1,
   upgradeScale: 1,
+  depositRenewal: 15,
 }
 
 export interface SimOptions {
@@ -253,6 +260,8 @@ export function createSim(source: SimOptions | SimSave): Sim {
       () => sim.vision.update(),
       // После обзора: игроки узнают правки карты, которые теперь видят.
       () => updateLandMemory(sim),
+      // Тоже после обзора: новые месторождения находят, ушедшие забывают те, кто видит их место.
+      () => renewDeposits(sim),
     ],
   })
   /**

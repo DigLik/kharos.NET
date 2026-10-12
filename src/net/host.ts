@@ -6,7 +6,7 @@ import { Armed, Attached, Blast, Building, Health, Owner, Path, Player, Position
 import { pathOf, seenBy, sharedWireOf, type Wired } from './wire'
 import { LAND, POSITION, encodeDelta, type Motion, type ShotRecord } from './codec'
 import { deflate } from '../save/file'
-import { DEPOSIT_SIZE, fillDeposits, saveDeposits } from '../sim/deposits'
+import { DEPOSIT_TYPES, fillDeposits, knowsDeposit, saveDeposits } from '../sim/deposits'
 import { knownEdits, pristineLand, takeLearned } from '../sim/landMemory'
 import type { ServerData } from './protocol'
 import { TRACE_CELL, type Trace } from '../sim/traces'
@@ -1119,19 +1119,19 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     sendDeposits(send, player)
   }
   /**
-   * Месторождения, которые игрок знает: те, что на разведанной им земле. Остальные клиенту не шлются — иначе их видно
-   * сквозь туман. cache — слой на игрока за один проход по подключениям.
+   * Месторождения, которые игрок знает (knowsDeposit), и ушедшие, которые он ещё помнит. Остальные клиенту не
+   * шлются — иначе их видно сквозь туман.
    */
-  /** Слой месторождений в виде для сети: собирается заново, только когда слой поменялся. */
-  let depositsSaved: { layer: Sim['deposits']; revision: number; save: ReturnType<typeof saveDeposits> } | undefined
+  /** Взятые клетки слоя в виде для сети: собираются заново, только когда слой поменялся. */
+  let depositsSaved: { layer: Sim['deposits']; revision: number; cells: number[] } | undefined
   const depositsMessage = (player: number, god = false) => {
-    if (depositsSaved?.layer !== sim.deposits || depositsSaved.revision !== sim.deposits.revision) depositsSaved = { layer: sim.deposits, revision: sim.deposits.revision, save: saveDeposits(sim.deposits) }
-    const { cells, spots } = depositsSaved.save
+    if (depositsSaved?.layer !== sim.deposits || depositsSaved.revision !== sim.deposits.revision) depositsSaved = { layer: sim.deposits, revision: sim.deposits.revision, cells: saveDeposits(sim.deposits).cells }
     const known: number[] = []
-    for (let i = 0; i + 3 < spots.length; i += 4) {
-      if (god || sim.vision.exploredIn(player, spots[i], spots[i + 1], DEPOSIT_SIZE, DEPOSIT_SIZE)) known.push(...spots.slice(i, i + 4))
+    for (const spots of sim.deposits.cells.values()) {
+      for (const spot of spots) if (god || knowsDeposit(sim, player, spot)) known.push(spot.x, spot.y, DEPOSIT_TYPES.indexOf(spot.kind), spot.reserve)
     }
-    return JSON.stringify({ type: 'deposits', deposits: { cells, spots: known } } satisfies ServerMessage)
+    if (!god) for (const ghost of sim.deposits.ghosts) if (ghost.players.includes(player)) known.push(ghost.x, ghost.y, DEPOSIT_TYPES.indexOf(ghost.kind), ghost.reserve)
+    return JSON.stringify({ type: 'deposits', deposits: { cells: depositsSaved.cells, spots: known } } satisfies ServerMessage)
   }
   /** Шлёт подключению слой месторождений, если игрок узнал новые или слой поменялся. */
   const sendDeposits = (send: Send, player: number, cache = new Map<number, string>()) => {

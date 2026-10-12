@@ -4,7 +4,7 @@ import { createHost } from '../src/net/host'
 import { decodeServer } from '../src/net/protocol'
 import { createReplica, type Replica } from '../src/net/replica'
 import { DEPOSIT_CELL, Deposit, Position, createSim, depositsIn, type Sim } from '../src/sim'
-import { fillDeposits } from '../src/sim/deposits'
+import { addDeposit, fillDeposits } from '../src/sim/deposits'
 import { paint, putDeposit } from '../src/sim/editor'
 import { editTile } from '../src/sim/landMemory'
 import { throughJson } from './throughJson'
@@ -90,5 +90,23 @@ test('правки месторождений из прежних сохране
     for (const row of loaded.world.query(Position, Deposit)) return row
     throw new Error('Месторождения из сохранения нет')
   })()
-  expect(deposit).toEqual({ mined: 5 })
+  expect(deposit).toEqual({ mined: 5, spent: false })
+})
+
+test('клиенту шлются ушедшие месторождения, которые игрок помнит, и не шлются новые, которых он не видел', () => {
+  const sim = world()
+  const { host, mirrored } = joined(sim)
+  host.advance(1)
+  expect(mirrored()).toBe(0)
+  sim.deposits.ghosts.push({ x: 0, y: 0, kind: 'metal', reserve: 100, players: [1] }, { x: 4, y: 0, kind: 'fuel', reserve: 100, players: [2] })
+  sim.deposits.revision++
+  host.advance(1)
+  expect(mirrored()).toBe(1)
+  // Вся карта разведана: шлются все месторождения генератора и помнимое ушедшее, а новое, которого никто не нашёл, — нет.
+  sim.vision.explore(1, [0, 256 * 256])
+  addDeposit(sim, { x: 8, y: 0, kind: 'silicon', reserve: 100, found: [] })
+  host.advance(1)
+  expect(sim.vision.exploredIn(1, 8, 0, 2, 2)).toBe(true)
+  const generated = [...sim.deposits.cells.values()].flat().filter((spot) => !spot.found).length
+  expect(mirrored()).toBe(generated + 1)
 })

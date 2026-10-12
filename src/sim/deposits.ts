@@ -61,6 +61,19 @@ export interface DepositSpot {
   y: number
   kind: DepositKind
   reserve: number
+  /**
+   * Кто его нашёл — только у появившихся на смену выработанным, см. renewal.ts. Такое месторождение могло встать там,
+   * где игрок уже бывал, и знает о нём только тот, кто с тех пор видел его место. Нет поля — знает всякий, кто разведал.
+   */
+  found?: number[]
+}
+
+/**
+ * Ушедшее месторождение, которое игроки ещё помнят: им оно шлётся, как прежде, пока они не увидят его место снова.
+ * Так туман не выдаёт, что месторождение выработали.
+ */
+export interface DepositGhost extends DepositSpot {
+  players: number[]
 }
 
 /**
@@ -80,16 +93,30 @@ export interface DepositLayer {
   pending: boolean
   /** Номер правки: растёт с каждой. По нему хост узнаёт, что слой пора разослать заново. */
   revision: number
+  /** Ушедшие месторождения, которые кто-то ещё помнит. */
+  ghosts: DepositGhost[]
+  /** Тики, к которым должны появиться новые месторождения на смену выработанным, по возрастанию. */
+  due: number[]
+  /** Сколько мест перепробовано под новые месторождения: от этого числа идёт их случайный выбор. */
+  spawned: number
 }
 
-/** Слой в сохранении: взятые клетки — cellX, cellY подряд; месторождения — x, y, номер вида в DEPOSIT_TYPES и запас подряд. */
+/**
+ * Слой в сохранении: взятые клетки — cellX, cellY подряд; месторождения — x, y, номер вида в DEPOSIT_TYPES и запас
+ * подряд. Остальное — для смены месторождений, см. renewal.ts: found — x, y, число нашедших и они сами подряд;
+ * ghosts — как spots, и следом число помнящих и они сами.
+ */
 export interface DepositsSave {
   cells: number[]
   spots: number[]
+  found?: number[]
+  ghosts?: number[]
+  due?: number[]
+  spawned?: number
 }
 
 export function createDeposits(save?: DepositsSave, complete = false): DepositLayer {
-  const layer: DepositLayer = { cells: new Map(), complete, pending: false, revision: 0 }
+  const layer: DepositLayer = { cells: new Map(), complete, pending: false, revision: 0, ghosts: [], due: [], spawned: 0 }
   if (save) loadDeposits(layer, save)
   return layer
 }
@@ -104,6 +131,20 @@ export function loadDeposits(layer: DepositLayer, save: DepositsSave) {
     if (!layer.cells.has(key)) layer.cells.set(key, [])
     layer.cells.get(key)!.push({ x, y, kind: DEPOSIT_TYPES[kind] ?? 'metal', reserve })
   }
+  const found = save.found ?? []
+  for (let i = 0; i + 2 < found.length; i += 3 + found[i + 2]) {
+    const [x, y, count] = found.slice(i, i + 3)
+    const spot = layer.cells.get(cellOf(x, y))?.find((spot) => spot.x === x && spot.y === y)
+    if (spot) spot.found = found.slice(i + 3, i + 3 + count)
+  }
+  layer.ghosts = []
+  const ghosts = save.ghosts ?? []
+  for (let i = 0; i + 4 < ghosts.length; i += 5 + ghosts[i + 4]) {
+    const [x, y, kind, reserve, count] = ghosts.slice(i, i + 5)
+    layer.ghosts.push({ x, y, kind: DEPOSIT_TYPES[kind] ?? 'metal', reserve, players: ghosts.slice(i + 5, i + 5 + count) })
+  }
+  layer.due = [...(save.due ?? [])]
+  layer.spawned = save.spawned ?? 0
   layer.pending = false
   layer.revision++
 }
@@ -111,16 +152,36 @@ export function loadDeposits(layer: DepositLayer, save: DepositsSave) {
 export function saveDeposits(layer: DepositLayer): DepositsSave {
   const cells: number[] = []
   const spots: number[] = []
+  const found: number[] = []
   for (const [key, list] of layer.cells) {
     const { x, y } = keyCell(key)
     cells.push(x, y)
-    for (const spot of list) spots.push(spot.x, spot.y, DEPOSIT_TYPES.indexOf(spot.kind), spot.reserve)
+    for (const spot of list) {
+      spots.push(spot.x, spot.y, DEPOSIT_TYPES.indexOf(spot.kind), spot.reserve)
+      if (spot.found) found.push(spot.x, spot.y, spot.found.length, ...spot.found)
+    }
   }
-  return { cells, spots }
+  const ghosts = layer.ghosts.flatMap((ghost) => [ghost.x, ghost.y, DEPOSIT_TYPES.indexOf(ghost.kind), ghost.reserve, ghost.players.length, ...ghost.players])
+  return { cells, spots, ...(found.length && { found }), ...(ghosts.length && { ghosts }), ...(layer.due.length && { due: [...layer.due] }), ...(layer.spawned && { spawned: layer.spawned }) }
+}
+
+/**
+ * Знает ли игрок о месторождении: нашёл ли его, а для положенного генератором — разведал ли его место. Без тумана
+ * знают все.
+ */
+export function knowsDeposit(sim: Sim, player: number, spot: DepositSpot) {
+  if (spot.found && sim.options.fog !== false) return spot.found.includes(player)
+  return sim.vision.exploredIn(player, spot.x, spot.y, DEPOSIT_SIZE, DEPOSIT_SIZE)
+}
+
+/** Видит ли игрок сейчас хоть тайл месторождения. */
+export function seesDeposit(sim: Sim, player: number, spot: { x: number; y: number }) {
+  for (let y = spot.y; y < spot.y + DEPOSIT_SIZE; y++) for (let x = spot.x; x < spot.x + DEPOSIT_SIZE; x++) if (sim.vision.sees(player, x, y)) return true
+  return false
 }
 
 /** Ключ клетки, в которой лежит тайл (x, y). */
-const cellOf = (x: number, y: number) => tileKey(Math.floor(x / DEPOSIT_CELL), Math.floor(y / DEPOSIT_CELL))
+export const cellOf = (x: number, y: number) => tileKey(Math.floor(x / DEPOSIT_CELL), Math.floor(y / DEPOSIT_CELL))
 /** Клетка по ключу tileKey. */
 const keyCell = (key: number) => ({ x: (key % 65536) - 32768, y: Math.floor(key / 65536) - 32768 })
 
@@ -209,30 +270,35 @@ export function adoptLegacyDeposits(sim: Sim) {
 
 /** Месторождение, которое генератор кладёт в клетку, без правок. */
 function generatedIn(sim: Sim, cellX: number, cellY: number): DepositSpot | null {
-  const { land, bounds } = sim
+  const seed = sim.land.config.seed + SALT
+  if (hash(cellX, cellY, seed) >= (sim.land.config.depositChance ?? DEPOSIT_CHANCE)) return null
+  return placeIn(sim, cellX, cellY, (k) => hash(cellX, cellY, seed + k))
+}
 
-  const seed = land.config.seed + SALT
-  let spot: DepositSpot | null = null
-  if (hash(cellX, cellY, seed) < (land.config.depositChance ?? DEPOSIT_CHANCE)) {
-    const room = DEPOSIT_CELL - DEPOSIT_SIZE
-    search: for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
-      const x = cellX * DEPOSIT_CELL + Math.floor(hash(cellX, cellY, seed + 1 + attempt * 2) * room)
-      const y = cellY * DEPOSIT_CELL + Math.floor(hash(cellX, cellY, seed + 2 + attempt * 2) * room)
-      if (x < bounds.left || y < bounds.top || x + DEPOSIT_SIZE > bounds.right || y + DEPOSIT_SIZE > bounds.bottom) continue
-      for (let tileY = y; tileY < y + DEPOSIT_SIZE; tileY++) {
-        for (let tileX = x; tileX < x + DEPOSIT_SIZE; tileX++) {
-          // Шахта встаёт на месторождение: тайлы те же, что годятся под здание, — скала не у подножия обрыва.
-          if (!isBuildable(terrainAt(land, tileX, tileY)) || isCliffFoot(land, tileX, tileY)) continue search
-        }
+/**
+ * Месторождение в клетке (cellX, cellY) по случайным числам random(k): место — первое из ATTEMPTS, где можно строить
+ * и где fits не против; вид — по биому; запас — по виду. Нет такого места — null.
+ */
+export function placeIn(sim: Sim, cellX: number, cellY: number, random: (k: number) => number, fits = (_x: number, _y: number) => true): DepositSpot | null {
+  const { land, bounds } = sim
+  const room = DEPOSIT_CELL - DEPOSIT_SIZE
+  search: for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    const x = cellX * DEPOSIT_CELL + Math.floor(random(1 + attempt * 2) * room)
+    const y = cellY * DEPOSIT_CELL + Math.floor(random(2 + attempt * 2) * room)
+    if (x < bounds.left || y < bounds.top || x + DEPOSIT_SIZE > bounds.right || y + DEPOSIT_SIZE > bounds.bottom) continue
+    for (let tileY = y; tileY < y + DEPOSIT_SIZE; tileY++) {
+      for (let tileX = x; tileX < x + DEPOSIT_SIZE; tileX++) {
+        // Шахта встаёт на месторождение: тайлы те же, что годятся под здание, — скала не у подножия обрыва.
+        if (!isBuildable(terrainAt(land, tileX, tileY)) || isCliffFoot(land, tileX, tileY)) continue search
       }
-      const kind = kindIn(biomeAt(land, x, y), hash(cellX, cellY, seed + 53))
-      const { min, max } = DEPOSIT_KINDS[kind]
-      const richness = land.config.depositRichness ?? 1
-      spot = { x, y, kind, reserve: Math.round((min + hash(cellX, cellY, seed + 97) * (max - min)) * richness) }
-      break
     }
+    if (!fits(x, y)) continue
+    const kind = kindIn(biomeAt(land, x, y), random(53))
+    const { min, max } = DEPOSIT_KINDS[kind]
+    const richness = land.config.depositRichness ?? 1
+    return { x, y, kind, reserve: Math.round((min + random(97) * (max - min)) * richness) }
   }
-  return spot
+  return null
 }
 
 /** Месторождение с левым верхним тайлом ровно в (x, y) или null. */

@@ -105,10 +105,10 @@ export const Site = component('Site', { type: 'generator' as BuildingType, progr
 export const Builds = component('Builds', { site: 0, ordered: true, misses: 0 })
 
 /**
- * Месторождение, из которого уже добывали: mined — сколько из него забрано. Место — левый верхний тайл месторождения.
- * Сами месторождения — слой карты, см. DepositLayer.
+ * Месторождение, из которого уже добывали: mined — сколько из него забрано; spent — выработано, и на смену ему уже
+ * ждут новое, см. renewal.ts. Место — левый верхний тайл месторождения. Сами месторождения — слой карты, см. DepositLayer.
  */
-export const Deposit = component('Deposit', { mined: 0 })
+export const Deposit = component('Deposit', { mined: 0, spent: false })
 
 /**
  * Грузовик. Груз лежит в его складе (Inventory). mine — шахта, к которой его привязал игрок; -1 — свободен:

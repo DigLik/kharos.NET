@@ -5,7 +5,7 @@ import type { Command } from './commands'
 import { isOwn } from './common'
 import { Harvester, Hauler, Owner, Position, Repair, Unit, Upgrade } from './components'
 import { canRepair } from './construction'
-import { DEPOSIT_SIZE, depositNear } from './deposits'
+import { DEPOSIT_SIZE, depositNear, knowsDeposit } from './deposits'
 import { dropAt } from './drops'
 import { hasMine } from './harvesting'
 import { canHaul, canSupply } from './hauling'
@@ -65,7 +65,7 @@ export function resolveOrder(sim: Sim, player: number, units: Entity[], point: {
   // Харвестеры по месторождению — копают его, если на нём нет шахты.
   const harvesters = units.some((entity) => world.has(entity, Harvester))
   const found = harvesters ? depositNear(sim, point.x, point.y, DEPOSIT_SIZE) : null
-  const known = found && sim.vision.exploredIn(player, found.x, found.y, DEPOSIT_SIZE, DEPOSIT_SIZE)
+  const known = found && knowsDeposit(sim, player, found)
   const deposit = found && known && !hasMine(sim, found) ? found : null
   const onDeposit = deposit && x >= deposit.x && x < deposit.x + DEPOSIT_SIZE && y >= deposit.y && y < deposit.y + DEPOSIT_SIZE
   if (fighters && enemy !== undefined && canAttack(sim, player, enemy)) return [{ type: 'attack', units, target: enemy }]

@@ -3,7 +3,7 @@ import { isBuildable, terrainAt, tileKey } from '../map/terrain'
 import { buildingSpec, isReady, siteAt } from './buildings'
 import { NONE, isOwn, onTurn } from './common'
 import { Building, Converting, Site, Hauler, Harvester, Inventory, Owner, Path, Position, Unit } from './components'
-import { DEPOSIT_CELL, DEPOSIT_KINDS, DEPOSIT_SIZE, DEPOSIT_TYPES, depositAt, depositsIn, reserveLeft, takeReserve, type DepositKind, type DepositSpot } from './deposits'
+import { DEPOSIT_CELL, DEPOSIT_KINDS, DEPOSIT_SIZE, DEPOSIT_TYPES, depositAt, depositsIn, knowsDeposit, reserveLeft, takeReserve, type DepositKind, type DepositSpot } from './deposits'
 import { amountOf, loadOf, put, roomFor } from './inventory'
 import { GOODS, ORE_OF, type Ore } from './resources'
 import type { Sim } from './sim'
@@ -71,7 +71,7 @@ function nearestDeposit(sim: Sim, player: number, x: number, y: number, refined:
     for (let cellX = from; cellX <= to; cellX++) {
       for (const spot of depositsIn(sim, cellX, cellY)) {
         if ((kind && spot.kind !== kind) || reserveLeft(sim, spot.x, spot.y) <= 0 || hasMine(sim, spot)) continue
-        if (!sim.vision.exploredIn(player, spot.x, spot.y, DEPOSIT_SIZE, DEPOSIT_SIZE)) continue
+        if (!knowsDeposit(sim, player, spot)) continue
         const center = centerOf(spot)
         const distance = Math.hypot(center.x - x, center.y - y)
         if (distance > HARVEST_SEARCH) continue
@@ -173,7 +173,7 @@ export function orderHarvest(sim: Sim, player: number, units: Entity[], x: numbe
   const spot = depositAt(sim, x, y)
   if (!spot || reserveLeft(sim, x, y) <= 0 || hasMine(sim, spot)) return false
   // Послать можно только к найденному: координаты неразведанного игроку неоткуда знать.
-  if (!sim.vision.exploredIn(player, spot.x, spot.y, DEPOSIT_SIZE, DEPOSIT_SIZE)) return false
+  if (!knowsDeposit(sim, player, spot)) return false
   let ordered = false
   for (const entity of new Set(units)) {
     const harvester = world.get(entity, Harvester)
