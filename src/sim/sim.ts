@@ -1,5 +1,4 @@
 import { Loop, World, type System, type Time, type WorldSnapshot } from '../ecs'
-import { addCredits } from './economy'
 import type { WeatherOptions } from './weather'
 import { areaOf, createLand, loadLand, saveLand, type GeneratorConfig, type Land } from '../map/terrain'
 import { createLandMemory, saveLandMemory, updateLandMemory, type LandMemory, type LandMemorySave } from './landMemory'
@@ -141,8 +140,9 @@ export interface SimOptions {
  * 21 — сети труб: здания связаны только трубами, и старые базы без труб развалились бы на отдельные здания (вайп).
  * 20 — двоичный файл, см. src/save/file.ts, и в нём карта мира. С неё старые сохранения поднимаются миграциями, а не
  * отбрасываются.
+ * 22 — харвестера больше нет: сохранения с ним не переносятся, а отбрасываются (OLDEST_VERSION в src/save/file.ts).
  */
-export const SAVE_VERSION = 21
+export const SAVE_VERSION = 22
 
 export interface SimSave extends SimOptions {
   version: typeof SAVE_VERSION
@@ -308,9 +308,7 @@ export function createSim(source: SimOptions | SimSave): Sim {
   }
 
   if ('world' in source) {
-    const { snapshot, refunds } = withoutHarvesters(source.world)
-    world.restore(snapshot, SAVED)
-    for (const [player, amount] of refunds) addCredits(sim, player, amount)
+    world.restore(source.world, SAVED)
     materializeAlliances(sim)
     refreshStorage(sim)
     remount(sim)
@@ -318,36 +316,6 @@ export function createSim(source: SimOptions | SimSave): Sim {
     for (const [player, map] of Object.entries(source.explored ?? {})) sim.vision.explore(Number(player), map)
   }
   return sim
-}
-
-/** Сколько стоил харвестер: его цену получают назад хозяева харвестеров из прежних сохранений. */
-const HARVESTER_COST = 400
-
-/**
- * Харвестера больше нет (2026-10-12): из прежнего сохранения уходят и сами харвестеры, и их заказы в очередях
- * производства, а цену получает назад хозяин. refunds — сколько кредитов вернуть какому игроку.
- */
-function withoutHarvesters(snapshot: WorldSnapshot) {
-  const refunds = new Map<number, number>()
-  const refund = (data: Record<string, any>, count = 1) => {
-    const player = data.Owner?.player
-    if (typeof player === 'number' && count) refunds.set(player, (refunds.get(player) ?? 0) + HARVESTER_COST * count)
-  }
-  const entities: WorldSnapshot['entities'] = []
-  for (const [id, data] of snapshot.entities as [number, Record<string, any>][]) {
-    if (data.Unit?.type === 'harvester') {
-      refund(data)
-      continue
-    }
-    const queue: unknown[] | undefined = data.Producer?.queue
-    if (queue?.includes('harvester')) {
-      refund(data, queue.filter((type) => type === 'harvester').length)
-      // Начатый харвестер уходит вместе со своим ходом работы: следующему заказу он не достаётся.
-      const progress = queue[0] === 'harvester' ? 0 : data.Producer.progress
-      entities.push([id, { ...data, Producer: { ...data.Producer, queue: queue.filter((type) => type !== 'harvester'), progress } }])
-    } else entities.push([id, data])
-  }
-  return { snapshot: { ...snapshot, entities }, refunds }
 }
 
 /**

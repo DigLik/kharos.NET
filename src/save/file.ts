@@ -13,12 +13,12 @@ import { t } from '../i18n'
  * Вызывающий может добавить свои (extras) — например, сервер кладёт игроков, а файл экспорта — название слота.
  *
  * Старые файлы поднимаются до текущей версии цепочкой MIGRATIONS: каждая миграция переводит разделы из версии v
- * в v + 1. Самая старая читаемая версия — FIRST_BINARY_VERSION: раньше сохранения были JSON, их не переносим.
+ * в v + 1. Самая старая читаемая версия — OLDEST_VERSION: что старше, загрузка отвергает.
  */
 
 const MAGIC = 'KHRS'
-/** Первая двоичная версия сохранения. Всё, что старше, — прежний JSON, его загрузка отвергает. */
-export const FIRST_BINARY_VERSION = 20
+/** Самая старая читаемая версия: 22 — убран харвестер, и прежние миры не переносятся (до 20 был ещё и JSON). */
+export const OLDEST_VERSION = 22
 
 /** Разделы файла по тегам. */
 export type Sections = Map<string, Uint8Array>
@@ -72,7 +72,7 @@ export async function packSections(sections: Sections, version = SAVE_VERSION): 
 export async function unpackSections(file: Uint8Array): Promise<Sections> {
   if (file.length < 6 || decoder.decode(file.subarray(0, 4)) !== MAGIC) throw new Error(t('errors.notSave'))
   let version = new DataView(file.buffer, file.byteOffset, file.byteLength).getUint16(4, true)
-  if (version < FIRST_BINARY_VERSION) throw new Error(t('errors.saveTooOld'))
+  if (version < OLDEST_VERSION) throw new Error(t('errors.saveTooOld'))
   if (version > SAVE_VERSION) throw new Error(t('errors.saveTooNew'))
   const body = await pipe(file.subarray(6), new DecompressionStream('deflate-raw'))
   const view = new DataView(body.buffer)

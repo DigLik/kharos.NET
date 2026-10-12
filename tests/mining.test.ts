@@ -5,7 +5,6 @@ import {
   BUILDINGS, Beam, DEPOSIT_CELL, DEPOSIT_KINDS, DEPOSIT_TYPES, Deposit, Hauler, Inventory, REFINE_RATE, REFINE_RATIO, RESOURCE_SPECS, SELL_SECONDS, TRUCK_CAPACITY, Trade, amountOf, canBuild, deliveredTo, gapBetween, canSell, isWalkable, stockOf, canPlace, createSim, creditsOf, depositAt, depositIn, depositNear, reserveLeft, rewardsOf,
   zonesOf, type BuildingType, type DepositSpot, type Good, type Sim,
 } from '../src/sim'
-import { Producer } from '../src/sim/components'
 import { placeBuilding } from '../src/sim/buildings'
 import { addCredits } from '../src/sim/economy'
 import { spawnUnit } from '../src/sim/units'
@@ -397,20 +396,4 @@ test('здания можно ставить вплотную к шахте, а 
   // Переработанный металл свободный грузовик свозит в хранилище.
   until(sim, () => (stockOf(sim, 1).items.metal ?? 0) > 1)
   expect(canBuild(sim, 1, 'mine', spot.x, spot.y)).toBe(false)
-})
-
-test('харвестеров из прежних сохранений больше нет: сами они и их заказы уходят, а цена возвращается хозяину', () => {
-  const sim = createSim(options)
-  addCredits(sim, 1, 1000)
-  const truck = spawnUnit(sim, 'truck', 1, 0, 0)
-  const save = sim.save()
-  // Так харвестер и заказы на него лежали в сохранении до того, как его убрали.
-  save.world.entities.push([9998, { Position: { x: 4, y: 4 }, Unit: { type: 'harvester' }, Owner: { player: 1 }, Harvester: { picked: true } }] as never)
-  save.world.entities.push([9999, { Position: { x: 8, y: 8 }, Producer: { queue: ['harvester', 'truck', 'harvester'], progress: 30, rally: [] }, Owner: { player: 1 } }] as never)
-  const loaded = createSim(save)
-  expect(loaded.world.alive(9998 as Entity)).toBe(false)
-  expect(loaded.world.alive(truck)).toBe(true)
-  // Начатый харвестер ушёл вместе с ходом работы: грузовик начинается с нуля.
-  expect(loaded.world.get(9999 as Entity, Producer)).toMatchObject({ queue: ['truck'], progress: 0 })
-  expect(creditsOf(loaded, 1)).toBe(creditsOf(sim, 1) + 3 * 400)
 })

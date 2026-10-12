@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { FIRST_BINARY_VERSION, decodeSave, encodeSave, jsonSection, packSections, readJson, unpackSections } from '../src/save/file'
+import { OLDEST_VERSION, decodeSave, encodeSave, jsonSection, packSections, readJson, unpackSections } from '../src/save/file'
 import { SAVE_VERSION, createSim, spawnStartingUnits } from '../src/sim'
 
 const world = () => {
@@ -25,7 +25,7 @@ test('свои разделы вызывающего доходят, незна�
 test('не сохранение, прежний JSON и версия новее игры — ошибки', async () => {
   await expect(decodeSave(new TextEncoder().encode(JSON.stringify(world())))).rejects.toThrow('не файл сохранения')
   const sections = new Map([['META', jsonSection({})]])
-  await expect(unpackSections(await packSections(sections, FIRST_BINARY_VERSION - 1))).rejects.toThrow('старой')
+  await expect(unpackSections(await packSections(sections, OLDEST_VERSION - 1))).rejects.toThrow('старой')
   await expect(unpackSections(await packSections(sections, SAVE_VERSION + 1))).rejects.toThrow('новой')
 })
 
