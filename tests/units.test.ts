@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { isBuildable, terrainAt } from '../src/map/terrain'
 import { Owner, Path, Position, UNITS, Unit, canPlace, createSim, isWalkable, spawnStartingUnits, type Sim, type UnitType } from '../src/sim'
 import { SEARCH_LIMIT, findPath, isClear, searchCut, searchedTiles, smoothPath, withSearchQuota } from '../src/sim/path'
-import { orderMove, spawnUnit } from '../src/sim/units'
+import { orderMove, spawnUnit, stepAside } from '../src/sim/units'
 import { placeBuilding } from '../src/sim/buildings'
 import { throughJson } from './throughJson'
 
@@ -181,6 +181,19 @@ function runApart(sim: Sim, units: Entity[]) {
   }
   return ticks
 }
+
+test('уступающий дорогу, которому вбок не отойти, едет в целый тайл, а не в дробный', () => {
+  const sim = createSim(options)
+  const { x, y } = field(sim)
+  const standing = spawnUnit(sim, 'tank', 1, x + 10, y + 4)
+  // Просящий едет на восток: вбок — это север и юг, на room тайлов. Оба места заняты стоящими.
+  const room = UNITS.tank.radius * 2 + 1
+  for (const sign of [1, -1]) spawnUnit(sim, 'tank', 1, x + 10, Math.floor(y + 4.5 + sign * room))
+  stepAside(sim, standing, x + 8.5, y + 4.5, 0, room)
+  const path = sim.world.get(standing, Path)!
+  // Дробная цель недостижима: юнит перепрокладывал бы к ней путь вечно и держал бы соседей.
+  expect(Number.isInteger(path.goalX) && Number.isInteger(path.goalY)).toBe(true)
+})
 
 test('встречные юниты расходятся, не проходя друг сквозь друга', () => {
   for (const type of ['infantry', 'builder', 'mcv'] as UnitType[]) {

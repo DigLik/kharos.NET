@@ -594,7 +594,9 @@ export function stepAside(sim: Sim, entity: Entity, fromX: number, fromY: number
   }
   // Оба бока закрыты — например, юнит стоит в щели у обрыва. Тогда на любой свободный тайл рядом, подальше от
   // просящего: иначе тот так и ждал бы его.
-  const tiles = freeTilesNear(sim, Math.floor(position.x), Math.floor(position.y), ASIDE_CHOICES, room, taken, air)
+  // room — в тайлах, а freeTilesNear считает кольцами через GROUP_SPACING; дробное кольцо дало бы дробный тайл, и
+  // приехать в него юнит не смог бы никогда — перепрокладывал бы путь каждые пару тиков.
+  const tiles = freeTilesNear(sim, Math.floor(position.x), Math.floor(position.y), ASIDE_CHOICES, Math.ceil(room / GROUP_SPACING), taken, air)
   let best = -1
   let farthest = -Infinity
   for (let i = 0; i < tiles.length; i += 2) {
