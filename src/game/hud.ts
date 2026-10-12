@@ -5,7 +5,7 @@ import { knownReserve } from './knownReserve'
 import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
-  Assembly, BUILDABLE, isUnlocked, buyPrice, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
+  Assembly, BUILDABLE, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
   awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   Research, TOPICS, PAVE_RESEARCH, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
@@ -142,7 +142,8 @@ export interface HudState {
     port: number
     offers: { resource: Resource; available: number; price: number }[]
     /** Закупка с орбиты: почём каждый ресурс и сколько единиц влезет в склад космопорта. */
-    purchases: { resource: Resource; price: number; room: number }[]
+    /** research — тема, без которой ресурс не купить; null — купить можно. */
+    purchases: { resource: Resource; price: number; room: number; research: Topic | null }[]
     /** buy — это закупка: деньги уже отданы, корабль летит с грузом. */
     order: { resource: Resource; wanted: number; delivered: number; price: number; flight: number | null; buy: boolean } | null
     /**
@@ -599,6 +600,7 @@ export function readHud(scene: Scene): HudState {
           resource,
           price: buyPrice(resource),
           room: Math.floor(roomFor(world.get(entity, Inventory)!, resource)),
+          research: buyResearch(sim, player, resource) ?? null,
         })),
         order: order
           ? {

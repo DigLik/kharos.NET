@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Biome, biomeAt } from '../src/map/terrain'
-import { Accumulator, Inventory, Trade, createSim, depositIn, isWalkable, powerStates, powerSupply, zoneEconomies, type Sim } from '../src/sim'
+import { Accumulator, Inventory, TOPICS, Trade, buyResearch, createSim, depositIn, grantResearch, isWalkable, powerStates, powerSupply, zoneEconomies, type Sim } from '../src/sim'
 import { BUILDINGS, placeBuilding } from '../src/sim/buildings'
 import { addCredits } from '../src/sim/economy'
 import { buy } from '../src/sim/trade'
@@ -87,13 +87,20 @@ test('заряд накопителя переживает сохранение'
   expect(loaded.world.get(cell, Accumulator)!.charge).toBe(250)
 })
 
-test('литий покупается с орбиты, уран — нет', () => {
+test('литий покупается с орбиты, только когда изучена его выпарка; уран — никогда', () => {
   const { sim, x, y } = field()
+  sim.rules.techTree = true
   addCredits(sim, 1, 50000)
   const port = placeBuilding(sim.world, 'spaceport', x + 4, y + 2, 1)
   placeBuilding(sim.world, 'generator', x + 7, y + 2, 1)
+  grantResearch(sim, 1, TOPICS.filter((topic) => topic !== 'lithiumOre'))
   expect(buy(sim, 1, port, 'uranium', 10)).toBe(false)
+  expect(buyResearch(sim, 1, 'lithium')).toBe('lithiumOre')
+  expect(buy(sim, 1, port, 'lithium', 10)).toBe(false)
   expect(sim.world.has(port, Trade)).toBe(false)
+  // Металл и прочее темы для покупки не просят.
+  expect(buyResearch(sim, 1, 'metal')).toBeUndefined()
+  grantResearch(sim, 1, ['lithiumOre'])
   expect(buy(sim, 1, port, 'lithium', 10)).toBe(true)
   seconds(sim, 25)
   expect(sim.world.get(port, Inventory)!.items.lithium).toBe(10)

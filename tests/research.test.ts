@@ -7,7 +7,7 @@ import {
   type BuildingType, type Rules, type Sim, type Topic,
 } from '../src/sim'
 import { STORES, placeBuilding, storeFor } from '../src/sim/buildings'
-import { PRODUCTS, isOre, resourceOf, type Amounts, type Good, type Ware } from '../src/sim/resources'
+import { PRODUCTS, RESOURCE_SPECS, isOre, resourceOf, type Amounts, type Good, type Ware } from '../src/sim/resources'
 import { addCredits } from '../src/sim/economy'
 import { UNIT_TYPES, unitSpec } from '../src/sim/units'
 import { adoptLabs } from '../src/sim/research'
@@ -71,6 +71,7 @@ test('темы ссылаются на существующие темы, а т�
   for (const topic of TOPICS) for (const before of topicsBefore(topic)) expect(RESEARCH).toHaveProperty(before)
   for (const topic of Object.values(RESEARCH_FOR)) expect(RESEARCH).toHaveProperty(topic)
   for (const unit of UNIT_TYPES) if (unitSpec(unit).research) expect(RESEARCH).toHaveProperty(unitSpec(unit).research!)
+  for (const spec of Object.values(RESOURCE_SPECS) as { research?: string }[]) if (spec.research) expect(RESEARCH).toHaveProperty(spec.research)
   // Где игрок возьмёт то, что тратит тема: руду дают шахты всегда, ресурс — переработка его руды, изделие — его цех.
   const makes = (good: Good): BuildingType | undefined =>
     isOre(good) ? undefined : (Object.keys(BUILDINGS) as BuildingType[]).find((type) => {

@@ -583,13 +583,17 @@ export function commandsOf(
       if (!picked) {
         // Сначала — что продать или купить: ячейка на ресурс. Количество — на следующем шаге.
         list(
-          (buying ? trade.purchases : trade.offers).map(({ resource, price }): Slot => {
+          (buying ? trade.purchases : trade.offers).map((item): Slot => {
+            const { resource, price } = item
             const limit = dealOf(trade, credits, buying, { resource, amount: DEAL_START })!
+            // Ресурс, который игрок ещё не научился делать, с орбиты не продают: ячейка видна, но закрыта.
+            const research = 'research' in item ? item.research : null
             return {
               label: buying ? t(`goods.${resource}`) : `${t(`goods.${resource}`)} ×${limit.max}`,
               good: resource,
-              disabled: limit.max < 1,
-              title: limit.max >= 1 ? t(buying ? 'grid.buyPrice' : 'grid.sellPrice', { price }) : limit.room < 1 ? t('grid.noRoom') : t('grid.noCredits'),
+              disabled: limit.max < 1 || !!research,
+              title: research ? t('grid.needsResearch', { name: t(`research.${research}`) })
+                : limit.max >= 1 ? t(buying ? 'grid.buyPrice' : 'grid.sellPrice', { price }) : limit.room < 1 ? t('grid.noRoom') : t('grid.noCredits'),
               run: () => pick({ resource, amount: limit.amount }),
             }
           }),

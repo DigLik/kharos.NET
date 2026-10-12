@@ -6,6 +6,7 @@ import { amountOf, put, roomFor, take } from './inventory'
 import { incomingTo } from './logistics'
 import { RESOURCE_SPECS, WARES, type Amounts, type Resource, type ResourceSpec, type Ware } from './resources'
 import type { Sim } from './sim'
+import { hasResearch, type Topic } from './topics'
 import { zonesOf, type Zone } from './zones'
 
 /** Сколько секунд проходит от погрузки последнего груза до денег: столько летит корабль. */
@@ -23,6 +24,12 @@ export const flightTicks = (sim: Sim, port: Entity, seconds: number) => Math.rou
 
 /** Продаётся ли ресурс с орбиты: уран — нет, его только добывают (ResourceSpec.mined). */
 export const isOrbital = (resource: Resource) => !(RESOURCE_SPECS[resource] as ResourceSpec).mined
+
+/** Какую тему игроку надо изучить, чтобы купить ресурс с орбиты; undefined — ничего не надо. */
+export function buyResearch(sim: Sim, player: number, resource: Resource): Topic | undefined {
+  const topic = (RESOURCE_SPECS[resource] as ResourceSpec).research as Topic | undefined
+  return hasResearch(sim, player, topic) ? undefined : topic
+}
 
 /** Сколько стоит купить единицу ресурса с орбиты. */
 export const buyPrice = (resource: Resource) => RESOURCE_SPECS[resource].price * BUY_MARKUP
@@ -84,7 +91,7 @@ export const canSell = (sim: Sim, player: number, port: Entity) => isPort(sim, p
  * космопорт занят.
  */
 export function buy(sim: Sim, player: number, port: Entity, resource: Resource, amount: number) {
-  if (!Object.hasOwn(RESOURCE_SPECS, resource) || !isOrbital(resource)) return false
+  if (!Object.hasOwn(RESOURCE_SPECS, resource) || !isOrbital(resource) || buyResearch(sim, player, resource)) return false
   if (!Number.isFinite(amount) || amount < 1 || !canSell(sim, player, port)) return false
   const hold = sim.world.get(port, Inventory)
   const wanted = Math.min(Math.floor(amount), Math.floor(hold ? roomFor(hold, resource) : 0))
