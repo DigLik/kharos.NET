@@ -4,7 +4,7 @@ import { createAtlas } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Building, Health, Position, powerStates, unlinked, type PowerState } from '../sim'
+import { BUILDINGS, Building, Health, Position, Site, powerStates, unlinked, type PowerState } from '../sim'
 import type { Scene } from './scene'
 
 /** Сторона картинки молнии в пикселях: молния растягивается на всё здание. */
@@ -171,7 +171,9 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene): Pass 
         const record = world.get(entity, Health)
         const health = record?.value ?? 1
         const max = record?.max ?? 1
-        if (health < max) {
+        // У строящегося прочность — та же доля построенного, что на полосе стройки над ним: вторую не рисуем.
+        const raising = world.get(entity, Site)
+        if (health < max && !(raising && !raising.demolish)) {
           const share = health / max
           const [r, g, b] = share > 0.5 ? BAR_GOOD : BAR_BAD
           const top = y + spec.height + BAR_GAP
