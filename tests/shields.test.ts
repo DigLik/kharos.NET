@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Health, SHIELD_DOWN, Shield, createSim, domes, isWalkable, offerAlliance, type Sim } from '../src/sim'
+import { Health, Position, SHIELD_DOWN, Shield, Shot, WEAPONS, createSim, domes, isWalkable, offerAlliance, type Sim } from '../src/sim'
 import { BUILDINGS, placeBuilding } from '../src/sim/buildings'
 import { addCredits } from '../src/sim/economy'
 import { absorb } from '../src/sim/shields'
@@ -120,4 +120,32 @@ test('щит переживает сохранение', () => {
   const { sim, shield } = base(1234)
   const loaded = createSim(throughJson(sim.save()))
   expect(loaded.world.get(shield, Shield)!.charge).toBe(1234)
+})
+
+test('купол останавливает чужие снаряды на своём краю: внутрь не долетает ни снаряд, ни осколки; свои летят насквозь', () => {
+  const { sim, y, shield, radar, cx, cy } = base()
+  // Ракетчики снаружи бьют по радару под куполом.
+  const shooters = [0, 2].map((dy) => spawnUnit(sim, 'rocketeer', 2, Math.floor(cx - radius - 3), y + 9 + dy))
+  sim.send(2, { type: 'attack', units: shooters, target: radar })
+  let deepest = Infinity
+  let stopped = 0
+  for (let i = 0; i < Math.round(8 / TICK); i++) {
+    sim.advance(TICK)
+    for (const [, shot, position] of sim.world.query(Shot, Position)) {
+      if (shot.player !== 2 || !WEAPONS[shot.weapon].speed) continue
+      deepest = Math.min(deepest, Math.hypot(position.x - cx, position.y - cy))
+    }
+    if (charge(sim, shield) < capacity) stopped++
+  }
+  expect(stopped).toBeGreaterThan(0)
+  // Глубже края снаряд не заходит.
+  expect(deepest).toBeGreaterThan(radius - 0.01)
+  expect(health(sim, radar)).toBe(1)
+
+  // Свой снаряд изнутри купола наружу купол не держит: стрелок под куполом бьёт врага снаружи.
+  const guard = spawnUnit(sim, 'rocketeer', 1, Math.floor(cx), cy)
+  const foe = spawnUnit(sim, 'infantry', 3, Math.floor(cx + radius + 2), cy)
+  sim.send(1, { type: 'attack', units: [guard], target: foe })
+  seconds(sim, 6)
+  expect(sim.world.get(foe, Health)?.value ?? 0).toBeLessThan(1)
 })

@@ -4,7 +4,7 @@ import { createAtlas } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Building, Health, Position, Site, powerStates, unlinked, type PowerState } from '../sim'
+import { BUILDINGS, Building, buildingSpec, Ghost, Health, Position, Shield, Site, powerStates, unlinked, type PowerState } from '../sim'
 import type { Scene } from './scene'
 
 /** Сторона картинки молнии в пикселях: молния растягивается на всё здание. */
@@ -96,10 +96,14 @@ type Color = readonly [number, number, number]
 const BAR_BACK: Color = [0.03, 0.05, 0.08]
 const BAR_GOOD: Color = [0.45, 0.9, 0.55]
 const BAR_BAD: Color = [1, 0.35, 0.25]
+/** Запас щита генератора. */
+const BAR_SHIELD: Color = [0.3, 0.55, 1]
+/** Зазор между полосами прочности и щита, в пикселях экрана. */
+const BAR_STACK = 1
 
 /**
  * Проход нехватки энергии: молнии перегруза на электростанциях, значок над зданиями, которые из-за нехватки
- * работают медленнее, значок «Не подключено к сети» над своими зданиями со складом без труб, и полоска прочности под повреждёнными зданиями. Ставить выше освещения, чтобы ночью не темнело.
+ * работают медленнее, значок «Не подключено к сети» над своими зданиями со складом без труб, полоска прочности под повреждёнными зданиями и синяя полоска запаса под генераторами щита. Ставить выше освещения, чтобы ночью не темнело.
  */
 export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene): Pass {
   const bolts = Array.from({ length: BOLTS }, (_, i) => drawBolt(i))
@@ -173,12 +177,21 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene): Pass 
         const max = record?.max ?? 1
         // У строящегося прочность — та же доля построенного, что на полосе стройки над ним: вторую не рисуем.
         const raising = world.get(entity, Site)
+        let top = y + spec.height + BAR_GAP
         if (health < max && !(raising && !raising.demolish)) {
           const share = health / max
           const [r, g, b] = share > 0.5 ? BAR_GOOD : BAR_BAD
-          const top = y + spec.height + BAR_GAP
           sprites.push(x, top, spec.width, barHeight, whiteU, whiteV, 0, 0, ...BAR_BACK, 1)
           sprites.push(x, top, spec.width * Math.max(0, share), barHeight, whiteU, whiteV, 0, 0, r, g, b, 1)
+          top += barHeight + BAR_STACK / camera.zoom
+        }
+        // Запас щита — синей полосой сразу под прочностью, а у целого здания — на её месте. Видна всегда, пока генератор
+        // готов: погашенный купол — пустая полоса. Призрак в тумане её не показывает: что с его щитом сейчас, не видно.
+        const dome = buildingSpec(building.type).shield
+        const shield = !raising && dome ? world.get(entity, Shield) : undefined
+        if (shield && !world.has(entity, Ghost)) {
+          sprites.push(x, top, spec.width, barHeight, whiteU, whiteV, 0, 0, ...BAR_BACK, 1)
+          sprites.push(x, top, spec.width * Math.min(1, Math.max(0, shield.charge / dome!.capacity)), barHeight, whiteU, whiteV, 0, 0, ...BAR_SHIELD, 1)
         }
       }
 

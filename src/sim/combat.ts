@@ -9,7 +9,7 @@ import { Armed, Blast, Building, Burst, Converting, Doomed, Health, Inventory, O
 import { releaseHauler } from './hauling'
 import { powerSupply } from './income'
 import { repairStations } from './construction'
-import { absorb, domes } from './shields'
+import { absorb, domes, stopShot, stopper } from './shields'
 import { amountOf, take } from './inventory'
 import { searchCut, searchedTiles, withSearchQuota } from './path'
 import { meltdown } from './reactors'
@@ -561,6 +561,21 @@ export function fight(sim: Sim) {
     const dy = shot.toY - position.y
     const distance = Math.hypot(dx, dy)
     const move = weapon.speed * time.step
+    // Купол чужого щита на пути: снаряд рвётся на его краю, урон берёт щит, внутрь ничего не долетает.
+    if (shields.length) {
+      const share = distance > 0 ? Math.min(1, move / distance) : 1
+      const sourceUnit = world.get(shot.source as Entity, Unit)
+      const fromAir = !!sourceUnit && flies(sourceUnit.type)
+      const stop = stopper(sim, shields, shot.player, position.x, position.y, position.x + dx * share, position.y + dy * share, fromAir)
+      if (stop) {
+        stopShot(sim, stop.dome, weapon.damage)
+        position.x = stop.x
+        position.y = stop.y
+        blasts.push({ x: stop.x, y: stop.y, size: weapon.splash ?? 0.2, ground: false })
+        gone.push(entity)
+        continue
+      }
+    }
     if (distance <= move || shot.age >= shot.life) {
       // Не догнавший цель снаряд сгорает там, где оказался.
       const reached = distance <= move
