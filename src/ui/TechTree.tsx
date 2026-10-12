@@ -16,6 +16,9 @@ interface TechTreeProps {
   close: () => void
 }
 
+/** Порядок плиток по доступности: что можно вести сейчас — первым. */
+const STATUS_ORDER: Record<TopicView['status'], number> = { available: 0, soon: 1, locked: 2, done: 3 }
+
 /** Руда, которую находит открытие месторождения: её значок и рисуется на теме. */
 const FOUND = { kharite: 'khariteOre', lithium: 'lithiumOre', uranium: 'uraniumOre' } as const
 
@@ -163,8 +166,9 @@ export function TechTree({ tech, send, close }: TechTreeProps) {
     for (const view of tech.topics) for (const before of view.after) map.set(before, [...(map.get(before) ?? []), view.topic])
     return map
   }, [tech.topics])
-  // По ярусам, в ярусе — как в описании; открытое — отдельно, в конце.
-  const order = (list: TopicView[]) => [...list].sort((a, b) => a.tier - b.tier)
+  // Сначала зелёные, потом жёлтые, потом красные; внутри цвета — по ярусам, в ярусе — как в описании. Открытое —
+  // отдельно, в конце.
+  const order = (list: TopicView[]) => [...list].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.tier - b.tier)
   const open = order(tech.topics.filter((view) => view.status !== 'done'))
   const done = order(tech.topics.filter((view) => view.status === 'done'))
   const hover = (view: TopicView | null, element?: HTMLElement) => setHovered(view && element ? { topic: view.topic, at: element.getBoundingClientRect() } : null)
