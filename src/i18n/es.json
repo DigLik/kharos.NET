@@ -308,7 +308,8 @@
     "sections": {
       "economy": "Economía",
       "storage": "Almacenes",
-      "industry": "Industria",
+      "industry": "Refinado",
+      "production": "Producción",
       "military": "Militar",
       "defense": "Defensa",
       "paving": "Pavimento",
@@ -317,8 +318,9 @@
     "sectionTips": {
       "economy": "Energía, minería y comercio",
       "storage": "Almacenes de recursos y productos",
-      "industry": "Refinado de mineral y plantas de productos",
-      "military": "Cuartel, fábricas, aeródromo y centro tecnológico",
+      "industry": "Refinado de mineral en recursos",
+      "production": "Plantas de productos: bloques, munición, componentes y barras",
+      "military": "Cuartel, fábrica de vehículos, aeródromo, centro tecnológico, estación de reparación y silo de misiles",
       "defense": "Muros, torretas y radar",
       "paving": "Cimientos, carreteras y puentes",
       "logistics": "Tuberías y pozos: unen los edificios en una red"

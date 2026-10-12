@@ -308,7 +308,8 @@
     "sections": {
       "economy": "Wirtschaft",
       "storage": "Lager",
-      "industry": "Industrie",
+      "industry": "Verarbeitung",
+      "production": "Produktion",
       "military": "Militär",
       "defense": "Verteidigung",
       "paving": "Belag",
@@ -317,8 +318,9 @@
     "sectionTips": {
       "economy": "Energie, Abbau und Handel",
       "storage": "Lager für Rohstoffe und Erzeugnisse",
-      "industry": "Erzverarbeitung und Fabriken für Erzeugnisse",
-      "military": "Kaserne, Fabriken, Flugfeld und Technikzentrum",
+      "industry": "Erz zu Rohstoffen verarbeiten",
+      "production": "Fabriken für Erzeugnisse: Baublöcke, Munition, Teile und Brennstäbe",
+      "military": "Kaserne, Fahrzeugfabrik, Flugfeld, Technikzentrum, Reparaturstation und Raketensilo",
       "defense": "Mauern, Geschütztürme und Radar",
       "paving": "Fundament, Straßen und Brücken",
       "logistics": "Rohre und Schächte: Sie verbinden Gebäude zu einem Netz"

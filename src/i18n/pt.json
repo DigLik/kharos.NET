@@ -308,7 +308,8 @@
     "sections": {
       "economy": "Economia",
       "storage": "Armazéns",
-      "industry": "Indústria",
+      "industry": "Refino",
+      "production": "Produção",
       "military": "Militar",
       "defense": "Defesa",
       "paving": "Pavimento",
@@ -317,8 +318,9 @@
     "sectionTips": {
       "economy": "Energia, mineração e comércio",
       "storage": "Armazéns de recursos e produtos",
-      "industry": "Refino de minério e fábricas de produtos",
-      "military": "Quartel, fábricas, aeródromo e centro tecnológico",
+      "industry": "Refino de minério em recursos",
+      "production": "Fábricas de produtos: blocos, munição, componentes e barras",
+      "military": "Quartel, fábrica de veículos, aeródromo, centro tecnológico, estação de reparos e silo de mísseis",
       "defense": "Muros, torres e radar",
       "paving": "Fundação, estradas e pontes",
       "logistics": "Canos e poços: ligam os edifícios em uma rede"

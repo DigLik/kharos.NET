@@ -309,6 +309,7 @@
       "economy": "Iqtisodiyot",
       "storage": "Omborlar",
       "industry": "Qayta ishlash",
+      "production": "Ishlab chiqarish",
       "military": "Harbiy",
       "defense": "Mudofaa",
       "paving": "Qoplama",
@@ -317,8 +318,9 @@
     "sectionTips": {
       "economy": "Energiya, qazib olish va savdo",
       "storage": "Resurslar va mahsulotlar ombori",
-      "industry": "Rudani qayta ishlash va mahsulot zavodlari",
-      "military": "Kazarmalar, zavodlar, aerodrom va texnomarkaz",
+      "industry": "Rudani resurslarga qayta ishlash",
+      "production": "Mahsulot zavodlari: qurilish bloklari, o‘q-dori, komponentlar va sterjenlar",
+      "military": "Kazarmalar, mashinasozlik zavodi, aerodrom, texnomarkaz, ta’mirlash stansiyasi va raketa shaxtasi",
       "defense": "Devorlar, minoralar va radar",
       "paving": "Poydevor, yo‘llar va ko‘priklar",
       "logistics": "Quvurlar va quduqlar: binolarni tarmoqqa birlashtiradi"

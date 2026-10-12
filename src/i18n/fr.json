@@ -308,7 +308,8 @@
     "sections": {
       "economy": "Économie",
       "storage": "Stockage",
-      "industry": "Industrie",
+      "industry": "Raffinage",
+      "production": "Production",
       "military": "Militaire",
       "defense": "Défense",
       "paving": "Revêtement",
@@ -317,8 +318,9 @@
     "sectionTips": {
       "economy": "Énergie, extraction et commerce",
       "storage": "Entrepôts de ressources et de produits",
-      "industry": "Raffinage du minerai et usines de produits",
-      "military": "Caserne, usines, aérodrome et centre technologique",
+      "industry": "Raffinage du minerai en ressources",
+      "production": "Usines de produits : blocs, munitions, composants et barres",
+      "military": "Caserne, usine de véhicules, aérodrome, centre technologique, station de réparation et silo à missile",
       "defense": "Murs, tourelles et radar",
       "paving": "Fondations, routes et ponts",
       "logistics": "Tuyaux et puits : ils relient les bâtiments en réseau"

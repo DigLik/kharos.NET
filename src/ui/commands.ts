@@ -28,12 +28,13 @@ const FERRY = 0
 const LIST = 8
 
 /** Страница сетки строителя: корень с разделами или сами здания раздела. */
-export type Page = 'root' | 'economy' | 'storage' | 'industry' | 'military' | 'defense' | 'paving' | 'logistics' | 'filter' | 'reserve' | 'sell' | 'buy' | 'ally' | 'ferryGoods' | 'ferryMore' | 'gift'
+export type Page = 'root' | 'economy' | 'storage' | 'industry' | 'production' | 'military' | 'defense' | 'paving' | 'logistics' | 'filter' | 'reserve' | 'sell' | 'buy' | 'ally' | 'ferryGoods' | 'ferryMore' | 'gift'
 
 /** Разделы строителя: в какой странице какое здание. Остальное — хозяйство: энергия, добыча, торговля. */
 const SECTIONS: Partial<Record<Page, BuildingType[]>> = {
   storage: ['metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack'],
-  industry: ['smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill', 'blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant'],
+  industry: ['smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill'],
+  production: ['blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant'],
   military: ['barracks', 'factory', 'airfield', 'techCenter', 'repairStation', 'silo'],
   defense: ['wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator', 'radar'],
 }
@@ -205,7 +206,7 @@ export function commandsOf(
     if (page === 'root') {
       // Раздел появляется, когда в нём открыто хоть одно здание; покрытие доступно всегда.
       const opened = (page: Page) => construction.options.some(({ building }) => sectionOf(building) === page)
-      const section = (page: 'economy' | 'storage' | 'industry' | 'military' | 'defense' | 'paving' | 'logistics') => ({
+      const section = (page: 'economy' | 'storage' | 'industry' | 'production' | 'military' | 'defense' | 'paving' | 'logistics') => ({
         page,
         label: t(`grid.sections.${page}`),
         title: t(`grid.sectionTips.${page}`),
@@ -215,6 +216,7 @@ export function commandsOf(
         { ...section('economy'), building: 'generator' },
         { ...section('storage'), building: 'metalYard' },
         { ...section('industry'), building: 'smelter' },
+        { ...section('production'), building: 'blockPlant' },
         { ...section('military'), building: 'factory' },
         { ...section('defense'), building: 'wall' },
       ]
@@ -223,9 +225,10 @@ export function commandsOf(
       sections.forEach((section, i) => (slots[i] = opened(section.page) ? { ...section, group: count(section.page) } : null))
       slots[sections.length] = { ...section('paving'), pave: 'road', group: PAVE_TOOLS.length }
       slots[sections.length + 1] = { ...section('logistics'), building: 'pipe', group: PIPE_TOOLS.length }
-      // Разбор — сразу инструмент, без раздела.
+      // Разбор — сразу инструмент, без раздела. Место — то же, что у «Разобрать» здания: ячейка разворота MCV под ним
+      // бывает занята, если MCV выбран вместе со строителем.
       const active = construction.paving?.tool === 'remove'
-      slots[sections.length + 2] = { label: t('grid.remove'), pave: 'remove', active, title: t('grid.removeTip'), run: () => pave(active ? null : 'remove') }
+      slots[DEMOLISH] = { label: t('grid.remove'), pave: 'remove', active, title: t('grid.removeTip'), run: () => pave(active ? null : 'remove') }
     } else if (page === 'paving' || page === 'logistics') {
       ;(page === 'paving' ? PAVE_TOOLS : PIPE_TOOLS).forEach(({ tool, cost }, i) => {
         const active = construction.paving?.tool === tool

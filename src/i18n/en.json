@@ -308,7 +308,8 @@
     "sections": {
       "economy": "Economy",
       "storage": "Storage",
-      "industry": "Industry",
+      "industry": "Refining",
+      "production": "Production",
       "military": "Military",
       "defense": "Defence",
       "paving": "Paving",
@@ -317,8 +318,9 @@
     "sectionTips": {
       "economy": "Power, mining and trade",
       "storage": "Stores for resources and products",
-      "industry": "Ore refining and product plants",
-      "military": "Barracks, factories, airfield and tech center",
+      "industry": "Ore refining into resources",
+      "production": "Product plants: blocks, ammo, parts and rods",
+      "military": "Barracks, vehicle factory, airfield, tech center, repair station and missile silo",
       "defense": "Walls, turrets and radar",
       "paving": "Foundation, roads and bridges",
       "logistics": "Pipes and wells: they link buildings into a network"
