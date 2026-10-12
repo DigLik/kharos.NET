@@ -182,6 +182,31 @@ function runApart(sim: Sim, units: Entity[]) {
   return ticks
 }
 
+test('толпа, посланная в одну точку, доезжает: никто не стоит с приказом вечно, зажатый соседями', () => {
+  // Карта, на которой толпа у цели зажимала юнитов: один упирался в соседа, занявшего конец его пути, другого
+  // обступали со всех сторон — и оба искали путь каждый тик, не трогаясь с места.
+  const sim = createSim({ ...options, generator: { ...options.generator, seed: 2 } })
+  let at: { x: number; y: number } | undefined
+  search: for (let y = -200; y < 200 && !at; y += 3) {
+    for (let x = -200; x < 200; x += 3) {
+      let open = true
+      for (let dy = 0; dy < 40 && open; dy++) for (let dx = 0; dx < 60 && open; dx++) open = isWalkable(sim, x + dx, y + dy)
+      if (!open) continue
+      at = { x, y }
+      break search
+    }
+  }
+  if (!at) throw new Error('В мире не нашлось площадки')
+  const types: UnitType[] = ['infantry', 'rocketeer', 'buggy', 'lancer', 'tank', 'tesla', 'carrier', 'flak']
+  const units = Array.from({ length: 160 }, (_, i) => spawnUnit(sim, types[i % types.length], 1, at.x + 2 + (i % 13) * 2, at.y + 2 + Math.floor(i / 13) * 2))
+  sim.send(1, { type: 'move', units, x: at.x + 50, y: at.y + 20 })
+  // Команды выполняются в начале тика: первый тик только раздаёт пути.
+  sim.advance(TICK)
+  expect(units.every((entity) => sim.world.has(entity, Path))).toBe(true)
+  for (let tick = 0; tick < (4 * 60) / TICK && units.some((entity) => sim.world.has(entity, Path)); tick++) sim.advance(TICK)
+  expect(units.filter((entity) => sim.world.has(entity, Path))).toEqual([])
+})
+
 test('уступающий дорогу, которому вбок не отойти, едет в целый тайл, а не в дробный', () => {
   const sim = createSim(options)
   const { x, y } = field(sim)

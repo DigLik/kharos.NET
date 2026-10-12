@@ -2,7 +2,7 @@ import type { Entity, Time } from '../ecs'
 import { tileKey } from '../map/terrain'
 import { onTurn, ownerOf, turnToward, wrap } from './common'
 import { Path, Position, Unit } from './components'
-import { SEARCH_LIMIT, isClear, searchedTiles, withSearchQuota } from './path'
+import { SEARCH_LIMIT, isClear, searchCut, searchedTiles, withSearchQuota } from './path'
 import type { Sim } from './sim'
 import { JAM_TRIES, UNITS, canStand, fastestOf, flies, onFoot, orderMove, roadInSight, stepAside, terrainSpeed } from './units'
 
@@ -177,11 +177,22 @@ export function moveUnits(sim: Sim, time: Time) {
     other.position.y = toY
   }
 
+  /** Стоят ли вплотную к юниту только те, кто на начало тика ехать никуда не собирался, — и есть ли такие вообще. */
+  const amongIdle = (entity: Entity) => {
+    const position = world.get(entity, Position)!
+    const { type } = world.get(entity, Unit)!
+    gather(entity, flies(type), UNITS[type].radius, position.x, position.y)
+    return neighbours.length > 0 && neighbours.every((other) => !other.moving)
+  }
+
   // Пути меняются после обхода: во время него состав мира трогать нельзя.
   const stopped: Entity[] = []
   const lost: { entity: Entity; x: number; y: number; tries: number; near: number }[] = []
-  /** Дошедшие до конца пути, не дойдя до цели: ищут путь дальше. */
-  const further: { entity: Entity; x: number; y: number; tries: number; near: number; from?: number }[] = []
+  /**
+   * Дошедшие до конца пути, не дойдя до цели: ищут путь дальше. blocked — тайл последней точки, в которую не встать:
+   * её занял сосед.
+   */
+  const further: { entity: Entity; x: number; y: number; tries: number; near: number; blocked?: [number, number] }[] = []
   const asked: { entity: Entity; by: Entity; x: number; y: number; heading: number; room: number }[] = []
   /** Увидевшие дорогу на ходу: перестраивают путь с ней. */
   const roadward: { entity: Entity; x: number; y: number; near: number }[] = []
@@ -263,7 +274,7 @@ export function moveUnits(sim: Sim, time: Time) {
         // Путь к далёкой цели кончается раньше неё: тогда это не приезд, и юнит ищет путь дальше отсюда.
         const arrived = path.near ? (points[0] - path.goalX - 0.5) ** 2 + (points[1] - path.goalY - 0.5) ** 2 <= (path.near + 1) ** 2 : Math.floor(points[0]) === path.goalX && Math.floor(points[1]) === path.goalY
         if (arrived || air) stopped.push(entity)
-        else further.push({ entity, x: path.goalX, y: path.goalY, tries: 0, near: path.near })
+        else further.push({ entity, x: path.goalX, y: path.goalY, tries: 0, near: path.near, blocked: [Math.floor(points[0]), Math.floor(points[1])] })
         continue
       }
     }
@@ -338,7 +349,7 @@ export function moveUnits(sim: Sim, time: Time) {
   // Новые поиски начинаются, пока не вышла норма; а все вместе они не осмотрят больше одного обычного поиска сверх неё:
   // первый в тике получает полный поиск, а долгий повторный (см. orderMove) норму не перешагнёт.
   withSearchQuota(LOST_TILES + SEARCH_LIMIT, () => {
-    for (const { entity, x, y, near } of further) {
+    for (const { entity, x, y, near, blocked } of further) {
       // Поиски сверх нормы тика отложены: юнит постоит и поищет в следующий тик.
       const path = world.get(entity, Path)!
       if (searchedTiles() - searchedBefore >= LOST_TILES) {
@@ -350,10 +361,11 @@ export function moveUnits(sim: Sim, time: Time) {
       const fromX = Math.floor(before.x)
       const fromY = Math.floor(before.y)
       orderMove(sim, entity, x, y, undefined, 0, near)
-      // Ближе к цели не подойти — встаёт: иначе искал бы на месте каждый тик.
+      // Ближе к цели не подойти — встаёт: иначе искал бы на месте каждый тик. Так и когда новый путь кончается там же,
+      // где прежний, а в тот тайл не встать — его занял сосед: юнит упирался бы в него и искал бы путь каждый тик.
       const next = world.get(entity, Path)
       const end = next?.points.length ? [Math.floor(next.points.at(-2)!), Math.floor(next.points.at(-1)!)] : undefined
-      if (end && end[0] === fromX && end[1] === fromY) world.remove(entity, Path)
+      if (end && ((end[0] === fromX && end[1] === fromY) || (end[0] === blocked?.[0] && end[1] === blocked[1]))) world.remove(entity, Path)
     }
     for (const { entity, x, y, near } of roadward) {
       if (searchedTiles() - searchedBefore >= LOST_TILES) break
@@ -364,7 +376,16 @@ export function moveUnits(sim: Sim, time: Time) {
     for (const { entity, x, y, tries, near } of lost) {
       // Не уложившиеся в норму ждут дальше: их путь цел, и в следующий тик они попробуют снова.
       if (searchedTiles() - searchedBefore >= LOST_TILES) break
+      const before = world.get(entity, Path)?.points
       orderMove(sim, entity, x, y, undefined, tries, near)
+      // Нового пути нет — не из-за нормы, а потому, что юнита обступили со всех сторон. Обступили те, кто уже стоит
+      // без приказа, — значит, он упёрся в доехавших и сам доехал: встаёт, исчерпав попытки. С приказом он искал бы
+      // путь каждый тик и не отвечал бы на огонь. Обступили такие же застрявшие — затор разойдётся: юнит ждёт
+      // до следующей попытки, а не ищет снова в следующий тик.
+      const path = world.get(entity, Path)
+      if (!path || path.points !== before || searchCut()) continue
+      if (tries >= MAX_TRIES && amongIdle(entity)) world.remove(entity, Path)
+      else path.wait = 0
     }
   })
   // Дорогу уступают только своим: чужой юнит стоит, где стоял.
