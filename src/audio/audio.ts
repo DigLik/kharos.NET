@@ -1,6 +1,9 @@
 import { createAmbience, type Ambience, type Mood } from './ambience'
 import { createFlight, type Flight, type Noises } from './flight'
-import { DISTANT_NAMES, DISTANT_SOUNDS, LOOPS, LOOP_NAMES, SOUNDS, SOUND_NAMES, SOUND_VARIANTS, noiseLoop, reverbImpulse, type DistantName, type LoopName, type NoiseColor, type SoundName } from './synth'
+import { MOTOR_NAMES, RUNNING, RUNNING_NAMES, motorLoop, type MotorName, type RunningName } from './motorSynth'
+import { createMotorVoice, type MotorBuffers, type MotorVoice } from './motorVoice'
+import { ALL_SOUNDS, ALL_SOUND_NAMES, INTERFACE_SOUNDS, WORLD_SOUNDS, type SoundName } from './sounds'
+import { DISTANT_NAMES, DISTANT_SOUNDS, LOOPS, LOOP_NAMES, SOUND_VARIANTS, noiseLoop, reverbImpulse, type DistantName, type LoopName, type NoiseColor } from './synth'
 
 /** Больше звуков разом не звучит: в большом бою остальные пропускаются. */
 const MAX_VOICES = 32
@@ -26,6 +29,11 @@ export interface Audio {
   play(name: SoundName, volume: number, pan: number): void
   /** Фоновая петля name звучит громкостью volume (0 — молчит) в стороне pan. Меняется плавно, сколько ни зови. */
   loop(name: LoopName, volume: number, pan: number): void
+  /**
+   * Свой голос мотора для машины, которую слышно отдельно: running — чем звучит её ход, squeal — скрипит ли она
+   * разворотом. null — звук ещё не готов: тогда машину слышно в общей петле.
+   */
+  motor(name: MotorName, running: RunningName | null, squeal: boolean): MotorVoice | null
   /** Раз в кадр: ветер полёта камеры, speed — от 0 (стоит) до 1 (несётся во весь опор). */
   flight(seconds: number, speed: number): void
   /** Раз в кадр: фон мира под погоду и высоту камеры. */
@@ -104,9 +112,6 @@ export const storeLevel = (channel: Channel, value: number) => {
   }
 }
 
-/** Звуки интерфейса: кнопки, приказы, уведомления. Остальные разовые звуки — бой. */
-const INTERFACE_SOUNDS = new Set<SoundName>(['click', 'hover', 'open', 'deny', 'select', 'selectBuilding', 'place', 'order', 'attackOrder', 'attacked', 'spotted', 'found', 'nuke'])
-
 /**
  * Нажимал ли игрок что-нибудь на этой странице: тогда браузер разрешает звук сразу, без нового нажатия. Так звук
  * не молчит при переходе из меню в игру и обратно. Браузер без userActivation спрашивает нажатие, как раньше.
@@ -124,6 +129,8 @@ export function createAudio(): Audio {
   const buffers = new Map<SoundName, AudioBuffer[]>()
   let flight: Flight | null = null
   let ambience: Ambience | null = null
+  const motors = new Map<MotorName, MotorBuffers>()
+  const runnings = new Map<RunningName, AudioBuffer>()
   const buses = new Map<Channel, GainNode>()
   let voices = 0
   const loops = new Map<LoopName, { gain: GainNode; panner: StereoPannerNode }>()
@@ -164,15 +171,21 @@ export function createAudio(): Audio {
       channels.forEach((data, channel) => buffer.copyToChannel(data, channel))
       return buffer
     }
-    for (const name of SOUND_NAMES) {
-      buffers.set(name, Array.from({ length: SOUND_VARIANTS }, (_, variant) => toBuffer([SOUNDS[name](rate, variant)])))
+    const synthesize = (name: SoundName) => {
+      buffers.set(name, Array.from({ length: SOUND_VARIANTS }, (_, variant) => toBuffer([ALL_SOUNDS[name](rate, variant)])))
     }
-    // Ветер полёта и фон синтезируются дольше, а нужны не сразу: по куску за задачу, чтобы игра не замирала.
+    // Щелчки интерфейса нужны сразу: первое же нажатие запускает звук и тут же звучит.
+    for (const name of INTERFACE_SOUNDS) synthesize(name)
+    // Остальные звуки, моторы, ветер полёта и фон синтезируются не мгновенно: по куску за задачу, чтобы игра не
+    // замирала. Пока звук не готов, он молчит.
     // Петли шума — в стерео: у каждого уха своя, и ветер обступает со всех сторон.
     const noises: Partial<Noises> = {}
     const distant = new Map<DistantName, AudioBuffer[]>()
     let impulse: AudioBuffer
     const steps = [
+      ...ALL_SOUND_NAMES.filter((name) => !INTERFACE_SOUNDS.has(name)).map((name) => () => synthesize(name)),
+      ...RUNNING_NAMES.map((name) => () => runnings.set(name, toBuffer([RUNNING[name](rate)]))),
+      ...MOTOR_NAMES.map((name) => () => motors.set(name, { idle: toBuffer([motorLoop(rate, name, false)]), load: toBuffer([motorLoop(rate, name, true)]) })),
       ...NOISE_SECONDS.map(([color, seconds]) => () => {
         noises[color] = toBuffer([noiseLoop(rate, seconds, 1, color), noiseLoop(rate, seconds, 2, color)])
       }),
@@ -217,7 +230,8 @@ export function createAudio(): Audio {
   return {
     play(name, volume, pan) {
       if (!context || !master || muted || context.state !== 'running' || voices >= MAX_VOICES || volume <= 0.01) return
-      const variants = buffers.get(name)!
+      const variants = buffers.get(name)
+      if (!variants) return
       const source = context.createBufferSource()
       source.buffer = variants[Math.floor(Math.random() * variants.length)]
       source.playbackRate.value = 1 + (Math.random() * 2 - 1) * DETUNE
@@ -225,7 +239,7 @@ export function createAudio(): Audio {
       gain.gain.value = volume
       const panner = context.createStereoPanner()
       panner.pan.value = Math.max(-1, Math.min(1, pan))
-      source.connect(gain).connect(panner).connect(buses.get(INTERFACE_SOUNDS.has(name) ? 'interface' : 'battle')!)
+      source.connect(gain).connect(panner).connect(buses.get(INTERFACE_SOUNDS.has(name) ? 'interface' : WORLD_SOUNDS.has(name) ? 'world' : 'battle')!)
       voices++
       source.onended = () => {
         voices--
@@ -240,6 +254,11 @@ export function createAudio(): Audio {
       if (!context || !voice) return
       voice.gain.gain.setTargetAtTime(Math.max(0, volume), context.currentTime, GLIDE)
       voice.panner.pan.setTargetAtTime(Math.max(-1, Math.min(1, pan)), context.currentTime, GLIDE)
+    },
+    motor(name, running, squeal) {
+      const buffers = motors.get(name)
+      if (!context || context.state !== 'running' || !buffers || (running && !runnings.has(running))) return null
+      return createMotorVoice(context, buses.get('world')!, buffers, running ? runnings.get(running)! : null, squeal ? (runnings.get('squeal') ?? null) : null)
     },
     flight(seconds, speed) {
       if (context?.state === 'running') flight?.update(seconds, speed)

@@ -1,7 +1,8 @@
 import type { Audio } from '../audio/audio'
-import type { SoundName } from '../audio/synth'
+import type { SoundName } from '../audio/sounds'
 import type { Entity } from '../ecs'
 import { Blast, Position, Shot, type WeaponType } from '../sim'
+import { nearness, sideOf } from './hearing'
 import type { Scene } from './scene'
 import type { createShake } from './shake'
 
@@ -41,8 +42,6 @@ const MIN_GAP: Partial<Record<SoundName, number>> = {
 }
 /** За краем экрана звук стихает на этом расстоянии, в долях полуширины экрана. */
 const HEARING = 0.8
-/** Издалека слышно тише: при таком масштабе (пикселей на тайл) громкость полная, при вдвое меньшем — вдвое тише. */
-const NEAR_ZOOM = 32
 /**
  * Ветер полёта: с какой скорости камеры над картой, тайлов в секунду, он начинается и на какой свистит во всю силу.
  * Между ними — по логарифму: клавиши у земли едва шелестят, издалека и с Shift уже дуют, а бросок к группе свистит.
@@ -64,16 +63,6 @@ export function createSoundscape(scene: Scene, audio: Audio, shake: ReturnType<t
   const last = new Map<SoundName, number>()
   let clock = 0
 
-  /** Насколько слышно то, что случилось в (x, y): 1 — на экране вблизи, 0 — далеко за краем или с большой высоты. */
-  const nearness = (x: number, y: number) => {
-    const { camera } = scene
-    const halfWidth = camera.width / 2 / camera.zoom
-    const halfHeight = camera.height / 2 / camera.zoom
-    // За краем экрана — тише и тише, пока не стихнет.
-    const outside = Math.max(0, Math.abs(x - camera.x) - halfWidth, Math.abs(y - camera.y) - halfHeight)
-    return Math.max(0, 1 - outside / (halfWidth * HEARING)) * Math.min(1, camera.zoom / NEAR_ZOOM)
-  }
-
   /** Толчок от взрыва размера size в (x, y): чем больше и ближе к середине экрана, тем сильнее. */
   const jolt = (size: number, x: number, y: number) => {
     const distance = Math.hypot(x - scene.camera.x, y - scene.camera.y)
@@ -82,11 +71,10 @@ export function createSoundscape(scene: Scene, audio: Audio, shake: ReturnType<t
   }
 
   const play = (name: SoundName, volume: number, x: number, y: number) => {
-    const { camera } = scene
-    const level = volume * nearness(x, y)
+    const level = volume * nearness(scene, x, y, HEARING)
     if (level <= 0.01 || clock - (last.get(name) ?? -Infinity) < (MIN_GAP[name] ?? 0)) return
     last.set(name, clock)
-    audio.play(name, level, ((x - camera.x) / (camera.width / 2 / camera.zoom)) * 0.8)
+    audio.play(name, level, sideOf(scene, x) * 0.8)
   }
 
   return {

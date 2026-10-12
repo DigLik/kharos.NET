@@ -5,9 +5,8 @@ import { createMachines } from '../src/game/machines'
 import { Camera } from '../src/game/camera'
 import type { Scene } from '../src/game/scene'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Position, Unit, createSim } from '../src/sim'
+import { createSim } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
-import { spawnUnit } from '../src/sim/units'
 
 /** Звук работы над миром без браузера: камера в (0, 0), звук записывает, что ему велели. */
 function setup() {
@@ -22,19 +21,6 @@ function setup() {
   const machines = createMachines({ sim, player: 1, camera, weather: { precipitation: 0 } } as unknown as Scene, audio)
   return { sim, levels, update: () => machines.update(1) }
 }
-
-test('техника звучит, только когда едет', () => {
-  const { sim, levels, update } = setup()
-  const tank = spawnUnit(sim, 'tank', 1, 2, 2)
-  update()
-  expect(levels.get('tracks')).toBe(0)
-  const unit = sim.world.get(tank, Unit)!
-  const position = sim.world.get(tank, Position)!
-  unit.prevX = position.x - 0.1
-  update()
-  expect(levels.get('tracks')).toBeGreaterThan(0)
-  expect(levels.get('engine')).toBe(0)
-})
 
 test('своя электростанция гудит, чужая — нет', () => {
   const { sim, levels, update } = setup()

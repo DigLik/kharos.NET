@@ -21,6 +21,7 @@ import { createDecalsPass } from './decalsPass'
 import { createFogPass } from './fogPass'
 import { createAlerts } from './alerts'
 import { createMachines } from './machines'
+import { createMotors } from './motors'
 import { createInterfaceSounds } from './interfaceSounds'
 import { createShake } from './shake'
 import { createSoundscape } from './soundscape'
@@ -228,6 +229,7 @@ export function createGame(
   if (!showcase && !editor) scene.alerts = createAlerts(scene, audio)
   const interfaceSounds = audio ? createInterfaceSounds(session.sim, audio) : null
   const machines = audio && createMachines(scene, audio)
+  const motors = audio && createMotors(scene, audio)
 
   const saveCamera = () => slot && storeCamera(slot, camera)
   let sinceSave = 0
@@ -342,6 +344,7 @@ export function createGame(
     // В редакторе тревоги ни к чему: администратор видит весь мир, и «замечен враг» сыпалось бы без конца.
     if (!(session.sim as { editor?: boolean }).editor) scene.alerts?.update(seconds)
     machines?.update(seconds)
+    motors?.update(seconds)
     interfaceSounds?.update(seconds, scene.selection)
     shake.update(seconds)
 
@@ -443,6 +446,7 @@ export function createGame(
       saveCamera()
       controls?.destroy()
       interfaceSounds?.destroy()
+      motors?.destroy()
       audio?.destroy()
       scene.sim.destroy()
       renderer.destroy()

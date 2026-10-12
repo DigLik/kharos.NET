@@ -1,5 +1,5 @@
 import type { Audio } from '../audio/audio'
-import type { SoundName } from '../audio/synth'
+import type { SoundName } from '../audio/sounds'
 import type { Entity } from '../ecs'
 import { Unit, type Command, type Sim } from '../sim'
 

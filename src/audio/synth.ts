@@ -18,7 +18,7 @@ export function random(seed: number) {
  * Фильтр нижних частот с одним полюсом: срез cutoff в герцах — число или, если срез меняется, функция.
  * Возвращает функцию сэмпл → сэмпл.
  */
-function lowpass(rate: number, cutoff: number | (() => number)) {
+export function lowpass(rate: number, cutoff: number | (() => number)) {
   const factor = (frequency: number) => 1 - Math.exp((-2 * Math.PI * frequency) / rate)
   const fixed = typeof cutoff === 'number' ? factor(cutoff) : 0
   let last = 0
@@ -30,13 +30,13 @@ function lowpass(rate: number, cutoff: number | (() => number)) {
 }
 
 /** Фильтр верхних частот: вход минус его низы. */
-function highpass(rate: number, cutoff: number) {
+export function highpass(rate: number, cutoff: number) {
   const low = lowpass(rate, cutoff)
   return (input: number) => input - low(input)
 }
 
 /** Резонатор: полоса шириной frequency / q вокруг frequency, на ней усиление — единица. Удар по нему звенит. */
-function bandpass(rate: number, frequency: number, q: number) {
+export function bandpass(rate: number, frequency: number, q: number) {
   const w = (2 * Math.PI * frequency) / rate
   const alpha = Math.sin(w) / (2 * q)
   const a0 = 1 + alpha
@@ -58,7 +58,7 @@ function bandpass(rate: number, frequency: number, q: number) {
 }
 
 /** Звук длиной seconds: sample(t, noise) — значение в момент t секунд; noise — белый шум этого варианта. */
-function render(rate: number, seconds: number, variant: number, sample: (t: number, noise: () => number) => number) {
+export function render(rate: number, seconds: number, variant: number, sample: (t: number, noise: () => number) => number) {
   const next = random(variant + 1)
   const noise = () => next() * 2 - 1
   const data = new Float32Array(Math.ceil(rate * seconds))
@@ -74,9 +74,9 @@ function render(rate: number, seconds: number, variant: number, sample: (t: numb
 }
 
 /** Затухание: за time секунд звук стихает в e раз. */
-const decay = (t: number, time: number) => Math.exp(-t / time)
+export const decay = (t: number, time: number) => Math.exp(-t / time)
 /** Быстрая атака за attack секунд, чтобы не щёлкало начало. */
-const attack = (t: number, time: number) => Math.min(1, t / time)
+export const attack = (t: number, time: number) => Math.min(1, t / time)
 
 /** Винтовка: сухой щелчок и короткий хлопок. */
 function rifle(rate: number, variant: number) {
@@ -233,7 +233,7 @@ export const SOUND_VARIANTS = 3
  * Петля длиной seconds: как render, но конец плавно переходит в начало — сэмплы последних FADE секунд
  * подмешиваются к первым, и петля звучит без щелчка на стыке.
  */
-function loop(rate: number, seconds: number, sample: (t: number, noise: () => number) => number) {
+export function loop(rate: number, seconds: number, sample: (t: number, noise: () => number) => number) {
   const fade = Math.round(rate * 0.25)
   const length = Math.ceil(rate * seconds)
   const next = random(7)
@@ -252,7 +252,7 @@ function loop(rate: number, seconds: number, sample: (t: number, noise: () => nu
 }
 
 /** Удары раз в period секунд со сдвигом offset: огибающая каждого гаснет за time. */
-const pulse = (t: number, period: number, time: number, offset = 0) => decay((((t - offset) % period) + period) % period, time)
+export const pulse = (t: number, period: number, time: number, offset = 0) => decay((((t - offset) % period) + period) % period, time)
 
 /** Гул электростанции: сеть и её гармоники, чуть дышащие. */
 function hum(rate: number) {
@@ -285,27 +285,6 @@ function drill(rate: number) {
   })
 }
 
-/** Колёсная техника: мотор — пила с подвыванием. */
-function engine(rate: number) {
-  const body = lowpass(rate, () => 500)
-  let phase = 0
-  return loop(rate, 2, (t, noise) => {
-    phase += (2 * Math.PI * (72 + Math.sin(2 * Math.PI * 0.5 * t) * 6)) / rate
-    const saw = (phase / (2 * Math.PI)) % 1
-    return body((saw * 2 - 1) * 0.9 + noise() * 0.3) * 1.6
-  })
-}
-
-/** Гусеничная: низкий рокот и лязг траков. */
-function tracks(rate: number) {
-  const rumble = lowpass(rate, () => 140)
-  const clank = highpass(rate, 1800)
-  return loop(rate, 2, (t, noise) => {
-    const n = noise()
-    return rumble(n) * 3 + clank(n) * pulse(t, 1 / 9, 0.012) * 0.6 + Math.sin(2 * Math.PI * 38 * t) * 0.3
-  })
-}
-
 /** Пехота: шаги вразнобой — глухие шорохи. */
 function steps(rate: number) {
   const scuff = lowpass(rate, () => 1200)
@@ -316,14 +295,11 @@ function steps(rate: number) {
   })
 }
 
-/** Летающие: винты — шум, рубленый на лопасти. */
-function rotor(rate: number) {
-  const wash = lowpass(rate, () => 700)
-  return loop(rate, 2, (t, noise) => wash(noise()) * (0.35 + pulse(t, 1 / 14, 0.025) * 1.4))
-}
-
-/** Фоновые петли: здания и техника на ходу. Каждая звучит одним голосом, громкость задаёт machines.ts. */
-export const LOOPS = { hum, machinery, drill, engine, tracks, steps, rotor } satisfies Record<string, (rate: number) => Float32Array>
+/**
+ * Фоновые петли: работа зданий и шаги пехоты. Каждая звучит одним голосом, громкость задают machines.ts и motors.ts.
+ * Моторы техники — свои голоса у каждой машины, см. motorSynth.ts.
+ */
+export const LOOPS = { hum, machinery, drill, steps } satisfies Record<string, (rate: number) => Float32Array>
 export type LoopName = keyof typeof LOOPS
 export const LOOP_NAMES = Object.keys(LOOPS) as LoopName[]
 
