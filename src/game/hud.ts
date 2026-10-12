@@ -6,7 +6,7 @@ import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
   Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
-  awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
+  awaitsMaterials, buildTicks, canDemolish, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
   Research, TOPICS, PAVE_RESEARCH, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
@@ -176,7 +176,7 @@ export interface HudState {
     /** Здание разбирают: готовность идёт к нулю. */
     demolish: boolean
   } | null
-  /** Разбор выбранных своих готовых зданий, которые можно разобрать. refund — сколько кредитов вернётся за все. */
+  /** Разбор выбранных своих готовых зданий, которые можно разобрать. refund — сколько кредитов вернётся за все, с оплаченными заказами. */
   demolish: { buildings: number[]; refund: number } | null
   /**
    * Уровень выбранных своих зданий, которые улучшают: level, gain и factor — уровень первого из них, что он поднимает
@@ -677,7 +677,7 @@ export function readHud(scene: Scene): HudState {
     if (canDemolish(sim, player, entity)) {
       demolish ??= { buildings: [], refund: 0 }
       demolish.buildings.push(entity)
-      demolish.refund += refundOf(built!.type, built!.level)
+      demolish.refund += refundOf(built!.type, built!.level) + prepaidOf(sim, entity)
     }
     const kind = world.get(entity, Building)?.type ?? world.get(entity, Site)?.type
     if (kind) {

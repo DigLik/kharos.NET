@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { BUILDINGS, Drop, Hauler, Inventory, Position, TRUCK_CAPACITY, amountOf, canPlace, createSim, type BuildingType, type Sim } from '../src/sim'
+import { BUILDINGS, Drop, Hauler, Inventory, Position, Producer, TRUCK_CAPACITY, Trade, UNITS, amountOf, canPlace, createSim, creditsOf, refundOf, type BuildingType, type Sim } from '../src/sim'
+import { buyPrice } from '../src/sim/trade'
 import { placeBuilding } from '../src/sim/buildings'
 import { addCredits } from '../src/sim/economy'
 import { dropItems } from '../src/sim/drops'
@@ -107,4 +108,25 @@ test('груз падает к уже лежащему дропу того же 
   const [drop] = drops(sim)
   expect(drops(sim).length).toBe(1)
   expect([amount(sim, drop.entity, 'metal'), amount(sim, drop.entity, 'fuel'), amount(sim, drop.entity, 'metalOre')]).toEqual([3, 2, 1])
+})
+
+test('разбор возвращает оплаченное вперёд: очередь юнитов и закупку с орбиты, чей корабль не прилетел', () => {
+  const { sim, buildings: [barracks, port], builder } = base(['barracks', 'spaceport'])
+  sim.world.get(barracks, Producer)!.queue.push('infantry', 'infantry', 'rocketeer')
+  sim.world.add(port, Trade({ resource: 'metal', wanted: 10, left: 100000, total: 100000, buy: true }))
+  const queued = UNITS.infantry.cost * 2 + UNITS.rocketeer.cost
+  const before = creditsOf(sim, 1)
+  sim.send(1, { type: 'demolish', building: barracks, builders: [builder] })
+  until(sim, () => !sim.world.alive(barracks))
+  // Сверху — доход главного здания за время разбора.
+  const gained = creditsOf(sim, 1) - before
+  expect(gained).toBeGreaterThanOrEqual(refundOf('barracks') + queued)
+  expect(gained).toBeLessThan(refundOf('barracks') + queued + 40)
+
+  const middle = creditsOf(sim, 1)
+  sim.send(1, { type: 'demolish', building: port, builders: [builder] })
+  until(sim, () => !sim.world.alive(port))
+  const back = creditsOf(sim, 1) - middle
+  expect(back).toBeGreaterThanOrEqual(refundOf('spaceport') + 10 * buyPrice('metal'))
+  expect(back).toBeLessThan(refundOf('spaceport') + 10 * buyPrice('metal') + 60)
 })

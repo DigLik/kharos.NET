@@ -76,6 +76,20 @@ export function cancelUnit(sim: Sim, player: number, entity: Entity) {
   return true
 }
 
+/**
+ * Возвращает всю очередь разобранного здания, как отмена каждого заказа: цену — кредитами, материалы начатого — на его
+ * склад (оттуда они падают на землю вместе с остальным грузом). Очередь пустеет.
+ */
+export function refundQueue(sim: Sim, player: number, entity: Entity) {
+  const producer = sim.world.get(entity, Producer)
+  if (!producer?.queue.length) return
+  const inventory = sim.world.get(entity, Inventory)
+  if (producer.progress > 0 && inventory) for (const [resource, amount] of entriesOf(unitSpec(producer.queue[0]).materials ?? {})) put(inventory, resource, amount)
+  for (const unit of producer.queue) addCredits(sim, player, UNITS[unit].cost)
+  producer.queue.length = 0
+  producer.progress = 0
+}
+
 /** Тайл, вокруг которого появляются произведённые юниты: центр здания или место машины. */
 function exitOf(sim: Sim, entity: Entity) {
   const position = sim.world.get(entity, Position)!

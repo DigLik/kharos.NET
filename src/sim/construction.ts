@@ -2,7 +2,7 @@ import type { Entity } from '../ecs'
 import { tileKey } from '../map/terrain'
 import { BUILDINGS, BUILD_RATE, CORE, applyLevel, buildingSpec, canPlace, durabilityOf, equip, isUnlocked, newBuilding, siteAt, upgradeCost, upgradeSpent, type BuildingSpec, type BuildingType } from './buildings'
 import { NONE, isOwn, onTurn, ownerOf, rectDistance, turnToward, wrap } from './common'
-import { Building, Builds, Converting, Health, Inventory, Owner, Path, Pave, Position, Producer, Repair, Site, Unit, Upgrade } from './components'
+import { Building, Builds, Converting, Health, Inventory, Owner, Path, Pave, Position, Producer, Repair, Site, Trade, Unit, Upgrade } from './components'
 import { reserveLeft } from './deposits'
 import { amountOf } from './inventory'
 import { entriesOf, totalOf } from './resources'
@@ -14,6 +14,8 @@ import { clearDrops, dropCargo } from './drops'
 import { inCircles, inForeignZone, zoneOf } from './zones'
 import { carrierOf, turnerOf } from './turrets'
 import { cancelUpgrade } from './upgrades'
+import { refundQueue } from './production'
+import { buyPrice, refundPurchase } from './trade'
 import { UNITS, clearGround, isWalkable, orderMove, standingUnits, unitsIn } from './units'
 
 /** С какого расстояния до основания свободный строитель сам берётся за стройку или разбор, в тайлах. */
@@ -345,6 +347,15 @@ export const DEMOLISH_SPEED = 1.5
 
 /** Сколько кредитов вернёт разбор здания этого вида и уровня: доля его цены и вложенного в уровни. */
 export const refundOf = (type: BuildingType, level = 1) => Math.floor((BUILDINGS[type].cost + upgradeSpent(type, level)) * DEMOLISH_REFUND)
+
+/** Сколько кредитов здание держит оплаченными вперёд: очередь юнитов и закупка с орбиты. Разбор их возвращает. */
+export function prepaidOf(sim: Sim, entity: Entity) {
+  let paid = 0
+  for (const unit of sim.world.get(entity, Producer)?.queue ?? []) paid += UNITS[unit].cost
+  const order = sim.world.get(entity, Trade)
+  if (order?.buy) paid += order.wanted * buyPrice(order.resource)
+  return paid
+}
 
 /** Может ли игрок разобрать здание: оно своё, готовое и не главное — главное сворачивают в MCV. */
 export function canDemolish(sim: Sim, player: number, building: Entity) {
@@ -715,6 +726,9 @@ export function construct(sim: Sim) {
       site.progress -= count * DEMOLISH_SPEED
       if (site.progress > 0) continue
       addCredits(sim, player, refundOf(site.type, world.get(entity, Building)?.level))
+      // Оплаченное вперёд — очередь юнитов и закупка с орбиты — возвращается целиком, как при отмене.
+      refundQueue(sim, player, entity)
+      refundPurchase(sim, player, entity)
       // Что лежало на складе здания, остаётся на земле.
       dropCargo(sim, entity)
       world.destroy(entity)

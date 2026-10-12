@@ -101,6 +101,17 @@ export function buy(sim: Sim, player: number, port: Entity, resource: Resource, 
   return true
 }
 
+/**
+ * Разобранный космопорт: оплаченная закупка, чей корабль не прилетел, возвращает уплаченное. Груз продажи лежит
+ * на складе космопорта до прилёта и падает на землю вместе со складом, так что его возвращать не нужно.
+ */
+export function refundPurchase(sim: Sim, player: number, port: Entity) {
+  const order = sim.world.get(port, Trade)
+  if (!order?.buy) return
+  addCredits(sim, player, order.wanted * buyPrice(order.resource))
+  sim.world.remove(port, Trade)
+}
+
 /** Сколько товара заявки грузовики уже привезли в космопорт: он лежит в его складе. */
 export function deliveredTo(sim: Sim, port: Entity) {
   const order = sim.world.get(port, Trade)
