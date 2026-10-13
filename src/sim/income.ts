@@ -2,7 +2,7 @@ import type { Entity } from '../ecs'
 import { BUILDINGS, buildingSpec, levelFactor, type BuildingSpec, type BuildingType } from './buildings'
 import { isOwn } from './common'
 import { creditsOf } from './economy'
-import { Accumulator, Assembly, Building, Busy, Health, Off, Player, Site } from './components'
+import { Accumulator, Assembly, Building, Busy, Health, Off, Player, Position, Site } from './components'
 import { isBurning, meltdown } from './reactors'
 import type { Sim } from './sim'
 import { allGrids, type Zone } from './zones'
@@ -274,6 +274,52 @@ export function powerSupply(sim: Sim): ReadonlyMap<Entity, number> {
   }
   if (ledger) ledger.supply = supply
   return supply
+}
+
+/**
+ * Электростанции, которым сейчас есть что питать: в каждой зоне — ровно столько, сколько нужно на её нынешний спрос
+ * сверх отданного накопителями, начиная с ближайших к её потребителям; остальные стоят в запасе. Это только картинка:
+ * энергия у зоны общая, и на счёт выбор станций не влияет.
+ */
+export function loadedPlants(sim: Sim): Set<Entity> {
+  const { world } = sim
+  const loaded = new Set<Entity>()
+  const centerOf = (entity: Entity) => {
+    const { width, height } = BUILDINGS[world.get(entity, Building)!.type]
+    const position = world.get(entity, Position)
+    return { x: (position?.x ?? 0) + width / 2, y: (position?.y ?? 0) + height / 2 }
+  }
+  for (const { zone, economy } of books(sim)) {
+    let need = economy.demand - economy.stored
+    if (need <= 1e-9) continue
+    // Середина потребителей зоны: от неё и считается, какая станция ближе.
+    let x = 0
+    let y = 0
+    let count = 0
+    const plants: { entity: Entity; output: number; x: number; y: number }[] = []
+    for (const entity of zone.buildings) {
+      const power = powerAt(sim, entity)
+      if (!power || (power < 0 && switchedOff(sim, entity))) continue
+      const center = centerOf(entity)
+      if (power > 0) {
+        plants.push({ entity, output: power * (world.get(entity, Health)?.value ?? 1), ...center })
+        continue
+      }
+      x += center.x
+      y += center.y
+      count++
+    }
+    if (!count) continue
+    x /= count
+    y /= count
+    plants.sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y) || a.entity - b.entity)
+    for (const plant of plants) {
+      if (need <= 1e-9) break
+      loaded.add(plant.entity)
+      need -= plant.output
+    }
+  }
+  return loaded
 }
 
 /**

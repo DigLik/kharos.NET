@@ -4,7 +4,7 @@ import { uploadAtlas, type AtlasFrame, type PackedAtlas, type Sprite } from '../
 import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'
 import type { Entity } from '../../ecs'
-import { Assembly, BUILDINGS, BUILDING_TYPES, Building, Interceptor, Inventory, Owner, Position, Reactor, Research, Silo, Site, amountOf, buildingSpec, isBurning, isOpenGate, isPipe, shutDown, siteTicks, type BuildingType } from '../../sim'
+import { Assembly, BUILDINGS, BUILDING_TYPES, Building, Interceptor, Inventory, Owner, Position, Reactor, Research, Silo, Site, amountOf, buildingSpec, isBurning, isOpenGate, isPipe, loadedPlants, shutDown, siteTicks, type BuildingType } from '../../sim'
 import { placementOf } from '../placing'
 import type { Scene } from '../scene'
 import { ART_FRAMES, ART_TILE, BUILDING_ART, GATE_OPEN_VARIANT, SILO_DOOR_STEPS, SILO_RISE_STEPS, WALL_CONNECTION, type BuildingArt } from './buildingArt'
@@ -25,6 +25,8 @@ const VISIBLE_MARGIN = 5
  * по тикам симуляции, а не каждый кадр, и без запаса анимация мигала бы.
  */
 const WORK_HOLD = 0.6
+/** Раз во сколько секунд игры пересчитывается, какие электростанции под нагрузкой. */
+const PLANTS_EVERY = 0.5
 /** Пуск ракетной шахты: какую долю срока расходятся створки и с какой доли поднимается ракета. */
 const DOORS_SHARE = 0.35
 const RISE_FROM = 0.6
@@ -135,6 +137,14 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene, ar
     return assembly ? assembly.progress : undefined
   }
 
+  /**
+   * Электростанции под нагрузкой, см. loadedPlants: пересчитываются раз в PLANTS_EVERY секунд игры и когда мир
+   * сменился, — это обход всех зон.
+   */
+  let plants = new Set<Entity>()
+  let plantsAt = -Infinity
+  let plantsOf: unknown
+
   const program = createSpriteProgram(gl)
   /** Ничьё (игрок 0) — серым. */
   const greyProgram = createSpriteProgram(gl, true)
@@ -153,6 +163,11 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene, ar
       const pad = PAD / ART_TILE
 
       const { world, time: simTime } = scene.sim
+      if (plantsOf !== scene.sim || Math.abs(time - plantsAt) >= PLANTS_EVERY) {
+        plants = loadedPlants(scene.sim)
+        plantsAt = time
+        plantsOf = scene.sim
+      }
       // И готовая стена, и ещё не начатая соседняя площадка участвуют в соединении: чертёж сразу показывает итог.
       const walls = new Set<number>()
       for (const [, position, building] of world.query(Position, Building)) {
@@ -215,10 +230,11 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene, ar
       visible.length = 0
       for (const [entity, position, building] of world.query(Position, Building)) {
         const site = world.get(entity, Site)
-        // Реактор работает, пока горит стержень: это видно сразу, без догадок по складу. Шахта — пока в ней готовая
+        // Реактор работает, пока горит стержень: это видно сразу, без догадок по складу. Электростанция — пока на неё
+        // приходится нагрузка зоны: лишние стоят в запасе. Шахта — пока в ней готовая
         // боеголовка, перехватчик — пока в нём есть ракета (у чужого не видно), лаборатория — пока ведёт тему: это они
         // сообщают сами.
-        let working = !site && ((world.has(entity, Reactor) && isBurning(scene.sim, entity)) || world.get(entity, Silo)?.ready === true || (world.get(entity, Interceptor)?.missiles ?? 0) > 0 || (world.get(entity, Research)?.speed ?? 0) > 0)
+        let working = !site && ((world.has(entity, Reactor) && isBurning(scene.sim, entity)) || plants.has(entity) || world.get(entity, Silo)?.ready === true || (world.get(entity, Interceptor)?.missiles ?? 0) > 0 || (world.get(entity, Research)?.speed ?? 0) > 0)
         const value = !site && !working && BUILDING_ART[building.type].working && building.type !== 'interceptor' ? workOf(entity, building.type) : undefined
         if (value !== undefined) {
           const state = activity.get(entity) ?? { value, until: 0 }

@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, isCliffFoot, terrainAt } from '../src/map/terrain'
 import {
   BUILDINGS, Building, Builds, CORE, Health, Owner, Player, SCAN_SIZE, Site, Unit, buildingSight, scanRadius,
-  Busy, Inventory, Producer, Off, OVERLOAD_DAMAGE, idlePower, overloadOf, RELIEF_BELOW, RELIEF_INCOME, REPAIR_COST, coreless, powerSupply, REPAIR_SPEED, canBuild, canDeploy, canPlace, createSim, creditsOf, economyOf, powerOf, powerStates, refundOf, rewardsOf, siteAt, zoneEconomies, zoneOf, zonesOf, spawnStartingUnits, type BuildingType, type Sim,
+  Busy, Inventory, Producer, Off, OVERLOAD_DAMAGE, idlePower, loadedPlants, overloadOf, RELIEF_BELOW, RELIEF_INCOME, REPAIR_COST, coreless, powerSupply, REPAIR_SPEED, canBuild, canDeploy, canPlace, createSim, creditsOf, economyOf, powerOf, powerStates, refundOf, rewardsOf, siteAt, zoneEconomies, zoneOf, zonesOf, spawnStartingUnits, type BuildingType, type Sim,
 } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
 import { Accumulator, Scan } from '../src/sim/components'
@@ -574,4 +574,19 @@ test('перегруз станций считается по полной на�
   expect(overloadOf(zoneEconomies(sim, 1)[0])).toBe(0)
   expect(powerStates(sim).has(plant)).toBe(false)
   expect(sim.world.get(plant, Health)!.value).toBe(worn)
+})
+
+test('под нагрузкой столько электростанций, сколько нужно на спрос зоны, — ближайшие к потребителям; остальные в запасе', () => {
+  const { sim, x, y } = start()
+  const near = put(sim, 'generator', x + 6, y + 4)
+  const far = put(sim, 'generator', x + 14, y + 4)
+  // Потребителей нет — питать нечего.
+  expect(loadedPlants(sim).size).toBe(0)
+  // Радар у первой станции просит 3: хватает её одной.
+  put(sim, 'radar', x + 6, y)
+  expect([...loadedPlants(sim)]).toEqual([near])
+  // Ещё три радара — 12: нужны обе.
+  for (const dx of [9, 12, 15]) put(sim, 'radar', x + dx, y)
+  expect([...loadedPlants(sim)].sort()).toEqual([near, far].sort())
+  expect(economyOf(sim, 1)).toMatchObject({ produced: 20, demand: 12 })
 })

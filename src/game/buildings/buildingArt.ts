@@ -94,22 +94,26 @@ function bulb(g: Pixmap, light: EmitLight, x: number, y: number, level: number) 
   light(x + 1, y + 1, 1, level)
 }
 
-/** Генератор: реактор под куполом с бегущим кольцом огней и два бака с подачей по трубам. */
+/**
+ * Генератор: реактор под куполом с кольцом огней и два бака с подачей по трубам. Под нагрузкой огни бегут по кругу
+ * и по трубам идёт топливо; станция в запасе, которой питать нечего, стоит тёмной и чуть дышит одной лампой.
+ */
 const generator: BuildingArt = {
   ...BUILDINGS.generator,
-  draw(g, t, light) {
+  working: true,
+  draw(g, t, light, _variant, working = false) {
     slab(g, 0, 1, 32, 31, 3, STEEL)
     g.rect(3, 4, 26, 22, STEEL[0])
     g.rect(4, 5, 25, 21, STEEL[1])
     g.rect(4, 27, 7, 1, RUST[1])
     g.rect(21, 27, 7, 1, RUST[1])
 
-    // Трубы от баков к реактору; по ним бежит порция топлива.
+    // Трубы от баков к реактору; под нагрузкой по ним бежит порция топлива.
     const step = Math.floor(t * ART_FRAMES) % 8
     for (const y of [8, 20]) {
       g.rect(8, y - 1, 10, 3, INK)
       g.rect(8, y, 10, 1, RUST[1])
-      g.rect(9 + step, y, 2, 1, TEAM[3])
+      if (working) g.rect(9 + step, y, 2, 1, TEAM[3])
       tower(g, 6, y + 1, 3, 2, IRON)
     }
 
@@ -119,9 +123,9 @@ const generator: BuildingArt = {
       const angle = (i / LIGHTS) * TURN
       const x = Math.round(21 + Math.cos(angle) * 6.5)
       const y = Math.round(13 + Math.sin(angle) * 6.5)
-      bulb(g, light, x - 1, y - 1, chase(t, i / LIGHTS))
+      bulb(g, light, x - 1, y - 1, working ? chase(t, i / LIGHTS) : 0)
     }
-    lamp(g, light, 21, 13, 3, pulse(t * 2))
+    lamp(g, light, 21, 13, 3, working ? pulse(t * 2) : 0.12 + 0.1 * pulse(t))
   },
 }
 
