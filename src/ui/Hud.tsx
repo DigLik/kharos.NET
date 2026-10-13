@@ -344,9 +344,11 @@ function MinimapView({ minimap, lookAt, moveSelected }: Pick<HudProps, 'minimap'
   }, [minimap])
 
   const tileOf = (event: PointerEvent) => {
-    const box = ref.current!.getBoundingClientRect()
-    const u = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width))
-    const v = Math.min(1, Math.max(0, (event.clientY - box.top) / box.height))
+    // Карта рисуется внутри рамки холста: доли считаются от содержимого, а не от рамочного бокса.
+    const canvas = ref.current!
+    const box = canvas.getBoundingClientRect()
+    const u = Math.min(1, Math.max(0, (event.clientX - box.left - canvas.clientLeft) / canvas.clientWidth))
+    const v = Math.min(1, Math.max(0, (event.clientY - box.top - canvas.clientTop) / canvas.clientHeight))
     return minimap.tileAt(u, v)
   }
   return (
