@@ -5,6 +5,7 @@ import { DEPOSIT_CELL, depositsIn } from './deposits'
 import { amountOf, take } from './inventory'
 import { spend } from './economy'
 import { powerSupply, zoneEconomies } from './income'
+import { networkOf } from './zones'
 import { RESOURCES, entriesOf, type Amounts, type Good } from './resources'
 import type { Sim } from './sim'
 import { PAVE_RESEARCH, TOPICS, isTopic, isTrigger, pathTo, playerEntity, topicPrice, topicSpec, topicsBefore, type Topic } from './topics'
@@ -183,6 +184,15 @@ export function research(sim: Sim, time: Time) {
   if (!labs.size) return
   // Считается недёшево, поэтому только когда лаборатории есть, и один раз за тик.
   let supply: ReadonlyMap<Entity, number> | undefined
+  // Что отдают склады сети лаборатории: лаборатории одной сети спрашивают одно и то же, а в сети большой базы — тысячи
+  // зданий. Считается раз на сеть и груз; взятое лабораторией вычитается.
+  const stocks = new Map<object, Partial<Record<Good, number>>>()
+  const stockOf = (lab: Entity) => {
+    const key = networkOf(sim, lab) ?? { lab }
+    let stock = stocks.get(key)
+    if (!stock) stocks.set(key, (stock = {}))
+    return stock
+  }
   for (const [player, list] of labs) {
     const entity = playerEntity(sim, player)
     const topic = entity === undefined ? undefined : nextTopic(sim, entity)
@@ -212,10 +222,11 @@ export function research(sim: Sim, time: Time) {
       }
       const needs: Amounts = {}
       const stock = world.get(lab, Inventory)
+      const network = stockOf(lab)
       for (const [good, amount] of entriesOf(price.materials)) {
         const need = amount * share
         // Сначала — привезённое на склад лаборатории, потом — что отдают склады её сети.
-        const have = (stock ? amountOf(stock, good) : 0) + networkStock(sim, lab, good)
+        const have = (stock ? amountOf(stock, good) : 0) + (network[good] ??= networkStock(sim, lab, good))
         if (have + EPSILON < need * part) {
           part = Math.max(0, have / need)
           lack = good
@@ -233,6 +244,7 @@ export function research(sim: Sim, time: Time) {
       }
       if (stock) for (const good of Object.keys(needs) as Good[]) needs[good]! -= take(stock, good, needs[good]!)
       takeFromNetwork(sim, lab, needs)
+      for (const good of Object.keys(needs) as Good[]) if (network[good] !== undefined) network[good] = Math.max(0, network[good] - needs[good]!)
       done += share * part
       report(sim, lab, power * part, lack)
     }
