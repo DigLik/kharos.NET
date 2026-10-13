@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
+import { markActivated } from '../audio/audio'
 import { loadSounds } from '../audio/loadSounds'
 import { loadArt } from '../game/loadArt'
 import { DEFAULT_SETTINGS } from '../map/settings'
@@ -31,11 +32,13 @@ const SOUND_SHARE = 0.9
 
 /**
  * Пока воркеры рисуют графику и синтезируют звук — экран загрузки: без графики не открыть ни меню с витриной, ни игру,
- * а звук в игре должен быть готов к первому же нажатию.
+ * а звук в игре должен быть готов к первому же нажатию. Готово — игрок нажимает «Продолжить»: браузер не даёт звуку
+ * играть, пока на странице ничего не нажали, а так и музыка меню, и игра звучат сразу.
  */
 function WithAssets() {
   const [share, setShare] = useState(0)
   const [ready, setReady] = useState(false)
+  const [proceeded, setProceeded] = useState(false)
   useEffect(() => {
     let live = true
     let art = 0
@@ -49,7 +52,17 @@ function WithAssets() {
       live = false
     }
   }, [])
-  return ready ? <Game /> : <Loading share={share} />
+  if (proceeded) return <Game />
+  return (
+    <Loading
+      share={share}
+      ready={ready}
+      proceed={() => {
+        markActivated()
+        setProceeded(true)
+      }}
+    />
+  )
 }
 
 function Game() {

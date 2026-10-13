@@ -106,11 +106,18 @@ export const storeLevel = (channel: Channel, value: number) => {
   }
 }
 
+let pressed = false
+/** Игрок нажал «Продолжить» на экране загрузки: после этого браузер разрешает звук. */
+export const markActivated = () => {
+  pressed = true
+}
+
 /**
  * Нажимал ли игрок что-нибудь на этой странице: тогда браузер разрешает звук сразу, без нового нажатия. Так звук
- * не молчит при переходе из меню в игру и обратно. Браузер без userActivation спрашивает нажатие, как раньше.
+ * не молчит при переходе из меню в игру и обратно. Браузер без userActivation узнаёт это по кнопке экрана загрузки;
+ * если звук он всё же не пустил, его будит следующее нажатие.
  */
-export const wasActivated = () => (navigator as { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive ?? false
+export const wasActivated = () => pressed || ((navigator as { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive ?? false)
 
 /**
  * Звук игры. Браузер не даёт играть звук, пока игрок ничего не нажал, поэтому голоса заводятся при первом его

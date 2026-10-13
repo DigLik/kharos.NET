@@ -57,7 +57,8 @@
 
 .hud button,
 .menu button,
-.game__error button {
+.game__error button,
+.loading button {
   border: 4px solid transparent;
   border-image: var(--skin-button) 4 fill / 8px;
   border-radius: 0;
@@ -70,7 +71,8 @@
 
 .hud button:hover:not(:disabled),
 .menu button:hover:not(:disabled),
-.game__error button:hover {
+.game__error button:hover,
+.loading button:hover {
   border-image-source: var(--skin-button-hover);
   background: none;
 }
@@ -78,7 +80,8 @@
 .hud button:active:not(:disabled),
 .hud button.is-active,
 .menu button:active:not(:disabled),
-.menu button.is-active {
+.menu button.is-active,
+.loading button:active {
   border-image-source: var(--skin-button-active);
   background: none;
   color: var(--text-bright);
@@ -1648,12 +1651,12 @@ body {
 }
 
 /* Главное действие экрана — кнопка огней команды; опасное — красная. */
-:is(.menu, .hud) button.menu__primary:not(:disabled) {
+:is(.menu, .hud, .loading) button.menu__primary:not(:disabled) {
   border-image-source: var(--skin-button-primary);
   color: var(--text-bright);
 }
 
-:is(.menu, .hud) button.menu__primary:hover:not(:disabled) {
+:is(.menu, .hud, .loading) button.menu__primary:hover:not(:disabled) {
   border-image-source: var(--skin-button-primary-hover);
 }
 
@@ -2163,8 +2166,16 @@ body {
   width: min(320px, 100%);
 }
 
+.loading button {
+  min-width: 160px;
+  min-height: 40px;
+  padding: 4px 12px;
+}
+
 .loading__caption {
   margin: 0;
+  /* Высотой с кнопку, которая встанет на её место: полоса над ними не прыгает. */
+  line-height: 40px;
   color: var(--text-soft);
   text-shadow: 1px 1px 0 var(--ink);
 }
