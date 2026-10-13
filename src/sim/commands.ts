@@ -15,7 +15,7 @@ import { orderDigs, type DigKind } from './earthworks'
 import { orderPipes, orderWells } from './piping'
 import { cancelUnit, orderUnit } from './production'
 import { setFilter, setRoute, setServe } from './routes'
-import { surrender } from './defeat'
+import { scuttle, surrender } from './defeat'
 import { cancelResearch, dequeueResearch, planResearch } from './research'
 import { abortLaunch, cancelWarhead, orderLaunch, startWarhead } from './silos'
 import type { Topic } from './topics'
@@ -83,6 +83,11 @@ export type Command = (
    * см. gift.ts. Груз в кузове остаётся с ними.
    */
   | { type: 'gift'; units: number[]; to: number }
+  /**
+   * Уничтожить своих юнитов: они взрываются на месте обычной гибелью — с остовом и грузом, упавшим на землю, —
+   * никому не вредя; цена не возвращается, место в лимите освобождается. См. scuttle в defeat.ts.
+   */
+  | { type: 'scuttle'; units: number[] }
   /** Включить или выключить своё здание — потребителя энергии: выключенное не берёт энергию и не работает. */
   | { type: 'work'; building: number; on: boolean }
   /** Сигнал союзникам: метка в точке карты, в тайлах. См. pings.ts. */
@@ -284,6 +289,8 @@ function run(sim: Sim, player: number, command: Command): boolean {
       if (!Array.isArray(command.units)) return false
       return handOver(sim, player, Number(command.to), command.units as Entity[]) > 0
     }
+    case 'scuttle':
+      return Array.isArray(command.units) && scuttle(sim, player, command.units as Entity[])
     case 'work':
       return setWorking(sim, player, command.building as Entity, !!command.on)
     case 'ping':

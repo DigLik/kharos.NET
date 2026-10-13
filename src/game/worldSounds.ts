@@ -348,7 +348,9 @@ export function createWorldSounds(scene: Scene, audio: Audio) {
       let doom = 0
       let doomAt: { x: number; y: number } | null = null
       let ownDoom = false
-      for (const [entity, , position] of world.query(Doomed, Position)) {
+      for (const [entity, fate, position] of world.query(Doomed, Position)) {
+        // Юнит, который игрок уничтожил сам, — не капитуляция: слышен только его взрыв.
+        if (fate.scuttled) continue
         doom++
         doomAt ??= position
         if (own(entity)) ownDoom = true

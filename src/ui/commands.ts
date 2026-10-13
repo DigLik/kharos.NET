@@ -20,6 +20,8 @@ const BACK = 11
 const SWITCH = BACK
 /** Отдать юнитов союзнику — тоже в углу корня: у юнитов там больше ничего нет. */
 const GIFT = BACK
+/** Уничтожить своих юнитов — на месте отмены: у юнитов оно занято, только пока разворачивается MCV. */
+const SCUTTLE = CANCEL
 /** Кнопки продажи и закупки космопорта: начало нижнего ряда. Отмена заказа техники у космопорта тогда — на месте «Назад». */
 const TRADE = 8
 /** Подарок союзнику — сверху: нижний ряд космопорта уже занят торговлей, разбором и выключателем. */
@@ -28,7 +30,7 @@ const FERRY = 0
 const LIST = 8
 
 /** Страница сетки строителя: корень с разделами или сами здания раздела. */
-export type Page = 'root' | 'economy' | 'storage' | 'industry' | 'production' | 'military' | 'defense' | 'paving' | 'logistics' | 'filter' | 'reserve' | 'sell' | 'buy' | 'ally' | 'ferryGoods' | 'ferryMore' | 'gift'
+export type Page = 'root' | 'economy' | 'storage' | 'industry' | 'production' | 'military' | 'defense' | 'paving' | 'logistics' | 'filter' | 'reserve' | 'sell' | 'buy' | 'ally' | 'ferryGoods' | 'ferryMore' | 'gift' | 'scuttle'
 
 /** Разделы строителя: в какой странице какое здание. Остальное — хозяйство: энергия, добыча, торговля. */
 const SECTIONS: Partial<Record<Page, BuildingType[]>> = {
@@ -436,6 +438,23 @@ export function commandsOf(
             },
           })),
       )
+      slots[BACK] = { label: t('common.back'), run: () => open('root') }
+    }
+  }
+
+  if (gift) {
+    // Уничтожить выбранных юнитов: сначала кнопка, потом подтверждение на своей странице — и на другой клавише.
+    if (page === 'root' && !slots[SCUTTLE]) {
+      slots[SCUTTLE] = { label: t('grid.scuttle'), title: t('grid.scuttleTip'), run: () => open('scuttle') }
+    } else if (page === 'scuttle') {
+      slots[0] = {
+        label: t('grid.scuttleConfirm', { count: gift.length }),
+        title: t('grid.scuttleConfirmTip'),
+        run: () => {
+          send({ type: 'scuttle', units: gift })
+          open('root')
+        },
+      }
       slots[BACK] = { label: t('common.back'), run: () => open('root') }
     }
   }

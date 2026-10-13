@@ -352,8 +352,11 @@ export const Mark = component('Mark', () => ({ kind: 'launch' as 'launch' | 'str
  */
 export const Orders = component('Orders', () => ({ list: [] as { group: number; command: Command }[] }))
 
-/** Обречённый: игрок сдался, и через left тиков юнит или здание взорвётся. См. defeat.ts. */
-export const Doomed = component('Doomed', { left: 0 })
+/**
+ * Обречённый: игрок сдался, и через left тиков юнит или здание взорвётся. scuttled — игрок уничтожил юнит сам, а
+ * не сдался: о капитуляции тут объявлять нечего. См. defeat.ts.
+ */
+export const Doomed = component('Doomed', { left: 0, scuttled: false })
 
 /**
  * Пачка груза в трубах: до BATCH единиц resource едут из склада from на склад to по пути path — узлам графа сети

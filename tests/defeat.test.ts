@@ -2,7 +2,8 @@ import { expect, test } from 'bun:test'
 import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, isCliffFoot, terrainAt } from '../src/map/terrain'
-import { Blast, Building, Owner, Position, Unit, createSim, creditsOf, isDefeated, spawnStartingUnits, type Sim } from '../src/sim'
+import { Blast, Building, Health, Owner, Position, Unit, armyOf, createSim, creditsOf, isDefeated, spawnStartingUnits, type Sim } from '../src/sim'
+import { spawnUnit } from '../src/sim/units'
 import { placeBuilding } from '../src/sim/buildings'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
@@ -76,4 +77,27 @@ test('без главного здания, но с другим зданием 
   expect(isDefeated(sim, 1)).toBe(false)
   sim.world.destroy(generator)
   expect(isDefeated(sim, 1)).toBe(true)
+})
+
+test('игрок уничтожает своих юнитов: они гибнут на месте, никого не задев; кредиты не возвращаются, лимит свободен', () => {
+  const sim = start()
+  let core: { x: number; y: number } | undefined
+  for (const [, building, position] of sim.world.query(Building, Position)) if (building.type === 'command') core = position
+  const tank = spawnUnit(sim, 'tank', 1, core!.x + 5, core!.y + 1)
+  const neighbour = spawnUnit(sim, 'tank', 1, core!.x + 6, core!.y + 1)
+  // Чужой — далеко: рядом его расстреляли бы, а проверяется другое.
+  const foe = spawnUnit(sim, 'truck', 2, core!.x + 60, core!.y + 2)
+  sim.advance(TICK)
+  const credits = creditsOf(sim, 1)
+  const used = armyOf(sim, 1)
+  // Чужого уничтожить нельзя, своего — можно.
+  sim.send(1, { type: 'scuttle', units: [tank, foe] })
+  seconds(sim, 0.2)
+  expect(sim.world.has(tank, Unit)).toBe(false)
+  expect(sim.world.has(foe, Unit)).toBe(true)
+  expect(sim.world.get(neighbour, Health)!.value).toBe(1)
+  expect(sim.world.get(foe, Health)!.value).toBe(1)
+  expect(armyOf(sim, 1)).toBeLessThan(used)
+  expect(creditsOf(sim, 1)).toBeLessThanOrEqual(credits + 1)
+  expect(isDefeated(sim, 1)).toBe(false)
 })

@@ -3,6 +3,7 @@ import type { Entity } from '../ecs'
 import { CORE } from './buildings'
 import { Attached, Building, Doomed, Owner, Pave, Player, Position, Site, Unit } from './components'
 import { dropCargo } from './drops'
+import { giftable } from './gift'
 import type { Sim } from './sim'
 
 /**
@@ -79,4 +80,15 @@ export function surrender(sim: Sim, player: number) {
     world.add(entity, Doomed({ left: Math.max(1, Math.round(seconds / time.step)) }))
   }
   return true
+}
+
+/**
+ * Игрок уничтожает своих юнитов: в ближайшем бою они гибнут обычной гибелью — взрыв, остов, груз на земле. Урона
+ * вокруг нет: это не бомба. Цена не возвращается, а место в лимите армии освобождается сразу. Турель на носителе
+ * отдельно не уничтожить. false — уничтожать нечего.
+ */
+export function scuttle(sim: Sim, player: number, units: readonly Entity[]) {
+  const taken = giftable(sim, player, units)
+  for (const entity of taken) sim.world.add(entity, Doomed({ left: 1, scuttled: true }))
+  return taken.length > 0
 }
