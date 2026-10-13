@@ -344,13 +344,17 @@
       "road": "Straße",
       "pipe": "Rohr",
       "bridge": "Brücke",
-      "well": "Schächte"
+      "well": "Schächte",
+      "peak": "Berg abtragen",
+      "cliff": "Steilhang glätten"
     },
     "toolTips": {
       "foundation": "Gebäude darauf entstehen doppelt so schnell, und auf Sand erlaubt es das Bauen. Lässt sich auch unter eigene Gebäude und anstelle der eigenen Straße legen. Explosionen zerstören es. Mit der Maus ein Rechteck ziehen",
       "road": "Bodeneinheiten fahren schneller; über Sumpf wird es eine Brücke für {bridge} pro Feld. Auf Straßen wird nicht gebaut; sie ersetzt auch das eigene Fundament. Mit der Maus eine Linie ziehen",
       "pipe": "Verbindet Gebäude zu einem Netz: Rohre leiten Fracht und Energie und erweitern die Zone. Versperrt die Durchfahrt — unter einer Durchfahrt Schächte verwenden. Braucht keine eigene Zone. Mit der Maus eine Linie ziehen",
-      "well": "Schächte sind die Enden eines unterirdischen Rohrs: Ein Klick setzt einen (er verbindet sich in gerader Linie mit einem Schacht), Ziehen ein Paar, bis zu {reach} Felder weit. Darüber wird gefahren und gebaut; verwundbar sind nur die Schächte. Braucht keine eigene Zone"
+      "well": "Schächte sind die Enden eines unterirdischen Rohrs: Ein Klick setzt einen (er verbindet sich in gerader Linie mit einem Schacht), Ziehen ein Paar, bis zu {reach} Felder weit. Darüber wird gefahren und gebaut; verwundbar sind nur die Schächte. Braucht keine eigene Zone",
+      "peak": "Bauer tragen den ganzen Berg ab, an seiner Stelle bleibt Fels. {cost} pro Bergfeld. Mit der Maus ein Rechteck über den Berg ziehen",
+      "cliff": "Bauer glätten die Kante des Steilhangs: der Fuß darunter wird für Fahrzeuge befahrbar. {cost} pro Kantenfeld. Mit der Maus ein Rechteck entlang des Hangs ziehen"
     },
     "remove": "Abbauen",
     "removeTip": "Baufahrzeuge bauen Eigenes im Rahmen ab: Belag, Rohre mit Schächten und Gebäude, die ganz darin liegen (für Rohre und Gebäude gibt es den halben Preis zurück); Unfertiges wird mit Erstattung abgebrochen. Mit der Maus ein Rechteck ziehen",
@@ -643,7 +647,8 @@
     "gates": "Tore",
     "wells": "Schächte",
     "bridges": "Brücken",
-    "foundation": "Fundament"
+    "foundation": "Fundament",
+    "earthworks": "Erdarbeiten"
   },
   "researchInfo": {
     "science": "Das erste Labor: mit ihm beginnt alle Forschung",
@@ -687,7 +692,8 @@
     "gates": "Tore: Platten, die sich vor Fremden zur Mauer heben",
     "wells": "Schächte führen das Rohr unterirdisch: darüber fährt und baut man",
     "bridges": "Eine Brücke ist eine Straße über den Sumpf",
-    "foundation": "Fundament macht Sand für jedes Gebäude tauglich und beschleunigt den Bau"
+    "foundation": "Fundament macht Sand für jedes Gebäude tauglich und beschleunigt den Bau",
+    "earthworks": "Bauer tragen Berge ab und glätten Steilhänge"
   },
   "tech": {
     "title": "Forschung",

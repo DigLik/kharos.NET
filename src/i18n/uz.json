@@ -344,13 +344,17 @@
       "road": "Yo‘l",
       "pipe": "Quvur",
       "bridge": "Ko‘prik",
-      "well": "Quduqlar"
+      "well": "Quduqlar",
+      "peak": "Tog‘ni tekislash",
+      "cliff": "Jarlikni silliqlash"
     },
     "toolTips": {
       "foundation": "Uning ustidagi binolar ikki baravar tezroq quriladi va qum ustida qurishga imkon beradi. O‘z binolaringiz ostiga va o‘z yo‘lingiz o‘rniga ham yotqiziladi. Portlashlar uni buzadi. Sichqoncha bilan to‘rtburchak torting",
       "road": "Quruqlik bo‘linmalari tezroq harakatlanadi; botqoqlik ustida har bir katak uchun {bridge} narxida ko‘prik bo‘ladi. Yo‘l ustida qurilish qilinmaydi; u o‘z poydevoringiz o‘rnini ham egallaydi. Sichqoncha bilan chiziq torting",
       "pipe": "Binolarni tarmoqqa ulaydi: quvurlar orqali yuk va energiya o‘tadi hamda zonani kengaytiradi. Yo‘lni to‘sadi — yo‘l ostidan quduqlar orqali o‘tkazing. O‘z zonasi shart emas. Sichqoncha bilan chiziq torting",
-      "well": "Quduqlar — yerosti quvurining uchlari: bir marta bosish bitta qo‘yadi (to‘g‘ri chiziqdagi quduq bilan ulanadi), tortish esa {reach} katakkacha masofada bir juft qo‘yadi. Ustida yurish va qurish mumkin, faqat quduqlarning o‘zi zaif. O‘z zonasi shart emas"
+      "well": "Quduqlar — yerosti quvurining uchlari: bir marta bosish bitta qo‘yadi (to‘g‘ri chiziqdagi quduq bilan ulanadi), tortish esa {reach} katakkacha masofada bir juft qo‘yadi. Ustida yurish va qurish mumkin, faqat quduqlarning o‘zi zaif. O‘z zonasi shart emas",
+      "peak": "Quruvchilar tog‘ni butunlay tekislaydi, uning o‘rnida qoya qoladi. Tog‘ning har bir katagi uchun {cost}. Sichqoncha bilan tog‘ ustida to‘rtburchak torting",
+      "cliff": "Quruvchilar jarlik chetini silliqlaydi: uning ostidagi etak texnika uchun o‘tish joyiga aylanadi. Chetning har bir katagi uchun {cost}. Sichqoncha bilan jarlik bo‘ylab to‘rtburchak torting"
     },
     "remove": "Buzish",
     "removeTip": "Quruvchilar ramka ichidagi o‘zingizga tegishli narsalarni buzadi: qoplama, quduqli quvurlar va to‘liq ichiga tushgan binolar (quvurlar va binolar narxining yarmi qaytariladi); chala qurilganlar kredit qaytarilgan holda bekor qilinadi. Sichqoncha bilan to‘rtburchak torting",
@@ -643,7 +647,8 @@
     "gates": "Darvozalar",
     "wells": "Quduqlar",
     "bridges": "Ko‘priklar",
-    "foundation": "Poydevor"
+    "foundation": "Poydevor",
+    "earthworks": "Yer ishlari"
   },
   "researchInfo": {
     "science": "Birinchi laboratoriya: barcha tadqiqotlar undan boshlanadi",
@@ -687,7 +692,8 @@
     "gates": "Darvozalar: begonalar oldida devor bo‘lib ko‘tariladigan plitalar",
     "wells": "Quduqlar quvurni yer ostidan o‘tkazadi: ustidan yurish va qurish mumkin",
     "bridges": "Ko‘prik — botqoq ustidagi yo‘l",
-    "foundation": "Poydevor qumni har qanday bino uchun yaroqli qiladi va qurilishni tezlashtiradi"
+    "foundation": "Poydevor qumni har qanday bino uchun yaroqli qiladi va qurilishni tezlashtiradi",
+    "earthworks": "Quruvchilar tog‘larni tekislaydi va jarliklarni silliqlaydi"
   },
   "tech": {
     "title": "Tadqiqotlar",

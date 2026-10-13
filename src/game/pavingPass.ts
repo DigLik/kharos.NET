@@ -1,16 +1,18 @@
 import { setBlend } from '../gl'
-import { Terrain, terrainAt } from '../map/terrain'
+import { Terrain, peakOf, terrainAt } from '../map/terrain'
 import { createAtlas } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { NO_PAVE, Pave, paveKindOf, type PaveKind, type Sim } from '../sim'
+import { Dig, NO_PAVE, Pave, Position, paveKindOf, peakTiles, type PaveKind, type Sim } from '../sim'
 import type { Scene } from './scene'
 
 /** Пикселей спрайта на тайл, как у местности. */
 const ART_TILE = 16
 /** Недостроенное и разбираемое покрытие просвечивает: видно, что над ним работают. */
 const UNFINISHED_ALPHA = 0.45
+/** Тайлы землеройной работы: плита фундамента в оранжевом, полупрозрачная (множители уже умножены на альфу). */
+const DIG_TINT = [0.5, 0.28, 0.08, 0.5] as const
 
 /** Соседи тайла битами: сверху, справа, снизу, слева. Край рисуется там, где соседа нет. */
 const UP = 1
@@ -138,6 +140,16 @@ export function createPavingPass(gl: WebGL2RenderingContext, scene: Scene): Pass
           // Готовое — плотно; что кладут или разбирают — бледнее.
           const alpha = sim.paving.at(x, y) === undefined ? 1 : UNFINISHED_ALPHA
           sprites.push(x - camera.x, y - camera.y, 1, 1, frame.u, frame.v, frame.width, frame.height, alpha, alpha, alpha, alpha)
+        }
+      }
+      // Землеройные работы: гору подсвечивают целиком, обрыв — по тайлу кромки.
+      const slab = frameOf('foundation', 15)
+      for (const [, dig, position] of sim.world.query(Dig, Position)) {
+        const radius = dig.kind === 'peak' ? peakOf(sim.land, position.x, position.y)?.radius : undefined
+        const tiles = radius === undefined ? [position.x, position.y] : peakTiles(sim, { x: dig.peakX, y: dig.peakY, radius })
+        for (let i = 0; i < tiles.length; i += 2) {
+          if (tiles[i] < left || tiles[i] > right || tiles[i + 1] < top || tiles[i + 1] > bottom) continue
+          sprites.push(tiles[i] - camera.x, tiles[i + 1] - camera.y, 1, 1, slab.u, slab.v, slab.width, slab.height, ...DIG_TINT)
         }
       }
       setBlend(gl, 'alpha')

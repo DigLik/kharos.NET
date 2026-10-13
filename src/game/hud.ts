@@ -7,7 +7,7 @@ import { textOf } from '../i18n'
 import {
   armyOf, overLimit, Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
   awaitsMaterials, buildTicks, canDemolish, freeCredits, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
-  Research, TOPICS, PAVE_RESEARCH, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
+  Research, TOPICS, PAVE_RESEARCH, DIG_KINDS, DIG_RESEARCH, type DigKind, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
   Accumulator, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
@@ -241,8 +241,8 @@ export interface HudState {
     paving: { tool: PaveTool; cost: number; tiles: number; short: number } | null
     /** power — как здание изменит баланс энергии: больше нуля — даст, меньше — попросит; materials — что привезти на стройку. */
     options: { building: BuildingType; cost: number; affordable: boolean; power: number; materials: Stack[] }[]
-    /** Какие инструменты покрытия и логистики открыты исследованиями; мост — дорога по болоту, отдельно. */
-    tools: ('foundation' | 'road' | 'bridge' | 'pipe' | 'well')[]
+    /** Какие инструменты покрытия, землеройных работ и логистики открыты исследованиями; мост — дорога по болоту, отдельно. */
+    tools: ('foundation' | 'road' | 'bridge' | 'peak' | 'cliff' | 'pipe' | 'well')[]
   } | null
   /** Превращение выбранного: MCV разворачивается (deploy), главное здание сворачивается (pack). */
   conversion: {
@@ -305,8 +305,8 @@ export interface TopicView {
   order: number
   buildings: BuildingType[]
   units: UnitType[]
-  /** Покрытие, которое открывает тема: фундамент, дорога или мост. */
-  paves: ('foundation' | 'road' | 'bridge')[]
+  /** Инструменты покрытия, которые открывает тема: фундамент, дорога, мост, землеройные работы. */
+  paves: ('foundation' | 'road' | 'bridge' | DigKind)[]
 }
 
 /**
@@ -412,7 +412,7 @@ function techOf({ sim, player }: Scene): TechState {
         order: plan.indexOf(topic) + 1,
         buildings: opens.filter((type): type is BuildingType => type in BUILDINGS),
         units: opens.filter((type): type is UnitType => type in UNITS),
-        paves: (Object.keys(PAVE_RESEARCH) as (keyof typeof PAVE_RESEARCH)[]).filter((kind) => PAVE_RESEARCH[kind] === topic),
+        paves: [...(Object.keys(PAVE_RESEARCH) as (keyof typeof PAVE_RESEARCH)[]).filter((kind) => PAVE_RESEARCH[kind] === topic), ...(topic === DIG_RESEARCH ? DIG_KINDS : [])],
       }
     }),
     plan,
@@ -779,7 +779,7 @@ export function readHud(scene: Scene): HudState {
       ? {
           placing: scene.placing,
           paving: pavingOf(scene),
-          tools: ([['foundation', PAVE_RESEARCH.foundation], ['road', PAVE_RESEARCH.road], ['bridge', PAVE_RESEARCH.bridge], ['pipe', RESEARCH_FOR.pipe], ['well', RESEARCH_FOR.well]] as const)
+          tools: ([['foundation', PAVE_RESEARCH.foundation], ['road', PAVE_RESEARCH.road], ['bridge', PAVE_RESEARCH.bridge], ['peak', DIG_RESEARCH], ['cliff', DIG_RESEARCH], ['pipe', RESEARCH_FOR.pipe], ['well', RESEARCH_FOR.well]] as const)
             .filter(([, topic]) => hasResearch(sim, player, topic))
             .map(([tool]) => tool),
           options: BUILDABLE.filter((type) => isUnlocked(sim, player, type)).map((type) => ({

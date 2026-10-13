@@ -344,13 +344,17 @@
       "road": "Route",
       "pipe": "Tuyau",
       "bridge": "Pont",
-      "well": "Puits"
+      "well": "Puits",
+      "peak": "Raser la montagne",
+      "cliff": "Adoucir la falaise"
     },
     "toolTips": {
       "foundation": "Les bâtiments s'y construisent deux fois plus vite et elles permettent de bâtir sur le sable. On les pose aussi sous vos bâtiments et à la place de votre route. Les explosions les brisent. Tracez un rectangle à la souris",
       "road": "Les unités terrestres roulent plus vite ; sur un marais, c'est un pont à {bridge} par case. On ne bâtit pas sur une route ; elle peut remplacer vos fondations. Tracez une ligne à la souris",
       "pipe": "Relie les bâtiments en réseau : les tuyaux transportent marchandises et énergie et étendent la zone. Barre le passage : sous un passage, utilisez des puits. Pas besoin de zone. Tracez une ligne à la souris",
-      "well": "Les puits sont les extrémités d'un tuyau souterrain : un clic en pose un (il se relie à un puits en ligne droite), un tracé en pose deux, jusqu'à {reach} cases. On roule et on construit au-dessus ; seuls les puits sont vulnérables. Pas besoin de zone"
+      "well": "Les puits sont les extrémités d'un tuyau souterrain : un clic en pose un (il se relie à un puits en ligne droite), un tracé en pose deux, jusqu'à {reach} cases. On roule et on construit au-dessus ; seuls les puits sont vulnérables. Pas besoin de zone",
+      "peak": "Les constructeurs rasent toute la montagne, la roche reste à sa place. {cost} par case de montagne. Tracez un rectangle sur la montagne",
+      "cliff": "Les constructeurs adoucissent le bord de la falaise : le pied en dessous devient praticable pour les véhicules. {cost} par case de bord. Tracez un rectangle le long de la falaise"
     },
     "remove": "Démonter",
     "removeTip": "Les constructeurs démontent ce qui est à vous dans le cadre : revêtement, tuyaux avec puits et bâtiments entièrement dedans (tuyaux et bâtiments rendent la moitié du prix) ; les chantiers inachevés sont annulés et remboursés. Tracez un rectangle à la souris",
@@ -643,7 +647,8 @@
     "gates": "Portes",
     "wells": "Puits",
     "bridges": "Ponts",
-    "foundation": "Fondations"
+    "foundation": "Fondations",
+    "earthworks": "Terrassement"
   },
   "researchInfo": {
     "science": "Le premier laboratoire : toute recherche commence par lui",
@@ -687,7 +692,8 @@
     "gates": "Portes : des plaques qui se dressent en mur devant les étrangers",
     "wells": "Les puits font passer le tuyau sous terre : on roule et on bâtit dessus",
     "bridges": "Le pont est une route sur le marais",
-    "foundation": "Les fondations rendent le sable constructible et accélèrent les chantiers"
+    "foundation": "Les fondations rendent le sable constructible et accélèrent les chantiers",
+    "earthworks": "Les constructeurs rasent les montagnes et adoucissent les falaises"
   },
   "tech": {
     "title": "Recherche",

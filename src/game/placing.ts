@@ -1,5 +1,5 @@
-import { tileKey } from '../map/terrain'
-import { BUILDINGS, DEPOSIT_SIZE, Owner, Pave, PAVE_LIMIT, paveOwnerAt, canBuild, canPlace, canPave, creditsOf, depositNear, freeCredits, paveCost, buildingWithin, pipeAt, pipeStroke, wallStroke, isWellPair, wellsKept, UNDERGROUND_REACH, type BuildingSpec, type BuildingType } from '../sim'
+import { peakOf, tileKey } from '../map/terrain'
+import { BUILDINGS, DEPOSIT_SIZE, Owner, Pave, PAVE_LIMIT, digsIn, paveOwnerAt, peakTiles, type DigKind, canBuild, canPlace, canPave, creditsOf, depositNear, freeCredits, paveCost, buildingWithin, pipeAt, pipeStroke, wallStroke, isWellPair, wellsKept, UNDERGROUND_REACH, type BuildingSpec, type BuildingType } from '../sim'
 import type { PaveTool, Scene } from './scene'
 
 /** Где встанет здание, которое игрок сейчас выбирает место: левый верхний тайл основания и годится ли место. */
@@ -77,6 +77,32 @@ export interface PaveStroke {
   short: boolean[]
   /** Цена всего, что ляжет; у снятия — ноль. */
   cost: number
+  /**
+   * Что слать хосту вместо разрешённых тайлов: у землеройных работ — саму рамку. Подсвечены тайлы работ (гора целиком,
+   * кромки над подножием), а заказ хост соберёт из рамки так же, см. digsIn.
+   */
+  frame?: number[]
+}
+
+/** Землеройные работы в рамке tiles: подсвечены тайлы каждой работы; на что не хватит кредитов — жёлтым. */
+function digStrokeOf(scene: Scene, tool: DigKind, frame: number[]): PaveStroke {
+  const { sim, player } = scene
+  const credits = creditsOf(sim, player)
+  const tiles: number[] = []
+  const allowed: boolean[] = []
+  const short: boolean[] = []
+  let cost = 0
+  for (const job of digsIn(sim, player, tool, frame)) {
+    const affordable = cost + job.cost <= credits
+    if (affordable) cost += job.cost
+    const covered = tool === 'peak' ? peakTiles(sim, { x: job.peakX, y: job.peakY, radius: peakOf(sim.land, job.x, job.y)?.radius ?? 0 }) : [job.x, job.y]
+    for (let i = 0; i < covered.length; i += 2) {
+      tiles.push(covered[i], covered[i + 1])
+      allowed.push(affordable)
+      short.push(!affordable)
+    }
+  }
+  return { tool, tiles, allowed, short, cost, frame }
 }
 
 /**
@@ -108,6 +134,7 @@ export function paveStrokeOf(scene: Scene): PaveStroke | null {
     }
   }
   tiles.length = Math.min(tiles.length, PAVE_LIMIT * 2)
+  if (tool === 'peak' || tool === 'cliff') return digStrokeOf(scene, tool, tiles)
   const { sim, player } = scene
   const allowed: boolean[] = []
   const short: boolean[] = []

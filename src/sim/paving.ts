@@ -5,6 +5,7 @@ import { isOwn } from './common'
 import { Building, Owner, Pave, Position, Repair, Site, Unit } from './components'
 import { assignBuilders, cancelBuild, demolish, workTicks } from './construction'
 import { pipeAt } from './piping'
+import { cancelDig } from './earthworks'
 import { addCredits, pay } from './economy'
 import type { Sim } from './sim'
 import { inForeignZone } from './zones'
@@ -98,6 +99,8 @@ export function removePave(sim: Sim, player: number, tiles: readonly number[], u
     if (pipe !== undefined && !taken.includes(pipe)) taken.push(pipe)
     const building = buildingWithin(sim, player, tiles[i], tiles[i + 1], covered)
     if (building !== undefined && !taken.includes(building)) taken.push(building)
+    // Землеройную работу отменяют с возвратом, как недостроенное покрытие.
+    if (cancelDig(sim, player, tiles[i], tiles[i + 1])) count++
     const entity = sim.paving.at(tiles[i], tiles[i + 1])
     if (entity !== undefined) {
       if (!isOwn(sim, player, entity)) continue

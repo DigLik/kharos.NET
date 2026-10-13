@@ -384,6 +384,13 @@ export const Gate = component('Gate', { open: false })
  */
 export const Scan = component('Scan', { x: 0, y: 0, tick: -1, wait: 0 })
 
+/**
+ * Землеройная работа, см. earthworks.ts: строители срывают гору (peak) или сглаживают кромку обрыва (cliff). Место —
+ * тайл кромки или тайл вершины горы; (peakX, peakY) — вершина, по ней находятся все тайлы горы. cost — сколько за
+ * работу заплачено (отмена его вернёт), work — сколько тиков работы одного строителя уже вложено.
+ */
+export const Dig = component('Dig', { kind: 'peak' as 'peak' | 'cliff', cost: 0, work: 0, peakX: 0, peakY: 0 })
+
 /** Компоненты, которые попадают в сохранение и в сеть. Новый компонент симуляции добавляй сюда. */
 /**
  * Призрак: чужое здание или месторождение, каким клиент видел его последний раз. Живёт только в клиенте: хост
@@ -392,4 +399,4 @@ export const Scan = component('Scan', { x: 0, y: 0, tick: -1, wait: 0 })
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare, Dig]

@@ -1,7 +1,7 @@
 import type { HudState, Stack } from '../game/hud'
 import type { PaveIcon } from '../game/portraits'
 import type { PaveTool } from '../game/scene'
-import { BRIDGE_COST, BUILDINGS, SUPPLY, UNDERGROUND_REACH, BUILDING_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, TRANSFER_CAPACITY, WARES, type Amounts, type Stance, type BuildingType, type Command, type Good, type Resource } from '../sim'
+import { BRIDGE_COST, CLIFF_COST, PEAK_COST, BUILDINGS, SUPPLY, UNDERGROUND_REACH, BUILDING_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, TRANSFER_CAPACITY, WARES, type Amounts, type Stance, type BuildingType, type Command, type Good, type Resource } from '../sim'
 import { t } from '../i18n'
 
 /** Клавиши ячеек сетки команд по порядку: три ряда по четыре, как на клавиатуре, справа от WASD. */
@@ -98,11 +98,13 @@ const STANCES: Stance[] = ['aggressive', 'defensive', 'hold', 'passive']
 /** Кнопки стоек: подпись и подсказка на текущем языке. */
 export const stanceSlots = () => STANCES.map((stance) => ({ stance, label: t(`grid.stances.${stance}`), title: t(`grid.stanceTips.${stance}`, { leash: LEASH }) }))
 
-type GridTool = 'foundation' | 'road' | 'pipe' | 'well'
-/** Инструменты раздела «Покрытие» и цена тайла; подпись и подсказка — в словаре. */
+type GridTool = 'foundation' | 'road' | 'peak' | 'cliff' | 'pipe' | 'well'
+/** Инструменты раздела «Покрытие» — с землеройными работами — и цена тайла; подпись и подсказка — в словаре. */
 const PAVE_TOOLS: { tool: GridTool; cost: number }[] = [
   { tool: 'foundation', cost: FOUNDATION_COST },
   { tool: 'road', cost: ROAD_COST },
+  { tool: 'peak', cost: PEAK_COST },
+  { tool: 'cliff', cost: CLIFF_COST },
 ]
 
 /** Инструменты раздела «Логистика»: трубы и колодцы. */
@@ -245,7 +247,7 @@ export function commandsOf(
           cost: active && construction.paving!.tiles > 1 ? construction.paving!.cost : cost,
           active,
           disabled: credits < cost,
-          title: t(`grid.toolTips.${tool}`, { bridge: BRIDGE_COST, reach: UNDERGROUND_REACH }),
+          title: t(`grid.toolTips.${tool}`, { bridge: BRIDGE_COST, reach: UNDERGROUND_REACH, cost }),
           run: () => {
             place(null)
             pave(active ? null : tool)

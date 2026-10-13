@@ -2,7 +2,8 @@ import type { Entity } from '../ecs'
 import { tileKey } from '../map/terrain'
 import { BUILDINGS, BUILD_RATE, CORE, applyLevel, buildingSpec, canPlace, durabilityOf, equip, isUnlocked, newBuilding, siteAt, upgradeCost, upgradeSpent, type BuildingSpec, type BuildingType } from './buildings'
 import { NONE, isOwn, onTurn, ownerOf, rectDistance, turnToward, wrap } from './common'
-import { Building, Builds, Converting, Health, Inventory, Owner, Path, Pave, Position, Producer, Repair, Site, Trade, Unit, Upgrade } from './components'
+import { Building, Builds, Converting, Dig, Health, Inventory, Owner, Path, Pave, Position, Producer, Repair, Site, Trade, Unit, Upgrade } from './components'
+import { digArea, digAt, finishDig } from './earthworks'
 import { reserveLeft } from './deposits'
 import { amountOf } from './inventory'
 import { entriesOf, totalOf } from './resources'
@@ -145,6 +146,11 @@ function workAt(sim: Sim, entity: Entity): Work | undefined {
   if (!position) return undefined
   const pave = world.get(entity, Pave)
   if (pave) return pave.done && !pave.remove ? undefined : { x: position.x, y: position.y, width: 1, height: 1, radius: 0, cost: paveCost(sim, pave.kind, position.x, position.y) }
+  const dig = world.get(entity, Dig)
+  if (dig) {
+    const area = digArea(sim, entity)
+    return area && { ...area, radius: 0, cost: dig.cost }
+  }
   const type = world.get(entity, Site)?.type
   const repair = type === undefined && isRepairable(sim, entity)
   const unit = repair ? world.get(entity, Unit) : undefined
@@ -217,6 +223,8 @@ export function workIn(sim: Sim, player: number, tiles: readonly number[]): Enti
     const paved = sim.paving.at(tiles[i], tiles[i + 1])
     const pave = paved === undefined ? undefined : sim.world.get(paved, Pave)
     if (paved !== undefined && pave && (!pave.done || pave.remove) && isOwn(sim, player, paved)) return paved
+    const dig = digAt(sim, tiles[i], tiles[i + 1])
+    if (dig !== undefined && isOwn(sim, player, dig)) return dig
   }
   return undefined
 }
@@ -433,6 +441,10 @@ function volunteer(sim: Sim) {
     const owner = world.get(entity, Owner)
     if (owner) sites.push({ entity, work: workAt(sim, entity)!, player: owner.player })
   }
+  for (const [entity, , , owner] of world.query(Dig, Position, Owner)) {
+    const work = workAt(sim, entity)
+    if (work) sites.push({ entity, work, player: owner.player })
+  }
   for (const [entity, , , owner] of world.query(Upgrade, Position, Owner)) {
     if (upgradeAt(sim, entity)) sites.push({ entity, work: workAt(sim, entity)!, player: owner.player })
   }
@@ -542,6 +554,10 @@ export function repairLinks(sim: Sim): RepairLink[] {
   for (const entity of sim.paving.unfinished()) {
     if (world.has(entity, Owner)) targets.push({ entity, work: workAt(sim, entity)!, player: 0, demolish: false, ordered: false })
   }
+  for (const [entity] of world.query(Dig, Position, Owner)) {
+    const work = workAt(sim, entity)
+    if (work) targets.push({ entity, work, player: 0, demolish: false, ordered: false })
+  }
   for (const [entity, health] of world.query(Health, Position, Owner)) {
     // По кому сейчас бьют, не чинят: посланный строитель постоит рядом и возьмётся, когда бой стихнет.
     if (health.value < health.max && isRepairable(sim, entity) && !underFire(sim, entity)) targets.push({ entity, work: workAt(sim, entity)!, player: 0, demolish: false, ordered: false })
@@ -573,7 +589,7 @@ export function repairLinks(sim: Sim): RepairLink[] {
       // Себя и свой носитель ремонтник не чинит.
       if (target.player !== repairer.player || target.entity === repairer.carrier) continue
       // Станция только чинит: стройки, покрытия, разбор и улучшения — работа строителя.
-      if (repairer.station && (target.upgrade || world.has(target.entity, Site) || world.has(target.entity, Pave))) continue
+      if (repairer.station && (target.upgrade || world.has(target.entity, Site) || world.has(target.entity, Pave) || world.has(target.entity, Dig))) continue
       if (target.ordered && repairer.site !== target.entity) continue
       const distance = distanceTo(target.work, repairer.x, repairer.y)
       if (distance > repairer.radius) continue
@@ -638,7 +654,7 @@ export function awaitsMaterials(sim: Sim, site: Entity) {
 function isStalled(sim: Sim, entity: Entity) {
   const { world } = sim
   // Покрытие и улучшение оплачены сразу и ничего не ждут.
-  if (world.has(entity, Pave) || upgradeAt(sim, entity)) return false
+  if (world.has(entity, Pave) || world.has(entity, Dig) || upgradeAt(sim, entity)) return false
   const site = world.get(entity, Site)
   // Бесплатная починка не стоит и без кредитов.
   if (!site) return sim.rules.repairCost > 0 && creditsOf(sim, ownerOf(sim, entity)) <= 0
@@ -711,6 +727,12 @@ export function construct(sim: Sim) {
 
   const workers = workDone(sim)
   for (const [entity, count] of workers) {
+    const dig = world.get(entity, Dig)
+    if (dig) {
+      dig.work += count
+      if (dig.work >= workTicks(dig.cost, time.step)) finishDig(sim, entity)
+      continue
+    }
     const pave = world.get(entity, Pave)
     if (pave?.remove) {
       pave.work -= count * DEMOLISH_SPEED

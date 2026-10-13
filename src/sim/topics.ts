@@ -70,7 +70,8 @@ export const RESEARCH = {
   levels2: { after: ['blocks'], uses: { blocks: 6 } },
   repair: { after: ['blocks'], uses: { blocks: 4 } },
   foundation: { after: ['blocks'], uses: { blocks: 4 } },
-  // Ярус 4: тяжёлая техника, лазеры, стержни, третий уровень зданий.
+  // Ярус 4: тяжёлая техника, лазеры, стержни, третий уровень зданий, землеройные работы.
+  earthworks: { after: ['foundation'], uses: { metal: 6, blocks: 2 } },
   lasers: { after: ['vehicles'], uses: { silicon: 4, metal: 2 } },
   armor: { after: ['vehicles', 'parts'], uses: { metal: 6, parts: 1 } },
   gunship: { after: ['aviation'], uses: { metal: 4, silicon: 2, fuel: 3 } },

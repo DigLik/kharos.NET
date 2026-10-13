@@ -1,5 +1,5 @@
 import type { Entity } from '../ecs'
-import { type BuildingType, Building, Site, Producer, Hauler, type UnitType, Owner, Position, isOwn, UNITS, Unit, canFight, isStop, siteAt, BUILDINGS, BRIDGE_COST, FOUNDATION_COST, ROAD_COST, Silo, creditsOf } from '../sim'
+import { type BuildingType, Building, Site, Producer, Hauler, type UnitType, Owner, Position, isOwn, UNITS, Unit, canFight, isStop, siteAt, BUILDINGS, BRIDGE_COST, CLIFF_COST, FOUNDATION_COST, PEAK_COST, ROAD_COST, Silo, creditsOf, type DigKind } from '../sim'
 import type { CameraMotion } from './cameraMotion'
 import { DENIED } from './interfaceSounds'
 import { paveStrokeOf, placementOf } from './placing'
@@ -18,7 +18,7 @@ const CLICK_SLOP = 4
 const PICK_MARGIN = 6
 const LEFT = 0
 /** Почём тайл покрытия бывает: дорога по болоту — мост — дороже. Режим держится, пока хватает на самый дешёвый. */
-const PAVE_COSTS = { foundation: [FOUNDATION_COST], road: [ROAD_COST, BRIDGE_COST], pipe: [BUILDINGS.pipe.cost], well: [BUILDINGS.well.cost], wall: [BUILDINGS.wall.cost], gate: [BUILDINGS.gate.cost] } as const
+const PAVE_COSTS = { foundation: [FOUNDATION_COST], road: [ROAD_COST, BRIDGE_COST], peak: [PEAK_COST], cliff: [CLIFF_COST], pipe: [BUILDINGS.pipe.cost], well: [BUILDINGS.well.cost], wall: [BUILDINGS.wall.cost], gate: [BUILDINGS.gate.cost] } as const
 const RIGHT = 2
 
 /**
@@ -231,14 +231,15 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
       scene.paveFrom = null
       if (stroke) {
         const tiles = stroke.tiles.filter((_, i) => stroke.allowed[i >> 1])
-        if (tiles.length) {
+        if (tiles.length && stroke.frame) scene.sim.send(scene.player, { type: 'dig', kind: stroke.tool as DigKind, tiles: stroke.frame, builders: [...scene.selection], queue: event.shiftKey })
+        else if (tiles.length) {
           const builders = [...scene.selection]
           const { tool } = stroke
           // С Shift укладка встаёт строителям в очередь, как стройка из меню.
           const queue = event.shiftKey
           if (tool === 'well') {
             if (tiles.length === stroke.tiles.length) scene.sim.send(scene.player, { type: 'wells', tiles, builders, queue })
-          } else scene.sim.send(scene.player, tool === 'remove' ? { type: 'unpave', tiles, builders, queue } : tool === 'pipe' ? { type: 'pipes', tiles, builders, queue } : tool === 'wall' || tool === 'gate' ? { type: 'walls', tiles, builders, queue, ...(tool === 'gate' && { gate: true }) } : { type: 'pave', kind: tool, tiles, builders, queue })
+          } else if (tool !== 'peak' && tool !== 'cliff') scene.sim.send(scene.player, tool === 'remove' ? { type: 'unpave', tiles, builders, queue } : tool === 'pipe' ? { type: 'pipes', tiles, builders, queue } : tool === 'wall' || tool === 'gate' ? { type: 'walls', tiles, builders, queue, ...(tool === 'gate' && { gate: true }) } : { type: 'pave', kind: tool, tiles, builders, queue })
         }
       }
     } else if (scene.placing) {

@@ -344,13 +344,17 @@
       "road": "Carretera",
       "pipe": "Tubería",
       "bridge": "Puente",
-      "well": "Pozos"
+      "well": "Pozos",
+      "peak": "Arrasar montaña",
+      "cliff": "Suavizar acantilado"
     },
     "toolTips": {
       "foundation": "Los edificios sobre ellos se construyen el doble de rápido y permiten construir en la arena. Se ponen también bajo tus edificios y en lugar de tu carretera. Las explosiones los rompen. Arrastra un rectángulo con el ratón",
       "road": "Las unidades terrestres van más rápido; sobre pantano es un puente a {bridge} por casilla. En la carretera no se construye; puede sustituir tus cimientos. Arrastra una línea con el ratón",
       "pipe": "Une los edificios en una red: por las tuberías van la carga y la energía, y amplían la zona. Corta el paso: bajo un cruce usa pozos. No necesita zona propia. Arrastra una línea con el ratón",
-      "well": "Los pozos son los extremos de una tubería subterránea: un clic coloca uno (se une con un pozo en línea recta), al arrastrar, un par, hasta {reach} casillas. Sobre ella se circula y se construye; solo los pozos son vulnerables. No necesita zona propia"
+      "well": "Los pozos son los extremos de una tubería subterránea: un clic coloca uno (se une con un pozo en línea recta), al arrastrar, un par, hasta {reach} casillas. Sobre ella se circula y se construye; solo los pozos son vulnerables. No necesita zona propia",
+      "peak": "Los constructores arrasan la montaña entera y queda roca en su lugar. {cost} por casilla de montaña. Arrastra un rectángulo sobre la montaña",
+      "cliff": "Los constructores suavizan el borde del acantilado: el pie bajo él queda transitable para vehículos. {cost} por casilla de borde. Arrastra un rectángulo a lo largo del acantilado"
     },
     "remove": "Desmontar",
     "removeTip": "Los constructores desmontan lo tuyo dentro del marco: pavimento, tuberías con pozos y edificios que queden enteros dentro (por tuberías y edificios se devuelve la mitad del precio); lo inacabado se cancela con reembolso. Arrastra un rectángulo con el ratón",
@@ -643,7 +647,8 @@
     "gates": "Puertas",
     "wells": "Pozos",
     "bridges": "Puentes",
-    "foundation": "Cimientos"
+    "foundation": "Cimientos",
+    "earthworks": "Movimiento de tierras"
   },
   "researchInfo": {
     "science": "El primer laboratorio: con él empieza toda la investigación",
@@ -687,7 +692,8 @@
     "gates": "Puertas: placas que se alzan como muro ante extraños",
     "wells": "Los pozos llevan la tubería bajo tierra: encima se circula y se construye",
     "bridges": "El puente es un camino sobre el pantano",
-    "foundation": "Los cimientos hacen la arena apta para cualquier edificio y aceleran la obra"
+    "foundation": "Los cimientos hacen la arena apta para cualquier edificio y aceleran la obra",
+    "earthworks": "Los constructores arrasan montañas y suavizan acantilados"
   },
   "tech": {
     "title": "Investigación",

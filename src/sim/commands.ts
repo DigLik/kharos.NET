@@ -10,6 +10,7 @@ import { assignHaulers, assignPickup, assignSupply, releaseHauler } from './haul
 import { setReserve } from './logistics'
 import { clearOrders, isBusyBuilder, queueOrder, unitsOf } from './orders'
 import { orderPave, removePave, type PaveKind } from './paving'
+import { orderDigs, type DigKind } from './earthworks'
 import { orderPipes, orderWells } from './piping'
 import { cancelUnit, orderUnit } from './production'
 import { setFilter, setRoute, setServe } from './routes'
@@ -133,6 +134,8 @@ export type Command = (
   | { type: 'wells'; tiles: number[]; builders: number[] }
   /** Снять своё покрытие с тайлов (x и y подряд) своими строителями: недостроенное — сразу с возвратом, готовое разберут. */
   | { type: 'unpave'; tiles: number[]; builders: number[] }
+  /** Срыть горы (peak) или сгладить обрывы (cliff) в рамке тайлов (x и y подряд) своими строителями, см. earthworks.ts. */
+  | { type: 'dig'; kind: DigKind; tiles: number[]; builders: number[] }
 ) & {
   /** С Shift: приказ встаёт юнитам в конец очереди, а не заменяет нынешнее дело. См. orders.ts. */
   queue?: boolean
@@ -176,7 +179,7 @@ function accept(sim: Sim, player: number, command: Command): boolean {
     for (const resolved of resolveOrder(sim, player, units, command)) done = accept(sim, player, { ...resolved, queue: !!command.queue }) || done
     return done
   }
-  if (command.type === 'pave' || command.type === 'pipes' || command.type === 'walls' || command.type === 'wells' || command.type === 'unpave') return lay(sim, player, command)
+  if (command.type === 'pave' || command.type === 'pipes' || command.type === 'walls' || command.type === 'wells' || command.type === 'unpave' || command.type === 'dig') return lay(sim, player, command)
   if (command.queue) return queueOrder(sim, player, command)
   const done = run(sim, player, command)
   // Принятый приказ без Shift забывает очередь; негодный её не трогает. Стойка и фильтр груза — не приказы, а настройки.
@@ -201,10 +204,19 @@ function lay(sim: Sim, player: number, command: Extract<Command, { tiles: number
     : command.type === 'pipes' ? orderPipes(sim, player, tiles, free) > 0
     : command.type === 'walls' ? orderWalls(sim, player, tiles, free, command.gate === true ? 'gate' : 'wall') > 0
     : command.type === 'wells' ? orderWells(sim, player, tiles, free)
+    : command.type === 'dig' ? dig(sim, player, command.kind, tiles, free)
     : removePave(sim, player, tiles, builders, free)
   if (!done) return false
   const work = busy.length ? workIn(sim, player, tiles) : undefined
   if (work !== undefined) queueOrder(sim, player, { type: 'assist', units: busy, site: work, queue: true })
+  return true
+}
+
+/** Заказывает землеройные работы и посылает к первой свободных строителей. */
+function dig(sim: Sim, player: number, kind: DigKind, tiles: number[], builders: Entity[]) {
+  const first = orderDigs(sim, player, kind, tiles)
+  if (first === undefined) return false
+  assignBuilders(sim, player, first, builders)
   return true
 }
 

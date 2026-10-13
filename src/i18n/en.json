@@ -344,13 +344,17 @@
       "road": "Road",
       "pipe": "Pipe",
       "bridge": "Bridge",
-      "well": "Wells"
+      "well": "Wells",
+      "peak": "Level mountain",
+      "cliff": "Smooth cliff"
     },
     "toolTips": {
       "foundation": "Buildings on it go up twice as fast, and it allows building on sand. Can be laid under your own buildings and in place of your road. Explosions break it. Drag a rectangle with the mouse",
       "road": "Ground units drive faster; over swamp it becomes a bridge at {bridge} per tile. Nothing can be built on a road; it can replace your foundation. Drag a line with the mouse",
       "pipe": "Links buildings into a network: pipes carry goods and power and extend the zone. Blocks passage — run wells under a crossing. Needs no zone of its own. Drag a line with the mouse",
-      "well": "Wells are the ends of an underground pipe: a click places one (it links with a well in a straight line), a drag places a pair, up to {reach} tiles apart. Units drive and build above it; only the wells are vulnerable. Needs no zone of its own"
+      "well": "Wells are the ends of an underground pipe: a click places one (it links with a well in a straight line), a drag places a pair, up to {reach} tiles apart. Units drive and build above it; only the wells are vulnerable. Needs no zone of its own",
+      "peak": "Builders level the whole mountain, leaving rock in its place. {cost} per mountain tile. Drag a rectangle over the mountain",
+      "cliff": "Builders smooth the cliff edge: the foot below it becomes passable for vehicles. {cost} per edge tile. Drag a rectangle along the cliff"
     },
     "remove": "Dismantle",
     "removeTip": "Builders dismantle what is yours inside the frame: paving, pipes with wells and buildings fully inside it (pipes and buildings refund half the price); unfinished sites are cancelled with a refund. Drag a rectangle with the mouse",
@@ -643,7 +647,8 @@
     "gates": "Gates",
     "wells": "Wells",
     "bridges": "Bridges",
-    "foundation": "Foundation"
+    "foundation": "Foundation",
+    "earthworks": "Earthworks"
   },
   "researchInfo": {
     "science": "The first laboratory: all research starts with it",
@@ -687,7 +692,8 @@
     "gates": "Gates: plates that rise into a wall before strangers",
     "wells": "Wells run a pipe underground: you can drive and build over it",
     "bridges": "A bridge is a road across a swamp",
-    "foundation": "Foundation makes sand fit for any building and speeds construction"
+    "foundation": "Foundation makes sand fit for any building and speeds construction",
+    "earthworks": "Builders level mountains and smooth cliffs"
   },
   "tech": {
     "title": "Research",

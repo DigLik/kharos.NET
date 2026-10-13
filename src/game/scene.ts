@@ -1,7 +1,7 @@
 import type { Alerts } from './alerts'
 import type { Entity } from '../ecs'
 import type { MapSettings } from '../map/settings'
-import type { BuildingType, DepositKind, PaveKind, Sim, Weather } from '../sim'
+import type { BuildingType, DepositKind, DigKind, PaveKind, Sim, Weather } from '../sim'
 import type { Camera } from './camera'
 
 /** Прямоугольник в тайлах, заданный двумя противоположными углами. */
@@ -71,5 +71,5 @@ export interface SceneEdit {
 
 /** Чем работает игрок на покрытии: кладёт фундамент или дорогу, или снимает своё. */
 /** Инструмент протяжки: покрытие, его снятие, наземная труба, пара колодцев или стена. */
-export type PaveTool = PaveKind | 'remove' | 'pipe' | 'well' | 'wall' | 'gate'
+export type PaveTool = PaveKind | DigKind | 'remove' | 'pipe' | 'well' | 'wall' | 'gate'
 

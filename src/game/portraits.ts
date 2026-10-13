@@ -104,8 +104,11 @@ export function buildingPortrait(type: BuildingType, box = 0) {
   return url
 }
 
-/** Значок покрытия: как оно выглядит на карте. Снятие — фундамент с красным крестом. */
-export type PaveIcon = 'foundation' | 'road' | 'bridge' | 'remove'
+/**
+ * Значок покрытия: как оно выглядит на карте. Снятие — фундамент с красным крестом. Землеройные работы — гора
+ * с киркой и обрыв со спуском, см. earthworks.ts.
+ */
+export type PaveIcon = 'foundation' | 'road' | 'bridge' | 'remove' | 'peak' | 'cliff'
 
 /** Плитки значка покрытия: вид и набор соседей каждой, рядами сверху вниз. */
 const PAVE_TILES: Record<PaveIcon, ['foundation' | 'road' | 'bridge', number][][]> = {
@@ -114,6 +117,41 @@ const PAVE_TILES: Record<PaveIcon, ['foundation' | 'road' | 'bridge', number][][
   remove: [[['foundation', 6], ['foundation', 12]], [['foundation', 3], ['foundation', 9]]],
   road: [[['road', 2], ['road', 8]]],
   bridge: [[['bridge', 2], ['bridge', 8]]],
+  peak: [],
+  cliff: [],
+}
+
+const OUTLINE = 0x1a1410
+
+/** Гора с киркой: треугольник скалы со снежной шапкой и кирка поперёк. */
+function drawPeakIcon(image: Pixmap) {
+  for (let row = 0; row < 20; row++) {
+    const half = Math.round(row * 0.7) + 1
+    const y = 6 + row
+    image.rect(16 - half - 1, y, half * 2 + 2, 1, OUTLINE)
+    image.rect(16 - half, y, half, 1, 0x9a8a74)
+    image.rect(16, y, half, 1, 0x6e604f)
+    if (row < 5) image.rect(16 - half, y, half * 2, 1, 0xdcd4c6)
+  }
+  image.rect(2, 26, 28, 2, OUTLINE)
+  image.line(9, 27, 23, 11, 4, OUTLINE)
+  image.line(9, 27, 23, 11, 2, 0x8a5426)
+  image.line(17, 7, 28, 15, 5, OUTLINE)
+  image.line(17, 7, 28, 15, 3, 0xc8ccd0)
+}
+
+/** Обрыв со спуском: уступ плато слева, земля справа, между ними — пологий пандус. */
+function drawCliffIcon(image: Pixmap) {
+  image.rect(2, 9, 15, 19, OUTLINE)
+  image.rect(3, 10, 13, 17, 0x9a8a74)
+  image.rect(3, 10, 13, 3, 0xb4a48c)
+  image.rect(2, 22, 28, 6, OUTLINE)
+  image.rect(3, 23, 26, 4, 0x7e705e)
+  for (let step = 0; step < 12; step++) image.rect(16 + step, 11 + step, 2, 12 - step, step % 2 ? 0xc0ae92 : 0xb4a48c)
+  image.line(16, 10, 29, 23, 2, OUTLINE)
+  image.line(18, 9, 25, 16, 2, 0xe0902c)
+  image.line(25, 16, 25, 11, 2, 0xe0902c)
+  image.line(25, 16, 20, 16, 2, 0xe0902c)
 }
 
 /** Значок покрытия для сетки команд, вписанный в квадрат box. Рисуется один раз на размер. */
@@ -138,6 +176,8 @@ export function pavePortrait(icon: PaveIcon, box = 0) {
         }
       }),
     )
+    if (icon === 'peak') drawPeakIcon(image)
+    if (icon === 'cliff') drawCliffIcon(image)
     if (icon === 'remove') {
       image.line(7, 7, 25, 25, 4, 0x1a0806)
       image.line(25, 7, 7, 25, 4, 0x1a0806)

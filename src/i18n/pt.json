@@ -344,13 +344,17 @@
       "road": "Estrada",
       "pipe": "Cano",
       "bridge": "Ponte",
-      "well": "Poços"
+      "well": "Poços",
+      "peak": "Derrubar montanha",
+      "cliff": "Suavizar penhasco"
     },
     "toolTips": {
       "foundation": "Edifícios sobre ela são erguidos duas vezes mais rápido, e ela permite construir na areia. Pode ir também sob seus edifícios e no lugar da sua estrada. Explosões a quebram. Arraste um retângulo com o mouse",
       "road": "Unidades terrestres andam mais rápido; sobre pântano vira ponte por {bridge} a casa. Não se constrói na estrada; ela pode substituir sua fundação. Arraste uma linha com o mouse",
       "pipe": "Liga os edifícios em uma rede: os canos levam carga e energia e ampliam a zona. Bloqueia a passagem: sob uma passagem use poços. Não precisa de zona própria. Arraste uma linha com o mouse",
-      "well": "Poços são as pontas de um cano subterrâneo: um clique coloca um (ele se liga a um poço em linha reta), arrastar coloca um par, a até {reach} casas. Sobre ele se anda e se constrói; só os poços são vulneráveis. Não precisa de zona própria"
+      "well": "Poços são as pontas de um cano subterrâneo: um clique coloca um (ele se liga a um poço em linha reta), arrastar coloca um par, a até {reach} casas. Sobre ele se anda e se constrói; só os poços são vulneráveis. Não precisa de zona própria",
+      "peak": "Construtores derrubam a montanha inteira e fica rocha no lugar. {cost} por casa de montanha. Arraste um retângulo sobre a montanha",
+      "cliff": "Construtores suavizam a borda do penhasco: o pé abaixo dela vira passagem para veículos. {cost} por casa de borda. Arraste um retângulo ao longo do penhasco"
     },
     "remove": "Desmontar",
     "removeTip": "Os construtores desmontam o que é seu dentro do quadro: pavimento, canos com poços e edifícios que estejam inteiros dentro dele (canos e edifícios devolvem metade do preço); o que está inacabado é cancelado com reembolso. Arraste um retângulo com o mouse",
@@ -643,7 +647,8 @@
     "gates": "Portões",
     "wells": "Poços",
     "bridges": "Pontes",
-    "foundation": "Fundação"
+    "foundation": "Fundação",
+    "earthworks": "Terraplenagem"
   },
   "researchInfo": {
     "science": "O primeiro laboratório: com ele começa toda a pesquisa",
@@ -687,7 +692,8 @@
     "gates": "Portões: placas que se erguem em muro diante de estranhos",
     "wells": "Poços levam o tubo por baixo da terra: por cima se passa e se constrói",
     "bridges": "A ponte é uma estrada sobre o pântano",
-    "foundation": "A fundação deixa a areia apta para qualquer edifício e acelera a obra"
+    "foundation": "A fundação deixa a areia apta para qualquer edifício e acelera a obra",
+    "earthworks": "Construtores derrubam montanhas e suavizam penhascos"
   },
   "tech": {
     "title": "Pesquisa",
