@@ -5,7 +5,7 @@ import { FACING, MOTION_FIELDS, POSITION, SPAN_MOST, decodeDelta, encodeDelta } 
 import { decodeServer } from '../src/net/protocol'
 import type { WeaponType } from '../src/sim/weapons'
 import { createReplica, type Replica } from '../src/net/replica'
-import { Armed, Building, Ghost, Health, NO_PAVE, Owner, Path, Player, Position, Producer, Unit, createSim, isWalkable, paveCode, shownTo } from '../src/sim'
+import { Armed, Building, Ghost, Health, Inventory, NO_PAVE, Owner, Path, Player, Position, Producer, Unit, createSim, isWalkable, paveCode, shownTo } from '../src/sim'
 import { SAVED, Scan } from '../src/sim/components'
 import { connectAll } from '../src/sim/piping'
 import { wireOf } from '../src/net/wire'
@@ -194,6 +194,55 @@ test('чужое здание, ушедшее в туман, остаётся п
   shift(60)
   settle()
   expect(first.sim.world.alive(yard)).toBe(false)
+})
+
+test('вернувшийся игрок видит призраками чужие здания, разведанные раньше, — и после перезапуска сервера', () => {
+  const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 256 }))
+  const first = join(host)
+  join(host)
+  host.advance(STEP)
+  const eyes = unitsOf(host.sim as never, 1).map((entity) => host.sim.world.get(entity as never, Position)!)
+  const shift = (dx: number) => eyes.forEach((position) => (position.x += dx))
+  const { x, y } = eyes[0]
+  const yard = placeBuilding(host.sim.world, 'khariteVault', Math.floor(x) + 2, Math.floor(y), 2)
+  const settle = () => {
+    for (let i = 0; i < 8; i++) host.advance(STEP)
+  }
+  settle()
+  shift(-60)
+  settle()
+  first.peer.leave()
+
+  // Здание в тумане: новая вкладка его не видит, но хост помнит, каким игрок видел его последний раз.
+  const again = join(host, first.id)
+  again.sim.advance(0)
+  expect(again.sim.world.has(yard, Ghost)).toBe(true)
+  expect(again.sim.world.get(yard, Building)?.type).toBe('khariteVault')
+  expect(again.sim.world.get(yard, Position)).toEqual({ x: Math.floor(x) + 2, y: Math.floor(y) })
+  // Чужой склад — тайна хозяина и в памяти.
+  expect(host.sim.world.has(yard as never, Inventory)).toBe(true)
+  expect(again.sim.world.has(yard, Inventory)).toBe(false)
+  again.peer.leave()
+
+  const save = throughJson(host.save()) as HostSave
+  const restarted = join(createHost(createSim(save.sim), undefined, save), first.id)
+  restarted.sim.advance(0)
+  expect(restarted.sim.world.has(yard, Ghost)).toBe(true)
+
+  // Здание снесли, и юниты игрока увидели пустое место, пока его самого не было: призрака больше нет.
+  host.sim.world.destroy(yard as never)
+  settle()
+  const absent = join(host, first.id)
+  absent.sim.advance(0)
+  expect(absent.sim.world.has(yard, Ghost)).toBe(true)
+  absent.peer.leave()
+  shift(60)
+  settle()
+  shift(-60)
+  settle()
+  const back = join(host, first.id)
+  back.sim.advance(0)
+  expect(back.sim.world.alive(yard)).toBe(false)
 })
 
 test('вернувшийся игрок получает карту, разведанную раньше', () => {

@@ -9,6 +9,7 @@ import { DEFAULT_RULES, boundsOf, type Command, type Sim } from '../sim'
 import { createOccupancy } from '../sim/buildings'
 import { createPaving, loadPaving, savePaving } from '../sim/paved'
 import { createPaveMemory } from '../sim/paveMemory'
+import { createBuildMemory } from '../sim/buildMemory'
 import { createReceivedTraces } from '../sim/traces'
 import { createVision } from '../sim/vision'
 import { BUILDINGS, type BuildingType } from '../sim/buildings'
@@ -240,6 +241,8 @@ export function createReplica(welcome: Extract<ServerMessage, { type: 'welcome' 
     occupancy,
     paving,
     paveMemory: createPaveMemory(),
+    // Чужие здания клиент помнит сам, см. memory; что он видел до входа, присылает хост.
+    buildMemory: createBuildMemory(),
     vision: undefined as unknown as Replica['vision'],
     traces: undefined as unknown as ReturnType<typeof createReceivedTraces>,
     time,
@@ -363,6 +366,8 @@ export function createReplica(welcome: Extract<ServerMessage, { type: 'welcome' 
     receive(message: ServerMessage) {
       if (message.type === 'delta') pending.push(message)
       else if (message.type === 'explored') replica.vision.explore(player, message.map)
+      // Виденное до входа: призраками станет в advance, как ушедшее в туман при нас.
+      else if (message.type === 'remembered') for (const [id, data] of message.buildings) memory.set(id, data)
       else if (message.type === 'traces') replica.traces.receive(message.traces)
       else if (message.type === 'players') replica.players = message.players
       else if (message.type === 'views') replica.views = message.views

@@ -32,6 +32,7 @@ import { produceUnits } from './production'
 import { refine } from './refining'
 import { followCarriers, restTurrets } from './turrets'
 import { createPaving, loadPaving, savePaving, settlePave, type Paving } from './paved'
+import { createBuildMemory, saveBuildMemory, updateBuildMemory, type BuildMemory, type BuildMemorySave } from './buildMemory'
 import { createPaveMemory, savePaveMemory, updatePaveMemory, type PaveMemory, type PaveMemorySave } from './paveMemory'
 import { createTraces, type Traces } from './traces'
 import { createVision, type Vision } from './vision'
@@ -172,6 +173,8 @@ export interface SimSave extends SimOptions {
   paving?: number[]
   /** Что игроки знают о покрытии, см. paveMemory.ts. */
   paveMemory?: PaveMemorySave
+  /** Какими игроки помнят чужие здания, см. buildMemory.ts. В прежних сохранениях этого нет: там их не помнят. */
+  buildMemory?: BuildMemorySave
 }
 
 /**
@@ -193,6 +196,8 @@ export interface Sim {
   readonly paving: Paving
   /** Что игроки знают о покрытии: чужое игрок узнаёт, только увидев. */
   readonly paveMemory: PaveMemory
+  /** Какими игроки помнят чужие здания, ушедшие в туман: хост отдаёт это при входе. */
+  readonly buildMemory: BuildMemory
   /** Что видит каждый игрок: по ней хост решает, что слать клиенту, а клиент рисует туман. */
   readonly vision: Vision
   /** Следы на земле: колеи, гарь, остовы. См. traces.ts. */
@@ -290,6 +295,7 @@ export function createSim(source: SimOptions | SimSave): Sim {
       // Тоже после обзора: новые месторождения находят, ушедшие забывают те, кто видит их место.
       () => renewDeposits(sim),
       () => updatePaveMemory(sim),
+      () => updateBuildMemory(sim),
       () => closeBooks(sim),
     ],
   })
@@ -312,6 +318,7 @@ export function createSim(source: SimOptions | SimSave): Sim {
     occupancy: createOccupancy(world),
     paving: createPaving(world),
     paveMemory: createPaveMemory('paveMemory' in source ? source.paveMemory : undefined),
+    buildMemory: createBuildMemory('buildMemory' in source ? source.buildMemory : undefined),
     vision: createVision(world, bounds, () => loop.time.tick, options.fog !== false),
     traces: createTraces(world, () => loop.time.tick, loop.time.step),
     rules,
@@ -332,6 +339,7 @@ export function createSim(source: SimOptions | SimSave): Sim {
       deposits: saveDeposits(sim.deposits),
       paving: savePaving(sim.paving),
       paveMemory: savePaveMemory(sim.paveMemory),
+      buildMemory: saveBuildMemory(sim.buildMemory),
     }),
     destroy() {
       sim.occupancy.destroy()

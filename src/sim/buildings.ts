@@ -8,6 +8,7 @@ import type { Sim } from './sim'
 import { mountTurrets, type MountSpec } from './turrets'
 import { isPaved, isRoadway } from './paved'
 import { hasResearch, type Topic } from './topics'
+import { TRACE_CELL } from './traces'
 import type { UnitType } from './units'
 
 /** Что симуляция знает о виде здания. Как оно выглядит, знает клиент: см. game/buildings/buildingArt.ts. */
@@ -497,11 +498,17 @@ export const storeFor = (good: Good) => STORES.find((type) => buildingSpec(type)
 export interface Occupancy {
   /** Здание, занимающее тайл, или undefined. */
   at(x: number, y: number): Entity | undefined
+  /**
+   * Здания, основание которых задевает ячейку стороной TRACE_CELL тайлов; cell — tileKey от номера ячейки, как
+   * у Vision.seenCells. Так здания в обзоре игрока находят по ячейкам обзора, а не перебором всех.
+   */
+  inCell(cell: number): ReadonlySet<Entity> | undefined
   destroy(): void
 }
 
 export function createOccupancy(world: World): Occupancy {
   const tiles = new Map<number, Entity>()
+  const cells = new Map<number, Set<Entity>>()
   const stop = world.observe([Position, Building], (entity, position, building) => {
     const { width, height } = BUILDINGS[building.type]
     const keys: number[] = []
@@ -509,12 +516,26 @@ export function createOccupancy(world: World): Occupancy {
       for (let x = position.x; x < position.x + width; x++) keys.push(tileKey(x, y))
     }
     for (const key of keys) tiles.set(key, entity)
+    const spots: number[] = []
+    for (let y = Math.floor(position.y / TRACE_CELL); y <= Math.floor((position.y + height - 1) / TRACE_CELL); y++) {
+      for (let x = Math.floor(position.x / TRACE_CELL); x <= Math.floor((position.x + width - 1) / TRACE_CELL); x++) spots.push(tileKey(x, y))
+    }
+    for (const spot of spots) {
+      const found = cells.get(spot)
+      if (found) found.add(entity)
+      else cells.set(spot, new Set([entity]))
+    }
     return () => {
       for (const key of keys) if (tiles.get(key) === entity) tiles.delete(key)
+      for (const spot of spots) {
+        const found = cells.get(spot)
+        if (found?.delete(entity) && !found.size) cells.delete(spot)
+      }
     }
   })
   return {
     at: (x, y) => (tiles.size ? tiles.get(tileKey(x, y)) : undefined),
+    inCell: (cell) => cells.get(cell),
     destroy: stop,
   }
 }

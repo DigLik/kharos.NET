@@ -3,12 +3,13 @@ import type { Entity } from '../ecs'
 import { Terrain, terrainAt, tileBytes } from '../map/terrain'
 import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownBy, sightingOf, allied, alliesOf, breakAlliance, exitAlliance, offerAlliance, giftable, spawnStartingUnits, wipePlayer, type Command, type Sim, type Sighting, type SimSave } from '../sim'
 import { Armed, Attached, Blast, Building, Burst, Doomed, Gate, Glare, Health, Interceptor, Mark, Owner, Path, Player, Position, Scan, Shield, Shot, Silo, Transfer, Unit } from '../sim/components'
-import { pathOf, seenBy, sharedWireOf, type Wired } from './wire'
+import { pathOf, rememberedWire, seenBy, sharedWireOf, type Wired } from './wire'
 import { LAND, POSITION, encodeDelta, type Motion, type ShotRecord } from './codec'
 import { deflate } from '../save/file'
 import { DEPOSIT_TYPES, fillDeposits, knowsDeposit, saveDeposits } from '../sim/deposits'
 import { knownEdits, pristineLand, takeLearned } from '../sim/landMemory'
 import { knownPaving, takePaveChanges, takePaveLearned } from '../sim/paveMemory'
+import { forgetBuildings } from '../sim/buildMemory'
 import { savePaving } from '../sim/paved'
 import type { ServerData } from './protocol'
 import { TRACE_CELL, type Trace } from '../sim/traces'
@@ -828,6 +829,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     defeated.delete(who)
     if (player === undefined && !hidden.has(who)) notice(who, hostText('restarts'))
     sim.vision.forget(who)
+    forgetBuildings(sim.buildMemory, who)
     place(who)
     // Вкладки игрока начинают как в новом мире: туман закрыт, камера встаёт на новый стартовый набор.
     for (const [peer, owner] of peers) if (owner === who) resync(peer, who)
@@ -1188,6 +1190,19 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
   /** Какую версию карты получили редакторы: при правке им уходят все изменённые тайлы заново. */
   let landShown = sim.land.revision
   const explored = (player: number) => JSON.stringify({ type: 'explored', map: sim.vision.map(player) } satisfies ServerMessage)
+  /**
+   * Шлёт подключению чужие здания, которые игрок помнит, см. buildMemory.ts: у клиента они встанут призраками.
+   * Редактору не нужно: ему виден весь мир.
+   */
+  const sendRemembered = (send: Send, player: number) => {
+    const known = sim.buildMemory.known.get(player)
+    if (!known?.size || editing.has(send)) return
+    const friends = alliesOf(sim, player)
+    const { tick } = sim.time
+    const buildings: [number, Record<string, object>][] = []
+    for (const [id, { parts }] of known) buildings.push([id, rememberedWire(parts, player, friends, tick)])
+    send(JSON.stringify({ type: 'remembered', buildings } satisfies ServerMessage))
+  }
   const welcome = (player: number, id?: string, god = false) =>
     JSON.stringify({ type: 'welcome', player, options: god ? { ...sim.options, fog: false } : sim.options, step: sim.time.step, id, ...(god && { editor: true }) } satisfies ServerMessage)
   /**
@@ -1199,6 +1214,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     send(god || keep ? JSON.stringify({ ...JSON.parse(welcome(who, undefined, god)), keep: true }) : welcome(who))
     sendLand(send, who)
     send(explored(who))
+    sendRemembered(send, who)
     sent.set(send, new Map())
     shown.set(send, new Set())
     send(whole(send, who))
@@ -1221,6 +1237,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
         send(welcome(player))
         sendLand(send, player)
         send(explored(player))
+        sendRemembered(send, player)
         sent.set(send, new Map())
         send(whole(send, player, cache))
         shown.set(send, new Set())
@@ -1263,6 +1280,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       send(welcome(joined, id))
       sendLand(send, joined)
       send(explored(joined))
+      sendRemembered(send, joined)
       // Мир сразу, не дожидаясь тика: иначе клиент начал бы с пустого экрана.
       send(whole(send, joined))
       sendCommands(send)

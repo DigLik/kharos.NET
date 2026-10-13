@@ -11,7 +11,7 @@ import type { Text } from '../i18n'
  * из тех же компонентов и правил, что у сервера. Поднимай её при каждом изменении протокола, компонентов из SAVED
  * или симуляции, которое меняет то, что видит клиент.
  */
-export const PROTOCOL_VERSION = 36
+export const PROTOCOL_VERSION = 37
 
 /** Порт сервера по умолчанию. */
 export const DEFAULT_PORT = 8787
@@ -43,6 +43,12 @@ export type ServerMessage =
   | { type: 'delta'; tick: number; set: [number, Record<string, object>][]; unset: [number, string[]][]; remove: number[]; motion: number[] }
   /** Сразу после приветствия: что игрок разведал раньше, см. Vision.map. Открытая карта остаётся открытой. */
   | { type: 'explored'; map: number[] }
+  /**
+   * Сразу после приветствия: чужие здания, которые игрок видел раньше и сейчас не видит, — номер сущности и её
+   * компоненты, какими он их видел, см. buildMemory.ts. Клиент показывает их призраками, как те, что ушли в туман
+   * при нём.
+   */
+  | { type: 'remembered'; buildings: [number, Record<string, object>][] }
   /** Следы, которые игрок только что увидел: каждый приходит один раз, дальше клиент держит его сам до конца срока. */
   | { type: 'traces'; traces: Trace[] }
   /**

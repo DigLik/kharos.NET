@@ -112,6 +112,27 @@ export function sharedWireOf(world: World, entity: Entity, tick: number): Wired 
   return { parts, owner, drop: world.has(entity, Drop), motion: motionOf(world, entity) }
 }
 
+/**
+ * Запомненное здание (JSON его компонентов, см. Remembered.parts в buildMemory.ts), каким его собрал бы из сети клиент игрока viewer:
+ * чужое — без того, что знает только хозяин, см. seenBy; союзное — целиком. Место идёт тут же, а не движением.
+ */
+export function rememberedWire(remembered: string, viewer: number, friends: readonly number[], tick: number): Record<string, object> {
+  const data = JSON.parse(remembered) as Record<string, object>
+  const parts = new Map<string, string>()
+  for (const component of SAVED) {
+    const value = data[component.key]
+    if (value === undefined) continue
+    const shown = component === Position ? value : wire(component, value, tick)
+    if (shown !== undefined) parts.set(component.key, JSON.stringify(shown, round))
+  }
+  const owner = (data[Owner.key] as { player: number } | undefined)?.player
+  const wired: Wired = { parts, owner }
+  const seen = owner !== undefined && friends.includes(owner) ? wired : seenBy(wired, viewer)
+  const record: Record<string, object> = {}
+  for (const [key, json] of seen.parts) record[key] = JSON.parse(json)
+  return record
+}
+
 /** Движение сущности, каким оно уходит в сеть; undefined — места у неё нет или клиент находит его сам (турель на носителе). */
 export function motionOf(world: World, entity: Entity): Motion | undefined {
   if (world.has(entity, Attached) && world.has(entity, Turret)) return undefined
