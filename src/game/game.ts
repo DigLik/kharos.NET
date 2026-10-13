@@ -283,7 +283,7 @@ export function createGame(
   let viewSent = ''
   let viewBox = { left: 0, top: 0, right: 0, bottom: 0 }
   let sinceView = 0
-  const stop = startFrames((seconds) => {
+  const stop = startFrames((seconds, hidden) => {
     const { sim } = scene
     sim.advance(seconds)
     sinceView += seconds
@@ -360,8 +360,8 @@ export function createGame(
       saveCamera()
     }
 
-    // Пока контекст потерян, рисовать некуда; игра при этом продолжает идти.
-    if (renderer.lost) return
+    // Пока контекст потерян, рисовать некуда, а скрытую вкладку не видно; игра при этом продолжает идти и звучать.
+    if (renderer.lost || hidden) return
     // Тряска уводит только картинку, вместе с землёй: управление и сохранение видят камеру на месте.
     const { x: shakeX, y: shakeY } = shake.offset(camera.zoom)
     camera.x += shakeX
@@ -372,7 +372,7 @@ export function createGame(
     renderer.draw(camera, time.elapsed + time.alpha * time.step, seconds)
     camera.x -= shakeX
     camera.y -= shakeY
-  }, onError, () => graphics().fps)
+  }, onError, () => graphics().fps, audio !== null)
 
   // Последний шанс сохраниться: вкладку закрывают или уводят в фон.
   window.addEventListener('pagehide', saveCamera)

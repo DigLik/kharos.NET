@@ -991,7 +991,7 @@
     "defeatServer": "Na binolar, na MCV qoldi. Ushbu dunyoning yangi joyida qaytadan boshlashingiz mumkin.",
     "startOver": "Qaytadan boshlash",
     "connecting": "Serverga ulanmoqda…",
-    "loadingArt": "Grafika chizilmoqda… {percent}%",
+    "loadingAssets": "Grafika va ovoz tayyorlanmoqda… {percent}%",
     "wrongPassword": "Noto‘g‘ri parol",
     "passwordNeeded": "Server parol bilan yopilgan",
     "password": "Parol",

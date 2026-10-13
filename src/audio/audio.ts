@@ -1,9 +1,11 @@
 import { createAmbience, type Ambience, type Mood } from './ambience'
 import { createFlight, type Flight, type Noises } from './flight'
-import { MOTOR_NAMES, RUNNING, RUNNING_NAMES, motorLoop, type MotorName, type RunningName } from './motorSynth'
+import { NOISE_SECONDS, REVERB_KEY, distantKey, loopKey, motorKey, noiseKey, runningKey, soundKey } from './bank'
+import { createContext, soundBuffer } from './loadSounds'
+import { MOTOR_NAMES, RUNNING_NAMES, type MotorName, type RunningName } from './motorSynth'
 import { createMotorVoice, type MotorBuffers, type MotorVoice } from './motorVoice'
-import { ALL_LOOPS, ALL_LOOP_NAMES, ALL_SOUNDS, ALL_SOUND_NAMES, INTERFACE_SOUNDS, WORLD_SOUND_NAMES, type LoopName, type SoundName } from './sounds'
-import { DISTANT_NAMES, DISTANT_SOUNDS, SOUND_VARIANTS, noiseLoop, reverbImpulse, type DistantName, type NoiseColor } from './synth'
+import { ALL_LOOP_NAMES, ALL_SOUND_NAMES, INTERFACE_SOUNDS, WORLD_SOUND_NAMES, type LoopName, type SoundName } from './sounds'
+import { DISTANT_NAMES, SOUND_VARIANTS } from './synth'
 
 /** Больше звуков разом не звучит: в большом бою остальные пропускаются. */
 const MAX_VOICES = 32
@@ -11,14 +13,6 @@ const MAX_VOICES = 32
 const MASTER = 0.6
 /** На сколько звук случайно выше или ниже: одинаковые выстрелы подряд не звучат как запись. */
 const DETUNE = 0.08
-/** Сколько секунд длится эхо фона. */
-const REVERB_SECONDS = 4
-/** Петли шума для ветра: какого цвета и сколько секунд. Короче — слышно, что петля повторяется. */
-const NOISE_SECONDS: [NoiseColor, number][] = [
-  ['white', 3],
-  ['pink', 8],
-  ['brown', 8],
-]
 const STORAGE_KEY = 'kharos.muted'
 /** Доля громкости, пока поверх игры открыто меню. */
 const DIMMED = 0.25
@@ -119,9 +113,9 @@ export const storeLevel = (channel: Channel, value: number) => {
 export const wasActivated = () => (navigator as { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive ?? false
 
 /**
- * Звук игры. Браузер не даёт играть звук, пока игрок ничего не нажал, поэтому всё готовится при первом его
- * действии: тогда же синтезируются звуки (см. synth.ts) и заводятся ветер полёта (flight.ts) и фон (ambience.ts).
- * До этого play, flight и ambience ничего не делают. Пока вкладка скрыта, звук стоит.
+ * Звук игры. Браузер не даёт играть звук, пока игрок ничего не нажал, поэтому голоса заводятся при первом его
+ * действии: из записей, синтезированных заранее (см. loadSounds.ts), — петли, ветер полёта (flight.ts) и фон
+ * (ambience.ts). До этого play, flight и ambience ничего не делают. Звук не стоит и в скрытой вкладке.
  */
 export function createAudio(): Audio {
   let context: AudioContext | null = null
@@ -143,12 +137,12 @@ export function createAudio(): Audio {
 
   const start = () => {
     if (context) {
-      if (context.state === 'suspended') void context.resume()
+      if (context.state !== 'running') void context.resume()
       return
     }
     const Context = window.AudioContext ?? (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
     if (!Context) return
-    context = new Context()
+    context = createContext(Context)
     // Компрессор не даёт залпу перегрузить звук.
     const compressor = context.createDynamicsCompressor()
     compressor.threshold.value = -18
@@ -165,65 +159,35 @@ export function createAudio(): Audio {
       buses.set(channel, bus)
     }
     const world = buses.get('world')!
-    const rate = context.sampleRate
-    const toBuffer = (channels: Float32Array<ArrayBuffer>[]) => {
-      const buffer = context!.createBuffer(channels.length, channels[0].length, rate)
-      channels.forEach((data, channel) => buffer.copyToChannel(data, channel))
-      return buffer
+    // Все записи уже синтезированы (см. loadSounds.ts): остаётся завести из них голоса.
+    for (const name of ALL_SOUND_NAMES) buffers.set(name, Array.from({ length: SOUND_VARIANTS }, (_, variant) => soundBuffer(soundKey(name, variant))))
+    for (const name of ALL_LOOP_NAMES) {
+      const buffer = soundBuffer(loopKey(name))
+      const source = context.createBufferSource()
+      source.buffer = buffer
+      source.loop = true
+      const gain = context.createGain()
+      gain.gain.value = 0
+      const panner = context.createStereoPanner()
+      source.connect(gain).connect(panner).connect(world)
+      // Петли разной длины начинаются вразнобой: так их стыки не совпадают.
+      source.start(0, Math.random() * buffer.duration)
+      loops.set(name, { gain, panner })
     }
-    const synthesize = (name: SoundName) => {
-      buffers.set(name, Array.from({ length: SOUND_VARIANTS }, (_, variant) => toBuffer([ALL_SOUNDS[name](rate, variant)])))
-    }
-    // Щелчки интерфейса нужны сразу: первое же нажатие запускает звук и тут же звучит.
-    for (const name of INTERFACE_SOUNDS) synthesize(name)
-    // Остальные звуки, моторы, ветер полёта и фон синтезируются не мгновенно: по куску за задачу, чтобы игра не
-    // замирала. Пока звук не готов, он молчит.
-    // Петли шума — в стерео: у каждого уха своя, и ветер обступает со всех сторон.
-    const noises: Partial<Noises> = {}
-    const distant = new Map<DistantName, AudioBuffer[]>()
-    let impulse: AudioBuffer
-    const steps = [
-      ...ALL_SOUND_NAMES.filter((name) => !INTERFACE_SOUNDS.has(name)).map((name) => () => synthesize(name)),
-      ...ALL_LOOP_NAMES.map((name) => () => {
-        const buffer = toBuffer([ALL_LOOPS[name](rate)])
-        const source = context!.createBufferSource()
-        source.buffer = buffer
-        source.loop = true
-        const gain = context!.createGain()
-        gain.gain.value = 0
-        const panner = context!.createStereoPanner()
-        source.connect(gain).connect(panner).connect(world)
-        // Петли разной длины начинаются вразнобой: так их стыки не совпадают.
-        source.start(0, Math.random() * buffer.duration)
-        loops.set(name, { gain, panner })
-      }),
-      ...RUNNING_NAMES.map((name) => () => runnings.set(name, toBuffer([RUNNING[name](rate)]))),
-      ...MOTOR_NAMES.map((name) => () => motors.set(name, { idle: toBuffer([motorLoop(rate, name, false)]), load: toBuffer([motorLoop(rate, name, true)]) })),
-      ...NOISE_SECONDS.map(([color, seconds]) => () => {
-        noises[color] = toBuffer([noiseLoop(rate, seconds, 1, color), noiseLoop(rate, seconds, 2, color)])
-      }),
-      () => (flight = createFlight(context!, world, noises as Noises)),
-      () => (impulse = toBuffer(reverbImpulse(rate, REVERB_SECONDS, 1))),
-      ...DISTANT_NAMES.map((name) => () => {
-        distant.set(name, Array.from({ length: SOUND_VARIANTS }, (_, variant) => toBuffer([DISTANT_SOUNDS[name](rate, variant)])))
-      }),
-      () => (ambience = createAmbience(context!, world, noises as Noises, impulse, distant)),
-    ]
-    const work = () => {
-      if (!context) return
-      steps.shift()!()
-      if (steps.length) setTimeout(work)
-    }
-    setTimeout(work)
+    for (const name of RUNNING_NAMES) runnings.set(name, soundBuffer(runningKey(name)))
+    for (const name of MOTOR_NAMES) motors.set(name, { idle: soundBuffer(motorKey(name, false)), load: soundBuffer(motorKey(name, true)) })
+    const noises = Object.fromEntries(NOISE_SECONDS.map(([color]) => [color, soundBuffer(noiseKey(color))])) as unknown as Noises
+    const distant = new Map(DISTANT_NAMES.map((name) => [name, Array.from({ length: SOUND_VARIANTS }, (_, variant) => soundBuffer(distantKey(name, variant)))]))
+    flight = createFlight(context, world, noises)
+    ambience = createAmbience(context, world, noises, soundBuffer(REVERB_KEY, context.sampleRate), distant)
   }
   const events = ['pointerdown', 'keydown'] as const
   for (const event of events) window.addEventListener(event, start)
   if (wasActivated()) start()
-  // Скрытая вкладка не рисует кадров, и звук замер бы на полуслове: ветер свистел бы без конца.
+  // Звук идёт и в скрытой вкладке: кадры игры там идут по таймеру (см. frames.ts). Если браузер или система всё же
+  // остановили звук, вернувшаяся вкладка его будит.
   const onVisibility = () => {
-    if (!context) return
-    if (document.hidden) void context.suspend()
-    else void context.resume()
+    if (context && !document.hidden && context.state !== 'running') void context.resume()
   }
   document.addEventListener('visibilitychange', onVisibility)
 

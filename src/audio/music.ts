@@ -1,13 +1,13 @@
 import { loadLevel, loadMuted, loadVolume, wasActivated } from './audio'
-import { SOUNDS, random, reverbImpulse, type SoundName } from './synth'
+import { MUSIC_REVERB_KEY, soundKey } from './bank'
+import { createContext, soundBuffer } from './loadSounds'
+import { random, type SoundName } from './synth'
 
 /** Громкость музыки при полной громкости игры. */
 const LEVEL = 0.32
 /** За сколько секунд музыка вступает и за сколько стихает, когда меню закрыли. */
 const FADE_IN = 5
 const FADE_OUT = 0.8
-/** Сколько секунд длится эхо. */
-const REVERB_SECONDS = 5
 /** Сколько эха в музыке: она звучит как издалека, над пустой землёй. */
 const WET = 0.7
 /**
@@ -73,9 +73,8 @@ export function createMenuMusic(): MenuMusic {
     }
     const Context = window.AudioContext ?? (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
     if (!Context) return
-    const audio = new Context()
+    const audio = createContext(Context)
     context = audio
-    const rate = audio.sampleRate
     master = audio.createGain()
     master.gain.setValueAtTime(0, audio.currentTime)
     master.gain.linearRampToValueAtTime(level(), audio.currentTime + FADE_IN)
@@ -83,18 +82,11 @@ export function createMenuMusic(): MenuMusic {
     clicks = audio.createGain()
     clicks.gain.value = clickLevel()
     clicks.connect(audio.destination)
-    for (const name of ['click', 'hover', 'deny'] as const) {
-      const data = SOUNDS[name](rate, 0)
-      const buffer = audio.createBuffer(1, data.length, rate)
-      buffer.copyToChannel(data, 0)
-      buffers.set(name, buffer)
-    }
+    // Записи уже синтезированы (см. loadSounds.ts).
+    for (const name of ['click', 'hover', 'deny'] as const) buffers.set(name, soundBuffer(soundKey(name, 0)))
 
     const reverb = audio.createConvolver()
-    const channels = reverbImpulse(rate, REVERB_SECONDS, 3)
-    const impulse = audio.createBuffer(2, channels[0].length, rate)
-    channels.forEach((data, channel) => impulse.copyToChannel(data, channel))
-    reverb.buffer = impulse
+    reverb.buffer = soundBuffer(MUSIC_REVERB_KEY, audio.sampleRate)
     const wet = audio.createGain()
     wet.gain.value = WET
     reverb.connect(wet).connect(master)

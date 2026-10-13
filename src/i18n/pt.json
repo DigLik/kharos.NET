@@ -991,7 +991,7 @@
     "defeatServer": "Não restam edifícios nem MCV. Você pode recomeçar em outro lugar deste mundo.",
     "startOver": "Recomeçar",
     "connecting": "Conectando ao servidor…",
-    "loadingArt": "Desenhando os gráficos… {percent}%",
+    "loadingAssets": "Preparando gráficos e som… {percent}%",
     "wrongPassword": "Senha incorreta",
     "passwordNeeded": "O servidor é protegido por senha",
     "password": "Senha",
