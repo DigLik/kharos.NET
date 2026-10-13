@@ -1249,6 +1249,31 @@ body {
   color: var(--warn);
 }
 
+/* Параметры юнита: подпись слева, значение справа. */
+.card__stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 10px;
+  margin: 2px 0;
+  font-size: 12px;
+}
+
+.card__stats dt {
+  color: var(--text-dim);
+}
+
+.card__stats dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.hud__stats {
+  overflow: hidden;
+  color: var(--text-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .card__price {
   display: flex;
   flex-wrap: wrap;

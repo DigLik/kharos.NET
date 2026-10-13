@@ -979,6 +979,35 @@
     "downloadFile": "Télécharger le fichier",
     "failed": "L'éditeur ne s'est pas ouvert"
   },
+  "stats": {
+    "hp": "Solidité",
+    "class": "Classe",
+    "speed": "Vitesse",
+    "sight": "Vision",
+    "cargo": "Cargaison",
+    "repair": "Rayon de réparation",
+    "damage": "Dégâts",
+    "reload": "Rechargement",
+    "dps": "Dégâts par seconde",
+    "range": "Portée",
+    "splash": "Rayon d'explosion",
+    "chain": "Cibles voisines",
+    "targets": "Cibles",
+    "both": "sol et air",
+    "ground": "sol uniquement",
+    "air": "air uniquement",
+    "overWalls": "par-dessus les murs",
+    "strong": "Fort contre",
+    "weak": "Faible contre",
+    "seconds": "{n} s",
+    "vs": {
+      "infantry": "infanterie",
+      "vehicle": "véhicules légers",
+      "heavy": "véhicules lourds",
+      "air": "aviation",
+      "building": "bâtiments"
+    }
+  },
   "game": {
     "menu": "Menu",
     "menuTip": "Menu du jeu",

@@ -979,6 +979,35 @@
     "downloadFile": "Download file",
     "failed": "The editor did not open"
   },
+  "stats": {
+    "hp": "Health",
+    "class": "Class",
+    "speed": "Speed",
+    "sight": "Sight",
+    "cargo": "Cargo",
+    "repair": "Repair radius",
+    "damage": "Damage",
+    "reload": "Reload",
+    "dps": "Damage per second",
+    "range": "Range",
+    "splash": "Blast radius",
+    "chain": "Extra targets",
+    "targets": "Targets",
+    "both": "ground and air",
+    "ground": "ground only",
+    "air": "air only",
+    "overWalls": "over walls",
+    "strong": "Strong against",
+    "weak": "Weak against",
+    "seconds": "{n} s",
+    "vs": {
+      "infantry": "infantry",
+      "vehicle": "light vehicles",
+      "heavy": "heavy vehicles",
+      "air": "aircraft",
+      "building": "buildings"
+    }
+  },
   "game": {
     "menu": "Menu",
     "menuTip": "Game menu",

@@ -979,6 +979,35 @@
     "downloadFile": "Descargar archivo",
     "failed": "El editor no se abrió"
   },
+  "stats": {
+    "hp": "Integridad",
+    "class": "Clase",
+    "speed": "Velocidad",
+    "sight": "Visión",
+    "cargo": "Carga",
+    "repair": "Radio de reparación",
+    "damage": "Daño",
+    "reload": "Recarga",
+    "dps": "Daño por segundo",
+    "range": "Alcance",
+    "splash": "Radio de explosión",
+    "chain": "Objetivos vecinos",
+    "targets": "Objetivos",
+    "both": "tierra y aire",
+    "ground": "solo tierra",
+    "air": "solo aire",
+    "overWalls": "por encima de los muros",
+    "strong": "Fuerte contra",
+    "weak": "Débil contra",
+    "seconds": "{n} s",
+    "vs": {
+      "infantry": "infantería",
+      "vehicle": "vehículos ligeros",
+      "heavy": "vehículos pesados",
+      "air": "aviación",
+      "building": "edificios"
+    }
+  },
   "game": {
     "menu": "Menú",
     "menuTip": "Menú de la partida",

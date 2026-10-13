@@ -979,6 +979,35 @@
     "downloadFile": "Faylni yuklab olish",
     "failed": "Tahrirlovchi ochilmadi"
   },
+  "stats": {
+    "hp": "Mustahkamlik",
+    "class": "Sinf",
+    "speed": "Tezlik",
+    "sight": "Ko‘rish",
+    "cargo": "Yuk",
+    "repair": "Tuzatish radiusi",
+    "damage": "Zarar",
+    "reload": "Qayta o‘qlash",
+    "dps": "Soniyadagi zarar",
+    "range": "Masofa",
+    "splash": "Portlash radiusi",
+    "chain": "Qo‘shni nishonlar",
+    "targets": "Nishonlar",
+    "both": "yer va havo",
+    "ground": "faqat yer",
+    "air": "faqat havo",
+    "overWalls": "devorlar osha",
+    "strong": "Yaxshi uradi",
+    "weak": "Yomon uradi",
+    "seconds": "{n} s",
+    "vs": {
+      "infantry": "piyodalar",
+      "vehicle": "yengil texnika",
+      "heavy": "og‘ir texnika",
+      "air": "aviatsiya",
+      "building": "binolar"
+    }
+  },
   "game": {
     "menu": "Menyu",
     "menuTip": "O‘yin menyusi",

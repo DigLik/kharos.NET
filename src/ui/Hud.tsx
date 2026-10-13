@@ -11,6 +11,7 @@ import { REWARDS, resourceOf, type UnitType, type BuildingType, type Command, ty
 import { GRID_KEYS, commandsOf, dealOf, keyLabel, type Deal, type FerryDraft, type Page, type Slot } from './commands'
 import { rich, t, type Key } from '../i18n'
 import { TechTree } from './TechTree'
+import { unitStats, unitStatsLine, unitStatsText } from './unitStats'
 
 interface HudProps {
   state: HudState
@@ -401,6 +402,11 @@ function SlotCard({ slot, hotkey }: { slot: Slot; hotkey: string }) {
       </div>
       {slot.about && <div class="card__text">{slot.about}</div>}
       {slot.title && <div class={slot.about && slot.disabled ? 'card__text is-warn' : 'card__text'}>{slot.title}</div>}
+      {slot.unit && (
+        <dl class="card__stats">
+          {unitStats(slot.unit).map(({ key, label, value }) => [<dt key={`${key}:label`}>{label}</dt>, <dd key={`${key}:value`}>{value}</dd>])}
+        </dl>
+      )}
       {price ? (
         <div class="card__price">
           {slot.cost !== undefined && (
@@ -485,6 +491,8 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
   const nameOf = (player: number) => state.players.find((one) => one.player === player)?.name ?? ''
   const many = units.length > 1 || (units[0]?.count ?? 0) > 1
   const health = building !== null ? (state.health ?? 1) : (state.army?.health ?? 1)
+  /** Вид юнитов, чьи параметры показать: когда выбраны юниты одного вида. */
+  const stats = building === null && units.length === 1 ? units[0].type : null
 
   const title =
     building !== null
@@ -518,9 +526,11 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
 
       <div class="bar__details">
         {/* В одну строку: у пёстрого отряда виды и так видны плитками, полный список — в подсказке. */}
-        <header class="hud__title" data-tip={many ? title : undefined}>
+        <header class="hud__title" data-tip={many ? title : stats ? unitStatsText(stats) : undefined}>
           {title}
         </header>
+        {/* Один вид юнитов — его параметры строкой; полный список — в подсказке названия. */}
+        {stats && <div class="hud__hint hud__stats" data-tip={unitStatsText(stats)}>{unitStatsLine(stats)}</div>}
 
         {state.power && (
           <div class={state.power.demand > state.power.produced ? 'hud__hint hud__power is-short' : 'hud__hint hud__power'}>

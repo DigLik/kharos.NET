@@ -979,6 +979,35 @@
     "downloadFile": "Datei herunterladen",
     "failed": "Der Editor ließ sich nicht öffnen"
   },
+  "stats": {
+    "hp": "Zustand",
+    "class": "Klasse",
+    "speed": "Tempo",
+    "sight": "Sicht",
+    "cargo": "Ladung",
+    "repair": "Reparaturradius",
+    "damage": "Schaden",
+    "reload": "Nachladen",
+    "dps": "Schaden pro Sekunde",
+    "range": "Reichweite",
+    "splash": "Explosionsradius",
+    "chain": "Zusätzliche Ziele",
+    "targets": "Ziele",
+    "both": "Boden und Luft",
+    "ground": "nur Boden",
+    "air": "nur Luft",
+    "overWalls": "über Mauern",
+    "strong": "Stark gegen",
+    "weak": "Schwach gegen",
+    "seconds": "{n} s",
+    "vs": {
+      "infantry": "Infanterie",
+      "vehicle": "leichte Fahrzeuge",
+      "heavy": "schwere Fahrzeuge",
+      "air": "Luftfahrzeuge",
+      "building": "Gebäude"
+    }
+  },
   "game": {
     "menu": "Menü",
     "menuTip": "Spielmenü",
