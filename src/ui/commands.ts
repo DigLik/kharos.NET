@@ -65,6 +65,8 @@ export interface Slot {
   /** cost — не трата, а доход: продажа, возврат за разбор. */
   gain?: boolean
   power?: number
+  /** Сколько энергии просит здание без дела, если не столько же, сколько в работе (power). */
+  idle?: number
   materials?: Stack[]
   disabled?: boolean
   active?: boolean
@@ -181,11 +183,12 @@ export function commandsOf(
 
   if (construction) {
     /** Кнопка здания из списка строителя. */
-    const buildingSlot = ({ building, cost, affordable, power, materials }: (typeof construction.options)[number]): Slot => ({
+    const buildingSlot = ({ building, cost, affordable, power, idle, materials }: (typeof construction.options)[number]): Slot => ({
       label: t(`buildings.${building}`),
       building,
       cost,
       power,
+      idle: idle === power ? undefined : idle,
       materials,
       active: construction.placing === building,
       zones: true,

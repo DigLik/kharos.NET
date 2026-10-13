@@ -278,6 +278,12 @@ export const Tactics = component('Tactics', () => ({ stance: 'defensive' as Stan
 export const Off = component('Off', {})
 
 /**
+ * Потребитель энергии занят делом и просит у зоны всю свою энергию; без метки — стоит и просит меньше. Ставит
+ * хост, см. busy.ts.
+ */
+export const Busy = component('Busy', {})
+
+/**
  * Генератор щита: charge — запас в единицах прочности; hit — тик последнего погашенного попадания (до паузы
  * запас не растёт); down — до какого тика купол погашен после пробоя. Ёмкость и радиус — BuildingSpec.shield.
  * См. shields.ts.
@@ -404,4 +410,4 @@ export const Dig = component('Dig', { kind: 'peak' as 'peak' | 'cliff', cost: 0,
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare, Dig]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Busy, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare, Dig]

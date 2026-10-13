@@ -1343,6 +1343,11 @@ body {
   gap: 4px 10px;
 }
 
+/* Сколько энергии здание просит без дела — рядом с числом «в работе», тише его. */
+.card__idle {
+  color: var(--text-dim);
+}
+
 .card__credits {
   display: inline-flex;
   align-items: center;

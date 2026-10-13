@@ -4,10 +4,10 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, isCliffFoot, terrainAt } from '../src/map/terrain'
 import {
   BUILDINGS, Building, Builds, CORE, Health, Owner, Player, SCAN_SIZE, Site, Unit, buildingSight, scanRadius,
-  Off, OVERLOAD_DAMAGE, RELIEF_BELOW, RELIEF_INCOME, REPAIR_COST, coreless, powerSupply, REPAIR_SPEED, canBuild, canDeploy, canPlace, createSim, creditsOf, economyOf, powerOf, powerStates, refundOf, rewardsOf, siteAt, zoneEconomies, zoneOf, zonesOf, spawnStartingUnits, type BuildingType, type Sim,
+  Busy, Inventory, Producer, Off, OVERLOAD_DAMAGE, idlePower, overloadOf, RELIEF_BELOW, RELIEF_INCOME, REPAIR_COST, coreless, powerSupply, REPAIR_SPEED, canBuild, canDeploy, canPlace, createSim, creditsOf, economyOf, powerOf, powerStates, refundOf, rewardsOf, siteAt, zoneEconomies, zoneOf, zonesOf, spawnStartingUnits, type BuildingType, type Sim,
 } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
-import { Scan } from '../src/sim/components'
+import { Accumulator, Scan } from '../src/sim/components'
 import { connectAll, connectBuilding } from '../src/sim/piping'
 import { REWARDS, STARTING_CREDITS, addCredits } from '../src/sim/economy'
 import { spawnUnit } from '../src/sim/units'
@@ -66,7 +66,7 @@ test('развёрнутое главное здание приносит наг
   const { sim } = start()
   expect(rewardsOf(sim, 1)).toEqual(['deploy'])
   expect(creditsOf(sim, 1)).toBe(STARTING_CREDITS + REWARDS.deploy)
-  expect(economyOf(sim, 1)).toEqual({ produced: 0, demand: 0, income: BUILDINGS.command.income, crowd: 0, stored: 0 })
+  expect(economyOf(sim, 1)).toEqual({ produced: 0, demand: 0, peak: 0, spare: 0, income: BUILDINGS.command.income, crowd: 0, stored: 0 })
 
   seconds(sim, 50)
   expect(creditsOf(sim, 1)).toBe(STARTING_CREDITS + REWARDS.deploy + 10)
@@ -91,10 +91,10 @@ test('генератор материи даёт кредиты за энерг�
   const { sim, x, y } = start()
   put(sim, 'matter', x + 6, y)
   // Без электростанции генератор материи стоит.
-  expect(economyOf(sim, 1)).toEqual({ produced: 0, demand: 3, income: 0.2, crowd: 1, stored: 0 })
+  expect(economyOf(sim, 1)).toEqual({ produced: 0, demand: 3, peak: 3, spare: 0, income: 0.2, crowd: 1, stored: 0 })
 
   put(sim, 'generator', x + 6, y + 4)
-  expect(economyOf(sim, 1)).toEqual({ produced: 10, demand: 3, income: 1.7, crowd: 1, stored: 0 })
+  expect(economyOf(sim, 1)).toEqual({ produced: 10, demand: 3, peak: 3, spare: 0, income: 1.7, crowd: 1, stored: 0 })
   const credits = creditsOf(sim, 1)
   seconds(sim, 10)
   expect(creditsOf(sim, 1)).toBe(credits + 17)
@@ -125,12 +125,12 @@ test('здания держат зону и работают и без глав�
   put(sim, 'matter', x + 6, y + 3)
   // Далёкий генератор материи — своя зона без электростанции: энергии ему нет, и дохода он не даёт.
   put(sim, 'matter', x + 60, y)
-  expect(economyOf(sim, 1)).toEqual({ produced: 10, demand: 6, income: 1.7, crowd: 2, stored: 0 })
+  expect(economyOf(sim, 1)).toEqual({ produced: 10, demand: 6, peak: 6, spare: 0, income: 1.7, crowd: 2, stored: 0 })
 
   sim.send(1, { type: 'pack', building: coreOf(sim) })
   seconds(sim, 10.1)
   // Свёрнуто главное здание: энергия та же, а дохода нет ни с него, ни с генераторов материи.
-  expect(economyOf(sim, 1)).toEqual({ produced: 10, demand: 6, income: 0, crowd: 2, stored: 0 })
+  expect(economyOf(sim, 1)).toEqual({ produced: 10, demand: 6, peak: 6, spare: 0, income: 0, crowd: 2, stored: 0 })
 })
 
 test('готовые здания расширяют зону строительства по цепочке, стройки — нет', () => {
@@ -223,7 +223,7 @@ test('энергия у каждой зоны своя: электростанц
   put(sim, 'generator', x + 6, y)
   put(sim, 'generator', x + 6, y + 3)
   put(sim, 'matter', x + 9, y)
-  expect(zoneEconomies(sim, 1)).toEqual([{ produced: 20, demand: 3, income: 1.7, crowd: 1, stored: 0 }])
+  expect(zoneEconomies(sim, 1)).toEqual([{ produced: 20, demand: 3, peak: 3, spare: 0, income: 1.7, crowd: 1, stored: 0 }])
 
   // Второе главное здание далеко от первого — вторая зона. Её генератор материи без своей электростанции стоит.
   // Далеко местность не проверялась: трубы там кладутся руками.
@@ -232,7 +232,7 @@ test('энергия у каждой зоны своя: электростанц
   placeBuilding(sim.world, 'matter', far + 4, y, 1)
   placeBuilding(sim.world, 'pipe', far + 3, y, 1)
   expect(zonesOf(sim, 1).length).toBe(2)
-  expect(zoneEconomies(sim, 1)[1]).toEqual({ produced: 0, demand: 3, income: 0.2, crowd: 1, stored: 0 })
+  expect(zoneEconomies(sim, 1)[1]).toEqual({ produced: 0, demand: 3, peak: 3, spare: 0, income: 0.2, crowd: 1, stored: 0 })
   // Теснота тоже считается по зонам: в каждой генератор материи первый.
   expect(economyOf(sim, 1).income).toBeCloseTo(1.9)
 
@@ -497,4 +497,81 @@ test('радар без энергии видит не дальше обычно
   seconds(sim, 2)
   expect(sim.world.get(radar, Scan)!.dark).toBe(false)
   expect(sim.vision.sees(1, far.x, far.y)).toBe(true)
+})
+
+test('потребитель без дела просит меньше: казармы без заказа — 1 вместо 2, с заказом — все 2, после него — снова 1', () => {
+  const { sim, x, y } = start()
+  put(sim, 'generator', x + 6, y + 4)
+  const barracks = put(sim, 'barracks', x + 6, y)
+  expect(idlePower(-2)).toBe(-1)
+  expect(idlePower(-5)).toBe(-2)
+  expect(idlePower(-10)).toBe(-4)
+  seconds(sim, 1)
+  expect(sim.world.has(barracks, Busy)).toBe(false)
+  expect(economyOf(sim, 1)).toMatchObject({ produced: 10, demand: 1, peak: 2 })
+
+  sim.send(1, { type: 'produce', producer: barracks, unit: 'infantry' })
+  seconds(sim, 1)
+  expect(sim.world.has(barracks, Busy)).toBe(true)
+  expect(economyOf(sim, 1)).toMatchObject({ demand: 2, peak: 2 })
+  // Заказ готов — казармы ещё пару секунд значатся занятыми, потом снова стоят.
+  seconds(sim, 3)
+  expect(sim.world.get(barracks, Producer)!.queue).toEqual([])
+  seconds(sim, 3)
+  expect(sim.world.has(barracks, Busy)).toBe(false)
+  expect(economyOf(sim, 1).demand).toBe(1)
+
+  // Выключенные не просят ничего и занятыми не значатся, даже с заказом.
+  sim.send(1, { type: 'produce', producer: barracks, unit: 'infantry' })
+  sim.send(1, { type: 'work', building: barracks, on: false })
+  seconds(sim, 1)
+  expect(sim.world.has(barracks, Busy)).toBe(false)
+  expect(economyOf(sim, 1)).toMatchObject({ demand: 0, peak: 0 })
+})
+
+test('плавильня занята, пока есть руда и место под металл; генератор материи и радар заняты всегда', () => {
+  const { sim, x, y } = start()
+  put(sim, 'generator', x + 6, y + 4)
+  const smelter = put(sim, 'smelter', x + 6, y)
+  const power = -BUILDINGS.smelter.power
+  seconds(sim, 1)
+  expect(economyOf(sim, 1)).toMatchObject({ demand: -idlePower(-power), peak: power })
+  sim.world.get(smelter, Inventory)!.items.metalOre = 20
+  seconds(sim, 1)
+  expect(sim.world.has(smelter, Busy)).toBe(true)
+  expect(economyOf(sim, 1).demand).toBe(power)
+
+  put(sim, 'matter', x + 9, y)
+  put(sim, 'radar', x + 9, y + 4)
+  expect(economyOf(sim, 1)).toMatchObject({ demand: power + 6, peak: power + 6 })
+})
+
+test('перегруз станций считается по полной нагрузке: простой бережёт энергию, но не станции; заряженный накопитель — бережёт', () => {
+  const { sim, x, y } = start()
+  // Строители чинили бы станцию.
+  const builders: Entity[] = []
+  for (const [entity, unit] of sim.world.query(Unit)) if (unit.type === 'builder') builders.push(entity)
+  for (const builder of builders) sim.world.destroy(builder)
+  const plant = put(sim, 'generator', x + 6, y + 4)
+  // Три машинных завода: в работе 15 при выработке 10, без дела — 6.
+  const factories = [put(sim, 'factory', x + 6, y), put(sim, 'factory', x + 10, y), put(sim, 'factory', x + 14, y)]
+  seconds(sim, 1)
+  const [economy] = zoneEconomies(sim, 1)
+  expect(economy).toMatchObject({ demand: 6, peak: 15 })
+  // Перегруз — около половины; станция под ним слабеет, и он растёт.
+  expect(overloadOf(economy)).toBeCloseTo(0.5, 1)
+  // Потребителям энергии хватает, а станция изнашивается.
+  expect(powerSupply(sim).get(factories[0])).toBe(1)
+  expect(powerStates(sim).get(plant)).toBe('overload')
+  expect(powerStates(sim).has(factories[0])).toBe(false)
+  expect(sim.world.get(plant, Health)!.value).toBeLessThan(1)
+
+  // Заряженный накопитель мог бы отдать недостающее: пока заряд есть, станция цела.
+  const worn = sim.world.get(plant, Health)!.value
+  const cell = put(sim, 'accumulator', x + 10, y + 4)
+  sim.world.get(cell, Accumulator)!.charge = 100
+  seconds(sim, 1)
+  expect(overloadOf(zoneEconomies(sim, 1)[0])).toBe(0)
+  expect(powerStates(sim).has(plant)).toBe(false)
+  expect(sim.world.get(plant, Health)!.value).toBe(worn)
 })

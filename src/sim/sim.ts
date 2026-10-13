@@ -22,6 +22,7 @@ import { chargeShields } from './shields'
 import { convert } from './conversion'
 import { haul } from './hauling'
 import { pipeFlow } from './pipes'
+import { markBusy } from './busy'
 import { closeBooks, earn, openBooks, storeEnergy } from './income'
 import { burnFuel } from './reactors'
 import { launchMissiles } from './silos'
@@ -248,6 +249,8 @@ export function createSim(source: SimOptions | SimSave): Sim {
       () => convert(sim),
       // До энергии зон: реакторы берут стержни, и горящий уже даёт энергию в этот тик.
       () => burnFuel(sim),
+      // До энергии зон: кто из потребителей занят делом, тот просит её всю, см. busy.ts.
+      () => markBusy(sim),
       // До всех потребителей энергии: накопители решают, сколько отдают зоне в этот тик.
       () => storeEnergy(sim),
       // Хозяйства зон дальше в тике считаются раз, см. openBooks.

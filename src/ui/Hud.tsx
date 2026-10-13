@@ -1,6 +1,6 @@
 import { complete, quoteName } from '../net/chatCommands'
 import type { ComponentChildren } from 'preact'
-import type { HudState, Stack } from '../game/hud'
+import type { GridState, HudState, Stack } from '../game/hud'
 import { GRID_PRESS, type GridPress } from '../game/interfaceSounds'
 import type { Minimap } from '../game/minimap'
 import { prefs } from '../game/prefs'
@@ -51,8 +51,20 @@ interface HudProps {
 
 const percent = (value: number) => `${Math.round(value * 100)}%`
 
-/** С какой доли выработки энергия на верхней полосе желтеет: запас кончается, следующий потребитель — уже перегруз. */
+/**
+ * С какой доли выработки энергия на верхней полосе желтеет — по полной нагрузке, когда все потребители в работе:
+ * запас кончается, следующий потребитель — уже перегруз.
+ */
 const GRID_TIGHT = 0.8
+
+/** Энергия сети словами: сколько просят сейчас и при полной нагрузке, сколько из накопителей, перегружены ли станции. */
+const gridText = (grid: GridState) =>
+  [
+    t('hud.zonePower', { demand: grid.demand, produced: grid.produced }),
+    grid.stored > 0 ? t('hud.zoneStored', { stored: grid.stored }) : '',
+    grid.peak > grid.demand ? t('hud.zonePeak', { peak: grid.peak }) : '',
+    grid.overload ? t('hud.overloaded') : '',
+  ].join('')
 
 /** Стороны квадратов под картинки, в пикселях экрана: портреты рисуются ровно под них, см. portraits.ts. */
 const PORTRAIT = 96
@@ -441,6 +453,7 @@ function SlotCard({ slot, hotkey, stock }: { slot: Slot; hotkey: string; stock: 
             </span>
           )}
           {slot.power ? <span class="hud__power">⚡{slot.power > 0 ? `+${slot.power}` : slot.power}</span> : null}
+          {slot.power && slot.idle !== undefined ? <small class="card__idle">{t('grid.idlePower', { idle: slot.idle })}</small> : null}
         </div>
       ) : null}
       {slot.materials?.length ? (
@@ -572,11 +585,7 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
         {stats && <div class="hud__hint hud__stats" data-tip={unitStatsText(stats)}>{unitStatsLine(stats)}</div>}
 
         {state.power && (
-          <div class={state.power.demand > state.power.produced ? 'hud__hint hud__power is-short' : 'hud__hint hud__power'}>
-            {t('hud.zonePower', { demand: state.power.demand, produced: state.power.produced })}
-            {state.power.stored > 0 && t('hud.zoneStored', { stored: state.power.stored })}
-            {state.power.demand > state.power.produced && t('hud.overloaded')}
-          </div>
+          <div class={state.power.demand > state.power.produced || state.power.overload ? 'hud__hint hud__power is-short' : 'hud__hint hud__power'}>{gridText(state.power)}</div>
         )}
         {state.coreless && <div class="hud__hint is-short">{t('hud.coreless')}</div>}
         {state.relief && <div class="hud__hint">{t('hud.relief', { below: RELIEF_BELOW, income: RELIEF_INCOME })}</div>}
@@ -992,13 +1001,8 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
         </span>
         {state.grid && (
           <span
-            class={state.grid.demand > state.grid.produced ? 'hud__grid is-short' : state.grid.demand > state.grid.produced * GRID_TIGHT ? 'hud__grid is-tight' : 'hud__grid'}
-            data-tip={[
-              t('hud.zonePower', { demand: state.grid.demand, produced: state.grid.produced }),
-              state.grid.stored > 0 ? t('hud.zoneStored', { stored: state.grid.stored }) : '',
-              state.grid.demand > state.grid.produced ? t('hud.overloaded') : '',
-              `\n${t('hud.gridTip')}`,
-            ].join('')}
+            class={state.grid.demand > state.grid.produced || state.grid.overload ? 'hud__grid is-short' : state.grid.peak > state.grid.produced * GRID_TIGHT ? 'hud__grid is-tight' : 'hud__grid'}
+            data-tip={`${gridText(state.grid)}\n${t('hud.gridTip')}`}
           >
             ⚡ {state.grid.demand} / {state.grid.produced}
           </span>

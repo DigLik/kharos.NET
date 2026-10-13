@@ -312,8 +312,8 @@ test('пехоту выпускают казармы, технику — маш�
   expect(producibleBy(sim, factory)).toEqual(['buggy', 'flak', 'lancer', 'tank', 'artillery', 'tesla', 'carrier', 'mcv'])
   expect(producibleBy(sim, port)).toEqual(['airTruck', 'drone', 'gunship', 'bomber'])
   expect(producibleBy(sim, trader)).toEqual([])
-  // Потребляют 2 + 5 + 4 + 5 из 20.
-  expect(zoneEconomies(sim, 1)[0]).toMatchObject({ produced: 20, demand: 16 })
+  // В работе просят 2 + 5 + 4 + 5 из 20, а пока заказов нет — 1 + 2 + 2 + 2.
+  expect(zoneEconomies(sim, 1)[0]).toMatchObject({ produced: 20, peak: 16, demand: 7 })
   // Материалы на заказы уже на месте: подвоз проверяется в economy.test.ts.
   sim.world.get(factory, Inventory)!.items = { ...UNITS.buggy.materials }
   sim.world.get(port, Inventory)!.items = { ...UNITS.drone.materials }
@@ -332,14 +332,35 @@ test('пехоту выпускают казармы, технику — маш�
   for (const [, unit] of sim.world.query(Unit)) made.push(unit.type)
   expect(made.sort()).toEqual(['buggy', 'drone', 'rocketeer'])
 
-  // Энергии не хватает: 10 из 16 — производство идёт на 5/8 скорости, над зданием значок нехватки.
+  // Осталась одна электростанция на 10. Занят один цех, остальные стоят и просят меньше: 2 + 2 + 2 + 2 = 8 —
+  // энергии хватает, хотя на полную нагрузку (16) её нет.
   sim.world.destroy(spare)
+  seconds(sim, 3)
+  sim.send(1, { type: 'produce', producer: barracks, unit: 'infantry' })
+  seconds(sim, 1)
+  // Станция при этом изнашивается: перегруз считается по полной нагрузке.
+  expect(zoneEconomies(sim, 1)[0]).toMatchObject({ peak: 16, demand: 8 })
+  expect(powerStates(sim).has(barracks)).toBe(false)
+  expect(powerStates(sim).get(plant)).toBe('overload')
+  seconds(sim, UNITS.infantry.buildTime)
+  expect(sim.world.get(barracks, Producer)!.queue).toEqual([])
+
+  // Заняты все три: 2 + 5 + 4 + 2 = 13 из 10 — производство идёт на 10/13 скорости, над зданием значок нехватки.
+  sim.world.get(factory, Inventory)!.items = { ...UNITS.buggy.materials }
+  sim.world.get(port, Inventory)!.items = { ...UNITS.drone.materials }
+  sim.send(1, { type: 'produce', producer: factory, unit: 'buggy' })
+  sim.send(1, { type: 'produce', producer: port, unit: 'drone' })
+  seconds(sim, 1)
   sim.send(1, { type: 'produce', producer: barracks, unit: 'infantry' })
   seconds(sim, UNITS.infantry.buildTime + 0.1)
+  expect(zoneEconomies(sim, 1)[0]).toMatchObject({ peak: 16, demand: 13 })
   expect(powerStates(sim).get(barracks)).toBe('starved')
   expect(sim.world.get(barracks, Producer)!.queue).toEqual(['infantry'])
-  seconds(sim, UNITS.infantry.buildTime * 0.6 + 0.1)
+  seconds(sim, UNITS.infantry.buildTime * 0.5)
   expect(sim.world.get(barracks, Producer)!.queue).toEqual([])
+  // Машинный завод и аэродром доделывают своё.
+  seconds(sim, 20)
+  expect(sim.world.get(factory, Producer)!.queue).toEqual([])
 
   // Без энергии совсем производство стоит.
   sim.world.destroy(plant)

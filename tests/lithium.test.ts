@@ -73,8 +73,8 @@ test('без электростанции накопитель держит зо
 test('накопитель отдаёт не быстрее своей скорости: остальное — нехватка', () => {
   const { sim, x, y, generator, cell } = base(capacity)
   sim.world.destroy(generator)
-  // Потребителей на 3 + 6 × 2 = 15 — больше, чем накопитель отдаёт за секунду.
-  for (let i = 0; i < 6; i++) placeBuilding(sim.world, 'laserTurret', x + 4 + i, y + 5, 1)
+  // Радар и 12 турелей без цели, по 1 в простое, — 3 + 12 = 15: больше, чем накопитель отдаёт за секунду.
+  for (let i = 0; i < 12; i++) placeBuilding(sim.world, 'laserTurret', x + 4 + (i % 6), y + 5 + Math.floor(i / 6), 1)
   sim.advance(TICK)
   expect(sim.world.get(cell, Accumulator)!.flow).toBe(rate)
   expect(zoneEconomies(sim, 1)[0].produced).toBe(rate)

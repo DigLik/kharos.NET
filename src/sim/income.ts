@@ -2,16 +2,23 @@ import type { Entity } from '../ecs'
 import { BUILDINGS, buildingSpec, levelFactor, type BuildingSpec, type BuildingType } from './buildings'
 import { isOwn } from './common'
 import { creditsOf } from './economy'
-import { Accumulator, Assembly, Building, Health, Off, Player, Site } from './components'
+import { Accumulator, Assembly, Building, Busy, Health, Off, Player, Site } from './components'
 import { isBurning, meltdown } from './reactors'
 import type { Sim } from './sim'
 import { allGrids, type Zone } from './zones'
 
 /** Хозяйство одной энергосети на этот тик (см. allGrids). Энергия у каждой своя: между ними она не передаётся. */
 export interface Economy {
-  /** Сколько энергии дают здания зоны и сколько её просят потребители. В produced входит и отданное накопителями. */
+  /**
+   * Сколько энергии дают здания зоны и сколько её просят потребители: работающий — всю свою, стоящий без дела —
+   * меньше, см. idlePower. В produced входит и отданное накопителями.
+   */
   produced: number
   demand: number
+  /** Полная нагрузка: сколько попросили бы потребители, работай они все. По ней судят о перегрузе электростанций. */
+  peak: number
+  /** Сколько ещё энергии накопители зоны могли бы отдать в этот тик сверх отданного: запас под полную нагрузку. */
+  spare: number
   /** Доход в кредитах в секунду с учётом нехватки энергии. */
   income: number
   /** Сколько в зоне зданий, которым тесно друг с другом (см. BuildingSpec.crowding). */
@@ -29,6 +36,18 @@ export interface Economy {
 export const RELIEF_BELOW = 600
 export const RELIEF_INCOME = 1
 
+/** Какую долю своей энергии просит потребитель, которому нечего делать. */
+export const IDLE_SHARE = 1 / 3
+
+/**
+ * Сколько энергии просит без дела потребитель, которому в работе нужно power (меньше нуля): треть, целым числом
+ * в большую сторону — 2 и 3 дают 1, 4, 5 и 6 — 2, 10 — 4.
+ */
+export const idlePower = (power: number) => -Math.ceil(-power * IDLE_SHARE)
+
+/** Потребитель, у которого простоя нет: пока включён, он работает — генератор материи, радар. */
+export const alwaysBusy = (spec: BuildingSpec) => !!(spec.income || spec.scan)
+
 /** Есть ли в зоне главное здание: без него доход приносит только оно само, генераторы материи стоят. */
 const hasCore = (sim: Sim, zone: Zone) => zone.buildings.some((entity) => sim.world.get(entity, Building)!.type === 'command')
 
@@ -36,20 +55,25 @@ const hasCore = (sim: Sim, zone: Zone) => zone.buildings.some((entity) => sim.wo
 const needsCore = (type: BuildingType) => type !== 'command' && !!buildingSpec(type).income
 
 /**
- * Хозяйство зоны. Если энергии не хватает, потребители работают на ту долю, на которую её хватает.
+ * Хозяйство зоны. Если энергии не хватает, потребители работают на ту долю, на которую её хватает. Потребитель
+ * без дела (нет метки Busy, см. busy.ts) просит меньше — этим он освобождает энергию остальным; электростанции же
+ * перегружаются по полной нагрузке (peak): то, что три завода разом взялись за работу, станции не ломает.
  * Доход с генераторов материи — только если в зоне есть главное здание; энергию они просят и без него.
  * stored — считать ли то, что отдают накопители: сами они решают, сколько отдать, по хозяйству без себя.
  */
 function economyOfZone(sim: Sim, zone: Zone, stored = true): Economy {
-  const economy: Economy = { produced: 0, demand: 0, income: 0, crowd: 0, stored: 0 }
+  const economy: Economy = { produced: 0, demand: 0, peak: 0, spare: 0, income: 0, crowd: 0, stored: 0 }
   const core = hasCore(sim, zone)
   /** Доход потребителей при полной энергии. */
   let powered = 0
   for (const entity of zone.buildings) {
     const building = sim.world.get(entity, Building)!
     const spec: BuildingSpec = BUILDINGS[building.type]
-    const flow = stored ? (sim.world.get(entity, Accumulator)?.flow ?? 0) : 0
+    const battery = stored ? sim.world.get(entity, Accumulator) : undefined
+    const flow = battery?.flow ?? 0
     if (flow > 0) economy.stored += flow
+    // Заряженный накопитель мог бы отдать ещё: под полную нагрузку этот запас считается.
+    if (battery) economy.spare += Math.max(0, Math.min(spec.battery!.rate - Math.max(0, flow), battery.charge / sim.time.step))
     const power = powerAt(sim, entity)
     const income = core || !needsCore(building.type) ? (spec.income ?? 0) : 0
     // Выключенный потребитель энергии не просит и ничего не даёт.
@@ -58,7 +82,9 @@ function economyOfZone(sim: Sim, zone: Zone, stored = true): Economy {
     if (power > 0) economy.produced += power * (sim.world.get(entity, Health)?.value ?? 1)
     if (power < 0) {
       // Тесное здание просит тем больше, чем их уже в зоне: первое — одну норму, второе — две, третье — три.
-      economy.demand -= power * (spec.crowding ? ++economy.crowd : 1)
+      const norms = spec.crowding ? ++economy.crowd : 1
+      economy.peak -= power * norms
+      economy.demand -= (alwaysBusy(spec) || sim.world.has(entity, Busy) ? power : idlePower(power)) * norms
       powered += income
     } else {
       economy.income += income
@@ -167,10 +193,12 @@ export const zoneEconomies = (sim: Sim, player: number): readonly Economy[] =>
 
 /** Итог по всем зонам игрока. Для дохода это то, что он получает; энергию так складывать можно только для справки. */
 export function economyOf(sim: Sim, player: number): Economy {
-  const total: Economy = { produced: 0, demand: 0, income: 0, crowd: 0, stored: 0 }
+  const total: Economy = { produced: 0, demand: 0, peak: 0, spare: 0, income: 0, crowd: 0, stored: 0 }
   for (const economy of zoneEconomies(sim, player)) {
     total.produced += economy.produced
     total.demand += economy.demand
+    total.peak += economy.peak
+    total.spare += economy.spare
     total.income += economy.income
     total.crowd += economy.crowd
     total.stored += economy.stored
@@ -188,14 +216,29 @@ export function powerOf(type: BuildingType, economy: Economy) {
   return power < 0 && spec.crowding ? power * (economy.crowd + 1) : power
 }
 
+/** То же для здания, которому нечего делать: сколько оно просит без дела. У вида без простоя — столько же, сколько в работе. */
+export function idlePowerOf(type: BuildingType, economy: Economy) {
+  const spec: BuildingSpec = BUILDINGS[type]
+  const power = spec.power ?? 0
+  if (power >= 0 || alwaysBusy(spec)) return powerOf(type, economy)
+  return idlePower(power) * (spec.crowding ? economy.crowd + 1 : 1)
+}
+
 /**
  * Какую долю прочности в секунду теряет электростанция, когда с зоны просят вдвое больше энергии, чем она даёт.
  * При меньшем перегрузе урон меньше во столько же раз, при большем — не растёт.
  */
 export const OVERLOAD_DAMAGE = 0.01
 
-/** Насколько зона перегружена: 0 — энергии хватает, 1 — просят вдвое больше, чем есть, и выше. */
-const overloadOf = (economy: Economy) => (economy.produced > 0 && economy.demand > economy.produced ? Math.min(1, economy.demand / economy.produced - 1) : 0)
+/**
+ * Насколько зона перегружена: 0 — энергии хватает и на полную нагрузку, 1 — полная нагрузка вдвое больше того, что
+ * есть, и выше. Считается по полной нагрузке, а не по нынешней: перегруз — это то, что построено, а не то, что
+ * сейчас включилось. В «есть» входит и то, что могли бы отдать заряженные накопители: пока заряда хватает, станции целы.
+ */
+export const overloadOf = (economy: Economy) => {
+  const able = economy.produced + economy.spare
+  return economy.produced > 0 && economy.peak > able ? Math.min(1, economy.peak / able - 1) : 0
+}
 
 /** Что нехватка энергии делает со зданием: электростанция перегружена и разрушается, потребитель работает медленнее. */
 export type PowerState = 'overload' | 'starved'
@@ -204,11 +247,14 @@ export type PowerState = 'overload' | 'starved'
 export function powerStates(sim: Sim): Map<Entity, PowerState> {
   const states = new Map<Entity, PowerState>()
   for (const { zone, economy } of books(sim)) {
-    if (economy.demand <= economy.produced) continue
+    // Станции страдают от полной нагрузки, потребители — от нынешней нехватки: одно бывает без другого.
+    const overloaded = overloadOf(economy) > 0
+    const short = economy.demand > economy.produced
+    if (!overloaded && !short) continue
     for (const entity of zone.buildings) {
       const power = powerAt(sim, entity)
-      if (power > 0) states.set(entity, 'overload')
-      else if (power < 0 && !switchedOff(sim, entity)) states.set(entity, 'starved')
+      if (power > 0 && overloaded) states.set(entity, 'overload')
+      else if (power < 0 && short && !switchedOff(sim, entity)) states.set(entity, 'starved')
     }
   }
   return states
@@ -239,7 +285,7 @@ export function overbuiltPlants(sim: Sim): Set<Entity> {
   for (const { zone, economy } of books(sim)) {
     const found = zone.buildings.filter((entity) => powerAt(sim, entity) > 0)
     const capacity = found.reduce((sum, entity) => sum + powerAt(sim, entity), 0)
-    if (economy.demand > capacity) for (const entity of found) plants.add(entity)
+    if (economy.peak > capacity + economy.spare) for (const entity of found) plants.add(entity)
   }
   return plants
 }

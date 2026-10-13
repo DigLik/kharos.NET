@@ -6,16 +6,37 @@ import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
   armyOf, overLimit, Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
-  awaitsMaterials, buildTicks, canDemolish, freeCredits, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridOf, gridsOf, RELIEF_BELOW,
+  awaitsMaterials, buildTicks, canDemolish, freeCredits, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, idlePowerOf, overloadOf, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridOf, gridsOf, RELIEF_BELOW,
   Research, TOPICS, PAVE_RESEARCH, DIG_KINDS, DIG_RESEARCH, type DigKind, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, pickTopic, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
-  Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
+  type Economy, Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
   Accumulator, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
 import { paveStrokeOf } from './placing'
 import type { PaveTool, Scene } from './scene'
 
 /** Что интерфейс игрока показывает прямо сейчас. Обычные данные: их можно сравнивать и хранить в состоянии. */
+/**
+ * Энергия сети: сколько вырабатывается (вместе с отданным накопителями, stored), сколько просят сейчас (demand) и
+ * сколько попросили бы все потребители в работе (peak); overload — станции перегружены и изнашиваются.
+ */
+export interface GridState {
+  produced: number
+  demand: number
+  peak: number
+  stored: number
+  overload: boolean
+}
+
+/** Выработка повреждённых станций дробная: до десятых и вниз, а спрос — вверх, чтобы нехватка не выглядела как «20 из 20». */
+const gridState = (economy: Economy): GridState => ({
+  produced: Math.floor(economy.produced * 10) / 10,
+  demand: Math.ceil(economy.demand * 10) / 10,
+  peak: Math.ceil(economy.peak * 10) / 10,
+  stored: Math.round(economy.stored * 100) / 100,
+  overload: overloadOf(economy) > 0,
+})
+
 export interface HudState {
   credits: number
   /** Уведомления, от старых к новым: at — когда, по нему строка узнаётся между опросами. */
@@ -62,12 +83,12 @@ export interface HudState {
    * Энергия зоны строительства, в которой стоит выбранная электростанция: сколько вырабатывается и сколько
    * просят потребители. У каждой зоны она своя, поэтому общего счётчика нет.
    */
-  power: { produced: number; demand: number; stored: number } | null
+  power: GridState | null
   /**
    * Энергия на верхней полосе: энергосеть первого выбранного своего здания, а без такого — сеть главного здания.
    * null — сетей у игрока нет: ни одного готового здания.
    */
-  grid: { produced: number; demand: number; stored: number } | null
+  grid: GridState | null
   /** Выбранный накопитель: заряд, ёмкость и сколько энергии он сейчас отдаёт (больше нуля) или копит (меньше). */
   battery: { charge: number; capacity: number; flow: number } | null
   /** Прочность выбранного здания от 0 до 1, если оно повреждено, и сколько кредитов стоит его дочинить. */
@@ -247,7 +268,7 @@ export interface HudState {
     /** Покрытие, которое сейчас кладут или снимают, и во что обойдётся протянутое мышью. */
     paving: { tool: PaveTool; cost: number; tiles: number; short: number } | null
     /** power — как здание изменит баланс энергии: больше нуля — даст, меньше — попросит; materials — что привезти на стройку. */
-    options: { building: BuildingType; cost: number; affordable: boolean; power: number; materials: Stack[] }[]
+    options: { building: BuildingType; cost: number; affordable: boolean; power: number; idle: number; materials: Stack[] }[]
     /** Какие инструменты покрытия, землеройных работ и логистики открыты исследованиями; мост — дорога по болоту, отдельно. */
     tools: ('foundation' | 'road' | 'bridge' | 'peak' | 'cliff' | 'pipe' | 'well')[]
   } | null
@@ -515,7 +536,7 @@ export function readHud(scene: Scene): HudState {
     if (building !== null && ((buildingSpec(building).power ?? 0) > 0 || buildingSpec(building).battery)) {
       // Недостроенная и отрезанная от зоны электростанция ни в какую зону не входит — показывать нечего.
       const zone = gridsOf(sim, player).findIndex((zone) => zone.buildings.includes(entity))
-      if (zone >= 0) power = { produced: round(zones[zone].produced), demand: zones[zone].demand, stored: round(zones[zone].stored) }
+      if (zone >= 0) power = gridState(zones[zone])
     }
     const cell = building !== null && world.get(entity, Accumulator)
     if (cell && building !== null) battery = { charge: Math.floor(cell.charge), capacity: buildingSpec(building).battery!.capacity, flow: round(cell.flow) }
@@ -718,8 +739,7 @@ export function readHud(scene: Scene): HudState {
   const economy = zones[0] ?? economyOf(sim, player)
   // Сети идут с главным зданием первыми, см. allGrids: без выбора на полосе — она.
   const shown = zones[Math.max(0, gridIndex)]
-  // Выработка повреждённых станций дробная: на полосе — до десятых и вниз, чтобы перегруз не выглядел как «20 из 20».
-  const grid = shown ? { produced: Math.floor(shown.produced * 10) / 10, demand: Math.ceil(shown.demand * 10) / 10, stored: round(shown.stored) } : null
+  const grid = shown ? gridState(shown) : null
   const stock = stockOf(sim, player)
   // Главные здания всех игроков — одним обходом: по ним панель союзников ведёт камеру. В локальной игре игроков нет.
   const bases = 'players' in sim ? coreBasesOf(sim) : new Map<number, { x: number; y: number }>()
@@ -810,6 +830,7 @@ export function readHud(scene: Scene): HudState {
             cost: BUILDINGS[type].cost,
             affordable: free >= BUILDINGS[type].cost,
             power: powerOf(type, economy),
+            idle: idlePowerOf(type, economy),
             materials: exactOf(buildingSpec(type).materials ?? {}),
           })),
         }

@@ -4,7 +4,7 @@ import { Building, Inventory, Off, Owner, Player, Research, Site } from './compo
 import { DEPOSIT_CELL, depositsIn } from './deposits'
 import { amountOf, take } from './inventory'
 import { spend } from './economy'
-import { powerSupply, zoneEconomies } from './income'
+import { overloadOf, powerSupply, zoneEconomies } from './income'
 import { networkOf } from './zones'
 import { RESOURCES, entriesOf, type Amounts, type Good } from './resources'
 import type { Sim } from './sim'
@@ -157,7 +157,7 @@ export function triggers(sim: Sim, time: Time) {
       const happened =
         trigger === 'lab' ? hasLab(sim, player.id)
         : trigger === 'refined' ? hasRefined(sim, player.id)
-        : trigger === 'brownout' ? zoneEconomies(sim, player.id).some((economy) => economy.demand > economy.produced + 1e-9)
+        : trigger === 'brownout' ? zoneEconomies(sim, player.id).some((economy) => economy.demand > economy.produced + 1e-9 || overloadOf(economy) > 0)
         : (seen ??= depositsSeen(sim, player.id)).size > 0 && (trigger === 'deposit' || seen.has(trigger))
       if (happened) learn(sim, entity, topic)
     }
