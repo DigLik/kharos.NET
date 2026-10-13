@@ -428,8 +428,9 @@ function volunteer(sim: Sim) {
     if (awaitsMaterials(sim, entity)) continue
     sites.push({ entity, work: workAt(sim, entity)!, player: owner.player, type: site.demolish ? undefined : site.type })
   }
-  for (const [entity, , pave, owner] of world.query(Position, Pave, Owner)) {
-    if (!pave.done || pave.remove) sites.push({ entity, work: workAt(sim, entity)!, player: owner.player })
+  for (const entity of sim.paving.unfinished()) {
+    const owner = world.get(entity, Owner)
+    if (owner) sites.push({ entity, work: workAt(sim, entity)!, player: owner.player })
   }
   for (const [entity, , , owner] of world.query(Upgrade, Position, Owner)) {
     if (upgradeAt(sim, entity)) sites.push({ entity, work: workAt(sim, entity)!, player: owner.player })
@@ -537,8 +538,8 @@ export function repairLinks(sim: Sim): RepairLink[] {
 
   const targets: { entity: Entity; work: Work; player: number; demolish: boolean; ordered: boolean; upgrade?: boolean }[] = []
   for (const [entity] of world.query(Site, Position, Owner)) targets.push({ entity, work: workAt(sim, entity)!, player: 0, demolish: false, ordered: false })
-  for (const [entity, pave] of world.query(Pave, Position, Owner)) {
-    if (!pave.done || pave.remove) targets.push({ entity, work: workAt(sim, entity)!, player: 0, demolish: false, ordered: false })
+  for (const entity of sim.paving.unfinished()) {
+    if (world.has(entity, Owner)) targets.push({ entity, work: workAt(sim, entity)!, player: 0, demolish: false, ordered: false })
   }
   for (const [entity, health] of world.query(Health, Position, Owner)) {
     // По кому сейчас бьют, не чинят: посланный строитель постоит рядом и возьмётся, когда бой стихнет.

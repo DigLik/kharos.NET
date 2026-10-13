@@ -102,6 +102,7 @@ export function removePave(sim: Sim, player: number, tiles: readonly number[], u
       continue
     }
     pave.remove = true
+    sim.paving.reopen(entity)
     first ??= entity
   }
   for (const entity of taken) {

@@ -21,20 +21,42 @@ export const FOUNDATION_SPEED = 1.2
 export interface Paving {
   /** Покрытие тайла, готовое или нет, или undefined. */
   at(x: number, y: number): Entity | undefined
+  /**
+   * Покрытие, над которым есть работа строителям: ещё не достроено или его разбирают. Готового на большой базе —
+   * десятки тысяч тайлов, работы — единицы, и строители ищут её здесь, а не перебором всего покрытия.
+   */
+  unfinished(): Entity[]
+  /** Готовое покрытие снова стало работой — его начали разбирать (Pave.remove), см. removePave. */
+  reopen(entity: Entity): void
   destroy(): void
 }
 
 export function createPaving(world: World): Paving {
   const tiles = new Map<number, Entity>()
-  const stop = world.observe([Position, Pave], (entity, position) => {
+  /** Где может быть работа: новое и разбираемое; достроенное выпадает, когда его тут застанут. */
+  const pending = new Set<Entity>()
+  const working = (pave: { done: boolean; remove: boolean }) => !pave.done || pave.remove
+  const stop = world.observe([Position, Pave], (entity, position, pave) => {
     const key = tileKey(position.x, position.y)
     tiles.set(key, entity)
+    if (working(pave)) pending.add(entity)
     return () => {
       if (tiles.get(key) === entity) tiles.delete(key)
+      pending.delete(entity)
     }
   })
   return {
     at: (x, y) => (tiles.size ? tiles.get(tileKey(x, y)) : undefined),
+    unfinished() {
+      const found: Entity[] = []
+      for (const entity of pending) {
+        const pave = world.get(entity, Pave)
+        if (pave && working(pave)) found.push(entity)
+        else pending.delete(entity)
+      }
+      return found
+    },
+    reopen: (entity) => void (world.has(entity, Pave) && world.has(entity, Position) && pending.add(entity)),
     destroy: stop,
   }
 }
