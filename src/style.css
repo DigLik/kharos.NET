@@ -1320,6 +1320,20 @@ body {
   color: var(--bad);
 }
 
+/* Энергия сети на верхней полосе: жёлтая, когда запас на исходе, красная при перегрузе. */
+.hud__grid {
+  color: var(--power);
+  white-space: nowrap;
+}
+
+.hud__grid.is-tight {
+  color: var(--warn);
+}
+
+.hud__grid.is-short {
+  color: var(--bad);
+}
+
 .hud__coin {
   flex: none;
   width: 16px;

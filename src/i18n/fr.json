@@ -509,6 +509,7 @@
     "zonePower": "⚡ Énergie de la zone : {demand} consommés sur {produced}",
     "zoneStored": ", dont {stored} des accumulateurs",
     "overloaded": " — surcharge, les centrales se détruisent",
+    "gridTip": "Réseau du bâtiment sélectionné ; rien de sélectionné — réseau du bâtiment principal",
     "coreless": "Ne rapporte rien : la zone n'a pas de centre de commandement",
     "unlinked": "Non relié au réseau : posez un tuyau, sinon les ressources n'arrivent ni ne repartent",
     "starved": "⚡ Énergie insuffisante : le bâtiment travaille plus lentement ou est à l'arrêt",

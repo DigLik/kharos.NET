@@ -509,6 +509,7 @@
     "zonePower": "⚡ Zone power: {demand} of {produced} in use",
     "zoneStored": ", {stored} of it from accumulators",
     "overloaded": " — overload, power plants are breaking down",
+    "gridTip": "The selected building's grid; nothing selected — the main building's grid",
     "coreless": "Earns nothing: the zone has no command center",
     "unlinked": "Not connected to the network: lay a pipe — otherwise resources neither arrive nor leave",
     "starved": "⚡ Not enough power: the building works slower or stops",

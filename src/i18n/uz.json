@@ -509,6 +509,7 @@
     "zonePower": "⚡ Zona energiyasi: {produced} dan {demand} sarflanmoqda",
     "zoneStored": ", shundan {stored} akkumulyatorlardan",
     "overloaded": " — ortiqcha yuklama, stansiyalar buzilmoqda",
+    "gridTip": "Tanlangan bino tarmog‘i; hech narsa tanlanmagan bo‘lsa — bosh bino tarmog‘i",
     "coreless": "Daromad keltirmaydi: zonada bosh bino yo‘q",
     "unlinked": "Tarmoqqa ulanmagan: quvur o‘tkazing — aks holda resurslar kelmaydi ham, ketmaydi ham",
     "starved": "⚡ Energiya yetarli emas: bino sekinroq ishlaydi yoki to‘xtaydi",

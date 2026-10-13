@@ -48,6 +48,9 @@ interface HudProps {
 
 const percent = (value: number) => `${Math.round(value * 100)}%`
 
+/** С какой доли выработки энергия на верхней полосе желтеет: запас кончается, следующий потребитель — уже перегруз. */
+const GRID_TIGHT = 0.8
+
 /** Стороны квадратов под картинки, в пикселях экрана: портреты рисуются ровно под них, см. portraits.ts. */
 const PORTRAIT = 96
 const TILE = 32
@@ -937,6 +940,19 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
           {state.credits}
           {state.income > 0 && <small>{t('hud.perSecond', { amount: state.income })}</small>}
         </span>
+        {state.grid && (
+          <span
+            class={state.grid.demand > state.grid.produced ? 'hud__grid is-short' : state.grid.demand > state.grid.produced * GRID_TIGHT ? 'hud__grid is-tight' : 'hud__grid'}
+            data-tip={[
+              t('hud.zonePower', { demand: state.grid.demand, produced: state.grid.produced }),
+              state.grid.stored > 0 ? t('hud.zoneStored', { stored: state.grid.stored }) : '',
+              state.grid.demand > state.grid.produced ? t('hud.overloaded') : '',
+              `\n${t('hud.gridTip')}`,
+            ].join('')}
+          >
+            ⚡ {state.grid.demand} / {state.grid.produced}
+          </span>
+        )}
         {state.protection && (
           <span class="hud__shelter" data-tip={t('hud.protectionTip')}>
             {t('hud.protection', { left: state.protection })}

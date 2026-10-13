@@ -509,6 +509,7 @@
     "zonePower": "⚡ Energía de la zona: se consumen {demand} de {produced}",
     "zoneStored": ", {stored} de ellos de acumuladores",
     "overloaded": " — sobrecarga, las centrales se están destruyendo",
+    "gridTip": "Red del edificio seleccionado; sin selección — red del centro de mando",
     "coreless": "No da dinero: la zona no tiene centro de mando",
     "unlinked": "No está conectado a la red: tiende una tubería; sin ella los recursos ni llegan ni salen",
     "starved": "⚡ Falta energía: el edificio trabaja más despacio o está parado",

@@ -509,6 +509,7 @@
     "zonePower": "⚡ Zonenenergie: {demand} von {produced} verbraucht",
     "zoneStored": ", davon {stored} aus Akkumulatoren",
     "overloaded": " — Überlast, die Kraftwerke gehen kaputt",
+    "gridTip": "Netz des ausgewählten Gebäudes; nichts ausgewählt — Netz des Hauptgebäudes",
     "coreless": "Bringt kein Geld: Die Zone hat keine Kommandozentrale",
     "unlinked": "Nicht ans Netz angeschlossen: Verlege ein Rohr — sonst kommen Rohstoffe weder an noch weg",
     "starved": "⚡ Zu wenig Energie: Das Gebäude arbeitet langsamer oder steht still",

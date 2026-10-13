@@ -6,7 +6,7 @@ import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
   armyOf, overLimit, Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
-  awaitsMaterials, buildTicks, canDemolish, freeCredits, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridsOf,
+  awaitsMaterials, buildTicks, canDemolish, freeCredits, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridOf, gridsOf,
   Research, TOPICS, PAVE_RESEARCH, DIG_KINDS, DIG_RESEARCH, type DigKind, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
@@ -63,6 +63,11 @@ export interface HudState {
    * просят потребители. У каждой зоны она своя, поэтому общего счётчика нет.
    */
   power: { produced: number; demand: number; stored: number } | null
+  /**
+   * Энергия на верхней полосе: энергосеть первого выбранного своего здания, а без такого — сеть главного здания.
+   * null — сетей у игрока нет: ни одного готового здания.
+   */
+  grid: { produced: number; demand: number; stored: number } | null
   /** Выбранный накопитель: заряд, ёмкость и сколько энергии он сейчас отдаёт (больше нуля) или копит (меньше). */
   battery: { charge: number; capacity: number; flow: number } | null
   /** Прочность выбранного здания от 0 до 1, если оно повреждено, и сколько кредитов стоит его дочинить. */
@@ -462,6 +467,8 @@ export function readHud(scene: Scene): HudState {
   let tactics: HudState['tactics'] = null
   let trade: HudState['trade'] = null
   let power: HudState['power'] = null
+  /** Энергосеть первого выбранного своего здания: её номер среди сетей игрока. */
+  let gridIndex = -1
   let battery: HudState['battery'] = null
   let health: number | null = null
   let shield: HudState['shield'] = null
@@ -490,6 +497,10 @@ export function readHud(scene: Scene): HudState {
       }
     }
     building = world.get(entity, Building)?.type ?? world.get(entity, Site)?.type ?? building
+    if (gridIndex < 0 && isOwn(sim, player, entity)) {
+      const grid = gridOf(sim, entity)
+      if (grid) gridIndex = gridsOf(sim, player).indexOf(grid)
+    }
     if (building !== null && buildingSpec(building).extract) {
       const position = world.get(entity, Position)!
       const spot = depositAt(sim, position.x, position.y)
@@ -699,6 +710,10 @@ export function readHud(scene: Scene): HudState {
 
   // Кнопки стройки показывают энергию для первой зоны: в какую попадёт здание, до выбора места неизвестно.
   const economy = zones[0] ?? economyOf(sim, player)
+  // Сети идут с главным зданием первыми, см. allGrids: без выбора на полосе — она.
+  const shown = zones[Math.max(0, gridIndex)]
+  // Выработка повреждённых станций дробная: на полосе — до десятых и вниз, чтобы перегруз не выглядел как «20 из 20».
+  const grid = shown ? { produced: Math.floor(shown.produced * 10) / 10, demand: Math.ceil(shown.demand * 10) / 10, stored: round(shown.stored) } : null
   const stock = stockOf(sim, player)
   // Главные здания всех игроков — одним обходом: по ним панель союзников ведёт камеру. В локальной игре игроков нет.
   const bases = 'players' in sim ? coreBasesOf(sim) : new Map<number, { x: number; y: number }>()
@@ -741,6 +756,7 @@ export function readHud(scene: Scene): HudState {
     protection: protectionOf(scene),
     income: round(economyOf(sim, player).income),
     power,
+    grid,
     battery,
     health,
     shield,
