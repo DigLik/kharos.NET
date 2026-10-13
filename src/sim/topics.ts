@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity, World } from '../ecs'
 import { Player } from './components'
 import { entriesOf, type Amounts } from './resources'
 import type { Sim } from './sim'
@@ -114,9 +114,22 @@ export function tierOf(topic: Topic): number {
 export const TIER_CREDITS = 100
 export const TIER_SECONDS = 20
 
+/** Сущности игроков по номеру: о счёте игрока спрашивают тысячи раз за тик, и перебирать для этого мир дорого. */
+const accounts = new WeakMap<World, Map<number, Entity>>()
+
+/** Сущность игрока player со счётом, исследованиями и планом (Player); undefined — такого игрока нет. */
 export function playerEntity(sim: Sim, player: number): Entity | undefined {
-  for (const [entity, data] of sim.world.query(Player)) if (data.id === player) return entity
-  return undefined
+  let index = accounts.get(sim.world)
+  if (!index) {
+    const fresh = new Map<number, Entity>()
+    sim.world.observe([Player], (entity, data) => {
+      const { id } = data
+      fresh.set(id, entity)
+      return () => void (fresh.get(id) === entity && fresh.delete(id))
+    })
+    accounts.set(sim.world, (index = fresh))
+  }
+  return index.get(player)
 }
 
 /** Что игрок уже исследовал, по порядку. */

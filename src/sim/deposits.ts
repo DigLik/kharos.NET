@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity, World } from '../ecs'
 import { Biome, biomeAt, hash, isBuildable, isCliffFoot, terrainAt, tileKey } from '../map/terrain'
 import { Deposit, Position } from './components'
 import type { Resource } from './resources'
@@ -341,11 +341,22 @@ export function depositNear(sim: Sim, x: number, y: number, reach: number): Depo
  * закладывают шахту: нетронутые месторождения в мире не хранятся.
  */
 export function depositEntity(sim: Sim, x: number, y: number): Entity | undefined {
-  for (const [entity, position] of sim.world.query(Position, Deposit)) {
-    if (position.x === x && position.y === y) return entity
+  let index = minedAt.get(sim.world)
+  if (!index) {
+    const fresh = new Map<number, Entity>()
+    // Месторождение с места не сходит: тайл, на котором оно появилось, — его тайл навсегда.
+    sim.world.observe([Position, Deposit], (entity, position) => {
+      const key = tileKey(position.x, position.y)
+      fresh.set(key, entity)
+      return () => void (fresh.get(key) === entity && fresh.delete(key))
+    })
+    minedAt.set(sim.world, (index = fresh))
   }
-  return undefined
+  return index.get(tileKey(x, y))
 }
+
+/** Сущности месторождений по тайлу, см. depositEntity: о них спрашивает каждая шахта каждый тик. */
+const minedAt = new WeakMap<World, Map<number, Entity>>()
 
 /** Сколько осталось в месторождении с левым верхним тайлом в (x, y). Где месторождения нет — ноль. */
 export function reserveLeft(sim: Sim, x: number, y: number) {
