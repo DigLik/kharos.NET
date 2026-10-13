@@ -46,15 +46,22 @@ export function unitSight(type: UnitType) {
   return sight
 }
 
-/** Сколько тайлов от своего центра видит здание вида type; стройка видит меньше. */
+const buildingSights = new Map<keyof typeof BUILDINGS, number>()
+
+/** Сколько тайлов от своего центра видит здание вида type; стройка видит меньше. Готовое — число считается раз на вид. */
 export function buildingSight(type: keyof typeof BUILDINGS, site = false, off = false) {
   const spec = buildingSpec(type)
   const half = Math.max(spec.width, spec.height) / 2
   if (site) return half + SITE_SIGHT
   // Выключенный радар видит как обычное здание.
   if (off) return half + BUILDING_SIGHT
-  const range = longestRange(undefined, spec.mounts)
-  return Math.max(spec.sight ?? half + BUILDING_SIGHT, range ? range + SIGHT_OVER_RANGE : 0)
+  let sight = buildingSights.get(type)
+  if (sight === undefined) {
+    const range = longestRange(undefined, spec.mounts)
+    sight = Math.max(spec.sight ?? half + BUILDING_SIGHT, range ? range + SIGHT_OVER_RANGE : 0)
+    buildingSights.set(type, sight)
+  }
+  return sight
 }
 
 /**
@@ -164,15 +171,14 @@ export function createVision(world: World, bounds: Bounds, tick: () => number, f
     sight.lit = []
     // Разведка у союзников общая: игрок видит и то, что видят их юниты, здания и радары, см. allies.ts.
     const team = alliesIn(world, player)
-    for (const [entity, owner, position] of world.query(Owner, Position)) {
-      if ((owner.player !== player && !team.includes(owner.player)) || world.has(entity, Attached)) continue
-      const unit = world.get(entity, Unit)
-      if (unit) {
-        stamp(sight, position.x, position.y, unitSight(unit.type))
-        continue
-      }
-      const building = world.get(entity, Building)
-      if (!building) continue
+    const ours = (owner: { player: number }) => owner.player === player || team.includes(owner.player)
+    // Юниты и здания — отдельными обходами: остальное с хозяином (покрытие, пачки в трубах) не видит, а его на большой
+    // базе в разы больше.
+    for (const [entity, unit, owner, position] of world.query(Unit, Owner, Position)) {
+      if (ours(owner) && !world.has(entity, Attached)) stamp(sight, position.x, position.y, unitSight(unit.type))
+    }
+    for (const [entity, building, owner, position] of world.query(Building, Owner, Position)) {
+      if (!ours(owner) || world.has(entity, Attached)) continue
       const { width: w, height: h } = BUILDINGS[building.type]
       stamp(sight, position.x + w / 2, position.y + h / 2, buildingSight(building.type, world.has(entity, Site), world.has(entity, Off)))
     }
