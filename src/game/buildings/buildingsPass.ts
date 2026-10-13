@@ -1,7 +1,6 @@
 import { setBlend } from '../../gl'
 import { tileKey } from '../../map/terrain'
-import { createAtlas, type AtlasFrame } from '../../render/atlas'
-import { Pixmap } from '../../render/pixmap'
+import { uploadAtlas, type AtlasFrame, type PackedAtlas, type Sprite } from '../../render/atlas'
 import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'
 import type { Entity } from '../../ecs'
@@ -45,8 +44,7 @@ interface ArtLight {
 
 interface Sheet {
   art: BuildingArt
-  images: Pixmap[]
-  /** Места кадров в атласе; заполняются после его сборки. */
+  /** Места кадров в атласе. */
   frames: AtlasFrame[]
   lights: ArtLight[]
 }
@@ -54,21 +52,38 @@ interface Sheet {
 /** Сколько кадров в листе: у здания с видом работы — сначала кадры простоя, за ними кадры работы. */
 const framesOf = (art: BuildingArt) => ART_FRAMES * (art.working ? 2 : 1)
 
-/** Растеризует один вариант чертежа в кадры анимации и собирает его огни. */
-function drawSheet(art: BuildingArt, variant: number): Sheet {
-  const images: Pixmap[] = []
-  const lights: ArtLight[] = []
-  for (let i = 0; i < framesOf(art); i++) {
-    const image = new Pixmap(art.width * ART_TILE + PAD * 2, art.height * ART_TILE + PAD * 2)
-    image.originX = image.originY = PAD
-    let slot = 0
-    art.draw(image, (i % ART_FRAMES) / ART_FRAMES, (x, y, size, level) => {
-      const light = (lights[slot++] ??= { x, y, size, levels: [] })
-      light.levels[i] = level
-    }, variant, i >= ART_FRAMES)
-    images.push(image)
+/** Картинки зданий: атлас и огни каждого варианта чертежа; кадры вариантов лежат в атласе подряд, по типам в порядке BUILDING_TYPES. */
+export interface BuildingsArt {
+  atlas: PackedAtlas
+  lights: Record<BuildingType, ArtLight[][]>
+}
+
+/** Кадры анимации всех вариантов всех чертежей. Огни чертежа собираются в lights по ходу рисования. */
+export function buildingsSprites(): { sprites: Sprite[]; lights: Record<BuildingType, ArtLight[][]> } {
+  const sprites: Sprite[] = []
+  const lights = {} as Record<BuildingType, ArtLight[][]>
+  for (const type of BUILDING_TYPES) {
+    const art = BUILDING_ART[type]
+    lights[type] = Array.from({ length: art.variants ?? 1 }, (_, variant) => {
+      const sheet: ArtLight[] = []
+      for (let i = 0; i < framesOf(art); i++) {
+        sprites.push({
+          width: art.width * ART_TILE + PAD * 2,
+          height: art.height * ART_TILE + PAD * 2,
+          draw(image) {
+            image.originX = image.originY = PAD
+            let slot = 0
+            art.draw(image, (i % ART_FRAMES) / ART_FRAMES, (x, y, size, level) => {
+              const light = (sheet[slot++] ??= { x, y, size, levels: [] })
+              light.levels[i] = level
+            }, variant, i >= ART_FRAMES)
+          },
+        })
+      }
+      return sheet
+    })
   }
-  return { art, images, frames: [], lights }
+  return { sprites, lights }
 }
 
 interface Visible {
@@ -88,18 +103,16 @@ interface Visible {
  * Проход зданий: тени, сами здания и их огни. Здания — сущности с Position и Building.
  * Стройка (Site) рисуется чертежом, поверх которого снизу вверх растёт настоящее здание.
  */
-export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene): Pass {
-  const sheets = new Map<BuildingType, Sheet[]>(BUILDING_TYPES.map((type): [BuildingType, Sheet[]] => {
-    const art = BUILDING_ART[type]
-    return [type, Array.from({ length: art.variants ?? 1 }, (_, variant) => drawSheet(art, variant))]
-  }))
-  const all = [...sheets.values()].flat()
-  const atlas = createAtlas(gl, all.flatMap((sheet) => sheet.images))
+export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene, art: BuildingsArt): Pass {
+  const atlas = uploadAtlas(gl, art.atlas)
   let first = 0
-  for (const sheet of all) {
-    sheet.frames = atlas.frames.slice(first, first + sheet.images.length)
-    first += sheet.images.length
-  }
+  const sheets = new Map<BuildingType, Sheet[]>(BUILDING_TYPES.map((type): [BuildingType, Sheet[]] => {
+    const drawing = BUILDING_ART[type]
+    return [type, art.lights[type].map((lights) => {
+      const frames = atlas.frames.slice(first, (first += framesOf(drawing)))
+      return { art: drawing, frames, lights }
+    })]
+  }))
 
   /**
    * Работает ли здание: переработка — пока убывает её руда, цех — пока движется сборка. Для каждого здания

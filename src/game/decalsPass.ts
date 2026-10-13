@@ -1,6 +1,6 @@
 import { createProgram, createQuads, setBlend } from '../gl'
 import { Terrain, terrainAt } from '../map/terrain'
-import { createAtlas, type AtlasFrame } from '../render/atlas'
+import { ready, uploadAtlas, type AtlasFrame, type PackedAtlas, type Sprite } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { TURN, UNIT_TYPES, unitSpec, type UnitType } from '../sim'
@@ -232,25 +232,31 @@ interface Decal {
 
 const WHITE = [1, 1, 1] as const
 
+/** Белый пиксель колеи, гарь, воронки и остовы. */
+export function decalsSprites(): Sprite[] {
+  const white = new Pixmap(1, 1).rect(0, 0, 1, 1, 0xffffff)
+  const scorches = SCORCH_SIZES.flatMap((size) => Array.from({ length: VARIANTS }, (_, variant) => drawScorch(size, variant)))
+  const pocks = Array.from({ length: VARIANTS }, (_, variant) => drawPock(variant))
+  const wrecks = UNIT_TYPES.flatMap((type) => Array.from({ length: WRECK_DIRECTIONS }, (_, direction) => drawWreck(type, direction, direction % VARIANTS)))
+  return [white, ...scorches, ...pocks, ...wrecks].map(ready)
+}
+
 /**
  * Проход следов на земле: колеи от колёс и гусениц, отпечатки ног, гарь от взрывов, щербинки от пуль и остовы
  * погибшей техники. Всё это живёт только на экране, в симуляции его нет, и со временем растворяется. Ставится
  * над землёй и под юнитами, до освещения: ночью следы темнеют вместе с землёй.
  */
-export function createDecalsPass(gl: WebGL2RenderingContext, scene: Scene): Pass {
-  const white = new Pixmap(1, 1).rect(0, 0, 1, 1, 0xffffff)
-  const scorches = SCORCH_SIZES.flatMap((size) => Array.from({ length: VARIANTS }, (_, variant) => drawScorch(size, variant)))
-  const pocks = Array.from({ length: VARIANTS }, (_, variant) => drawPock(variant))
-  const wrecks = UNIT_TYPES.flatMap((type) => Array.from({ length: WRECK_DIRECTIONS }, (_, direction) => drawWreck(type, direction, direction % VARIANTS)))
-  const atlas = createAtlas(gl, [white, ...scorches, ...pocks, ...wrecks])
+export function createDecalsPass(gl: WebGL2RenderingContext, scene: Scene, art: PackedAtlas): Pass {
+  const atlas = uploadAtlas(gl, art)
   // Колея берёт цвет из середины белого пикселя, чтобы не задеть соседей по атласу.
   const white0 = atlas.frames[0]
   const whiteFrame: AtlasFrame = { u: white0.u + white0.width / 2, v: white0.v + white0.height / 2, width: 0, height: 0 }
   /** Гарь size-го размера из SCORCH_SIZES. */
   const scorchFrame = (size: number, variant: number) => atlas.frames[1 + size * VARIANTS + variant]
-  const pockFrame = (variant: number) => atlas.frames[1 + scorches.length + variant]
+  const scorches = SCORCH_SIZES.length * VARIANTS
+  const pockFrame = (variant: number) => atlas.frames[1 + scorches + variant]
   const wreckFrame = (type: UnitType, direction: number) =>
-    atlas.frames[1 + scorches.length + pocks.length + UNIT_TYPES.indexOf(type) * WRECK_DIRECTIONS + direction]
+    atlas.frames[1 + scorches + VARIANTS + UNIT_TYPES.indexOf(type) * WRECK_DIRECTIONS + direction]
 
   const program = createProgram(gl, VERTEX, FRAGMENT)
   const quads = createQuads(gl, program, { aLine: 4, aWidth: 1, aFrame: 4, aTint: 4, aFade: 3 })

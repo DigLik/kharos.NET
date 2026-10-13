@@ -1,6 +1,6 @@
 import { knownReserve } from './knownReserve'
 import { setBlend } from '../gl'
-import { createAtlas } from '../render/atlas'
+import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
@@ -69,12 +69,17 @@ function drawDeposit(kind: DepositKind) {
 /** Непрозрачность призрака месторождения в редакторе. */
 const GHOST_ALPHA = 0.55
 
+/** Месторождения каждого вида. */
+export function depositsSprites(): Sprite[] {
+  return DEPOSIT_TYPES.map(drawDeposit).map(ready)
+}
+
 /**
  * Проход месторождений. Месторождения, как и местность, считаются из сида, поэтому проход не обходит сущности,
  * а спрашивает клетки мира, попавшие на экран. Ставить сразу над местностью: шахта закрывает месторождение собой.
  */
-export function createDepositsPass(gl: WebGL2RenderingContext, scene: Scene): Pass {
-  const atlas = createAtlas(gl, DEPOSIT_TYPES.map(drawDeposit))
+export function createDepositsPass(gl: WebGL2RenderingContext, scene: Scene, art: PackedAtlas): Pass {
+  const atlas = uploadAtlas(gl, art)
   const frames = new Map(DEPOSIT_TYPES.map((kind, i) => [kind, atlas.frames[i]]))
   const program = createSpriteProgram(gl)
   const sprites = createSprites(gl, program)

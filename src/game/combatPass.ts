@@ -1,7 +1,7 @@
 import type { Entity } from '../ecs'
 import { setBlend } from '../gl'
 import { Biome, Terrain, biomeAt, terrainAt } from '../map/terrain'
-import { createAtlas } from '../render/atlas'
+import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atlas'
 import { createLineProgram, createLines } from '../render/lines'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
@@ -274,17 +274,22 @@ interface Puff {
   color?: Color
 }
 
+/** Взрывы и клубы дыма. */
+export function combatSprites(): Sprite[] {
+  return [
+    ...Array.from({ length: BLAST_FRAMES }, (_, i) => drawBlast(i)),
+    ...Array.from({ length: PUFF_KINDS }, (_, i) => drawPuff(i)),
+  ].map(ready)
+}
+
 /**
  * Проходы боя. lights ставится до освещения: добавляет огни — взрывы, лучи и вспышки выстрелов светят
  * в темноте — и двигает дым. effects ставится после освещения, чтобы ночью не темнело: рисует дым, снаряды, лучи,
  * взрывы и полоски прочности над повреждёнными юнитами. Дым темнеет к ночи сам, но не дочерна: иначе его не видно.
  * dust ставится под летающими: рисует пыль, которую их винты поднимают с земли.
  */
-export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene): { dust: Pass; lights: Pass; effects: Pass } {
-  const atlas = createAtlas(gl, [
-    ...Array.from({ length: BLAST_FRAMES }, (_, i) => drawBlast(i)),
-    ...Array.from({ length: PUFF_KINDS }, (_, i) => drawPuff(i)),
-  ])
+export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene, art: PackedAtlas): { dust: Pass; lights: Pass; effects: Pass } {
+  const atlas = uploadAtlas(gl, art)
   const spriteProgram = createSpriteProgram(gl)
   const blasts = createSprites(gl, spriteProgram)
   const smoke = createSprites(gl, spriteProgram)

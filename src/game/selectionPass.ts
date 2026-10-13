@@ -1,6 +1,6 @@
 import type { Entity } from '../ecs'
 import { setBlend } from '../gl'
-import { createAtlas } from '../render/atlas'
+import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
@@ -45,16 +45,21 @@ const BAR_BUILDING: Color = [0.45, 0.9, 0.55]
 /** Рамка своей площадки, к которой строитель ещё не приступил: ночью чертёж на земле почти не виден. */
 const PLANNED: Color = [0.3, 0.6, 1]
 
+/** Кольцо выделения и белый квадрат для рамок и полосок. */
+export function selectionSprites(): Sprite[] {
+  const ring = new Pixmap(RING_SIZE, RING_SIZE)
+  ring.ring(RING_SIZE / 2, RING_SIZE / 2, RING_SIZE / 2 - 3, 4, 0xffffff)
+  const white = new Pixmap(4, 4).rect(0, 0, 4, 4, 0xffffff)
+  return [ring, white].map(ready)
+}
+
 /**
  * Выделение и прогресс: кольца вокруг выбранных юнитов, их пути и очереди приказов, рамка вокруг выбранного здания, рамка, которую
  * игрок тянет мышью, рамки размеченных площадок и полоски превращения, производства и стройки над своими сущностями.
  * Ставить выше освещения, чтобы ночью не темнело.
  */
-export function createSelectionPass(gl: WebGL2RenderingContext, scene: Scene): Pass {
-  const ring = new Pixmap(RING_SIZE, RING_SIZE)
-  ring.ring(RING_SIZE / 2, RING_SIZE / 2, RING_SIZE / 2 - 3, 4, 0xffffff)
-  const white = new Pixmap(4, 4).rect(0, 0, 4, 4, 0xffffff)
-  const atlas = createAtlas(gl, [ring, white])
+export function createSelectionPass(gl: WebGL2RenderingContext, scene: Scene, art: PackedAtlas): Pass {
+  const atlas = uploadAtlas(gl, art)
   const [ringFrame, whiteFrame] = atlas.frames
   // Середина кадра белой заливки: по краям текстуры цвет подмешивался бы от соседей.
   const whiteU = whiteFrame.u + whiteFrame.width / 2

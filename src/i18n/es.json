@@ -991,6 +991,7 @@
     "defeatServer": "No quedan ni edificios ni MCV. Puedes empezar de nuevo en otro lugar de este mundo.",
     "startOver": "Empezar de nuevo",
     "connecting": "Conectando con el servidor…",
+    "loadingArt": "Dibujando gráficos… {percent} %",
     "wrongPassword": "Contraseña incorrecta",
     "passwordNeeded": "El servidor está protegido con contraseña",
     "password": "Contraseña",

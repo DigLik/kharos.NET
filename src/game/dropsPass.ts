@@ -1,5 +1,5 @@
 import { setBlend } from '../gl'
-import { createAtlas } from '../render/atlas'
+import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
@@ -42,13 +42,18 @@ function drawPile(good: Good, count: number) {
   return image
 }
 
+/** Кучки ящиков каждого груза. */
+export function dropsSprites(): Sprite[] {
+  const images = GOODS.flatMap((good) => Array.from({ length: CRATES }, (_, i) => drawPile(good, i + 1)))
+  return images.map(ready)
+}
+
 /**
  * Проход дропов: брошенный на землю груз — кучка ящиков цвета того груза, которого в ней больше всего. Чем больше
  * груза, тем больше ящиков. Ставить над покрытием и под зданиями.
  */
-export function createDropsPass(gl: WebGL2RenderingContext, scene: Scene): Pass {
-  const images = GOODS.flatMap((good) => Array.from({ length: CRATES }, (_, i) => drawPile(good, i + 1)))
-  const atlas = createAtlas(gl, images)
+export function createDropsPass(gl: WebGL2RenderingContext, scene: Scene, art: PackedAtlas): Pass {
+  const atlas = uploadAtlas(gl, art)
   const frameOf = (good: Good, count: number) => atlas.frames[GOODS.indexOf(good) * CRATES + count - 1]
   const program = createSpriteProgram(gl)
   const sprites = createSprites(gl, program)

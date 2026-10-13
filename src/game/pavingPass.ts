@@ -1,6 +1,6 @@
 import { setBlend } from '../gl'
 import { Terrain, peakOf, terrainAt } from '../map/terrain'
-import { createAtlas } from '../render/atlas'
+import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
@@ -107,13 +107,18 @@ function kindAt(sim: Sim, x: number, y: number): PaveKind | undefined {
   return code === NO_PAVE ? undefined : paveKindOf(code)
 }
 
+/** Тайлы покрытия на все сочетания соседей. */
+export function pavingSprites(): Sprite[] {
+  const images = LOOKS.flatMap((look) => Array.from({ length: 16 }, (_, mask) => PAVE_ART[look](mask)))
+  return images.map(ready)
+}
+
 /**
  * Проход покрытия: фундамент, дороги и мосты. Покрытие лежит на земле — ставить сразу над месторождениями,
  * под следами и зданиями. Дорога по болоту рисуется мостом. Обходит не сущности, а тайлы на экране.
  */
-export function createPavingPass(gl: WebGL2RenderingContext, scene: Scene): Pass {
-  const images = LOOKS.flatMap((look) => Array.from({ length: 16 }, (_, mask) => PAVE_ART[look](mask)))
-  const atlas = createAtlas(gl, images)
+export function createPavingPass(gl: WebGL2RenderingContext, scene: Scene, art: PackedAtlas): Pass {
+  const atlas = uploadAtlas(gl, art)
   const frameOf = (look: Look, mask: number) => atlas.frames[LOOKS.indexOf(look) * 16 + mask]
   const program = createSpriteProgram(gl)
   const sprites = createSprites(gl, program)

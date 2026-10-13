@@ -1,6 +1,6 @@
 import type { Entity } from '../ecs'
 import { setBlend } from '../gl'
-import { createAtlas } from '../render/atlas'
+import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
@@ -97,14 +97,19 @@ const BAR_BAD: Color = [1, 0.35, 0.25]
 /** Запас щита генератора. */
 const BAR_SHIELD: Color = [0.3, 0.55, 1]
 
+/** Молнии, значки и белый квадрат для полосок. */
+export function powerSprites(): Sprite[] {
+  const bolts = Array.from({ length: BOLTS }, (_, i) => drawBolt(i))
+  const white = new Pixmap(4, 4).rect(0, 0, 4, 4, 0xffffff)
+  return [...bolts, drawIcon(), white, drawLoose()].map(ready)
+}
+
 /**
  * Проход нехватки энергии: молнии перегруза на электростанциях, значок над зданиями, которые из-за нехватки
  * работают медленнее, значок «Не подключено к сети» над своими зданиями со складом без труб, над зданиями — полоски прочности повреждённых и синие полоски запаса генераторов щита, см. statusBars.ts. Ставить выше освещения, чтобы ночью не темнело.
  */
-export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene): Pass {
-  const bolts = Array.from({ length: BOLTS }, (_, i) => drawBolt(i))
-  const white = new Pixmap(4, 4).rect(0, 0, 4, 4, 0xffffff)
-  const atlas = createAtlas(gl, [...bolts, drawIcon(), white, drawLoose()])
+export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: PackedAtlas): Pass {
+  const atlas = uploadAtlas(gl, art)
   const boltFrames = atlas.frames.slice(0, BOLTS)
   const iconFrame = atlas.frames[BOLTS]
   const whiteFrame = atlas.frames[BOLTS + 1]

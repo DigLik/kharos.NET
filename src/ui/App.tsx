@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'preact/hooks'
+import { loadArt } from '../game/loadArt'
 import { DEFAULT_SETTINGS } from '../map/settings'
 import { EditorView } from './EditorView'
 import { GameView } from './GameView'
+import { Loading } from './Loading'
 import { launchFromAddress, recallLaunch, rememberLast, rememberLaunch, type Launch } from './launch'
 import { Menu } from './Menu'
 import { Showcase } from './Showcase'
@@ -16,7 +18,21 @@ export function App() {
   // Язык поменялся — вся страница перерисовывается с новыми строками.
   useLang()
   if (isTerrainTest()) return <TerrainTest />
-  return <Game />
+  return <WithArt />
+}
+
+/** Пока воркер рисует графику — экран загрузки: без неё не открыть ни меню с витриной, ни игру. */
+function WithArt() {
+  const [share, setShare] = useState(0)
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    let live = true
+    loadArt((value) => live && setShare(value)).then(() => live && setReady(true))
+    return () => {
+      live = false
+    }
+  }, [])
+  return ready ? <Game /> : <Loading share={share} />
 }
 
 function Game() {

@@ -1,6 +1,6 @@
 import { setBlend } from '../../gl'
-import { createAtlas, type AtlasFrame } from '../../render/atlas'
-import { Pixmap } from '../../render/pixmap'
+import { uploadAtlas, type AtlasFrame, type PackedAtlas, type Sprite } from '../../render/atlas'
+import type { Pixmap } from '../../render/pixmap'
 import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'
 import type { Entity } from '../../ecs'
@@ -49,21 +49,28 @@ export function drawnFacing(unit: { facing: number; prevFacing: number }, alpha:
 
 const TEAM_NAMES = Object.keys(TEAMS) as Team[]
 
-/**
- * Проходы юнитов и турелей: наземные юниты рисуются под зданиями, установленные на зданиях турели — поверх
- * своих оснований, а летающие юниты — выше них. Картинки у проходов общие.
- */
-export function createUnitsPasses(gl: WebGL2RenderingContext, scene: Scene): { ground: Pass; emplacements: Pass; air: Pass } {
-  // Кадры каждого вида, цвета и кадра анимации — все направления подряд; turret — у турелей их по одному кадру.
-  const sheets: { key: string; images: Pixmap[] }[] = []
+/** Картинки юнитов и турелей: атлас и листы в нём по порядку — у каждого листа по кадру на направление. */
+export interface UnitsArt {
+  atlas: PackedAtlas
+  sheets: string[]
+}
+
+/** Листы каждого вида, цвета и кадра анимации — все направления подряд; turret — у турелей их по одному кадру. */
+export function unitsSprites(): { sprites: Sprite[]; sheets: string[] } {
+  const sprites: Sprite[] = []
+  const sheets: string[] = []
   const sheet = (key: string, frame: number, draw: (image: Pixmap, angle: number) => void) => {
-    const images = Array.from({ length: UNIT_DIRECTIONS }, (_, direction) => {
-      const image = new Pixmap(frame, frame)
-      image.originX = image.originY = frame / 2
-      draw(image, (direction / UNIT_DIRECTIONS) * TURN)
-      return image
-    })
-    sheets.push({ key, images })
+    for (let direction = 0; direction < UNIT_DIRECTIONS; direction++) {
+      sprites.push({
+        width: frame,
+        height: frame,
+        draw(image) {
+          image.originX = image.originY = frame / 2
+          draw(image, (direction / UNIT_DIRECTIONS) * TURN)
+        },
+      })
+    }
+    sheets.push(key)
   }
   for (const team of TEAM_NAMES) {
     for (const type of UNIT_TYPES) {
@@ -75,13 +82,17 @@ export function createUnitsPasses(gl: WebGL2RenderingContext, scene: Scene): { g
       sheet(`${team}:turret:${type}`, TURRET_FRAME, (image, angle) => TURRET_ART[type](image, angle, TEAMS[team], 0))
     }
   }
-  const atlas = createAtlas(gl, sheets.flatMap(({ images }) => images))
+  return { sprites, sheets }
+}
+
+/**
+ * Проходы юнитов и турелей: наземные юниты рисуются под зданиями, установленные на зданиях турели — поверх
+ * своих оснований, а летающие юниты — выше них. Картинки у проходов общие.
+ */
+export function createUnitsPasses(gl: WebGL2RenderingContext, scene: Scene, art: UnitsArt): { ground: Pass; emplacements: Pass; air: Pass } {
+  const atlas = uploadAtlas(gl, art.atlas)
   const frames = new Map<string, AtlasFrame[]>()
-  let from = 0
-  for (const { key, images } of sheets) {
-    frames.set(key, atlas.frames.slice(from, from + images.length))
-    from += images.length
-  }
+  art.sheets.forEach((key, i) => frames.set(key, atlas.frames.slice(i * UNIT_DIRECTIONS, (i + 1) * UNIT_DIRECTIONS)))
   const framesOf = (team: Team, type: UnitType, phase: number) => frames.get(`${team}:${type}:${phase}`)!
   const turretFramesOf = (team: Team, type: TurretType) => frames.get(`${team}:turret:${type}`)!
   /** Номер кадра поворота для угла. */

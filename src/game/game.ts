@@ -38,6 +38,7 @@ import { createPowerPass } from './powerPass'
 import { createSelectionPass } from './selectionPass'
 import { loadCamera, storeCamera } from './storage'
 import { createUnitsPasses } from './units/unitsPass'
+import { loadedArt } from './loadArt'
 
 /** Как часто вкладка запоминает место камеры, в секундах. */
 const CAMERA_INTERVAL = 10
@@ -165,24 +166,26 @@ export function createGame(
     weather: weatherAt(session.sim.options, session.sim.time.elapsed),
   }
 
-  // Всё, что живёт на видеокарте, создаётся здесь: после потери контекста рендер вызовет это заново.
+  // Всё, что живёт на видеокарте, создаётся здесь: после потери контекста рендер вызовет это заново. Атласы уже
+  // нарисованы (см. loadArt.ts), их остаётся только залить.
+  const art = loadedArt()
   let landWindow: LandWindow
   const renderer = createRenderer(
     canvas,
     (gl) => {
       landWindow = createLandWindow(gl)
-      const units = createUnitsPasses(gl, scene)
-      const buildings = createBuildingsPass(gl, scene)
-      const combat = createCombatPasses(gl, scene)
+      const units = createUnitsPasses(gl, scene, art.units)
+      const buildings = createBuildingsPass(gl, scene, art.buildings)
+      const combat = createCombatPasses(gl, scene, art.combat)
       // Порядок проходов — порядок отрисовки, снизу вверх. Витрине не нужны зоны, выделение и курсор.
       const play = (pass: Pass) => (showcase ? [] : [pass])
       return [
         createTerrainPass(gl, scene, landWindow),
-        createDepositsPass(gl, scene),
-        createPavingPass(gl, scene),
-        createDropsPass(gl, scene),
+        createDepositsPass(gl, scene, art.deposits),
+        createPavingPass(gl, scene, art.paving),
+        createDropsPass(gl, scene, art.drops),
         // Следы, гарь и остовы — на земле, под юнитами.
-        createDecalsPass(gl, scene),
+        createDecalsPass(gl, scene, art.decals),
         units.ground,
         buildings,
         // Поток по трубам — поверх труб, под турелями и летающими.
@@ -198,9 +201,9 @@ export function createGame(
         // Туман — над миром и его светом, под зонами, выделением и курсором. Он же — темнота за краем мира: её видно
         // и в витрине, где тумана нет.
         createFogPass(gl, scene),
-        ...play(createPowerPass(gl, scene)),
+        ...play(createPowerPass(gl, scene, art.power)),
         combat.effects,
-        ...play(createSelectionPass(gl, scene)),
+        ...play(createSelectionPass(gl, scene, art.selection)),
         ...play(createCursorPass(gl, scene)),
       ]
     },
