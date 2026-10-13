@@ -6,7 +6,7 @@ import { equipStorage, type BeamSpec } from './inventory'
 import { ORE_SPECS, PRODUCT_SPECS, WARES, stockedFor, type Amounts, type Good, type Ore, type Product } from './resources'
 import type { Sim } from './sim'
 import { mountTurrets, type MountSpec } from './turrets'
-import { isPaved } from './paved'
+import { isPaved, isRoadway } from './paved'
 import { hasResearch, type Topic } from './topics'
 import type { UnitType } from './units'
 
@@ -543,8 +543,8 @@ export function siteAt(sim: Sim, x: number, y: number): Entity | undefined {
 
 /**
  * Можно ли поставить здание левым верхним углом основания в тайл (x, y): основное здание целиком на скале
- * или фундаменте, оборонительное — ещё и на песке; не у подножия обрыва; внутри границ карты и без других зданий
- * и площадок. Это же правило у разворачивания MCV, см. canDeploy. gap — зазор до соседних зданий в тайлах.
+ * или фундаменте, оборонительное — ещё и на песке; не у подножия обрыва и не на дороге; внутри границ карты и без
+ * других зданий и площадок. Это же правило у разворачивания MCV, см. canDeploy. gap — зазор до соседних зданий в тайлах.
  */
 export function canPlace(sim: Sim, type: BuildingType, x: number, y: number, gap = 0) {
   if (!Number.isInteger(x) || !Number.isInteger(y)) return false
@@ -561,6 +561,8 @@ export function canPlace(sim: Sim, type: BuildingType, x: number, y: number, gap
       // У подножия обрыва стоит его стенка: здание на ней смотрелось бы как танк на стене, и проезд под обрывом
       // закрыт и так. Ярусы здание не ограничивают: через пологий въезд оно может стоять на двух.
       if (isCliffFoot(sim.land, tileX, tileY)) return false
+      // Дорога — для транспорта: на ней и на той, что кладут, не строят ничего, даже трубу.
+      if (isRoadway(sim, tileX, tileY)) return false
     }
   }
   for (let tileY = y - gap; tileY < y + height + gap; tileY++) {

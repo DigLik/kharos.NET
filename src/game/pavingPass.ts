@@ -96,12 +96,13 @@ const LOOKS = ['foundation', 'road', 'bridge'] as const
 type Look = (typeof LOOKS)[number]
 export const PAVE_ART: Record<Look, (mask: number) => Pixmap> = { foundation: drawFoundation, road: drawRoad, bridge: drawBridge }
 
-/** Вид покрытия на тайле, готового или нет. */
+/** Вид покрытия на тайле: что на нём кладут или разбирают, а нет работы — готовое. Заменяемое рисуется новым. */
 function kindAt(sim: Sim, x: number, y: number): PaveKind | undefined {
-  const code = sim.paving.laid(x, y)
-  if (code !== NO_PAVE) return paveKindOf(code)
   const entity = sim.paving.at(x, y)
-  return entity === undefined ? undefined : sim.world.get(entity, Pave)?.kind
+  const work = entity === undefined ? undefined : sim.world.get(entity, Pave)?.kind
+  if (work !== undefined) return work
+  const code = sim.paving.laid(x, y)
+  return code === NO_PAVE ? undefined : paveKindOf(code)
 }
 
 /**

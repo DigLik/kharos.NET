@@ -347,8 +347,8 @@
       "well": "Schächte"
     },
     "toolTips": {
-      "foundation": "Gebäude darauf entstehen doppelt so schnell, und auf Sand erlaubt es das Bauen. Explosionen zerstören es. Mit der Maus ein Rechteck ziehen",
-      "road": "Bodeneinheiten fahren schneller; über Sumpf wird es eine Brücke für {bridge} pro Feld. Mit der Maus eine Linie ziehen",
+      "foundation": "Gebäude darauf entstehen doppelt so schnell, und auf Sand erlaubt es das Bauen. Lässt sich auch unter eigene Gebäude und anstelle der eigenen Straße legen. Explosionen zerstören es. Mit der Maus ein Rechteck ziehen",
+      "road": "Bodeneinheiten fahren schneller; über Sumpf wird es eine Brücke für {bridge} pro Feld. Auf Straßen wird nicht gebaut; sie ersetzt auch das eigene Fundament. Mit der Maus eine Linie ziehen",
       "pipe": "Verbindet Gebäude zu einem Netz: Rohre leiten Fracht und Energie und erweitern die Zone. Versperrt die Durchfahrt — unter einer Durchfahrt Schächte verwenden. Braucht keine eigene Zone. Mit der Maus eine Linie ziehen",
       "well": "Schächte sind die Enden eines unterirdischen Rohrs: Ein Klick setzt einen (er verbindet sich in gerader Linie mit einem Schacht), Ziehen ein Paar, bis zu {reach} Felder weit. Darüber wird gefahren und gebaut; verwundbar sind nur die Schächte. Braucht keine eigene Zone"
     },

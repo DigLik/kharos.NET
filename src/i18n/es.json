@@ -347,8 +347,8 @@
       "well": "Pozos"
     },
     "toolTips": {
-      "foundation": "Los edificios sobre ellos se construyen el doble de rápido y permiten construir en la arena. Las explosiones los rompen. Arrastra un rectángulo con el ratón",
-      "road": "Las unidades terrestres van más rápido; sobre pantano es un puente a {bridge} por casilla. Arrastra una línea con el ratón",
+      "foundation": "Los edificios sobre ellos se construyen el doble de rápido y permiten construir en la arena. Se ponen también bajo tus edificios y en lugar de tu carretera. Las explosiones los rompen. Arrastra un rectángulo con el ratón",
+      "road": "Las unidades terrestres van más rápido; sobre pantano es un puente a {bridge} por casilla. En la carretera no se construye; puede sustituir tus cimientos. Arrastra una línea con el ratón",
       "pipe": "Une los edificios en una red: por las tuberías van la carga y la energía, y amplían la zona. Corta el paso: bajo un cruce usa pozos. No necesita zona propia. Arrastra una línea con el ratón",
       "well": "Los pozos son los extremos de una tubería subterránea: un clic coloca uno (se une con un pozo en línea recta), al arrastrar, un par, hasta {reach} casillas. Sobre ella se circula y se construye; solo los pozos son vulnerables. No necesita zona propia"
     },

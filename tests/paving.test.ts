@@ -275,3 +275,39 @@ test('готовое покрытие — слой карты: пережива�
   expect(paveOwnerAt(loaded, x + 7, y + 9)).toBe(1)
   expect(loaded.world.count(Pave)).toBe(0)
 })
+
+test('фундамент кладут и под своё здание: строители работают с края; дорогу под здание и фундамент под чужое — нельзя', () => {
+  const { sim, core, builders } = start()
+  const at = sim.world.get(core, Position)!
+  expect(canPave(sim, 1, 'road', at.x + 1, at.y + 1)).toBe(false)
+  expect(canPave(sim, 2, 'foundation', at.x + 1, at.y + 1)).toBe(false)
+  const tiles: number[] = []
+  for (let dy = 0; dy < 3; dy++) for (let dx = 0; dx < 3; dx++) tiles.push(at.x + dx, at.y + dy)
+  sim.send(1, { type: 'pave', kind: 'foundation', tiles, builders })
+  seconds(sim, 30)
+  for (let i = 0; i < tiles.length; i += 2) expect(isPaved(sim, 'foundation', tiles[i], tiles[i + 1])).toBe(true)
+})
+
+test('на дороге не строят: она для транспорта; фундамент меняют на дорогу и обратно, прежнее действует, пока новое не готово', () => {
+  const { sim, builders, x, y } = start()
+  const at = { x: x + 7, y: y + 4 }
+  expect(canPlace(sim, 'generator', at.x, at.y)).toBe(true)
+  lay(sim, 'road', at.x, at.y)
+  expect(canPlace(sim, 'generator', at.x, at.y)).toBe(false)
+  expect(canPlace(sim, 'pipe', at.x, at.y)).toBe(false)
+  // Ту же дорогу второй раз не кладут, чужую не меняют, свою на фундамент — можно.
+  expect(canPave(sim, 1, 'road', at.x, at.y)).toBe(false)
+  expect(canPave(sim, 2, 'foundation', at.x, at.y)).toBe(false)
+  expect(canPave(sim, 1, 'foundation', at.x, at.y)).toBe(true)
+  sim.send(1, { type: 'pave', kind: 'foundation', tiles: [at.x, at.y], builders })
+  seconds(sim, TICK)
+  expect(isPaved(sim, 'road', at.x, at.y)).toBe(true)
+  seconds(sim, 15)
+  expect(isPaved(sim, 'foundation', at.x, at.y)).toBe(true)
+  expect(isPaved(sim, 'road', at.x, at.y)).toBe(false)
+  expect(canPlace(sim, 'generator', at.x, at.y)).toBe(true)
+  // И обратно.
+  sim.send(1, { type: 'pave', kind: 'road', tiles: [at.x, at.y], builders })
+  seconds(sim, 15)
+  expect(isPaved(sim, 'road', at.x, at.y)).toBe(true)
+})

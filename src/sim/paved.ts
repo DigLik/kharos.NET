@@ -124,6 +124,14 @@ export function isPaved(sim: Sim, kind: PaveKind, x: number, y: number) {
   return code !== NO_PAVE && paveKindOf(code) === kind
 }
 
+/** Дорога ли на тайле — готовая или та, что кладут: по ней ездят, строить на ней нельзя. */
+export function isRoadway(sim: Sim, x: number, y: number) {
+  if (isPaved(sim, 'road', x, y)) return true
+  const entity = sim.paving.at(x, y)
+  const pave = entity === undefined ? undefined : sim.world.get(entity, Pave)
+  return pave?.kind === 'road' && !pave.remove
+}
+
 /** Хозяин готового покрытия на тайле; undefined — покрытия нет. */
 export function paveOwnerAt(sim: Sim, x: number, y: number) {
   const code = sim.paving.laid(x, y)

@@ -347,8 +347,8 @@
       "well": "Poços"
     },
     "toolTips": {
-      "foundation": "Edifícios sobre ela são erguidos duas vezes mais rápido, e ela permite construir na areia. Explosões a quebram. Arraste um retângulo com o mouse",
-      "road": "Unidades terrestres andam mais rápido; sobre pântano vira ponte por {bridge} a casa. Arraste uma linha com o mouse",
+      "foundation": "Edifícios sobre ela são erguidos duas vezes mais rápido, e ela permite construir na areia. Pode ir também sob seus edifícios e no lugar da sua estrada. Explosões a quebram. Arraste um retângulo com o mouse",
+      "road": "Unidades terrestres andam mais rápido; sobre pântano vira ponte por {bridge} a casa. Não se constrói na estrada; ela pode substituir sua fundação. Arraste uma linha com o mouse",
       "pipe": "Liga os edifícios em uma rede: os canos levam carga e energia e ampliam a zona. Bloqueia a passagem: sob uma passagem use poços. Não precisa de zona própria. Arraste uma linha com o mouse",
       "well": "Poços são as pontas de um cano subterrâneo: um clique coloca um (ele se liga a um poço em linha reta), arrastar coloca um par, a até {reach} casas. Sobre ele se anda e se constrói; só os poços são vulneráveis. Não precisa de zona própria"
     },

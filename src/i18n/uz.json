@@ -347,8 +347,8 @@
       "well": "Quduqlar"
     },
     "toolTips": {
-      "foundation": "Uning ustidagi binolar ikki baravar tezroq quriladi va qum ustida qurishga imkon beradi. Portlashlar uni buzadi. Sichqoncha bilan to‘rtburchak torting",
-      "road": "Quruqlik bo‘linmalari tezroq harakatlanadi; botqoqlik ustida har bir katak uchun {bridge} narxida ko‘prik bo‘ladi. Sichqoncha bilan chiziq torting",
+      "foundation": "Uning ustidagi binolar ikki baravar tezroq quriladi va qum ustida qurishga imkon beradi. O‘z binolaringiz ostiga va o‘z yo‘lingiz o‘rniga ham yotqiziladi. Portlashlar uni buzadi. Sichqoncha bilan to‘rtburchak torting",
+      "road": "Quruqlik bo‘linmalari tezroq harakatlanadi; botqoqlik ustida har bir katak uchun {bridge} narxida ko‘prik bo‘ladi. Yo‘l ustida qurilish qilinmaydi; u o‘z poydevoringiz o‘rnini ham egallaydi. Sichqoncha bilan chiziq torting",
       "pipe": "Binolarni tarmoqqa ulaydi: quvurlar orqali yuk va energiya o‘tadi hamda zonani kengaytiradi. Yo‘lni to‘sadi — yo‘l ostidan quduqlar orqali o‘tkazing. O‘z zonasi shart emas. Sichqoncha bilan chiziq torting",
       "well": "Quduqlar — yerosti quvurining uchlari: bir marta bosish bitta qo‘yadi (to‘g‘ri chiziqdagi quduq bilan ulanadi), tortish esa {reach} katakkacha masofada bir juft qo‘yadi. Ustida yurish va qurish mumkin, faqat quduqlarning o‘zi zaif. O‘z zonasi shart emas"
     },

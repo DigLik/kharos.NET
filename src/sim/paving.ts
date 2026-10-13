@@ -33,8 +33,10 @@ export function paveCost(sim: Sim, kind: PaveKind, x: number, y: number) {
 }
 
 /**
- * Можно ли игроку заложить покрытие в тайл: внутри карты, на свободном от покрытия, зданий и площадок месте,
- * не в чужой зоне и не у подножия обрыва. Фундамент — на скале или песке, дорога — где угодно, кроме гор. Своей
+ * Можно ли игроку заложить покрытие в тайл: внутри карты, не в чужой зоне и не у подножия обрыва; на тайле нет
+ * работы над покрытием, а готовое покрытие — разве что своё другого вида: фундамент меняют на дорогу и обратно, и прежнее
+ * действует, пока новое не готово. Фундамент — на скале или песке, дорога — где угодно, кроме гор. Дорогу кладут только
+ * на свободное от зданий и площадок, фундамент — и под свои здания и площадки: строители кладут его с края. Своей
  * зоны покрытию не нужно.
  */
 export function canPave(sim: Sim, player: number, kind: PaveKind, x: number, y: number) {
@@ -47,7 +49,11 @@ export function canPave(sim: Sim, player: number, kind: PaveKind, x: number, y: 
   if (isCliffFoot(sim.land, x, y)) return false
   // Покрытие открывают исследования: фундамент, дороги, а дорогу по болоту — мосты.
   if (!hasResearch(sim, player, PAVE_RESEARCH[kind === 'road' && terrain === Terrain.Swamp ? 'bridge' : kind])) return false
-  if (sim.paving.at(x, y) !== undefined || sim.paving.laid(x, y) !== NO_PAVE || sim.occupancy.at(x, y) !== undefined || siteAt(sim, x, y) !== undefined) return false
+  if (sim.paving.at(x, y) !== undefined) return false
+  const laid = sim.paving.laid(x, y)
+  if (laid !== NO_PAVE && (paveKindOf(laid) === kind || paveOwnerOf(laid) !== player)) return false
+  const standing = sim.occupancy.at(x, y) ?? siteAt(sim, x, y)
+  if (standing !== undefined && (kind !== 'foundation' || !isOwn(sim, player, standing))) return false
   return !inForeignZone(sim, player, x, y, 1, 1)
 }
 

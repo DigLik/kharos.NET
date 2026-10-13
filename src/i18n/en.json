@@ -347,8 +347,8 @@
       "well": "Wells"
     },
     "toolTips": {
-      "foundation": "Buildings on it go up twice as fast, and it allows building on sand. Explosions break it. Drag a rectangle with the mouse",
-      "road": "Ground units drive faster; over swamp it becomes a bridge at {bridge} per tile. Drag a line with the mouse",
+      "foundation": "Buildings on it go up twice as fast, and it allows building on sand. Can be laid under your own buildings and in place of your road. Explosions break it. Drag a rectangle with the mouse",
+      "road": "Ground units drive faster; over swamp it becomes a bridge at {bridge} per tile. Nothing can be built on a road; it can replace your foundation. Drag a line with the mouse",
       "pipe": "Links buildings into a network: pipes carry goods and power and extend the zone. Blocks passage — run wells under a crossing. Needs no zone of its own. Drag a line with the mouse",
       "well": "Wells are the ends of an underground pipe: a click places one (it links with a well in a straight line), a drag places a pair, up to {reach} tiles apart. Units drive and build above it; only the wells are vulnerable. Needs no zone of its own"
     },

@@ -347,8 +347,8 @@
       "well": "Puits"
     },
     "toolTips": {
-      "foundation": "Les bâtiments s'y construisent deux fois plus vite et elles permettent de bâtir sur le sable. Les explosions les brisent. Tracez un rectangle à la souris",
-      "road": "Les unités terrestres roulent plus vite ; sur un marais, c'est un pont à {bridge} par case. Tracez une ligne à la souris",
+      "foundation": "Les bâtiments s'y construisent deux fois plus vite et elles permettent de bâtir sur le sable. On les pose aussi sous vos bâtiments et à la place de votre route. Les explosions les brisent. Tracez un rectangle à la souris",
+      "road": "Les unités terrestres roulent plus vite ; sur un marais, c'est un pont à {bridge} par case. On ne bâtit pas sur une route ; elle peut remplacer vos fondations. Tracez une ligne à la souris",
       "pipe": "Relie les bâtiments en réseau : les tuyaux transportent marchandises et énergie et étendent la zone. Barre le passage : sous un passage, utilisez des puits. Pas besoin de zone. Tracez une ligne à la souris",
       "well": "Les puits sont les extrémités d'un tuyau souterrain : un clic en pose un (il se relie à un puits en ligne droite), un tracé en pose deux, jusqu'à {reach} cases. On roule et on construit au-dessus ; seuls les puits sont vulnérables. Pas besoin de zone"
     },
