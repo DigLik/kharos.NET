@@ -504,9 +504,11 @@
       "nukeLaunched": "Yadro uchirishi",
       "nukeIncoming": "Bizga yadro zarbasi",
       "nukeIntercepted": "Raketa tutib olindi",
-      "nukeDowned": "Raketamiz urib tushirildi"
+      "nukeDowned": "Raketamiz urib tushirildi",
+      "allyPing": "Ittifoqchi signali",
+      "ownPing": "Signal yuborildi"
     },
-    "nothingSelected": "Hech narsa tanlanmagan. Chap tugma — tanlash, ramka — bir nechta bo‘linma, o‘ng tugma — buyruq. Ctrl+raqam — guruhni saqlash, raqam — tanlash. Alt bosib turilsa — qurilish zonalari chegaralari",
+    "nothingSelected": "Hech narsa tanlanmagan. Chap tugma — tanlash, ramka — bir nechta bo‘linma, o‘ng tugma — buyruq. Ctrl+raqam — guruhni saqlash, raqam — tanlash. Alt bosib turilsa — qurilish zonalari chegaralari, Alt+bosish — ittifoqchilarga signal",
     "buildingsCount": "Binolar: {count}",
     "demolition": "Buzish: {name}",
     "construction": "Qurilish: {name}",

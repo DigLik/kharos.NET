@@ -335,6 +335,7 @@ export const Chaser = component('Chaser', { fromX: 0, fromY: 0, toX: 0, toY: 0, 
 /**
  * Метка на карте, которую видят не по обзору, а по списку viewers: место ядерного пуска (kind launch) — игроки
  * с радаром, точка удара (strike) — те, чьё под ней. player — чья ракета: ему и его союзникам метка видна всегда.
+ * Сигнал союзникам (ping) — метка без viewers: её видят только сам игрок и союзники, см. pings.ts.
  * until — тик, когда она пропадает. См. silos.ts.
  */
 /**
@@ -343,7 +344,7 @@ export const Chaser = component('Chaser', { fromX: 0, fromY: 0, toX: 0, toY: 0, 
  */
 export const Glare = component('Glare', { radius: 0, until: 0 })
 
-export const Mark = component('Mark', () => ({ kind: 'launch' as 'launch' | 'strike', until: 0, player: 0, viewers: [] as number[] }))
+export const Mark = component('Mark', () => ({ kind: 'launch' as 'launch' | 'strike' | 'ping', until: 0, player: 0, viewers: [] as number[] }))
 
 /**
  * Очередь приказов юнита, отданных с Shift: следующий он берёт, когда закончит нынешнее дело. group — общий номер

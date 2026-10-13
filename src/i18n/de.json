@@ -504,9 +504,11 @@
       "nukeLaunched": "Atomstart",
       "nukeIncoming": "Atomschlag auf uns",
       "nukeIntercepted": "Rakete abgefangen",
-      "nukeDowned": "Unsere Rakete wurde abgeschossen"
+      "nukeDowned": "Unsere Rakete wurde abgeschossen",
+      "allyPing": "Signal eines Verbündeten",
+      "ownPing": "Signal gesendet"
     },
-    "nothingSelected": "Nichts ausgewählt. Linke Taste — auswählen, Rahmen — mehrere Einheiten, rechte Taste — Befehl. Strg+Ziffer — Gruppe merken, Ziffer — sie auswählen. Alt halten — Grenzen der Bauzonen",
+    "nothingSelected": "Nichts ausgewählt. Linke Taste — auswählen, Rahmen — mehrere Einheiten, rechte Taste — Befehl. Strg+Ziffer — Gruppe merken, Ziffer — sie auswählen. Alt halten — Grenzen der Bauzonen, Alt+Klick — Signal an Verbündete",
     "buildingsCount": "Gebäude: {count}",
     "demolition": "Abbau: {name}",
     "construction": "Bau: {name}",

@@ -504,9 +504,11 @@
       "nukeLaunched": "Nuclear launch",
       "nukeIncoming": "Nuclear strike incoming",
       "nukeIntercepted": "Missile intercepted",
-      "nukeDowned": "Our missile was shot down"
+      "nukeDowned": "Our missile was shot down",
+      "allyPing": "Ally signal",
+      "ownPing": "Signal sent"
     },
-    "nothingSelected": "Nothing selected. Left button — select, drag a box — several units, right button — order. Ctrl+digit — remember a group, digit — select it. Hold Alt — build zone borders",
+    "nothingSelected": "Nothing selected. Left button — select, drag a box — several units, right button — order. Ctrl+digit — remember a group, digit — select it. Hold Alt — build zone borders, Alt+click — signal to allies",
     "buildingsCount": "Buildings: {count}",
     "demolition": "Dismantling: {name}",
     "construction": "Construction: {name}",

@@ -63,6 +63,8 @@ const STEAM_FROM = 0.45
 const STEAM_RATE = 40
 /** Метки ядерного удара: место пуска — янтарное кольцо, точка удара — красные кольца взрыва и его ядра. */
 const LAUNCH_SITE: Color = [1, 0.7, 0.2]
+/** Сигнал союзника — цвета союзников на мини-карте. */
+const PING: Color = [0.3, 0.9, 0.5]
 const STRIKE: Color = [1, 0.15, 0.1]
 
 /** Искры там, где ремонтник работает: сколько их разом, как далеко разлетаются в тайлах и сколько раз в секунду вспыхивают заново. */
@@ -833,6 +835,15 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene, art
               const b = ((i + 1) / DOME_SEGMENTS) * Math.PI * 2
               line(glow, x + Math.cos(a) * r, y + Math.sin(a) * r, x + Math.cos(b) * r, y + Math.sin(b) * r, thickness, color, level)
             }
+          }
+          // Сигнал союзника: зелёное кольцо с волнами — заметнее в первые секунды, к концу гаснет.
+          if (mark.kind === 'ping') {
+            if (!visible(x, y)) continue
+            const wave = (time * 1.2) % 1
+            const fade = Math.min(1, left / 2)
+            ring(0.6, 3, PING, 0.9 * fade)
+            ring(0.6 + wave * 2.4, 2, PING, 0.7 * (1 - wave) * fade)
+            continue
           }
           if (mark.kind === 'launch') {
             if (!visible(x, y)) continue

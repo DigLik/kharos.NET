@@ -142,6 +142,13 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
       canvas.setPointerCapture(event.pointerId)
       return
     }
+    // Alt+щелчок — сигнал союзникам в эту точку, а не выделение.
+    if (event.altKey && event.button === LEFT) {
+      const { x, y } = camera.screenToTile(event.offsetX, event.offsetY)
+      scene.sim.send(scene.player, { type: 'ping', x, y })
+      pressed = anchor = null
+      return
+    }
     // Покрытие тянут от тайла, где зажали левую кнопку.
     if (scene.paving && event.button === LEFT) {
       const { x, y } = camera.screenToTile(event.offsetX, event.offsetY)

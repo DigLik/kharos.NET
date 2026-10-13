@@ -1,5 +1,6 @@
 import type { Entity } from '../ecs'
 import { setWorking } from './assembly'
+import { ping } from './pings'
 import { BUILDINGS, type BuildingType } from './buildings'
 import { orderAttack, stopAttack } from './combat'
 import { isOwn } from './common'
@@ -84,6 +85,8 @@ export type Command = (
   | { type: 'gift'; units: number[]; to: number }
   /** Включить или выключить своё здание — потребителя энергии: выключенное не берёт энергию и не работает. */
   | { type: 'work'; building: number; on: boolean }
+  /** Сигнал союзникам: метка в точке карты, в тайлах. См. pings.ts. */
+  | { type: 'ping'; x: number; y: number }
   /** Отменить свою стройку и вернуть кредиты; для здания под разбор — отменить разбор. */
   | { type: 'cancelBuild'; site: number }
   /** Назначить своё готовое здание под разбор и послать к нему своих строителей. Отменяется через cancelBuild. */
@@ -283,6 +286,8 @@ function run(sim: Sim, player: number, command: Command): boolean {
     }
     case 'work':
       return setWorking(sim, player, command.building as Entity, !!command.on)
+    case 'ping':
+      return ping(sim, player, Number(command.x), Number(command.y))
     case 'cancelBuild':
       return cancelBuild(sim, player, command.site as Entity)
     case 'surrender':

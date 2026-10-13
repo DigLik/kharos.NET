@@ -589,6 +589,10 @@ body {
   color: var(--good);
 }
 
+.hud__alert.is-ping {
+  color: #4ec973;
+}
+
 /* Строка гаснет к концу своего времени, см. ALERT_SECONDS. */
 @keyframes hud-alert {
   0%, 75% { opacity: 1; }

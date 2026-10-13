@@ -65,3 +65,4 @@ export { canFerry, coreOf, sendFerry, takeFromStores, TRANSFER_CAPACITY, TRANSFE
 export { isOpenGate } from './buildings'
 export { SCAN_SIZE, SCAN_TICKS, buildingSight, createVision, shownBy, shownTo, sightingOf, unitSight, type Sighting, type Vision } from './vision'
 export { DEFAULT_WEATHER, weatherAt, weatherOptionsOf, type Weather, type WeatherOptions } from './weather'
+export { PING_LIMIT, PING_SECONDS, PING_WINDOW, ping } from './pings'

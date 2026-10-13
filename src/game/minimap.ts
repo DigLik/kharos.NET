@@ -175,6 +175,8 @@ export function createMinimap(scene: Scene) {
 
       // Ядерный удар: место пуска — янтарный крест, точка удара — красный круг взрыва, ракета — белая точка.
       for (const [, mark, position] of world.query(Mark, Position)) {
+        // Сигнал союзника рисует кольцо уведомления, см. ниже.
+        if (mark.kind === 'ping') continue
         const x = toX(position.x)
         const y = toY(position.y)
         context.lineWidth = 2 * k
@@ -204,7 +206,7 @@ export function createMinimap(scene: Scene) {
       for (const alert of scene.alerts?.current() ?? []) {
         if (alert.age > ALERT_SECONDS) continue
         const pulse = (alert.age * 2) % 1
-        context.strokeStyle = alert.kind === 'attacked' || alert.kind === 'nuke' ? FOE : alert.kind === 'found' || alert.kind === 'intercepted' ? '#8fe0a8' : '#ffd27a'
+        context.strokeStyle = alert.kind === 'attacked' || alert.kind === 'nuke' ? FOE : alert.kind === 'ping' ? ALLY : alert.kind === 'found' || alert.kind === 'intercepted' ? '#8fe0a8' : '#ffd27a'
         context.globalAlpha = 1 - pulse
         context.lineWidth = 2 * k
         context.beginPath()

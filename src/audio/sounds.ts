@@ -14,7 +14,7 @@ export const ALL_LOOP_NAMES = Object.keys(ALL_LOOPS) as LoopName[]
 
 /** Звуки интерфейса: кнопки, приказы, уведомления. */
 export const INTERFACE_SOUNDS = new Set<SoundName>([
-  'click', 'hover', 'open', 'deny', 'select', 'selectBuilding', 'place', 'order', 'attackOrder', 'attacked', 'spotted', 'found', 'nuke', 'intercepted',
+  'click', 'hover', 'open', 'deny', 'select', 'selectBuilding', 'place', 'order', 'attackOrder', 'attacked', 'spotted', 'found', 'nuke', 'intercepted', 'ping',
   'unitReady', 'researched', 'upgraded', 'warheadReady', 'reward', 'countdown', 'brownout',
   'delivered', 'protectionOver', 'coins', 'gift', 'defeat', 'surrender', 'chat', 'chatSystem',
 ])

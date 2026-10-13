@@ -343,7 +343,7 @@ function Chat({ lines, picking, commands, admin, names, say }: ChatProps) {
 /** Сторона мини-карты, при которой она вровень с нижней панелью (--bar-inner): крупнее — выступает над ней. */
 const MINIMAP_FLUSH = 140
 
-function MinimapView({ minimap, lookAt, moveSelected }: Pick<HudProps, 'minimap' | 'lookAt' | 'moveSelected'>) {
+function MinimapView({ minimap, lookAt, moveSelected, send }: Pick<HudProps, 'minimap' | 'lookAt' | 'moveSelected' | 'send'>) {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const canvas = ref.current!
@@ -385,11 +385,13 @@ function MinimapView({ minimap, lookAt, moveSelected }: Pick<HudProps, 'minimap'
         const { x, y } = tileOf(event)
         if (event.button === 2) return moveSelected(x, y)
         if (event.button !== 0) return
+        // Alt+щелчок — сигнал союзникам, камера остаётся на месте.
+        if (event.altKey) return send({ type: 'ping', x, y })
         ref.current!.setPointerCapture(event.pointerId)
         lookAt(x, y)
       }}
       onPointerMove={(event) => {
-        if (!(event.buttons & 1)) return
+        if (!(event.buttons & 1) || event.altKey) return
         const { x, y } = tileOf(event)
         lookAt(x, y)
       }}
@@ -1100,7 +1102,7 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
 
       {/* В редакторе справа его панель: от нижней остаётся только мини-карта. */}
       <section class={`hud bar${state.editor ? ' is-editor' : ''}`}>
-        <MinimapView minimap={minimap} lookAt={lookAt} moveSelected={moveSelected} />
+        <MinimapView minimap={minimap} lookAt={lookAt} moveSelected={moveSelected} send={send} />
         {state.editor ? null : selected ? (
           <Info
             state={state}

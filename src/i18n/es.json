@@ -504,9 +504,11 @@
       "nukeLaunched": "Lanzamiento nuclear",
       "nukeIncoming": "Ataque nuclear contra nosotros",
       "nukeIntercepted": "Misil interceptado",
-      "nukeDowned": "Derribaron nuestro misil"
+      "nukeDowned": "Derribaron nuestro misil",
+      "allyPing": "Señal de un aliado",
+      "ownPing": "Señal enviada"
     },
-    "nothingSelected": "Nada seleccionado. Botón izquierdo — seleccionar, recuadro — varias unidades, botón derecho — orden. Ctrl+número — recordar un grupo, número — seleccionarlo. Alt pulsado — límites de las zonas de construcción",
+    "nothingSelected": "Nada seleccionado. Botón izquierdo — seleccionar, recuadro — varias unidades, botón derecho — orden. Ctrl+número — recordar un grupo, número — seleccionarlo. Alt pulsado — límites de las zonas de construcción, Alt+clic — señal a los aliados",
     "buildingsCount": "Edificios: {count}",
     "demolition": "Desmontaje: {name}",
     "construction": "Construcción: {name}",

@@ -25,10 +25,10 @@ const DOWNED_REACH = 2
 /** Громкость сигналов: они слышны всегда, где бы ни была камера. */
 const VOLUME = 0.7
 
-export type AlertKind = 'attacked' | 'spotted' | 'found' | 'nuke' | 'intercepted'
+export type AlertKind = 'attacked' | 'spotted' | 'found' | 'nuke' | 'intercepted' | 'ping'
 
 /** Что сказать об уведомлении: ключ строки в разделе hud.alerts словаря. */
-export type AlertText = 'spotted' | 'baseAttacked' | 'unitsAttacked' | 'oreFound' | 'nukeLaunched' | 'nukeIncoming' | 'nukeIntercepted' | 'nukeDowned'
+export type AlertText = 'spotted' | 'baseAttacked' | 'unitsAttacked' | 'oreFound' | 'nukeLaunched' | 'nukeIncoming' | 'nukeIntercepted' | 'nukeDowned' | 'allyPing' | 'ownPing'
 
 export interface Alert {
   kind: AlertKind
@@ -48,7 +48,8 @@ export interface Alert {
  * О замеченном — не чаще SPOTTED_GAP. Игрок узнал о новом месторождении — разведал его юнитом или радаром — «найдено
  * месторождение», не чаще FOUND_GAP. Чужая метка ядерного удара — «ядерный пуск» (место пуска, видно с радаром)
  * или «ядерный удар» (точка удара, видна тем, чьё под ней), каждая один раз. Свой или союзный перехватчик выпустил
- * ракету — «ракета перехвачена»; своя ядерная пропала, не долетев, — «нашу ракету сбили». Каждое уведомление — строка
+ * ракету — «ракета перехвачена»; своя ядерная пропала, не долетев, — «нашу ракету сбили». Метка-сигнал — свой или
+ * союзника (см. pings.ts) — «сигнал союзника». Каждое уведомление — строка
  * в ленте, сигнал и метка на мини-карте.
  */
 export function createAlerts(scene: Scene, audio: Audio | null) {
@@ -64,7 +65,7 @@ export function createAlerts(scene: Scene, audio: Audio | null) {
   /** Какие месторождения игрок уже знал: по номеру правки слоя и по миру, с которым они сверены. */
   let deposits: { sim: unknown; generation: number | undefined; revision: number; known: Set<number> } | undefined
   let foundAt = -Infinity
-  /** Метки ядерного удара, о которых уже сказали. */
+  /** Метки ядерного удара и сигналы, о которых уже сказали. */
   let nukes = new Set<Entity>()
   let chasers = new Set<Entity>()
   /** Свои ядерные ракеты в полёте: где были в прошлый кадр и куда летят. */
@@ -106,6 +107,11 @@ export function createAlerts(scene: Scene, audio: Audio | null) {
       const nextNukes = new Set<Entity>()
       for (const [entity, mark, position] of world.query(Mark, Position)) {
         nextNukes.add(entity)
+        // Сигнал на карте — свой или союзника: чужих хост не шлёт.
+        if (mark.kind === 'ping') {
+          if (!nukes.has(entity)) raise('ping', mark.player === player ? 'ownPing' : 'allyPing', position.x, position.y)
+          continue
+        }
         if (nukes.has(entity) || mark.player === player || allies.includes(mark.player)) continue
         raise('nuke', mark.kind === 'launch' ? 'nukeLaunched' : 'nukeIncoming', position.x, position.y)
       }

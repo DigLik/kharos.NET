@@ -222,6 +222,8 @@ export const SOUNDS = {
   found: (rate: number, variant: number) => signal(rate, variant, [520, 660, 780], 0.08, 0.03),
   /** Ядерный пуск или удар: сирена — тон то вверх, то вниз, длиннее и ниже тревоги. */
   nuke: (rate: number, variant: number) => signal(rate, variant, [440, 880, 440, 880, 440], 0.2, 0.01),
+  /** Сигнал союзника на карте: два звонких тона — вверх и обратно. */
+  ping: (rate: number, variant: number) => signal(rate, variant, [990, 1320, 990], 0.07, 0.02),
   /** Перехватчик сбил ракету: отбой тревоги — три ясных тона вверх. */
   intercepted: (rate: number, variant: number) => signal(rate, variant, [660, 880, 1320], 0.1, 0.03),
 } satisfies Record<string, (rate: number, variant: number) => Float32Array>

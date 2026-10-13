@@ -3,7 +3,7 @@ import { DEFAULT_CONFIG } from '../src/map/terrain'
 import { createHost, type Host } from '../src/net/host'
 import { decodeServer } from '../src/net/protocol'
 import { createReplica, type Replica } from '../src/net/replica'
-import { Armed, Batch, Health, Owner, Path, Player, Position, Unit, allied, alliesOf, allyHeadOf, breakAlliance, canAttack, createSim, exitAlliance, isOpenGate, offerAlliance, wipePlayer, type Sim } from '../src/sim'
+import { Armed, Batch, Health, Mark, Owner, PING_LIMIT, PING_SECONDS, PING_WINDOW, Path, Player, Position, Unit, allied, alliesOf, allyHeadOf, breakAlliance, canAttack, createSim, exitAlliance, isOpenGate, offerAlliance, wipePlayer, type Sim } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
 import { Repair } from '../src/sim/components'
 import { addCredits } from '../src/sim/economy'
@@ -341,4 +341,57 @@ test('стена союзника стрельбе не мешает, а чуж�
   expect(offerAlliance(sim, 3, 1)).toBe('allied')
   for (let i = 0; i < 50; i++) sim.advance(STEP)
   expect(sim.world.get(victim, Health)!.value).toBeLessThan(0.9)
+})
+
+test('сигнал союзникам: метку видят сам игрок и союзник где угодно, чужой — нет; сигналами не засыпать, и они гаснут', () => {
+  const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 256 }))
+  const first = join(host, 'Вася')
+  const second = join(host, 'Петя')
+  const third = join(host, 'Коля')
+  const all = [first, second, third]
+  run(host, all, 0.5)
+  first.say('/ally Петя')
+  second.say('/ally Вася')
+  run(host, all, 0.5)
+  const pings = (sim: Sim) => {
+    const list: { x: number; y: number; player: number }[] = []
+    for (const [, mark, position] of sim.world.query(Mark, Position)) if (mark.kind === 'ping') list.push({ x: position.x, y: position.y, player: mark.player })
+    return list
+  }
+  // Точка в тумане у всех троих: сигнал — метка, а не обзор.
+  const { left, top, right, bottom } = host.sim.bounds
+  let spot = { x: 0, y: 0 }
+  search: for (let y = top + 2; y < bottom - 2; y += 7) {
+    for (let x = left + 2; x < right - 2; x += 7) {
+      if ([1, 2, 3].some((player) => host.sim.vision.sees(player, x, y))) continue
+      spot = { x: x + 0.5, y: y + 0.25 }
+      break search
+    }
+  }
+  expect(second.sim.vision.sees(2, spot.x, spot.y)).toBe(false)
+  first.sim.send(1, { type: 'ping', ...spot })
+  run(host, all, 0.3)
+  expect(pings(host.sim)).toEqual([{ ...spot, player: 1 }])
+  expect(pings(first.sim)).toEqual([{ ...spot, player: 1 }])
+  expect(pings(second.sim)).toEqual([{ ...spot, player: 1 }])
+  expect(pings(third.sim)).toEqual([])
+  // Обзора метка не даёт.
+  expect(second.sim.vision.sees(2, spot.x, spot.y)).toBe(false)
+  // За карту и чаще положенного — нельзя.
+  first.sim.send(1, { type: 'ping', x: 1e6, y: 0 })
+  for (let i = 0; i < PING_LIMIT + 2; i++) first.sim.send(1, { type: 'ping', x: i, y: i })
+  run(host, all, 0.3)
+  expect(pings(host.sim).length).toBe(PING_LIMIT)
+  // Прошло окно — можно снова; чужой игрок сигналит своим, и первым двум его метка не идёт.
+  run(host, all, PING_WINDOW)
+  first.sim.send(1, { type: 'ping', x: 5, y: 5 })
+  third.sim.send(3, { type: 'ping', x: 7, y: 7 })
+  run(host, all, 0.3)
+  expect(pings(host.sim).length).toBe(PING_LIMIT + 2)
+  expect(pings(second.sim).some(({ player }) => player === 3)).toBe(false)
+  expect(pings(third.sim)).toEqual([{ x: 7, y: 7, player: 3 }])
+  // Срок вышел — меток нет ни у кого.
+  run(host, all, PING_SECONDS + 0.5)
+  expect(pings(host.sim)).toEqual([])
+  expect(pings(second.sim)).toEqual([])
 })
