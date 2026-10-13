@@ -45,7 +45,7 @@ export { adoptLabs, cancelResearch, dequeueResearch, grantResearch, isLab, planO
 export { PAVE_RESEARCH, RESEARCH, TIER_CREDITS, TIER_SECONDS, TOPICS, hasResearch, isTopic, isTrigger, pathTo, priceOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, type Topic, type TopicPrice, type TopicSpec, type Trigger } from './topics'
 export { isBurning } from './reactors'
 export { CLIMB, CRUISE, GLARE, LAUNCH_MARK, WARNING, missileLift, abortLaunch, cancelWarhead, interceptorLack, launchLeft, orderLaunch, startWarhead, warheadLack, type InterceptorLack, type WarheadLack } from './silos'
-export { OVERLOAD_DAMAGE, coreless, economyOf, powerOf, powerStates, powerSupply, zoneEconomies } from './income'
+export { OVERLOAD_DAMAGE, coreless, economyOf, powerOf, powerStates, powerSupply, shutDown, zoneEconomies } from './income'
 export type { Economy, PowerState } from './income'
 export { QUEUE_LIMIT, armyOf, overLimit, buildTicks, missingRequirements, missingResearch, isPacked, producibleBy } from './production'
 export { DEFAULT_RULES, SAVE_VERSION, boundsOf, createSim } from './sim'

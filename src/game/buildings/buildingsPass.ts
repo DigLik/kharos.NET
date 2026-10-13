@@ -4,7 +4,7 @@ import { uploadAtlas, type AtlasFrame, type PackedAtlas, type Sprite } from '../
 import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'
 import type { Entity } from '../../ecs'
-import { Assembly, BUILDINGS, BUILDING_TYPES, Building, Interceptor, Inventory, Owner, Position, Reactor, Research, Silo, Site, amountOf, buildingSpec, isBurning, isOpenGate, isPipe, siteTicks, type BuildingType } from '../../sim'
+import { Assembly, BUILDINGS, BUILDING_TYPES, Building, Interceptor, Inventory, Owner, Position, Reactor, Research, Silo, Site, amountOf, buildingSpec, isBurning, isOpenGate, isPipe, shutDown, siteTicks, type BuildingType } from '../../sim'
 import { placementOf } from '../placing'
 import type { Scene } from '../scene'
 import { ART_FRAMES, ART_TILE, BUILDING_ART, GATE_OPEN_VARIANT, SILO_DOOR_STEPS, SILO_RISE_STEPS, WALL_CONNECTION, type BuildingArt } from './buildingArt'
@@ -31,6 +31,8 @@ const RISE_FROM = 0.6
 /** Цвет недостроенного: чертёж здания, сквозь который видно землю. Альфа меньше половины — тени от лучей он не даёт. */
 const BLUEPRINT = [0.3, 0.6, 1, 0.4] as const
 /** Призрак здания, которому выбирают место: полупрозрачное здание, красное — если туда нельзя. Теней он не даёт. */
+/** Своё выключенное здание: спрайт темнее, огни не горят. */
+const SWITCHED_OFF = [0.55, 0.57, 0.62, 1] as const
 const GHOST = [0.7, 0.7, 0.7, 0.7] as const
 const GHOST_FORBIDDEN = [0.7, 0.14, 0.1, 0.7] as const
 
@@ -97,6 +99,8 @@ interface Visible {
   built: number
   /** Ничьё (игрок 0): рисуется серым. */
   neutral: boolean
+  /** Своё выключенное: темнее, без огней, анимация стоит. */
+  off: boolean
 }
 
 /**
@@ -200,12 +204,12 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene, ar
         if (share < RISE_FROM) return doors
         return SILO_DOOR_STEPS - 1 + Math.min(SILO_RISE_STEPS, Math.ceil(((share - RISE_FROM) / (1 - RISE_FROM)) * SILO_RISE_STEPS))
       }
-      const see = (position: { x: number; y: number }, type: BuildingType, phase: number, built: number, working = false, neutral = false, entity?: Entity) => {
+      const see = (position: { x: number; y: number }, type: BuildingType, phase: number, built: number, working = false, neutral = false, entity?: Entity, off = false) => {
         const sheet = sheets.get(type)![wallVariant(position, type, entity)]
         if (position.x + sheet.art.width < camera.x - halfWidth || position.x > camera.x + halfWidth) return
         if (position.y + sheet.art.height < camera.y - halfHeight || position.y > camera.y + halfHeight) return
-        const frame = ((step + phase) % ART_FRAMES) + (working && sheet.art.working ? ART_FRAMES : 0)
-        visible.push({ x: position.x, y: position.y, sheet, frame, bottom: position.y + sheet.art.height, built, neutral })
+        const frame = (((off ? 0 : step) + phase) % ART_FRAMES) + (working && sheet.art.working ? ART_FRAMES : 0)
+        visible.push({ x: position.x, y: position.y, sheet, frame, bottom: position.y + sheet.art.height, built, neutral, off })
       }
 
       visible.length = 0
@@ -223,7 +227,8 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene, ar
           activity.set(entity, state)
           working = time < state.until
         }
-        see(position, building.type, building.phase, site ? site.progress / siteTicks(site.type, simTime.step) : 1, working, !world.get(entity, Owner)?.player, entity)
+        const off = shutDown(scene.sim, scene.player, entity)
+        see(position, building.type, building.phase, site ? site.progress / siteTicks(site.type, simTime.step) : 1, working && !off, !world.get(entity, Owner)?.player, entity, off)
       }
       // Площадки, к которым строитель ещё не приступил: здания на них пока нет.
       for (const [entity, position, site] of world.query(Position, Site)) {
@@ -239,7 +244,7 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene, ar
       sprites.clear()
       neutral.clear()
       const shift = SHADOW_SHIFT / ART_TILE
-      for (const { x, y, sheet, frame, built, neutral: grey } of visible) {
+      for (const { x, y, sheet, frame, built, neutral: grey, off } of visible) {
         const batch = grey ? neutral : sprites
         const { u, v, width: frameWidth, height: frameHeight } = sheet.frames[frame]
         const left = x - pad - camera.x
@@ -259,6 +264,10 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene, ar
           continue
         }
         shadows.push(left + shift, top + shift, spriteWidth, spriteHeight, u, v, frameWidth, frameHeight, 0, 0, 0, SHADOW_ALPHA)
+        if (off) {
+          batch.push(left, top, spriteWidth, spriteHeight, u, v, frameWidth, frameHeight, ...SWITCHED_OFF)
+          continue
+        }
         batch.push(left, top, spriteWidth, spriteHeight, u, v, frameWidth, frameHeight, 1, 1, 1, 1)
         for (const light of sheet.lights) {
           lights.add(

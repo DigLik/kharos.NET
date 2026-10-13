@@ -1,6 +1,7 @@
 import type { Entity } from '../ecs'
 import { BUILDINGS, buildingSpec, levelFactor, type BuildingSpec, type BuildingType } from './buildings'
-import { Accumulator, Assembly, Building, Health, Off, Player } from './components'
+import { isOwn } from './common'
+import { Accumulator, Assembly, Building, Health, Off, Player, Site } from './components'
 import { isBurning, meltdown } from './reactors'
 import type { Sim } from './sim'
 import { allGrids, type Zone } from './zones'
@@ -129,10 +130,17 @@ function powerAt(sim: Sim, building: Entity) {
   return power > 0 || buildingSpec(type).scan ? power * levelFactor(level) : power
 }
 /** Потребитель, которого игрок выключил: энергии ему не нужно, и работать он не будет. У завода изделий — свой флаг. */
-function switchedOff(sim: Sim, building: Entity) {
+export function switchedOff(sim: Sim, building: Entity) {
   const assembly = sim.world.get(building, Assembly)
   return assembly ? !assembly.on : sim.world.has(building, Off)
 }
+
+/**
+ * Своё готовое здание, которое игрок выключил: так оно и показано на карте — темнее и со значком. О чужих судить
+ * не по чему: их выключатель видит только хозяин.
+ */
+export const shutDown = (sim: Sim, player: number, building: Entity) =>
+  isOwn(sim, player, building) && !sim.world.has(building, Site) && switchedOff(sim, building)
 
 /** Хозяйства зон одного игрока. */
 export const zoneEconomies = (sim: Sim, player: number): readonly Economy[] =>
