@@ -430,7 +430,7 @@
     "demolishTip": "Builders dismantle the building; when they finish, half the price is refunded",
     "upgrade": "Level {level}",
     "upgradeTip": "Raise the level: {gain} ×{factor}. The price is paid at once, goods come from the building's network; builders do the work and the building keeps running",
-    "upgradeNoMaterials": "The building's network lacks the goods for the upgrade",
+    "upgradeNoMaterials": "The building's zone lacks the goods for the upgrade",
     "cancelUpgradeTip": "Cancel the upgrade: its price is refunded in full",
     "needsResearch": "Requires research: {name}",
     "cancelResearchTip": "Stop research: progress is kept and you can come back to it",

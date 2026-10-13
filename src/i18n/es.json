@@ -430,7 +430,7 @@
     "demolishTip": "Los constructores desmontan el edificio; al terminar se devuelve la mitad del precio",
     "upgrade": "Nivel {level}",
     "upgradeTip": "Subir de nivel: {gain} ×{factor}. El precio se cobra al momento y los materiales salen de la red del edificio; el trabajo lo hacen los constructores y el edificio sigue funcionando",
-    "upgradeNoMaterials": "En la red del edificio faltan materiales para la mejora",
+    "upgradeNoMaterials": "En la zona del edificio faltan materiales para la mejora",
     "cancelUpgradeTip": "Cancelar la mejora: su precio se devuelve entero",
     "needsResearch": "Requiere investigación: {name}",
     "cancelResearchTip": "Detener la investigación: el progreso se conserva y puedes volver a él",

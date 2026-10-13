@@ -430,7 +430,7 @@
     "demolishTip": "Binoni quruvchilar buzadi; tugatgach, narxining yarmi qaytadi",
     "upgrade": "Daraja {level}",
     "upgradeTip": "Darajani ko‘tarish: {gain} ×{factor}. Narx darhol to‘lanadi, tayyor mahsulot bino tarmog‘idan olinadi; ishni quruvchilar bajaradi, bino esa ishlashda davom etadi",
-    "upgradeNoMaterials": "Bino tarmog‘ida yaxshilash uchun tayyor mahsulot yetmaydi",
+    "upgradeNoMaterials": "Bino zonasida yaxshilash uchun tayyor mahsulot yetmaydi",
     "cancelUpgradeTip": "Yaxshilashni bekor qilish: narxi to‘liq qaytariladi",
     "needsResearch": "Tadqiqot kerak: {name}",
     "cancelResearchTip": "Tadqiqotni to‘xtatish: boshlangani yo‘qolmaydi, unga qaytish mumkin",

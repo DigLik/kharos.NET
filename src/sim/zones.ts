@@ -42,6 +42,8 @@ interface Cache {
   grids?: Map<number, Zone[]>
   /** В какой сети каждое здание, труба и подключённая стройка. */
   index?: Map<Entity, Zone>
+  /** В какой энергосети каждое здание и труба. */
+  gridIndex?: Map<Entity, Zone>
 }
 const caches = new WeakMap<World, Cache>()
 
@@ -50,8 +52,8 @@ function cacheOf(world: World) {
   if (!cache) {
     const fresh: Cache = {}
     const reset = () => {
-      fresh.zones = fresh.index = fresh.grids = undefined
-      return () => void (fresh.zones = fresh.index = fresh.grids = undefined)
+      fresh.zones = fresh.index = fresh.grids = fresh.gridIndex = undefined
+      return () => void (fresh.zones = fresh.index = fresh.grids = fresh.gridIndex = undefined)
     }
     world.observe([Building], reset)
     world.observe([Site], reset)
@@ -63,7 +65,7 @@ function cacheOf(world: World) {
 /** Забыть посчитанные сети: так делают, когда меняется то, за чем кэш сам не следит. */
 export const resetZones = (sim: Sim) => {
   const cache = cacheOf(sim.world)
-  cache.zones = cache.index = cache.grids = undefined
+  cache.zones = cache.index = cache.grids = cache.gridIndex = undefined
 }
 
 /**
@@ -248,6 +250,17 @@ function mergeTouching(world: World, zones: Zone[]): Zone[] {
     }
   })
   return [...merged.values()]
+}
+
+/** Энергосеть, в которую входит здание или труба; undefined — ни в какую. */
+export function gridOf(sim: Sim, entity: Entity): Zone | undefined {
+  const cache = cacheOf(sim.world)
+  if (!cache.gridIndex) {
+    const grids = allGrids(sim)
+    cache.gridIndex = new Map()
+    for (const list of grids.values()) for (const grid of list) for (const member of grid.buildings) cache.gridIndex.set(member, grid)
+  }
+  return cache.gridIndex.get(entity)
 }
 
 /** Энергосети одного игрока. */

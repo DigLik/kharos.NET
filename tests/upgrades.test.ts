@@ -112,6 +112,30 @@ test('без готового в сети здания и без кредито�
   for (const [entity, building] of sim.world.query(Building)) if (building.type === 'command') expect(isUpgradable(sim, 1, entity)).toBe(false)
 })
 
+test('электростанцию без трубы улучшают с готового её зоны: энергосеть та же, а дальнюю — нет', () => {
+  const { sim, stash, builder } = base([])
+  let core: Entity | undefined
+  for (const [entity, building] of sim.world.query(Building)) if (building.type === 'command') core = entity
+  const at = sim.world.get(core!, Position)!
+  // Под главным зданием, без трубы: своя сеть из одного здания, но круг главного здания её задевает.
+  const plant = placeBuilding(sim.world, 'generator', at.x, at.y + 4, 1)
+  stash({ blocks: 12 })
+  expect(upgradeLack(sim, 1, plant)).toBeUndefined()
+  upgrade(sim, plant, builder)
+  sim.advance(TICK)
+  expect(sim.world.has(plant, Upgrade)).toBe(true)
+  expect(stockOf(sim, 1).items.blocks).toBe(2)
+  // Отмена возвращает готовое в хранилища зоны.
+  sim.send(1, { type: 'cancelUpgrade', building: plant })
+  sim.advance(TICK)
+  expect(stockOf(sim, 1).items.blocks).toBe(12)
+
+  // Станция вдали от базы — в своей энергосети, готового там нет.
+  let far: Entity | undefined
+  for (let dy = 40; dy < 200 && far === undefined; dy++) if (canPlace(sim, 'generator', at.x, at.y + dy)) far = placeBuilding(sim.world, 'generator', at.x, at.y + dy, 1)
+  expect(upgradeLack(sim, 1, far!)).toBe('materials')
+})
+
 test('отмена улучшения возвращает кредиты и готовое; разбор отменяет его сам', () => {
   const { sim, buildings: [plant, other], stash, builder } = base(['generator', 'generator'])
   stash({ blocks: 20 })

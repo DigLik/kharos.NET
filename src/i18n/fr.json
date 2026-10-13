@@ -430,7 +430,7 @@
     "demolishTip": "Les constructeurs démontent le bâtiment ; à la fin, la moitié du prix est rendue",
     "upgrade": "Niveau {level}",
     "upgradeTip": "Monter de niveau : {gain} ×{factor}. Le prix est payé tout de suite, les matériaux viennent du réseau du bâtiment ; les constructeurs font le travail et le bâtiment continue de fonctionner",
-    "upgradeNoMaterials": "Le réseau du bâtiment manque de matériaux pour l'amélioration",
+    "upgradeNoMaterials": "La zone du bâtiment manque de matériaux pour l'amélioration",
     "cancelUpgradeTip": "Annuler l'amélioration : son prix est rendu en entier",
     "needsResearch": "Nécessite une recherche : {name}",
     "cancelResearchTip": "Arrêter la recherche : la progression est conservée, on peut y revenir",

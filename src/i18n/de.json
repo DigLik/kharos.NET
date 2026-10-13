@@ -430,7 +430,7 @@
     "demolishTip": "Baufahrzeuge bauen das Gebäude ab; danach gibt es den halben Preis zurück",
     "upgrade": "Stufe {level}",
     "upgradeTip": "Stufe erhöhen: {gain} ×{factor}. Der Preis wird sofort abgezogen, die Güter kommen aus dem Netz des Gebäudes; Baufahrzeuge erledigen die Arbeit, das Gebäude läuft weiter",
-    "upgradeNoMaterials": "Im Netz des Gebäudes fehlen Güter für den Ausbau",
+    "upgradeNoMaterials": "In der Zone des Gebäudes fehlen Güter für den Ausbau",
     "cancelUpgradeTip": "Ausbau abbrechen: sein Preis wird voll erstattet",
     "needsResearch": "Erfordert Forschung: {name}",
     "cancelResearchTip": "Forschung anhalten: der Fortschritt bleibt, du kannst später weitermachen",
