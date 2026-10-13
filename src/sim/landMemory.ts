@@ -1,5 +1,6 @@
 import { patchSavedTile, saveLand, setTile, tileBytes, tileKey, type TileEdit } from '../map/terrain'
 import { prepareDeposits } from './deposits'
+import { TRACE_CELL } from './traces'
 import type { Sim } from './sim'
 
 /**
@@ -17,6 +18,22 @@ export interface LandMemory {
   known: Map<number, Map<number, number[]>>
   /** Что игрок узнал с прошлого takeLearned: по ним хост шлёт правки, см. host.ts. */
   learned: Map<number, Set<number>>
+  /**
+   * Изменённые тайлы по ячейкам EDIT_CELL: игроки сверяют только ячейки в своём обзоре, а правок на карте с землеройными
+   * работами — тысячи. Забытые правки (original их больше не знает) тут могут остаться — их пропускают.
+   */
+  cells: Map<number, Set<number>>
+}
+
+/** Сторона ячейки, по которым разложены правки, — как у следов: ячейки обзора хост считает той же стороны. */
+const EDIT_CELL = TRACE_CELL
+
+/** Кладёт изменённый тайл в его ячейку. */
+function index(memory: LandMemory, x: number, y: number, key: number) {
+  const cell = tileKey(Math.floor(x / EDIT_CELL), Math.floor(y / EDIT_CELL))
+  const keys = memory.cells.get(cell)
+  if (keys) keys.add(key)
+  else memory.cells.set(cell, new Set([key]))
 }
 
 /** В сохранении: изменённые тайлы — x, y и исходные байты подряд; знание игроков — x, y и байты подряд. */
@@ -28,11 +45,12 @@ export interface LandMemorySave {
 const same = (a: number[], b: number[]) => a.length === b.length && a.every((value, i) => value === b[i])
 
 export function createLandMemory(save?: LandMemorySave): LandMemory {
-  const memory: LandMemory = { original: new Map(), known: new Map(), learned: new Map() }
+  const memory: LandMemory = { original: new Map(), known: new Map(), learned: new Map(), cells: new Map() }
   if (!save) return memory
   for (let i = 0; i + 5 < save.original.length; i += 6) {
     const [x, y, ...tile] = save.original.slice(i, i + 6)
     memory.original.set(tileKey(x, y), { x, y, tile })
+    index(memory, x, y, tileKey(x, y))
   }
   for (const [player, flat] of Object.entries(save.known)) {
     const known = new Map<number, number[]>()
@@ -61,7 +79,10 @@ export function saveLandMemory(memory: LandMemory): LandMemorySave {
 export function editTile(sim: Sim, x: number, y: number, edit: TileEdit) {
   const key = tileKey(x, y)
   const before = tileBytes(sim.land, x, y)
-  if (!sim.landMemory.original.has(key)) sim.landMemory.original.set(key, { x, y, tile: before })
+  if (!sim.landMemory.original.has(key)) {
+    sim.landMemory.original.set(key, { x, y, tile: before })
+    index(sim.landMemory, x, y, key)
+  }
   // Месторождения вокруг считаются по карте до правки: правка их не создаёт и не двигает.
   prepareDeposits(sim, x, y, x, y)
   setTile(sim.land, x, y, edit)
@@ -75,16 +96,20 @@ export function updateLandMemory(sim: Sim) {
   const memory = sim.landMemory
   if (!memory.original.size) return
   for (const player of sim.vision.players()) {
-    for (const [key, { x, y }] of memory.original) {
-      if (!sim.vision.sees(player, x, y)) continue
-      const tile = tileBytes(sim.land, x, y)
-      if (same(knownTile(memory, player, key), tile)) continue
-      let known = memory.known.get(player)
-      if (!known) memory.known.set(player, (known = new Map()))
-      known.set(key, tile)
-      let learned = memory.learned.get(player)
-      if (!learned) memory.learned.set(player, (learned = new Set()))
-      learned.add(key)
+    const sees = sim.vision.seer(player)
+    for (const cell of sim.vision.seenCells(player, EDIT_CELL)) {
+      for (const key of memory.cells.get(cell) ?? []) {
+        const edit = memory.original.get(key)
+        if (!edit || !sees(edit.x, edit.y)) continue
+        const tile = tileBytes(sim.land, edit.x, edit.y)
+        if (same(knownTile(memory, player, key), tile)) continue
+        let known = memory.known.get(player)
+        if (!known) memory.known.set(player, (known = new Map()))
+        known.set(key, tile)
+        let learned = memory.learned.get(player)
+        if (!learned) memory.learned.set(player, (learned = new Set()))
+        learned.add(key)
+      }
     }
   }
 }
