@@ -329,7 +329,7 @@ const TO_EVERYONE: Sighting = { rule: EVERYONE, owner: NOBODY, x: 0, y: 0, width
 /**
  * Кому сущность видна, см. Sighting. Своё — всегда; счёт игрока и поток в его трубе — ему и его союзникам, см.
  * allies.ts; выстрел — если виден снаряд, стрелок или место попадания: по выстрелу из тумана видно, откуда бьют.
- * Метки ядерного удара — по своему списку, ракета — по месту, где она сейчас (silos.ts).
+ * Метки ядерного удара — по своему списку, сама ракета — всем (silos.ts).
  * Остальное с местом на карте — пока оно в обзоре; без места — всегда.
  */
 export function sightingOf(world: World, entity: Entity): Sighting {
@@ -346,15 +346,14 @@ export function sightingOf(world: World, entity: Entity): Sighting {
   }
   // Вспышку ядерного взрыва видят все: по ней каждый открывает её круг.
   if (world.has(entity, Glare)) return TO_EVERYONE
-  // Метки ядерного удара — по списку, мимо тумана: место пуска видно с радаром, точку удара — тем, кто под ней.
+  // Метки ядерного удара — по списку, мимо тумана: место пуска видно с радаром, точку удара — тем, чьё под ней.
   const mark = world.get(entity, Mark)
   if (mark) {
     const at = world.get(entity, Position)
     return { rule: LISTED, owner: mark.player, x: Math.floor(at?.x ?? 0), y: Math.floor(at?.y ?? 0), width: 1, height: 1, viewers: mark.viewers }
   }
-  // Ракета летит над всем без места на карте: видна там, где она сейчас.
-  const missile = world.get(entity, Missile)
-  if (missile) return { rule: SEEN, owner: missile.player, x: Math.floor(missile.x), y: Math.floor(missile.y), width: 1, height: 1 }
+  // Ядерную ракету весь полёт видят все, мимо тумана: о ней должен знать каждый. Куда она упадёт, чужим не уходит.
+  if (world.has(entity, Missile)) return TO_EVERYONE
   // Ракета-перехватчик видна, где видно её старт, встречу или середину пути: летит она секунду-другую.
   const chaser = world.get(entity, Chaser)
   if (chaser) {

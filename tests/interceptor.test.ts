@@ -137,12 +137,12 @@ test('ракета, которая метит в круг перехватчик
   for (let i = 0; i < Math.round(flight / TICK) + 40; i++) {
     sim.advance(TICK)
     chased ||= chasers(sim).length > 0
-    marked ||= [...sim.world.query(Mark)].some(([, mark]) => mark.kind === 'strike')
+    for (const [, mark] of sim.world.query(Mark)) marked ||= mark.kind === 'strike'
   }
   expect(chased).toBe(true)
   expect(missiles(sim)).toEqual([])
   expect(chasers(sim)).toEqual([])
-  expect([...sim.world.query(Mark)].filter(([, mark]) => mark.kind === 'strike')).toEqual([])
+  for (const [, mark] of sim.world.query(Mark)) expect(mark.kind).not.toBe('strike')
   expect([...sim.world.query(Burst)].length).toBe(0)
   expect(sim.world.get(defender.core, Health)?.value).toBe(1)
   expect(marked).toBe(true)

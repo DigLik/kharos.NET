@@ -3,7 +3,7 @@ import { createAlerts } from '../src/game/alerts'
 import type { Scene } from '../src/game/scene'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { tileKey } from '../src/map/terrain'
-import { DEPOSIT_TYPES, Health, Shot, createSim } from '../src/sim'
+import { DEPOSIT_TYPES, Health, Mark, Missile, Position, Shot, WARNING, createSim } from '../src/sim'
 import { loadDeposits } from '../src/sim/deposits'
 import { spawnUnit } from '../src/sim/units'
 
@@ -112,4 +112,35 @@ test('слой в пути не выдаёт знакомое месторожд
   loadDeposits(sim.deposits, { cells: [], spots: [60, 10, kind, 300, 140, 10, kind, 300] })
   alerts.update(0.1)
   expect(alerts.current()).toMatchObject([{ kind: 'found', text: 'oreFound', x: 141, y: 11 }])
+})
+
+test('чужая ядерная ракета — сирена всем; точка удара — первый сигнал, а за WARNING секунд до удара — второй', () => {
+  const { sim, alerts } = setup()
+  const texts = () => alerts.current().map(({ text }) => text)
+  alerts.update(0.1)
+  // Чужая ракета приходит без точки удара, только с курсом.
+  sim.world.spawn(Missile({ fromX: 50, fromY: 50, toX: 51, toY: 50, born: sim.time.tick, blind: true }))
+  alerts.update(0.1)
+  alerts.update(0.1)
+  expect(texts()).toEqual(['nukeLaunched'])
+  expect(alerts.current()[0]).toMatchObject({ x: 50, y: 50 })
+
+  // Наше под ударом: метка точки удара, до удара ещё далеко.
+  const step = sim.time.step
+  const strike = sim.world.spawn(Position({ x: 5, y: 5 }), Mark({ kind: 'strike', until: sim.time.tick + Math.round((WARNING + 10) / step), player: 2 }))
+  alerts.update(0.1)
+  alerts.update(0.1)
+  expect(texts()).toEqual(['nukeLaunched', 'nukeIncoming'])
+  // Осталось меньше WARNING — второй сигнал, один раз.
+  sim.world.get(strike, Mark)!.until = sim.time.tick + Math.round((WARNING - 1) / step)
+  alerts.update(0.1)
+  alerts.update(0.1)
+  expect(texts()).toEqual(['nukeLaunched', 'nukeIncoming', 'nukeImminent'])
+
+  // Узнали о точке удара уже под конец — только второй сигнал. Свою метку и место пуска сиреной не встречают.
+  sim.world.spawn(Position({ x: 9, y: 9 }), Mark({ kind: 'strike', until: sim.time.tick + Math.round(5 / step), player: 3 }))
+  sim.world.spawn(Position({ x: 1, y: 1 }), Mark({ kind: 'strike', until: sim.time.tick + Math.round(5 / step), player: 1 }))
+  sim.world.spawn(Position({ x: 2, y: 2 }), Mark({ kind: 'launch', until: sim.time.tick + 100, player: 2 }))
+  alerts.update(0.1)
+  expect(texts()).toEqual(['nukeLaunched', 'nukeIncoming', 'nukeImminent', 'nukeImminent'])
 })

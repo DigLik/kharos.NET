@@ -73,7 +73,12 @@ function spot(sim: Sim, fromX: number, fromY: number, type: BuildingType = 'gene
 }
 
 const missiles = (sim: Sim) => [...sim.world.query(Missile)].map(([entity]) => entity)
-const marks = (sim: Sim, kind: 'launch' | 'strike') => [...sim.world.query(Mark)].filter(([, mark]) => mark.kind === kind).map(([entity]) => entity)
+/** Метки вида kind. Строка обхода — один массив на весь обход: собирать надо по ходу, а не разворачивая обход. */
+const marks = (sim: Sim, kind: 'launch' | 'strike') => {
+  const found: Entity[] = []
+  for (const [entity, mark] of sim.world.query(Mark)) if (mark.kind === kind) found.push(entity)
+  return found
+}
 
 test('шахта собирает боеголовку за кредиты, стержни и компоненты из сети и за время при полной энергии', () => {
   const { sim, silo, stash, stock } = base()
@@ -153,7 +158,7 @@ test('место пуска видят игроки с радаром, и тол
   expect(marks(sim, 'launch')).toEqual([])
 })
 
-test('ракета летит со скоростью вида, за WARNING секунд до удара точку видят те, чьё под ней, и взрыв бьёт всех', () => {
+test('ракета летит со скоростью вида, её видят все, точку удара весь полёт — те, чьё под ней, и взрыв бьёт всех', () => {
   const { sim, x, y, silo } = armed()
   // Цель — в 160 тайлах: 20 секунд полёта. У цели — здание и юнит игрока 2, на краю радиуса — его же здание.
   const target = spot(sim, x + 170, y)
@@ -179,16 +184,24 @@ test('ракета летит со скоростью вида, за WARNING с�
   const own = JSON.parse(wireOf(sim.world, missile, 1, sim.time.tick).parts.get(Missile.key)!)
   expect(own.toX).toBe(toX + 0.5)
 
-  seconds(sim, flight - WARNING - 1)
-  expect(marks(sim, 'strike')).toEqual([])
-  seconds(sim, 1.5)
+  // Ракету видят все, где бы она ни была; точку удара — со старта, но только тот, чьё под ней.
   const [strike] = marks(sim, 'strike')
   expect(strike).toBeDefined()
+  for (const player of [1, 2, 3]) expect(shownTo(sim, player, missile)).toBe(true)
+  expect(sim.vision.sees(3, state.x, state.y)).toBe(false)
   expect(shownTo(sim, 2, strike)).toBe(true)
   expect(shownTo(sim, 3, strike)).toBe(false)
   expect(sim.vision.sees(3, toX, toY)).toBe(false)
 
-  seconds(sim, WARNING)
+  // Игрок 3 завёл юнит под удар — через секунду точка видна и ему; увёл — пропала.
+  const scout = spawnUnit(sim, 'tank', 3, target.x + 4, target.y + 4)
+  seconds(sim, 1.1)
+  expect(shownTo(sim, 3, strike)).toBe(true)
+  sim.world.destroy(scout)
+  seconds(sim, 1.1)
+  expect(shownTo(sim, 3, strike)).toBe(false)
+
+  seconds(sim, flight - 2.2)
   expect(missiles(sim)).toEqual([])
   expect(marks(sim, 'strike')).toEqual([])
   sim.advance(TICK)

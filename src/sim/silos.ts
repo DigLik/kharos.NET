@@ -17,9 +17,11 @@ import { networkHas, returnToNetwork, takeFromNetwork } from './upgrades'
  * карты: через launch секунд после приказа ракета стартует — до этого пуск можно отменить, — и шахта снова пуста.
  * О начале пуска хост пишет всем в чат, без места и цели (см. host.ts).
  *
- * Ракета летит по прямой speed тайлов в секунду; её видно, где у игрока обзор, и обычное ПВО её не бьёт. Со старта
- * место пуска на LAUNCH_MARK секунд отмечено у всех, у кого есть готовый радар; за WARNING секунд до удара точку
- * удара видят те, чьи здания или юниты в радиусе взрыва. Взрыв — Burst: бьёт всех без разбора, щит его не держит,
+ * Ракета летит по прямой speed тайлов в секунду; её весь полёт видят все игроки, где бы она ни была, — это событие
+ * на весь мир, — а обычное ПВО её не бьёт. Со старта место пуска на LAUNCH_MARK секунд отмечено у всех, у кого есть
+ * готовый радар. Точку удара весь полёт видят те, чьи здания или юниты в радиусе взрыва: список сверяется раз
+ * в WATCH секунд — увёл всё из круга — метка пропала, завёл — появилась; за WARNING секунд до удара им звучит второй
+ * сигнал (см. alerts.ts). Чужим ракета уходит без точки удара, только с курсом (wire.ts). Взрыв — Burst: бьёт всех без разбора, щит его не держит,
  * под защитой новичка урона нет (см. fight в combat.ts). Вспышка взрыва (Glare) на GLARE секунд снимает туман по всему
  * его кругу у всех игроков: виден и сам взрыв, и что от него осталось.
  *
@@ -31,8 +33,10 @@ import { networkHas, returnToNetwork, takeFromNetwork } from './upgrades'
 
 /** Сколько секунд место пуска отмечено у игроков с радаром. */
 export const LAUNCH_MARK = 60
-/** За сколько секунд до удара его точку видят те, чьё под ней. */
+/** За сколько секунд до удара тем, чьё под ним, звучит второй сигнал. */
 export const WARNING = 15
+/** Раз во сколько секунд сверяется, чьё под ударом: этим игрокам видна его точка. */
+export const WATCH = 1
 /** Сколько секунд вспышка взрыва открывает всем его круг. */
 export const GLARE = 5
 
@@ -271,6 +275,8 @@ export function launchMissiles(sim: Sim) {
   const { speed, blast } = BUILDINGS.silo.warhead
   const arrived: Entity[] = []
   const downed: Entity[] = []
+  /** Игроки, чьё сейчас под ударом ракеты, кроме её хозяина: он точку удара знает и так. */
+  const under = (missile: { toX: number; toY: number; player: number }) => playersNear(sim, missile.toX, missile.toY, blast.radius).filter((viewer) => viewer !== missile.player)
   for (const [entity, missile] of world.query(Missile)) {
     if (missile.hunted >= 0 && time.tick >= missile.hunted) {
       downed.push(entity)
@@ -286,11 +292,9 @@ export function launchMissiles(sim: Sim) {
     }
     missile.x += ((missile.toX - missile.x) / reach) * step
     missile.y += ((missile.toY - missile.y) / reach) * step
-    if (missile.mark >= 0) continue
-    const left = flightLeft(sim, missile, speed)
-    if (left > Math.round(WARNING / time.step)) continue
-    const viewers = playersNear(sim, missile.toX, missile.toY, blast.radius).filter((viewer) => viewer !== missile.player)
-    missile.mark = world.spawn(Position({ x: missile.toX, y: missile.toY }), Mark({ kind: 'strike', until: time.tick + left, player: missile.player, viewers }))
+    // Под удар за время полёта входят и из-под него уходят.
+    const mark = (time.tick - missile.born) % Math.round(WATCH / time.step) ? undefined : world.get(missile.mark as Entity, Mark)
+    if (mark) mark.viewers = under(missile)
   }
   // Сбитая гибнет в воздухе: вспышка без урона, метка точки удара пропадает.
   for (const entity of downed) {
@@ -311,7 +315,9 @@ export function launchMissiles(sim: Sim) {
   // Стартовавшая ракета трогается со следующего тика: в тик born она над шахтой, так её ведёт и клиент.
   for (const { silo, player, x, y, toX, toY } of fired) {
     Object.assign(world.get(silo, Silo)!, { ready: false, start: -1 })
-    world.spawn(Missile({ fromX: x, fromY: y, toX, toY, born: time.tick, x, y, player }))
+    const missile = world.get(world.spawn(Missile({ fromX: x, fromY: y, toX, toY, born: time.tick, x, y, player })), Missile)!
+    // Точка удара отмечена весь полёт; метку убирает сама ракета, срок — с запасом в тик.
+    missile.mark = world.spawn(Position({ x: toX, y: toY }), Mark({ kind: 'strike', until: time.tick + flightLeft(sim, missile, speed) + 1, player, viewers: under(missile) }))
     const viewers = radarOwners(sim).filter((viewer) => viewer !== player)
     world.spawn(Position({ x, y }), Mark({ kind: 'launch', until: time.tick + Math.round(LAUNCH_MARK / time.step), player, viewers }))
   }
