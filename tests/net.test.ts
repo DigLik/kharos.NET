@@ -619,7 +619,7 @@ test('вспышки радара видит только хозяин: его �
   const radar = placeBuilding(world, 'radar', x + 8, y + 3, 1)
   connectAll(host.sim, 1)
   let flash = world.get(radar, Scan)
-  for (let tick = 0; tick < 400 && !((flash = world.get(radar, Scan)) && flash.tick >= 0 && Math.hypot(flash.x - x, flash.y - y) > 25); tick++) {
+  for (let tick = 0; tick < 4000 && !((flash = world.get(radar, Scan)) && flash.tick >= 0 && Math.hypot(flash.x - x, flash.y - y) > 25); tick++) {
     host.advance(STEP)
     first.sim.advance(STEP)
     second.sim.advance(STEP)

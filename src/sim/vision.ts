@@ -48,12 +48,15 @@ export function unitSight(type: UnitType) {
 
 const buildingSights = new Map<keyof typeof BUILDINGS, number>()
 
-/** Сколько тайлов от своего центра видит здание вида type; стройка видит меньше. Готовое — число считается раз на вид. */
+/**
+ * Сколько тайлов от своего центра видит здание вида type; стройка видит меньше. off — здание выключено или ему не
+ * хватает энергии (Scan.dark у радара). Готовое — число считается раз на вид.
+ */
 export function buildingSight(type: keyof typeof BUILDINGS, site = false, off = false) {
   const spec = buildingSpec(type)
   const half = Math.max(spec.width, spec.height) / 2
   if (site) return half + SITE_SIGHT
-  // Выключенный радар видит как обычное здание.
+  // Радар без тока видит как обычное здание.
   if (off) return half + BUILDING_SIGHT
   let sight = buildingSights.get(type)
   if (sight === undefined) {
@@ -180,7 +183,7 @@ export function createVision(world: World, bounds: Bounds, tick: () => number, f
     for (const [entity, building, owner, position] of world.query(Building, Owner, Position)) {
       if (!ours(owner) || world.has(entity, Attached)) continue
       const { width: w, height: h } = BUILDINGS[building.type]
-      stamp(sight, position.x + w / 2, position.y + h / 2, buildingSight(building.type, world.has(entity, Site), world.has(entity, Off)))
+      stamp(sight, position.x + w / 2, position.y + h / 2, buildingSight(building.type, world.has(entity, Site), world.has(entity, Off) || world.get(entity, Scan)?.dark))
     }
     // Вспышки разведки своих радаров, пока не погасли, см. radar.ts.
     for (const [, flash, owner] of world.query(Scan, Owner)) {

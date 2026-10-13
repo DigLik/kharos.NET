@@ -11,10 +11,13 @@ import type { Sim } from './sim'
  * вспышке — видно, как в обзоре юнита: враги, здания, следы; после неё место остаётся разведанным, и месторождения
  * на нём игрок знает. Место вспышки радар берёт там, где ещё не разведано, а когда разведано всё — где придётся: так
  * он сначала открывает округу, а потом сторожит её, заглядывая то туда, то сюда. Радиус — BuildingSpec.scan,
- * с уровнем растёт (levelFactor), и потребление с ним, см. powerAt. При нехватке энергии вспышки реже, выключенный
- * радар не разведывает.
+ * с уровнем растёт (levelFactor), и потребление с ним, см. powerAt. При нехватке энергии вспышки реже, а если её
+ * меньше RADAR_POWER от нужного — радар и постоянно видит не дальше обычного здания (Scan.dark); без энергии вовсе
+ * и выключенный радар не разведывает.
  */
-export const SCAN_EVERY = 2
+export const SCAN_EVERY = 10
+/** С какой доли нужной энергии радар видит дальше обычного здания. */
+export const RADAR_POWER = 0.5
 /** Раз во сколько тиков радары смотрят, не пора ли: счёт до вспышки идёт этими шагами. */
 const CHECK_TICKS = 10
 /** Сколько мест радар пробует, ища неразведанное. */
@@ -41,7 +44,9 @@ export function scan(sim: Sim, time: Time) {
     }
     // Энергии не хватает — счёт идёт медленнее. Считается недёшево, поэтому только когда есть радары.
     supply ??= powerSupply(sim)
-    state.wait -= CHECK_TICKS * (supply.get(entity) ?? 0)
+    const share = supply.get(entity) ?? 0
+    state.dark = share < RADAR_POWER
+    state.wait -= CHECK_TICKS * share
     if (state.wait > 0) continue
     const { width, height } = BUILDINGS[building.type]
     due.push({ entity, player: owner.player, x: position.x + width / 2, y: position.y + height / 2, radius })

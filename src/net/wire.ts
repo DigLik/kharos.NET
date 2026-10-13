@@ -43,7 +43,7 @@ function wire(component: Component<any>, data: any, tick: number): object | unde
   if (component === Missile) return { fromX: data.fromX, fromY: data.fromY, toX: data.toX, toY: data.toY, born: data.born }
   if (component === Mark) return { kind: data.kind, until: data.until, player: data.player }
   // Счёт до следующей вспышки радара клиенту не нужен, а менялся бы дважды в секунду.
-  if (component === Scan) return { x: data.x, y: data.y, tick: data.tick }
+  if (component === Scan) return { x: data.x, y: data.y, tick: data.tick, dark: data.dark }
   return data
 }
 
