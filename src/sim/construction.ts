@@ -497,7 +497,7 @@ const REPAIR_AIM = 0.2
 export function repairStations(sim: Sim) {
   const { world } = sim
   const stations: { entity: Entity; player: number; x: number; y: number; radius: number; share: number }[] = []
-  let supply: Map<Entity, number> | undefined
+  let supply: ReadonlyMap<Entity, number> | undefined
   for (const [entity, repair, building, position, owner] of world.query(Repair, Building, Position, Owner)) {
     if (world.has(entity, Site)) continue
     // Выключенный потребитель и потребитель вне сети в долях энергии не значатся; здание без расхода работает всегда.

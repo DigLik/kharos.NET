@@ -192,7 +192,7 @@ function meetTicks(sim: Sim, missile: { x: number; y: number; toX: number; toY: 
  * которая вошла в его круг и метит в него же, — по ракете на каждую; из нескольких — ближайший к ней. power — доли
  * энергии, считаются по нужде.
  */
-function intercept(sim: Sim, power: () => Map<Entity, number>) {
+function intercept(sim: Sim, power: () => ReadonlyMap<Entity, number>) {
   const { world, time } = sim
   const armed: { entity: Entity; player: number; x: number; y: number; radius: number; speed: number }[] = []
   for (const [entity, state, building, position, owner] of world.query(Interceptor, Building, Position, Owner)) {
@@ -252,7 +252,7 @@ const AIRBURST = 1.5
  */
 export function launchMissiles(sim: Sim) {
   const { world, time } = sim
-  let supply: Map<Entity, number> | undefined
+  let supply: ReadonlyMap<Entity, number> | undefined
   const power = () => (supply ??= powerSupply(sim))
   const fired: { silo: Entity; player: number; x: number; y: number; toX: number; toY: number }[] = []
   for (const [entity, silo, building, position, owner] of world.query(Silo, Building, Position, Owner)) {

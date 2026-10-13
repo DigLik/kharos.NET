@@ -128,7 +128,7 @@ export function produceUnits(sim: Sim, time: Time) {
   const { world } = sim
   const ready: Entity[] = []
   // Считается недёшево, поэтому только когда производит здание-потребитель, и один раз за тик.
-  let supply: Map<Entity, number> | undefined
+  let supply: ReadonlyMap<Entity, number> | undefined
   const working: Entity[] = []
   for (const [entity, producer] of world.query(Producer)) {
     if (producer.queue.length) working.push(entity)

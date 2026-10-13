@@ -29,7 +29,7 @@ export function scan(sim: Sim, time: Time) {
   if (time.tick % CHECK_TICKS) return
   const { world, vision, bounds } = sim
   const due: { entity: Entity; player: number; x: number; y: number; radius: number }[] = []
-  let supply: Map<Entity, number> | undefined
+  let supply: ReadonlyMap<Entity, number> | undefined
   for (const [entity, building, owner, position] of world.query(Building, Owner, Position)) {
     const radius = scanRadius(building.type, building.level)
     if (!radius || !isReady(sim, owner.player, entity) || world.has(entity, Off)) continue

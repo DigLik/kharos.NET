@@ -42,7 +42,7 @@ function centerOf(sim: Sim, entity: Entity) {
 export function domes(sim: Sim): Dome[] {
   const { world, time } = sim
   const result: Dome[] = []
-  let supply: Map<Entity, number> | undefined
+  let supply: ReadonlyMap<Entity, number> | undefined
   for (const [entity, shield, building, owner] of world.query(Shield, Building, Owner)) {
     if (shield.charge <= 0 || time.tick < shield.down || world.has(entity, Site)) continue
     if (!((supply ??= powerSupply(sim)).get(entity) ?? 0)) continue
@@ -123,7 +123,7 @@ export const stopShot = (sim: Sim, dome: Dome, damage: number) => void drain(sim
 /** Раз в тик: щиты восстанавливаются на долю энергии своей зоны; без энергии купол гаснет. */
 export function chargeShields(sim: Sim) {
   const { world, time } = sim
-  let supply: Map<Entity, number> | undefined
+  let supply: ReadonlyMap<Entity, number> | undefined
   const pause = sim.rules.repairPause / time.step
   for (const [entity, shield, building] of world.query(Shield, Building)) {
     if (world.has(entity, Site)) continue

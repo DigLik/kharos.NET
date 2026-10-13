@@ -66,14 +66,46 @@ interface Book {
 }
 
 /**
+ * Хозяйства, посчитанные в идущем тике, и для каких энергосетей; supply — то же, что powerSupply. Нет записи — тик
+ * не идёт, и хозяйства считаются заново при каждом вопросе: между тиками мир меняют команды, тесты и редактор.
+ */
+const ledgers = new WeakMap<Sim, { grids?: Map<number, Zone[]>; books?: Book[]; supply?: Map<Entity, number> }>()
+
+/**
+ * Тик начался: до closeBooks хозяйства зон считаются раз, а не каждым, кто спросил, — их спрашивают с десяток систем,
+ * и на большой базе каждый раз это обход тысяч зданий. Открывается после накопителей: они решают, сколько отдают
+ * зоне в этот тик. Перестроились сети — достроили или разрушили здание — хозяйства считаются заново; урон
+ * электростанциям в бою скажется со следующего тика.
+ */
+export const openBooks = (sim: Sim) => void ledgers.set(sim, {})
+
+/** Тик кончился, см. openBooks. */
+export const closeBooks = (sim: Sim) => void ledgers.delete(sim)
+
+/** Хозяйства идущего тика, если сети с тех пор не перестроились; undefined — считать заново. */
+function ledgerOf(sim: Sim) {
+  const ledger = ledgers.get(sim)
+  if (!ledger) return undefined
+  const grids = allGrids(sim)
+  if (ledger.grids !== grids) {
+    ledger.grids = grids
+    ledger.books = ledger.supply = undefined
+  }
+  return ledger
+}
+
+/**
  * Зоны всех игроков с их хозяйствами, у каждого игрока — в порядке зон. Считаются только готовые здания в зонах:
  * свернул главное здание — встало всё.
  */
 function books(sim: Sim): Book[] {
+  const ledger = ledgerOf(sim)
+  if (ledger?.books) return ledger.books
   const result: Book[] = []
   for (const [player, zones] of allGrids(sim)) {
     for (const zone of zones) result.push({ player, zone, economy: economyOfZone(sim, zone) })
   }
+  if (ledger) ledger.books = result
   return result
 }
 
@@ -159,12 +191,15 @@ export function powerStates(sim: Sim): Map<Entity, PowerState> {
  * На какую долю от полной скорости работает каждый потребитель энергии: 1 — энергии хватает. Потребителя,
  * который не входит ни в одну зону строительства или выключен, здесь нет — он не работает вовсе.
  */
-export function powerSupply(sim: Sim): Map<Entity, number> {
+export function powerSupply(sim: Sim): ReadonlyMap<Entity, number> {
+  const ledger = ledgerOf(sim)
+  if (ledger?.supply) return ledger.supply
   const supply = new Map<Entity, number>()
   for (const { zone, economy } of books(sim)) {
     const share = economy.demand > 0 ? Math.min(1, economy.produced / economy.demand) : 1
     for (const entity of zone.buildings) if (powerAt(sim, entity) < 0 && !switchedOff(sim, entity)) supply.set(entity, share)
   }
+  if (ledger) ledger.supply = supply
   return supply
 }
 

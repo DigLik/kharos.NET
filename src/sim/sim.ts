@@ -22,7 +22,7 @@ import { chargeShields } from './shields'
 import { convert } from './conversion'
 import { haul } from './hauling'
 import { pipeFlow } from './pipes'
-import { earn, storeEnergy } from './income'
+import { closeBooks, earn, openBooks, storeEnergy } from './income'
 import { burnFuel } from './reactors'
 import { launchMissiles } from './silos'
 import { ferry } from './ferry'
@@ -238,6 +238,8 @@ export function createSim(source: SimOptions | SimSave): Sim {
       () => burnFuel(sim),
       // До всех потребителей энергии: накопители решают, сколько отдают зоне в этот тик.
       () => storeEnergy(sim),
+      // Хозяйства зон дальше в тике считаются раз, см. openBooks.
+      () => openBooks(sim),
       (_, time) => produceUnits(sim, time),
       // После производства и до движения: переработка превращает привезённую руду в готовое, грузовики развезут его.
       (_, time) => refine(sim, time),
@@ -280,6 +282,7 @@ export function createSim(source: SimOptions | SimSave): Sim {
       () => updateLandMemory(sim),
       // Тоже после обзора: новые месторождения находят, ушедшие забывают те, кто видит их место.
       () => renewDeposits(sim),
+      () => closeBooks(sim),
     ],
   })
   /**

@@ -182,7 +182,7 @@ export function research(sim: Sim, time: Time) {
   }
   if (!labs.size) return
   // Считается недёшево, поэтому только когда лаборатории есть, и один раз за тик.
-  let supply: Map<Entity, number> | undefined
+  let supply: ReadonlyMap<Entity, number> | undefined
   for (const [player, list] of labs) {
     const entity = playerEntity(sim, player)
     const topic = entity === undefined ? undefined : nextTopic(sim, entity)
