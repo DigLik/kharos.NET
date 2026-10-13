@@ -5,7 +5,7 @@ import { FACING, MOTION_FIELDS, POSITION, SPAN_MOST, decodeDelta, encodeDelta } 
 import { decodeServer } from '../src/net/protocol'
 import type { WeaponType } from '../src/sim/weapons'
 import { createReplica, type Replica } from '../src/net/replica'
-import { Armed, Building, Ghost, Owner, Path, Player, Position, Producer, Unit, createSim, isWalkable, shownTo } from '../src/sim'
+import { Armed, Building, Ghost, Health, Owner, Path, Player, Position, Producer, Unit, createSim, isWalkable, shownTo } from '../src/sim'
 import { SAVED, Scan } from '../src/sim/components'
 import { connectAll } from '../src/sim/piping'
 import { wireOf } from '../src/net/wire'
@@ -468,6 +468,49 @@ test('юнит, которого хост придержал на несколь
   expect(frame([id, 8, 0, 2, 2]).x).toBeCloseTo(6)
   expect(frame([id, 0, 0, 2, 1])).toEqual({ x: 0, y: 0 })
   expect(unit().prevX).toBeCloseTo(6)
+})
+
+test('притихшее сверяется реже, но изменение доходит за секунду, а тронувшийся с места юнит не плывёт к новому месту', () => {
+  const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 256 }))
+  const motions: number[][] = []
+  const peer = host.join((data) => {
+    const message = decodeServer(data)
+    if (message.type === 'delta') motions.push(message.motion)
+  })
+  const { sim, peer: second } = join(host)
+  const ownUnit = (player: number) => {
+    for (const [entity, , owner] of host.sim.world.query(Unit, Owner)) if (owner.player === player) return entity
+    throw new Error(`у игрока ${player} нет юнитов`)
+  }
+  const near = host.sim.world.get(ownUnit(second.player), Position)!
+  const building = placeBuilding(host.sim.world, 'metalYard', Math.floor(near.x) + 3, Math.floor(near.y) + 3, second.player)
+  // Две секунды без дела: здание и стартовый набор притихли.
+  for (let i = 0; i < 40; i++) {
+    host.advance(STEP)
+    sim.advance(STEP)
+  }
+  const health = host.sim.world.get(building, Health)!
+  // Прочность меняется без попадания: здание не «в бою» и сверяется как притихшее.
+  health.value = health.max / 2
+  let ticks = 0
+  while (sim.world.get(building, Health)?.value !== health.value && ticks < 40) {
+    host.advance(STEP)
+    sim.advance(STEP)
+    ticks++
+  }
+  expect(sim.world.get(building, Health)?.value).toBe(health.value)
+  expect(ticks).toBeGreaterThan(1)
+  expect(ticks).toBeLessThanOrEqual(20)
+
+  // Юнит первого клиента стоял, теперь сдвинулся на тайл: он тронулся только что, срок движения — один тик.
+  const unit = ownUnit(peer.player)
+  host.sim.world.get(unit, Position)!.x += 1
+  motions.length = 0
+  host.advance(STEP)
+  const flat = motions.flat()
+  const at = flat.findIndex((value, index) => index % MOTION_FIELDS === 0 && value === unit)
+  expect(at).toBeGreaterThanOrEqual(0)
+  expect(flat[at + 4]).toBe(1)
 })
 
 test('вспышки радара видит только хозяин: его копия открывает туман там же, где хост, а чужой про них не знает', () => {

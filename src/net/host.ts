@@ -2,7 +2,7 @@ import { applyEdit, type EditOp } from '../sim/editOps'
 import type { Entity } from '../ecs'
 import { Terrain, terrainAt, tileBytes } from '../map/terrain'
 import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownBy, sightingOf, allied, alliesOf, breakAlliance, exitAlliance, offerAlliance, giftable, spawnStartingUnits, wipePlayer, type Command, type Sim, type Sighting, type SimSave } from '../sim'
-import { Armed, Attached, Blast, Building, Health, Owner, Path, Player, Position, Shot, Silo, Transfer, Unit } from '../sim/components'
+import { Armed, Attached, Blast, Building, Burst, Doomed, Gate, Glare, Health, Interceptor, Mark, Owner, Path, Player, Position, Scan, Shield, Shot, Silo, Transfer, Unit } from '../sim/components'
 import { pathOf, seenBy, sharedWireOf, type Wired } from './wire'
 import { LAND, POSITION, encodeDelta, type Motion, type ShotRecord } from './codec'
 import { deflate } from '../save/file'
@@ -90,6 +90,20 @@ const SCREEN_MARGIN = 0.25
 const SCREEN_MARGIN_LEAST = 6
 /** Сколько тиков после попадания сущность считается «в бою». */
 const HOT_TICKS = 20
+/**
+ * Притихшая сущность — столько сверок подряд не менялась: таких на большой базе десятки тысяч (покрытие, трубы,
+ * склады без дела), а меняется за тик пара штук. Она сверяется не каждый тик, а раз в QUIET_TICKS, на экране игрока —
+ * раз в QUIET_ON_SCREEN: там игрок ждёт ответа на свои команды; едущая и в бою — как обычно. Ожила — первое изменение
+ * придёт с опозданием не больше этого, дальше снова каждый тик.
+ */
+const QUIET_CHECKS = 10
+const QUIET_TICKS = 20
+const QUIET_ON_SCREEN = 2
+/**
+ * Компоненты событий: подолгу не меняются, а потом важно каждое мгновение — вспышка радара гаснет за полторы секунды,
+ * ворота пропускают сейчас. Сущность с ними не притихает никогда; их сотни, а не десятки тысяч.
+ */
+const LIVELY = [Scan, Gate, Silo, Interceptor, Shield, Mark, Glare, Doomed, Burst].map((component) => component.key)
 /** Корзин в очереди рассылки: по четыре на каждое удвоение приоритета, см. bucketOf. */
 const BUCKETS = 64
 /** Во что кадру обходится запись движения, выстрел, обёртка записи set и номер в remove, в байтах: для бюджета, на глаз. */
@@ -121,6 +135,13 @@ interface Known {
   seen: number
   /** Клиент о ней слышал: о пропаже такой ему надо сказать. */
   told: boolean
+  /** Сколько сверок подряд она не менялась, см. QUIET_CHECKS. */
+  quiet: number
+  /**
+   * Последний тик, когда её место у подключения было верным: притихшую не сверяют, но что она не сдвинулась, видно
+   * каждый тик. От него считается срок движения — тронувшаяся с места едет к новому месту за те тики, что ехала.
+   */
+  still: number
 }
 /** Мир, каким его знает подключение. */
 type View = Map<number, Known>
@@ -919,23 +940,26 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     }
     if (moved) {
       // Срок — сколько тиков подключение не знало, где сущность: столько клиент и ведёт её к новому месту.
-      frame.motions.push([id, motion, old ? tick - old.checked : 1])
+      frame.motions.push([id, motion, old ? tick - old.still : 1])
       frame.bytes += MOTION_BYTES
     }
     if (!old) {
       // Сущность, которой в сети нечего показать, клиенту не называется — но помнится, чтобы не собирать её каждый тик.
-      known.set(id, { parts, path, motion, checked: tick, seen: frame.pass, told: !!set || moved || shot })
+      known.set(id, { parts, path, motion, checked: tick, seen: frame.pass, told: !!set || moved || shot, quiet: 0, still: tick })
       return
     }
     let dropped: string[] | undefined
     for (const key of old.parts.keys()) if (!parts.has(key)) (dropped ??= []).push(key)
     if (old.path !== undefined && path === undefined) (dropped ??= []).push(Path.key)
     if (dropped) frame.unset.push([id, dropped])
-    if (tick - old.checked > sending.waited) sending.waited = tick - old.checked
+    // Притихшая ждёт сверки нарочно: залежавшейся она не считается.
+    if (old.quiet < QUIET_CHECKS && tick - old.checked > sending.waited) sending.waited = tick - old.checked
+    old.quiet = set || moved || shot || dropped || LIVELY.some((key) => parts.has(key)) ? 0 : old.quiet + 1
     old.parts = parts
     old.path = path
     old.motion = motion
     old.checked = tick
+    old.still = tick
     old.told ||= !!set || moved || shot
   }
 
@@ -999,8 +1023,11 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
         else if (near(x, y)) weight = NEAR_SCREEN
       }
       // Едет — место не то, что подключение знает; поворот на месте не в счёт.
-      if (old.motion && (Math.round(brief.x * POSITION) !== old.motion[0] || Math.round(brief.y * POSITION) !== old.motion[1])) weight *= MOVING
+      const moving = !!old.motion && (Math.round(brief.x * POSITION) !== old.motion[0] || Math.round(brief.y * POSITION) !== old.motion[1])
+      if (moving) weight *= MOVING
+      else old.still = tick
       if (brief.hot) weight *= FIGHTING
+      else if (!moving && old.quiet >= QUIET_CHECKS && age < (weight === ON_SCREEN ? QUIET_ON_SCREEN : QUIET_TICKS)) continue
       enqueue(at, age * weight)
     }
     for (const [id, old] of known) {
