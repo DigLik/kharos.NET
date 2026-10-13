@@ -217,6 +217,30 @@ export function offersOf(sim: Sim, entity: Entity): readonly Good[] {
   return ore ? [ore] : NOTHING_OFFERED
 }
 
+/**
+ * Кто в сети что отдаёт: возвращённая функция даёт здания сети, отдающие груз, в порядке зданий сети. Трубы, колодцы
+ * и электростанции не отдают ничего, а их в сети большой базы тысячи — перебирать их на каждый вопрос дорого. Годится,
+ * пока не изменилось, что здания отдают (вид, рецепт, тема исследований, продажа): на один обход системы, не дольше.
+ */
+export function offerIndex(sim: Sim) {
+  const offering = new Map<Zone, Map<Good, Entity[]>>()
+  return (zone: Zone, resource: Good): readonly Entity[] => {
+    let goods = offering.get(zone)
+    if (!goods) {
+      offering.set(zone, (goods = new Map()))
+      for (const source of zone.buildings) {
+        for (const good of offersOf(sim, source)) {
+          const list = goods.get(good)
+          if (list) list.push(source)
+          else goods.set(good, [source])
+        }
+      }
+    }
+    return goods.get(resource) ?? NOTHING_OFFERING
+  }
+}
+const NOTHING_OFFERING: readonly Entity[] = []
+
 /** Заявки зон игрока: что, куда и сколько везти, с учётом того, что уже едет. */
 export function requestsOf(sim: Sim, player: number, flows = flowsOf(sim)): Request[] {
   const { world } = sim
@@ -453,6 +477,14 @@ export function dispatch(sim: Sim) {
   }
   if (!idle.size) return
   const flows = flowsOf(sim)
+  const offeringIn = offerIndex(sim)
+  /** Хранилища сети: их в ней десятки, а зданий — тысячи. */
+  const stores = new Map<Zone, Entity[]>()
+  const storesIn = (network: Zone) => {
+    let found = stores.get(network)
+    if (!found) stores.set(network, (found = network.buildings.filter((entity) => isStore(sim, entity))))
+    return found
+  }
 
   for (const [player, trucks] of idle) {
     const requests = requestsOf(sim, player, flows)
@@ -491,10 +523,9 @@ export function dispatch(sim: Sim) {
 
     /** Есть ли в сети поставщик груза — тогда его везут трубы. */
     const hasLocal = (network: Zone, resource: Good, least: number, sale: boolean) =>
-      network.buildings.some((source) => offersOf(sim, source).includes(resource) && givenBy(sim, source, resource, sale) >= least)
+      offeringIn(network, resource).some((source) => givenBy(sim, source, resource, sale) >= least)
     /** Есть ли в сети хранилище, куда этот груз ещё помещается. */
-    const hasStore = (network: Zone, resource: Good) =>
-      network.buildings.some((store) => isStore(sim, store) && spaceFor(sim, NONE as Entity, store, resource, flows) > 1e-9)
+    const hasStore = (network: Zone, resource: Good) => storesIn(network).some((store) => spaceFor(sim, NONE as Entity, store, resource, flows) > 1e-9)
 
     for (const truck of trucks) {
       const room = world.get(truck, Inventory)?.capacity ?? 0

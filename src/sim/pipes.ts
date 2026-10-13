@@ -3,7 +3,7 @@ import { BUILDINGS, buildingSpec } from './buildings'
 import { NONE } from './common'
 import { Assembly, Batch, Building, Inventory, Owner, Position, Site } from './components'
 import { amountOf, put, roomFor, take } from './inventory'
-import { flowsOf, givenBy, offersOf, requestsOf, spareOf } from './logistics'
+import { flowsOf, givenBy, offerIndex, offersOf, requestsOf, spareOf } from './logistics'
 import { isProduct, type Good } from './resources'
 import type { Sim } from './sim'
 import { isStore } from './trade'
@@ -190,25 +190,8 @@ export function pipeFlow(sim: Sim) {
   const zones = allZones(sim)
   if (!zones.size) return
   const flows = flowsOf(sim)
-  /**
-   * Кто в сети что отдаёт, по грузам и в порядке зданий сети: трубы, колодцы и электростанции не отдают ничего, а их
-   * в сети большой базы тысячи, и перебирать их на каждую заявку дорого. Что здание отдаёт, пачки не меняют.
-   */
-  const offering = new Map<Zone, Map<Good, Entity[]>>()
-  const offeringIn = (zone: Zone, resource: Good) => {
-    let goods = offering.get(zone)
-    if (!goods) {
-      offering.set(zone, (goods = new Map()))
-      for (const source of zone.buildings) {
-        for (const good of offersOf(sim, source)) {
-          const list = goods.get(good)
-          if (list) list.push(source)
-          else goods.set(good, [source])
-        }
-      }
-    }
-    return goods.get(resource) ?? []
-  }
+  // Что здание отдаёт, пачки не меняют.
+  const offeringIn = offerIndex(sim)
   for (const [player, list] of zones) {
     if (!player) continue
     for (const request of requestsOf(sim, player, flows)) {
