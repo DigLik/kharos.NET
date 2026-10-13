@@ -8,7 +8,7 @@ import { powerSupply, zoneEconomies } from './income'
 import { networkOf } from './zones'
 import { RESOURCES, entriesOf, type Amounts, type Good } from './resources'
 import type { Sim } from './sim'
-import { PAVE_RESEARCH, TOPICS, isTopic, isTrigger, pathTo, playerEntity, topicPrice, topicSpec, topicsBefore, type Topic } from './topics'
+import { PAVE_RESEARCH, TOPICS, currentTopic, isTopic, isTrigger, openTopics, pathTo, playerEntity, setPick, topicPrice, topicSpec, topicsBefore, type Topic } from './topics'
 import { UNIT_TYPES, unitSpec } from './units'
 import { networkStock, takeFromNetwork } from './upgrades'
 
@@ -23,6 +23,10 @@ import { networkStock, takeFromNetwork } from './upgrades'
  * есть, работают: так лабораторий ставят несколько, и каждая тратит ровно на свою долю — вместе они тратят столько
  * же, сколько одна, только быстрее. При нехватке энергии лаборатория работает и тратит медленнее, выключенная стоит.
  * Брошенная тема помнит свой прогресс: уплаченное за него не пропадает, и к ней можно вернуться.
+ *
+ * План не встаёт на теме без сырья: если головной теме STALL_SECONDS не из чего работать, лаборатории берутся за
+ * следующую открытую тему плана, у которой сырьё под рукой, и возвращаются к головной, как только её сырьё появится,
+ * см. pickTopic. Нехватка кредитов и энергии план не двигает: они тормозят любую тему одинаково.
  */
 
 /** Почему лаборатория стоит: нет темы, нет энергии, не хватает кредитов или этого груза в её сети. */
@@ -171,7 +175,54 @@ function report(sim: Sim, lab: Entity, speed: number, lack: LabLack | '') {
 /** Доля погрешности: столько от темы считается сделанным, а сырья — найденным. */
 const EPSILON = 1e-9
 
-/** Раз в тик: лаборатории ведут первую тему из плана своего хозяина и платят за сделанное. */
+/** Сколько секунд головная тема плана стоит без сырья, прежде чем лаборатории возьмутся за следующую. */
+export const STALL_SECONDS = 10
+/** Как часто сверяется, есть ли темам сырьё, в секундах: реже — и выбор не мечется, и склады сетей считаются нечасто. */
+const PICK_SECONDS = 1
+
+/** Как давно головная тема игрока без сырья: head — о какой теме речь, since — с какого тика (-1 — сырьё есть), checked — когда сверяли. */
+const stalls = new WeakMap<Sim, Map<number, { head: Topic; since: number; checked: number }>>()
+
+/** Есть ли под рукой хоть у одной из лабораторий всё сырьё темы: на её складе или в её сети труб. Теме без сырья оно не нужно. */
+function supplied(sim: Sim, topic: Topic, labs: readonly Entity[]) {
+  const goods = entriesOf(topicPrice(sim, topic).materials).map(([good]) => good)
+  if (!goods.length) return true
+  return labs.some((lab) => {
+    const stock = sim.world.get(lab, Inventory)
+    return goods.every((good) => (stock ? amountOf(stock, good) : 0) + networkStock(sim, lab, good) > EPSILON)
+  })
+}
+
+/**
+ * Выбирает тему, которую лаборатории игрока ведут сейчас, и запоминает выбор для currentTopic. Головная тема плана
+ * уступает, только простояв без сырья STALL_SECONDS: грузовикам нужно время его привезти. Тогда берётся следующая
+ * открытая тема плана, у которой сырьё под рукой; нет такой — ждут головную. Сверяется раз в PICK_SECONDS; тему
+ * плана сменили — сразу. Зовут лаборатории каждый тик и интерфейс: у клиента мир — копия, и выбор он выводит сам.
+ */
+export function pickTopic(sim: Sim, player: number): Topic | undefined {
+  const open = openTopics(sim, player)
+  const head = open[0]
+  let byPlayer = stalls.get(sim)
+  if (!byPlayer) stalls.set(sim, (byPlayer = new Map()))
+  if (!head) {
+    byPlayer.delete(player)
+    setPick(sim, player, undefined)
+    return undefined
+  }
+  const { tick, step } = sim.time
+  const last = byPlayer.get(player)
+  const same = last?.head === head
+  if (same && tick >= last.checked && (tick - last.checked) * step < PICK_SECONDS) return currentTopic(sim, player)
+  const labs: Entity[] = []
+  for (const [entity] of sim.world.query(Building)) if (isLab(sim, player, entity) && !sim.world.has(entity, Off)) labs.push(entity)
+  const since = supplied(sim, head, labs) ? -1 : same && last.since >= 0 && last.since <= tick ? last.since : tick
+  byPlayer.set(player, { head, since, checked: tick })
+  const stalled = since >= 0 && (tick - since) * step >= STALL_SECONDS
+  setPick(sim, player, stalled ? open.slice(1).find((topic) => supplied(sim, topic, labs)) : undefined)
+  return currentTopic(sim, player)
+}
+
+/** Раз в тик: лаборатории ведут нынешнюю тему своего хозяина — головную тему плана или ту, что её подменяет, — и платят за сделанное. */
 export function research(sim: Sim, time: Time) {
   const { world } = sim
   const labs = new Map<number, Entity[]>()
@@ -195,7 +246,8 @@ export function research(sim: Sim, time: Time) {
   }
   for (const [player, list] of labs) {
     const entity = playerEntity(sim, player)
-    const topic = entity === undefined ? undefined : nextTopic(sim, entity)
+    // План сначала сбрасывает то, что вести нельзя; какую из оставшихся тем вести, решает pickTopic.
+    const topic = entity === undefined || nextTopic(sim, entity) === undefined ? undefined : pickTopic(sim, player)
     if (entity === undefined || topic === undefined) {
       for (const lab of list) report(sim, lab, 0, 'idle')
       continue

@@ -3,7 +3,7 @@ import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import {
   BUILDINGS, Batch, Inventory, Off, Player, RESEARCH, RESEARCH_FOR, Research, TIER_CREDITS, TIER_SECONDS, TOPICS, Upgrade, amountOf, canPlace, createSim, creditsOf, depositIn, hasResearch,
-  isUnlocked, planOf, progressOf, researchOf, stockOf, tierOf, topicPrice, topicsBefore, upgradeCost, upgradeLack, upgradeTicks,
+  STALL_SECONDS, isUnlocked, pickTopic, planOf, progressOf, researchOf, stockOf, tierOf, topicPrice, topicsBefore, upgradeCost, upgradeLack, upgradeTicks,
   type BuildingType, type Rules, type Sim, type Topic,
 } from '../src/sim'
 import { STORES, placeBuilding, storeFor } from '../src/sim/buildings'
@@ -327,6 +327,58 @@ test('очередь ведёт тему вместе с предшествен�
   seconds(sim, 2)
   expect(progressOf(sim, 1, 'blocks')).toBe(half)
   expect(sim.world.get(lab, Research)!.lack).toBe('power')
+})
+
+test('план не встаёт на теме без сырья: лаборатории берутся за следующую и возвращаются, когда сырьё появится', () => {
+  const { sim, buildings: [lab], stash } = base(['lab'])
+  learn(sim, 'metalOre', 'fuelOre', 'infantry')
+  stash({ metal: 100 })
+  plan(sim, 'rockets')
+  plan(sim, 'ammo')
+  expect(planOf(sim, 1)).toEqual(['rockets', 'ammo'])
+  // Топлива нет нигде. Сразу план не двигается: грузовикам и трубам нужно время привезти.
+  seconds(sim, STALL_SECONDS - 2)
+  expect(pickTopic(sim, 1)).toBe('rockets')
+  expect(sim.world.get(lab, Research)).toMatchObject({ speed: 0, lack: 'fuel' })
+  expect(progressOf(sim, 1, 'ammo')).toBe(0)
+  // Простояла — лаборатория ведёт следующую тему, у которой сырьё есть. План при этом тот же.
+  seconds(sim, 4)
+  expect(pickTopic(sim, 1)).toBe('ammo')
+  expect(sim.world.get(lab, Research)).toMatchObject({ speed: 1, lack: '' })
+  expect(progressOf(sim, 1, 'ammo')).toBeGreaterThan(0)
+  expect(planOf(sim, 1)).toEqual(['rockets', 'ammo'])
+  // Сырьё головной темы появилось — лаборатория возвращается к ней, а начатое в брошенной теме помнится.
+  stash({ fuel: 100 })
+  seconds(sim, 2)
+  expect(pickTopic(sim, 1)).toBe('rockets')
+  const paused = progressOf(sim, 1, 'ammo')
+  expect(paused).toBeGreaterThan(0)
+  seconds(sim, 3)
+  expect(progressOf(sim, 1, 'rockets')).toBeGreaterThan(0)
+  expect(progressOf(sim, 1, 'ammo')).toBe(paused)
+  // Обе доводятся до конца, по очереди плана.
+  seconds(sim, topicPrice(sim, 'rockets').seconds + topicPrice(sim, 'ammo').seconds + 5)
+  expect(hasResearch(sim, 1, 'rockets')).toBe(true)
+  expect(hasResearch(sim, 1, 'ammo')).toBe(true)
+  expect(planOf(sim, 1)).toEqual([])
+})
+
+test('без сырья у всех тем плана лаборатории ждут головную, а нехватка кредитов план не двигает', () => {
+  const { sim, buildings: [lab], stash } = base(['lab'])
+  learn(sim, 'metalOre', 'fuelOre', 'infantry')
+  plan(sim, 'rockets')
+  plan(sim, 'ammo')
+  // Ни топлива, ни металла: вести нечего, ждут первую.
+  seconds(sim, STALL_SECONDS + 3)
+  expect(pickTopic(sim, 1)).toBe('rockets')
+  expect(sim.world.get(lab, Research)).toMatchObject({ speed: 0, lack: 'fuel' })
+  // Сырьё есть, кредитов нет: следующая тема стоила бы тех же кредитов, и план стоит на первой.
+  stash({ fuel: 100, metal: 100 })
+  for (const [entity, player] of sim.world.query(Player)) if (player.id === 1) sim.world.set(entity, Player, { credits: 0, earned: 0 })
+  seconds(sim, STALL_SECONDS + 3)
+  expect(pickTopic(sim, 1)).toBe('rockets')
+  expect(sim.world.get(lab, Research)!.lack).toBe('credits')
+  expect(progressOf(sim, 1, 'ammo')).toBe(0)
 })
 
 test('открытия случаются сами: перегруз сети открывает накопитель, переработанная руда — космопорт', () => {

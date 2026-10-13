@@ -1020,7 +1020,7 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
         {!state.editor && (
           <button class={tech ? 'hud__tech is-active' : 'hud__tech'} data-tip={t('tech.openTip')} onClick={() => setTech(!tech)}>
             {t('tech.button')}
-            {state.tech.plan[0] && <small>{Math.round((state.tech.topics.find(({ topic }) => topic === state.tech.plan[0])?.progress ?? 0) * 100)}%</small>}
+            {state.tech.current && <small>{Math.round((state.tech.topics.find(({ topic }) => topic === state.tech.current)?.progress ?? 0) * 100)}%</small>}
           </button>
         )}
         <span class="hud__menu">{menu}</span>

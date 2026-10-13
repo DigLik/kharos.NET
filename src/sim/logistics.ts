@@ -207,7 +207,8 @@ export function offersOf(sim: Sim, entity: Entity): readonly Good[] {
     const inputs = inputsOf(sim, entity)
     return WARES.filter((ware) => !inputs.includes(ware as Resource))
   }
-  // Лаборатория отдаёт всё, что не нужно нынешней теме: остатки прежней увозят обратно.
+  // Лаборатория отдаёт всё, что не нужно ни нынешней теме, ни головной теме плана, которая ждёт сырья: остатки
+  // прежних увозят обратно.
   if (spec.researches) {
     const needs = researchNeeds(sim, sim.world.get(entity, Owner)?.player ?? 0)
     return GOODS.filter((good) => !needs[good])
@@ -278,7 +279,7 @@ export function requestsOf(sim: Sim, player: number, flows = flowsOf(sim)): Requ
     const room = roomFor(inventory, ore)
     if (room > 0) need(entity, ore, room, PRIORITY.refine, 'mines')
   }
-  // Лаборатории: сырьё нынешней темы, по LAB_STOCK каждого, но не больше своей доли того, что теме осталось потратить:
+  // Лаборатории: сырьё нынешней темы и головной темы плана, если ведут не её (см. researchNeeds), по LAB_STOCK каждого, но не больше своей доли того, что теме осталось потратить:
   // остаток делится поровну, и работают все. Раньше каждая просила остаток за вычетом чужого — и первая забирала всё.
   // Лишнее у одной увезут обратно, когда тема кончится. Руду — из своих шахт, где бы они ни стояли, как переработке.
   const labs: Entity[] = []

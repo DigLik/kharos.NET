@@ -180,23 +180,55 @@ export function pathTo(topic: Topic, done: readonly string[]): Topic[] {
 }
 
 /**
- * Тема, которую лаборатории игрока ведут сейчас: первая в очереди, которой ещё нет в открытых и у которой открыты все
- * предшественники; undefined — вести нечего.
+ * Темы плана игрока, которые можно вести сейчас, в порядке плана: ещё не открытые, с открытыми предшественниками.
+ * Первая — головная: за неё лаборатории берутся прежде остальных.
  */
-export function currentTopic(sim: Sim, player: number): Topic | undefined {
+export function openTopics(sim: Sim, player: number): Topic[] {
   const entity = playerEntity(sim, player)
-  if (entity === undefined) return undefined
+  if (entity === undefined) return []
   const { plan, research: known } = sim.world.get(entity, Player)!
-  return plan.find((topic): topic is Topic => isTopic(topic) && !known.includes(topic) && topicsBefore(topic).every((before) => known.includes(before)))
+  return plan.filter((topic): topic is Topic => isTopic(topic) && !known.includes(topic) && topicsBefore(topic).every((before) => known.includes(before)))
 }
 
-/** Сколько чего ещё потратит нынешняя тема игрока до конца: её цена за вычетом сделанного. Пусто — темы нет. */
+/**
+ * Какую из открытых тем плана лаборатории игрока ведут вместо головной, пока той не из чего работать: выбор делает
+ * pickTopic в research.ts. Это не состояние мира, а вывод из него: не сохраняется и в сеть не идёт — и хост,
+ * и клиент выводят его сами.
+ */
+const picks = new WeakMap<Sim, Map<number, Topic>>()
+
+/** Запоминает выбор лабораторий игрока; undefined — ведут головную. */
+export function setPick(sim: Sim, player: number, topic: Topic | undefined) {
+  let byPlayer = picks.get(sim)
+  if (!byPlayer) picks.set(sim, (byPlayer = new Map()))
+  if (topic) byPlayer.set(player, topic)
+  else byPlayer.delete(player)
+}
+
+/**
+ * Тема, которую лаборатории игрока ведут сейчас: головная тема плана, а если она встала без сырья — следующая
+ * открытая, у которой сырьё есть (см. pickTopic); undefined — вести нечего. Правило одно на всех: по нему работают
+ * лаборатории, возят грузовики и показывает интерфейс.
+ */
+export function currentTopic(sim: Sim, player: number): Topic | undefined {
+  const open = openTopics(sim, player)
+  const pick = picks.get(sim)?.get(player)
+  return pick !== undefined && open.includes(pick) ? pick : open[0]
+}
+
+/**
+ * Сколько чего ещё потратят до конца нынешняя тема игрока и головная тема плана, если ведут не её: цена за вычетом
+ * сделанного. Сырьё головной лаборатории ждут и держат и пока заняты другой: иначе грузовики увезли бы привезённое,
+ * а вернуться к ней было бы не с чем. Пусто — темы нет.
+ */
 export function researchNeeds(sim: Sim, player: number): Amounts {
-  const topic = currentTopic(sim, player)
-  if (!topic) return {}
-  const entity = playerEntity(sim, player)!
-  const left = 1 - (sim.world.get(entity, Player)!.progress[topic] ?? 0)
+  const current = currentTopic(sim, player)
+  if (!current) return {}
+  const { progress } = sim.world.get(playerEntity(sim, player)!, Player)!
   const needs: Amounts = {}
-  for (const [good, amount] of entriesOf(topicPrice(sim, topic).materials)) needs[good] = amount * left
+  for (const topic of new Set([openTopics(sim, player)[0], current])) {
+    const left = 1 - (progress[topic] ?? 0)
+    for (const [good, amount] of entriesOf(topicPrice(sim, topic).materials)) needs[good] = (needs[good] ?? 0) + amount * left
+  }
   return needs
 }

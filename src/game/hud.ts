@@ -7,7 +7,7 @@ import { textOf } from '../i18n'
 import {
   armyOf, overLimit, Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
   awaitsMaterials, buildTicks, canDemolish, freeCredits, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridOf, gridsOf, RELIEF_BELOW,
-  Research, TOPICS, PAVE_RESEARCH, DIG_KINDS, DIG_RESEARCH, type DigKind, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
+  Research, TOPICS, PAVE_RESEARCH, DIG_KINDS, DIG_RESEARCH, type DigKind, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, pickTopic, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
   Accumulator, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
@@ -324,6 +324,8 @@ export interface TopicView {
 export interface TechState {
   topics: TopicView[]
   plan: Topic[]
+  /** Тема, которую лаборатории ведут сейчас: первая в плане или та, что её подменяет, пока той не хватает сырья. */
+  current: Topic | null
   labs: { count: number; working: number; speed: number; lacks: { lack: LabLack; count: number }[] }
   left: string | null
 }
@@ -398,7 +400,8 @@ function techOf({ sim, player }: Scene): TechState {
     if (research.lack && research.lack !== 'idle') lacks.set(research.lack as LabLack, (lacks.get(research.lack as LabLack) ?? 0) + 1)
   }
   for (const [entity, building] of world.query(Building)) if (buildingSpec(building.type).researches && !world.has(entity, Research) && isLab(sim, player, entity)) count++
-  const [current] = plan
+  // Ведут не обязательно первую тему плана: без сырья она уступает следующей, см. pickTopic.
+  const current = pickTopic(sim, player)
   const price = current && topicPrice(sim, current)
   const left = price && speed > 0 ? clockOf(((1 - progressOf(sim, player, current)) * price.seconds) / speed) : null
   return {
@@ -423,6 +426,7 @@ function techOf({ sim, player }: Scene): TechState {
       }
     }),
     plan,
+    current: current ?? null,
     labs: { count, working, speed: round(speed), lacks: [...lacks].map(([lack, count]) => ({ lack, count })) },
     left,
   }
@@ -568,7 +572,7 @@ export function readHud(scene: Scene): HudState {
     }
     if (built && ready && isLab(sim, player, entity)) {
       const running = world.get(entity, Research)
-      const [topic = null] = planOf(sim, player)
+      const topic = pickTopic(sim, player) ?? null
       research ??= { labs: 0, speed: 0, lack: null, topic, progress: topic ? round(progressOf(sim, player, topic)) : 0 }
       research.labs++
       research.speed = round(research.speed + (running?.speed ?? 0))

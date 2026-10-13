@@ -175,8 +175,7 @@ export function TechTree({ tech, send, close }: TechTreeProps) {
   const done = order(tech.topics.filter((view) => view.status === 'done'))
   const hover = (view: TopicView | null, element?: HTMLElement) => setHovered(view && element ? { topic: view.topic, at: element.getBoundingClientRect() } : null)
 
-  const { labs, plan, left } = tech
-  const current = plan[0]
+  const { labs, plan, left, current } = tech
   const shown = hovered && byTopic.get(hovered.topic)
 
   // Подсказка — рядом с окном, а не внутри: окно сдвинуто через transform, и fixed внутри него считался бы от окна.
@@ -197,7 +196,7 @@ export function TechTree({ tech, send, close }: TechTreeProps) {
           plan.map((topic, i) => {
             const view = byTopic.get(topic)!
             return (
-              <button key={topic} class={i === 0 ? 'tech__queued is-current' : 'tech__queued'} data-tip={t('tech.dequeueTip')} onClick={() => send({ type: 'dequeue', topic })}>
+              <button key={topic} class={topic === current ? 'tech__queued is-current' : 'tech__queued'} data-tip={t('tech.dequeueTip')} onClick={() => send({ type: 'dequeue', topic })}>
                 <img src={iconOf(view, SMALL)} alt="" />
                 {t(`research.${topic}`)}
                 {i === 0 && (

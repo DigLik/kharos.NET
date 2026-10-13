@@ -41,7 +41,7 @@ export { GOODS, ORES, ORE_OF, ORE_SPECS, PRODUCTS, PRODUCT_SPECS, RESOURCES, RES
 export type { Amounts, Good, Ore, Product, ProductSpec, Resource, ResourceSpec, Ware } from './resources'
 export { ASSEMBLE_RATE, cycleSeconds, hasRoom, productStock, recipeOf } from './assembly'
 export { REFINE_RATE, REFINE_RATIO } from './refining'
-export { adoptLabs, cancelResearch, dequeueResearch, grantResearch, isLab, planOf, planResearch, progressOf, topicsUnder, unlockedBy, type LabLack } from './research'
+export { STALL_SECONDS, adoptLabs, cancelResearch, dequeueResearch, grantResearch, isLab, pickTopic, planOf, planResearch, progressOf, topicsUnder, unlockedBy, type LabLack } from './research'
 export { PAVE_RESEARCH, RESEARCH, TIER_CREDITS, TIER_SECONDS, TOPICS, hasResearch, isTopic, isTrigger, pathTo, priceOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, type Topic, type TopicPrice, type TopicSpec, type Trigger } from './topics'
 export { isBurning } from './reactors'
 export { CLIMB, CRUISE, GLARE, LAUNCH_MARK, WARNING, missileLift, abortLaunch, cancelWarhead, interceptorLack, launchLeft, orderLaunch, startWarhead, warheadLack, type InterceptorLack, type WarheadLack } from './silos'
