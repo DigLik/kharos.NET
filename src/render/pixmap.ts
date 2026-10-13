@@ -1,7 +1,17 @@
+/** Сколько тонов в цвете стороны: тёмный, основной и светлый. */
+export const TONES = 3
+
+/**
+ * Цвет с меткой тона tone (от 0 до TONES - 1): пиксель получает не непрозрачную альфу 255, а 254 − tone. Так в
+ * картинке остаётся маска цвета стороны, и шейдер с палитрой (см. sprites.ts) перекрашивает её в цвета любой
+ * стороны — картинку не надо рисовать для каждой. Без палитры почти непрозрачный пиксель выглядит как color.
+ */
+export const toned = (color: number, tone: number) => color + (tone + 1) * 0x1000000
+
 /**
  * Растровый холст в памяти: простые фигуры без сглаживания. Пиксель закрашивается, если его центр попал в фигуру,
  * поэтому векторный чертёж выходит пиксель-артом. Работает без браузера и видеокарты.
- * Цвета — числа вида 0xRRGGBB, фигуры непрозрачные.
+ * Цвета — числа вида 0xRRGGBB, фигуры непрозрачные. Цвет может нести метку тона (см. toned).
  */
 export class Pixmap {
   /** Пиксели RGBA, строки сверху вниз. */
@@ -71,6 +81,10 @@ export class Pixmap {
     inside: (x: number, y: number) => boolean,
   ) {
     const { data, width, height, originX, originY } = this
+    const red = (color >> 16) & 255
+    const green = (color >> 8) & 255
+    const blue = color & 255
+    const alpha = 255 - Math.floor(color / 0x1000000)
     // Пиксель с номером i занимает отрезок [i, i + 1), его центр — i + 0.5.
     const fromX = Math.max(0, Math.ceil(left + originX - 0.5))
     const toX = Math.min(width - 1, Math.ceil(right + originX - 0.5) - 1)
@@ -80,10 +94,10 @@ export class Pixmap {
       for (let pixelX = fromX; pixelX <= toX; pixelX++) {
         if (!inside(pixelX + 0.5 - originX, pixelY + 0.5 - originY)) continue
         const offset = (pixelY * width + pixelX) * 4
-        data[offset] = color >> 16
-        data[offset + 1] = (color >> 8) & 255
-        data[offset + 2] = color & 255
-        data[offset + 3] = 255
+        data[offset] = red
+        data[offset + 1] = green
+        data[offset + 2] = blue
+        data[offset + 3] = alpha
       }
     }
     return this

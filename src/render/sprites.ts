@@ -1,10 +1,12 @@
 import { createProgram, createQuads, createTexture, type Program, type Quads } from '../gl'
+import { TONES } from './pixmap'
 
-const VERTEX = `#version 300 es
+const vertex = (toned: boolean) => `#version 300 es
 in vec2 aCorner;
 in vec4 aRect;
 in vec4 aFrame;
 in vec4 aTint;
+${toned ? 'in float aTeam;\nflat out int vTeam;' : ''}
 uniform vec2 uScale;
 uniform vec2 uOffset;
 out vec2 vUV;
@@ -14,19 +16,24 @@ void main() {
   vec2 tile = aRect.xy + aCorner * aRect.zw + uOffset;
   vUV = aFrame.xy + aCorner * aFrame.zw;
   vTint = aTint;
+  ${toned ? 'vTeam = int(aTeam + 0.5);' : ''}
   gl_Position = vec4(tile.x * uScale.x, -tile.y * uScale.y, 0.0, 1.0);
 }
 `
 
-const fragment = (grey: boolean) => `#version 300 es
+const fragment = (grey: boolean, palette: number) => `#version 300 es
 precision mediump float;
 in vec2 vUV;
 in vec4 vTint;
+${palette ? `flat in int vTeam;\nuniform vec3 uPalette[${palette}];` : ''}
 uniform sampler2D uTexture;
 out vec4 finalColor;
 
 void main() {
   vec4 color = texture(uTexture, vUV);
+  ${palette ? `// Метка тона в альфе (см. toned в pixmap.ts): пиксель берёт цвет стороны спрайта из палитры.
+  float tone = floor((1.0 - color.a) * 255.0 + 0.5);
+  if (color.a > 0.0 && tone >= 1.0 && tone <= ${TONES}.0) color = vec4(uPalette[vTeam * ${TONES} + int(tone) - 1], 1.0);` : ''}
   ${grey ? 'color.rgb = vec3(dot(color.rgb, vec3(0.3, 0.59, 0.11)));' : ''}
   finalColor = color * vTint;
 }
@@ -34,10 +41,11 @@ void main() {
 
 /**
  * Программа для спрайтов в координатах тайлов. Одна на все наборы спрайтов. grey — картинка в оттенках серого:
- * так рисуется ничьё (игрок 0).
+ * так рисуется ничьё (игрок 0). palette — сколько цветов в юниформе uPalette (по TONES тонов на сторону): с ней
+ * помеченные пиксели картинки (см. toned в pixmap.ts) красятся в цвета стороны, номер которой у спрайта свой.
  */
-export function createSpriteProgram(gl: WebGL2RenderingContext, grey = false) {
-  return createProgram(gl, VERTEX, fragment(grey))
+export function createSpriteProgram(gl: WebGL2RenderingContext, grey = false, palette = 0) {
+  return createProgram(gl, vertex(palette > 0), fragment(grey, palette))
 }
 
 /**
@@ -45,9 +53,10 @@ export function createSpriteProgram(gl: WebGL2RenderingContext, grey = false) {
  * x, y, ширина, высота в тайлах, причём x и y отсчитаны от камеры (так хватает точности вдали от начала мира);
  * u, v, ширина, высота кадра в долях текстуры (см. AtlasFrame);
  * цвет r, g, b, a с предумноженной альфой, на который умножается картинка: (1, 1, 1, 1) — без изменений.
+ * У набора для программы с палитрой (toned) — тринадцатое: номер стороны в палитре.
  */
-export function createSprites(gl: WebGL2RenderingContext, program: Program): Quads {
-  return createQuads(gl, program, { aRect: 4, aFrame: 4, aTint: 4 })
+export function createSprites(gl: WebGL2RenderingContext, program: Program, toned = false): Quads {
+  return createQuads(gl, program, toned ? { aRect: 4, aFrame: 4, aTint: 4, aTeam: 1 } : { aRect: 4, aFrame: 4, aTint: 4 })
 }
 
 /** Белая точка: спрайт с такой текстурой — просто прямоугольник цвета aTint. */

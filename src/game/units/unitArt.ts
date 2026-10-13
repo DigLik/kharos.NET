@@ -1,4 +1,4 @@
-import type { Pixmap } from '../../render/pixmap'
+import { toned, type Pixmap } from '../../render/pixmap'
 import type { TurretType, UnitType } from '../../sim'
 
 /**
@@ -24,6 +24,17 @@ export const TEAMS = {
   ally: [0x1f7a3c, 0x4ec973, 0xe8fff0],
 } satisfies Record<string, TeamColors>
 export type Team = keyof typeof TEAMS
+/** Стороны в палитре, по порядку: номер стороны спрайта — место в этом списке. */
+export const TEAM_NAMES = Object.keys(TEAMS) as Team[]
+/**
+ * Цвета-маска: спрайты на карте рисуются ими один раз на все стороны, а цвет стороны подставляет шейдер из
+ * TEAM_PALETTE (см. toned). Без палитры маска выглядит своими цветами.
+ */
+export const MASK_TEAM: TeamColors = [toned(TEAMS.own[0], 0), toned(TEAMS.own[1], 1), toned(TEAMS.own[2], 2)]
+/** Палитра шейдера спрайтов: цвета сторон из TEAM_NAMES подряд, по тону в RGB от 0 до 1. */
+export const TEAM_PALETTE = new Float32Array(
+  TEAM_NAMES.flatMap((team) => TEAMS[team].flatMap((color) => [(color >> 16) / 255, ((color >> 8) & 255) / 255, (color & 255) / 255])),
+)
 
 /**
  * Чертёж: рисует юнит, смотрящий под углом angle (радианы, 0 — вправо, растёт по часовой стрелке),

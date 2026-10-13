@@ -9,7 +9,7 @@ import {
   type UnitType,
 } from '../../sim'
 import type { Scene } from '../scene'
-import { GAIT_PHASES, GAIT_STEP, TEAMS, TURRET_ART, TURRET_FRAME, UNIT_ART, UNIT_DIRECTIONS, UNIT_FRAME, UNIT_GAITS, UNIT_LIGHTS, type Team } from './unitArt'
+import { GAIT_PHASES, GAIT_STEP, MASK_TEAM, TEAM_NAMES, TEAM_PALETTE, TURRET_ART, TURRET_FRAME, UNIT_ART, UNIT_DIRECTIONS, UNIT_FRAME, UNIT_GAITS, UNIT_LIGHTS, type Team } from './unitArt'
 
 /** Сторона спрайта юнита в тайлах. */
 const SPRITE_TILES = UNIT_FRAME / 16
@@ -47,15 +47,16 @@ export function drawnFacing(unit: { facing: number; prevFacing: number }, alpha:
   return unit.prevFacing + wrap(unit.facing - unit.prevFacing) * alpha
 }
 
-const TEAM_NAMES = Object.keys(TEAMS) as Team[]
-
-/** Картинки юнитов и турелей: атлас и листы в нём по порядку — у каждого листа по кадру на направление. */
+/**
+ * Картинки юнитов и турелей: атлас и листы в нём по порядку — у каждого листа по кадру на направление. Листы общие
+ * для всех сторон: цвет стороны — маска (MASK_TEAM), его подставляет шейдер.
+ */
 export interface UnitsArt {
   atlas: PackedAtlas
   sheets: string[]
 }
 
-/** Листы каждого вида, цвета и кадра анимации — все направления подряд; turret — у турелей их по одному кадру. */
+/** Листы каждого вида и кадра анимации — все направления подряд; turret — у турелей их по одному кадру. */
 export function unitsSprites(): { sprites: Sprite[]; sheets: string[] } {
   const sprites: Sprite[] = []
   const sheets: string[] = []
@@ -72,15 +73,13 @@ export function unitsSprites(): { sprites: Sprite[]; sheets: string[] } {
     }
     sheets.push(key)
   }
-  for (const team of TEAM_NAMES) {
-    for (const type of UNIT_TYPES) {
-      for (let phase = 0; phase < phasesOf(type); phase++) {
-        sheet(`${team}:${type}:${phase}`, UNIT_FRAME, (image, angle) => UNIT_ART[type](image, angle, TEAMS[team], phase))
-      }
+  for (const type of UNIT_TYPES) {
+    for (let phase = 0; phase < phasesOf(type); phase++) {
+      sheet(`${type}:${phase}`, UNIT_FRAME, (image, angle) => UNIT_ART[type](image, angle, MASK_TEAM, phase))
     }
-    for (const type of TURRET_TYPES) {
-      sheet(`${team}:turret:${type}`, TURRET_FRAME, (image, angle) => TURRET_ART[type](image, angle, TEAMS[team], 0))
-    }
+  }
+  for (const type of TURRET_TYPES) {
+    sheet(`turret:${type}`, TURRET_FRAME, (image, angle) => TURRET_ART[type](image, angle, MASK_TEAM, 0))
   }
   return { sprites, sheets }
 }
@@ -93,14 +92,15 @@ export function createUnitsPasses(gl: WebGL2RenderingContext, scene: Scene, art:
   const atlas = uploadAtlas(gl, art.atlas)
   const frames = new Map<string, AtlasFrame[]>()
   art.sheets.forEach((key, i) => frames.set(key, atlas.frames.slice(i * UNIT_DIRECTIONS, (i + 1) * UNIT_DIRECTIONS)))
-  const framesOf = (team: Team, type: UnitType, phase: number) => frames.get(`${team}:${type}:${phase}`)!
-  const turretFramesOf = (team: Team, type: TurretType) => frames.get(`${team}:turret:${type}`)!
+  const framesOf = (type: UnitType, phase: number) => frames.get(`${type}:${phase}`)!
+  const turretFramesOf = (type: TurretType) => frames.get(`turret:${type}`)!
   /** Номер кадра поворота для угла. */
   const directionOf = (facing: number) => ((Math.round((facing / TURN) * UNIT_DIRECTIONS) % UNIT_DIRECTIONS) + UNIT_DIRECTIONS) % UNIT_DIRECTIONS
 
-  const program = createSpriteProgram(gl)
+  const program = createSpriteProgram(gl, false, TEAM_PALETTE.length / 3)
   /** Ничьё (игрок 0) — серым. */
-  const greyProgram = createSpriteProgram(gl, true)
+  const greyProgram = createSpriteProgram(gl, true, TEAM_PALETTE.length / 3)
+  const uniforms = { uTexture: atlas.texture, uPalette: TEAM_PALETTE }
 
   /**
    * Сколько юнит прошёл, в тайлах: от этого крутятся колёса, бегут гусеницы и шагают ноги. Считается по тому,
@@ -145,9 +145,9 @@ export function createUnitsPasses(gl: WebGL2RenderingContext, scene: Scene, art:
 
   const layer = (air: boolean, emplacements = false): Pass => {
     // Тени лежат под всеми юнитами, иначе тень соседа ляжет на кабину.
-    const shadows = createSprites(gl, program)
-    const sprites = createSprites(gl, program)
-    const neutral = createSprites(gl, greyProgram)
+    const shadows = createSprites(gl, program, true)
+    const sprites = createSprites(gl, program, true)
+    const neutral = createSprites(gl, greyProgram, true)
     const shadowShift = air ? AIR_SHADOW_SHIFT : SHADOW_SHIFT
     const shadowAlpha = air ? AIR_SHADOW_ALPHA : SHADOW_ALPHA
 
@@ -191,9 +191,9 @@ export function createUnitsPasses(gl: WebGL2RenderingContext, scene: Scene, art:
             const team: Team = !owner.player || owner.player === scene.player ? 'own' : friends.includes(owner.player) ? 'ally' : 'foe'
             const batch = owner.player ? sprites : neutral
             const phase = phaseOf(entity, unit.type, x, y)
-            const { u, v, width: frameWidth, height: frameHeight } = framesOf(team, unit.type, phase)[direction]
-            shadows.push(left + shadowShift, top + shadowShift, SPRITE_TILES, SPRITE_TILES, u, v, frameWidth, frameHeight, 0, 0, 0, shadowAlpha)
-            batch.push(left, top, SPRITE_TILES, SPRITE_TILES, u, v, frameWidth, frameHeight, ...tint(ghost))
+            const { u, v, width: frameWidth, height: frameHeight } = framesOf(unit.type, phase)[direction]
+            shadows.push(left + shadowShift, top + shadowShift, SPRITE_TILES, SPRITE_TILES, u, v, frameWidth, frameHeight, 0, 0, 0, shadowAlpha, 0)
+            batch.push(left, top, SPRITE_TILES, SPRITE_TILES, u, v, frameWidth, frameHeight, ...tint(ghost), TEAM_NAMES.indexOf(team))
           }
         }
         // Турели — поверх всех юнитов слоя: на своём носителе они должны лежать сверху.
@@ -208,14 +208,14 @@ export function createUnitsPasses(gl: WebGL2RenderingContext, scene: Scene, art:
           const team: Team = !owner.player || owner.player === scene.player ? 'own' : friends.includes(owner.player) ? 'ally' : 'foe'
           // Поворот турели — относительно носителя: оба сглаживаются по отдельности, как в симуляции.
           const facing = (carrier ? drawnFacing(carrier, time.alpha) : 0) + turret.prevAngle + wrap(turret.angle - turret.prevAngle) * time.alpha
-          const { u, v, width: frameWidth, height: frameHeight } = turretFramesOf(team, turret.type)[directionOf(facing)]
+          const { u, v, width: frameWidth, height: frameHeight } = turretFramesOf(turret.type)[directionOf(facing)]
           const kick = recoilOf(entity)
           const left = x - Math.cos(facing) * kick - camera.x - TURRET_TILES / 2
           const top = y - Math.sin(facing) * kick - camera.y - TURRET_TILES / 2
           const turretShadowShift = mountedOnBuilding ? SHADOW_SHIFT : shadowShift
           const turretShadowAlpha = mountedOnBuilding ? SHADOW_ALPHA : shadowAlpha
-          shadows.push(left + turretShadowShift / 2, top + turretShadowShift / 2, TURRET_TILES, TURRET_TILES, u, v, frameWidth, frameHeight, 0, 0, 0, turretShadowAlpha)
-          ;(owner.player ? sprites : neutral).push(left, top, TURRET_TILES, TURRET_TILES, u, v, frameWidth, frameHeight, ...tint(world.get(attached.parent as never, Ghost)))
+          shadows.push(left + turretShadowShift / 2, top + turretShadowShift / 2, TURRET_TILES, TURRET_TILES, u, v, frameWidth, frameHeight, 0, 0, 0, turretShadowAlpha, 0)
+          ;(owner.player ? sprites : neutral).push(left, top, TURRET_TILES, TURRET_TILES, u, v, frameWidth, frameHeight, ...tint(world.get(attached.parent as never, Ghost)), TEAM_NAMES.indexOf(team))
         }
         if (!air && !emplacements && frame % FORGET_FRAMES === 0) {
           for (const [entity, track] of walked) if (frame - track.seen > FORGET_FRAMES) walked.delete(entity)
@@ -223,11 +223,11 @@ export function createUnitsPasses(gl: WebGL2RenderingContext, scene: Scene, art:
         if (!sprites.count && !neutral.count) return
 
         setBlend(gl, 'alpha')
-        program.use(view, { uTexture: atlas.texture })
+        program.use(view, uniforms)
         shadows.draw()
         sprites.draw()
         if (neutral.count) {
-          greyProgram.use(view, { uTexture: atlas.texture })
+          greyProgram.use(view, uniforms)
           neutral.draw()
         }
       },
@@ -236,7 +236,7 @@ export function createUnitsPasses(gl: WebGL2RenderingContext, scene: Scene, art:
         ? undefined
         : (view) => {
             setBlend(gl, 'alpha')
-            program.use(view, { uTexture: atlas.texture })
+            program.use(view, uniforms)
             sprites.draw()
             neutral.draw()
           },
