@@ -2,7 +2,7 @@ import type { Audio } from '../audio/audio'
 import type { LoopName, SoundName } from '../audio/sounds'
 import type { Entity } from '../ecs'
 import {
-  Accumulator, BUILDINGS, Batch, Beam, Building, Chaser, Converting, Deposit, Doomed, Drop, Glare, Hauler, Health, Mark, Missile, Off, Owner, Pave, Player, Position, Producer, Reactor,
+  Accumulator, BUILDINGS, Batch, Beam, Building, Chaser, Converting, Deposit, Doomed, Drop, Glare, Hauler, Health, Mark, Missile, NO_PAVE, Off, Owner, Pave, Player, Position, Producer, Reactor,
   Shield, Silo, Site, Trade, Transfer, Turret, Unit, activeRepairs, buildingSpec, isBurning, isDefeated, powerStates, protectionLeft, wrap,
 } from '../sim'
 import { Gate, Scan } from '../sim/components'
@@ -88,7 +88,7 @@ export function createWorldSounds(scene: Scene, audio: Audio) {
   let gates = new Map<Entity, boolean>()
   let sites = new Map<Entity, SiteMemory>()
     let units = new Set<Entity>()
-  let paves = new Map<Entity, boolean>()
+  let laying = new Map<Entity, { x: number; y: number }>()
   let scans = new Map<Entity, number>()
   let levels = new Map<Entity, number>()
   let glares = new Set<Entity>()
@@ -280,16 +280,19 @@ export function createWorldSounds(scene: Scene, audio: Audio) {
       if (!fresh) for (const [entity, at] of crates) if (!nextCrates.has(entity)) play('crates', at.x, at.y, HEARING, QUIET)
       crates = nextCrates
 
-      // Покрытие: легло — шлепок; сняли — тише.
-      const nextPaves = new Map<Entity, boolean>()
+      // Покрытие: легло — шлепок; сняли — тише. Укладка и разбор — работа строителей, сущность на тайле: кончилась
+      // укладка — тайл покрыт, кончился разбор — пуст. Работу, которую отменили, не слышно.
+      const nextLaying = new Map<Entity, { x: number; y: number }>()
       const nextRemoving = new Map<Entity, { x: number; y: number }>()
       for (const [entity, pave, position] of world.query(Pave, Position)) {
-        nextPaves.set(entity, pave.done)
-        if (pave.remove) nextRemoving.set(entity, { x: position.x + 0.5, y: position.y + 0.5 })
-        if (!fresh && pave.done && paves.get(entity) === false) play('paved', position.x + 0.5, position.y + 0.5)
+        ;(pave.remove ? nextRemoving : nextLaying).set(entity, { x: position.x + 0.5, y: position.y + 0.5 })
       }
-      if (!fresh) for (const [entity, at] of removing) if (!nextPaves.has(entity)) play('paved', at.x, at.y, HEARING, QUIET)
-      paves = nextPaves
+      if (!fresh) {
+        const paved = (at: { x: number; y: number }) => sim.paving.laid(Math.floor(at.x), Math.floor(at.y)) !== NO_PAVE
+        for (const [entity, at] of laying) if (!nextLaying.has(entity) && paved(at)) play('paved', at.x, at.y)
+        for (const [entity, at] of removing) if (!nextRemoving.has(entity) && !paved(at)) play('paved', at.x, at.y, HEARING, QUIET)
+      }
+      laying = nextLaying
       removing = nextRemoving
 
       // Корабль космопорта: продажа улетает и приносит деньги, покупка садится с грузом.

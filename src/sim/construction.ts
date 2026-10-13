@@ -10,6 +10,7 @@ import { addCredits, creditsOf, reward, spend } from './economy'
 import { overbuiltPlants, powerSupply } from './income'
 import type { Sim } from './sim'
 import { PAVE_LIMIT, buildSpeed, paveCost } from './paving'
+import { settlePave } from './paved'
 import { clearDrops, dropCargo } from './drops'
 import { inCircles, inForeignZone, zoneOf } from './zones'
 import { carrierOf, turnerOf } from './turrets'
@@ -26,7 +27,7 @@ export const RETRY_TICKS = 20
 const MAX_BACKOFF = 5
 
 /** Сколько тиков работы одного строителя нужно на то, что стоит cost кредитов. */
-const workTicks = (cost: number, step: number) => Math.round(cost / BUILD_RATE / step)
+export const workTicks = (cost: number, step: number) => Math.round(cost / BUILD_RATE / step)
 
 /** Сколько тиков работы одного строителя нужно на здание. */
 export const siteTicks = (type: BuildingType, step: number) => workTicks(BUILDINGS[type].cost, step)
@@ -713,7 +714,11 @@ export function construct(sim: Sim) {
     const pave = world.get(entity, Pave)
     if (pave?.remove) {
       pave.work -= count * DEMOLISH_SPEED
-      if (pave.work <= 0) world.destroy(entity)
+      if (pave.work > 0) continue
+      // Разобрали: покрытие уходит с тайла вместе с работой.
+      const { x, y } = world.get(entity, Position)!
+      sim.paving.lift(x, y)
+      world.destroy(entity)
       continue
     }
     if (pave) {
@@ -721,6 +726,7 @@ export function construct(sim: Sim) {
       pave.work += count
       if (pave.work < workTicks(paveCost(sim, pave.kind, x, y), time.step)) continue
       pave.done = true
+      settlePave(sim, entity)
       continue
     }
     const site = world.get(entity, Site)

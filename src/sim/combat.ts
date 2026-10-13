@@ -928,10 +928,12 @@ export function breakSlabs(sim: Sim, x: number, y: number, size: number) {
   const broken: Entity[] = []
   for (let tileY = Math.floor(y - radius); tileY <= Math.floor(y + radius); tileY++) {
     for (let tileX = Math.floor(x - radius); tileX <= Math.floor(x + radius); tileX++) {
-      const entity = sim.paving.at(tileX, tileY)
-      if (entity === undefined || sim.world.get(entity, Pave)?.kind !== 'foundation') continue
       const hit = tileX === Math.floor(x) && tileY === Math.floor(y)
-      if (hit || Math.hypot(tileX + 0.5 - x, tileY + 0.5 - y) <= radius) broken.push(entity)
+      if (!hit && Math.hypot(tileX + 0.5 - x, tileY + 0.5 - y) > radius) continue
+      // Готовая плита уходит со слоя, а с ней и работа над ней: укладка или разбор.
+      if (isPaved(sim, 'foundation', tileX, tileY)) sim.paving.lift(tileX, tileY)
+      const entity = sim.paving.at(tileX, tileY)
+      if (entity !== undefined && sim.world.get(entity, Pave)?.kind === 'foundation') broken.push(entity)
     }
   }
   for (const entity of broken) sim.world.destroy(entity)

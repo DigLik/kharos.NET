@@ -1,5 +1,5 @@
 import { tileKey } from '../map/terrain'
-import { BUILDINGS, DEPOSIT_SIZE, Owner, Pave, PAVE_LIMIT, canBuild, canPlace, canPave, creditsOf, depositNear, freeCredits, paveCost, buildingWithin, pipeAt, pipeStroke, wallStroke, isWellPair, wellsKept, UNDERGROUND_REACH, type BuildingSpec, type BuildingType } from '../sim'
+import { BUILDINGS, DEPOSIT_SIZE, Owner, Pave, PAVE_LIMIT, paveOwnerAt, canBuild, canPlace, canPave, creditsOf, depositNear, freeCredits, paveCost, buildingWithin, pipeAt, pipeStroke, wallStroke, isWellPair, wellsKept, UNDERGROUND_REACH, type BuildingSpec, type BuildingType } from '../sim'
 import type { PaveTool, Scene } from './scene'
 
 /** Где встанет здание, которое игрок сейчас выбирает место: левый верхний тайл основания и годится ли место. */
@@ -135,8 +135,10 @@ export function paveStrokeOf(scene: Scene): PaveStroke | null {
     const y = tiles[i + 1]
     if (tool === 'remove') {
       const entity = sim.paving.at(x, y)
-      // Разбирают своё покрытие, трубы с колодцами и здания, целиком попавшие в рамку.
-      allowed.push((entity !== undefined && sim.world.get(entity, Owner)?.player === player && !sim.world.get(entity, Pave)?.remove) || pipeAt(sim, player, x, y) !== undefined || buildingWithin(sim, player, x, y, covered) !== undefined)
+      // Разбирают своё покрытие — недостроенное или готовое, которое ещё не разбирают, — трубы с колодцами и здания,
+      // целиком попавшие в рамку.
+      const pave = entity === undefined ? paveOwnerAt(sim, x, y) === player : sim.world.get(entity, Owner)?.player === player && !sim.world.get(entity, Pave)?.remove
+      allowed.push(pave || pipeAt(sim, player, x, y) !== undefined || buildingWithin(sim, player, x, y, covered) !== undefined)
       short.push(false)
       continue
     }

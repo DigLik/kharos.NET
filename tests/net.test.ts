@@ -5,7 +5,7 @@ import { FACING, MOTION_FIELDS, POSITION, SPAN_MOST, decodeDelta, encodeDelta } 
 import { decodeServer } from '../src/net/protocol'
 import type { WeaponType } from '../src/sim/weapons'
 import { createReplica, type Replica } from '../src/net/replica'
-import { Armed, Building, Ghost, Health, Owner, Path, Player, Position, Producer, Unit, createSim, isWalkable, shownTo } from '../src/sim'
+import { Armed, Building, Ghost, Health, NO_PAVE, Owner, Path, Player, Position, Producer, Unit, createSim, isWalkable, paveCode, shownTo } from '../src/sim'
 import { SAVED, Scan } from '../src/sim/components'
 import { connectAll } from '../src/sim/piping'
 import { wireOf } from '../src/net/wire'
@@ -511,6 +511,50 @@ test('притихшее сверяется реже, но изменение д
   const at = flat.findIndex((value, index) => index % MOTION_FIELDS === 0 && value === unit)
   expect(at).toBeGreaterThanOrEqual(0)
   expect(flat[at + 4]).toBe(1)
+})
+
+test('готовое покрытие: своё клиент знает сразу, чужое — увидев, и помнит его в тумане, пока не увидит снова', () => {
+  const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 512 }))
+  const first = join(host)
+  const second = join(host)
+  const tick = (count = 1) => {
+    for (let i = 0; i < count; i++) {
+      host.advance(STEP)
+      first.sim.advance(STEP)
+      second.sim.advance(STEP)
+    }
+  }
+  tick(2)
+  const positions = (player: number) => {
+    const found: { x: number; y: number }[] = []
+    for (const [, position, owner] of host.sim.world.query(Position, Owner)) if (owner.player === player) found.push(position)
+    return found
+  }
+  // Дорога второго игрока в стороне от всех; войско первого — ещё дальше.
+  const [base] = positions(second.peer.player)
+  const road = { x: Math.floor(base.x) + 60, y: Math.floor(base.y) }
+  const away = { x: road.x - 120, y: road.y }
+  for (const position of positions(first.peer.player)) Object.assign(position, away)
+  host.sim.paving.lay(road.x, road.y, paveCode('road', second.peer.player))
+  tick(2)
+  expect(second.sim.paving.laid(road.x, road.y)).toBe(paveCode('road', second.peer.player))
+  expect(first.sim.paving.laid(road.x, road.y)).toBe(NO_PAVE)
+
+  // Подошёл — увидел.
+  for (const position of positions(first.peer.player)) Object.assign(position, { x: road.x + 2, y: road.y })
+  tick(10)
+  expect(first.sim.paving.laid(road.x, road.y)).toBe(paveCode('road', second.peer.player))
+  // Ушёл — дорогу разобрали, а он помнит её такой, какой видел.
+  for (const position of positions(first.peer.player)) Object.assign(position, away)
+  tick(10)
+  host.sim.paving.lift(road.x, road.y)
+  tick(10)
+  expect(first.sim.paving.laid(road.x, road.y)).toBe(paveCode('road', second.peer.player))
+  expect(second.sim.paving.laid(road.x, road.y)).toBe(NO_PAVE)
+  // Вернулся — узнал.
+  for (const position of positions(first.peer.player)) Object.assign(position, { x: road.x + 2, y: road.y })
+  tick(10)
+  expect(first.sim.paving.laid(road.x, road.y)).toBe(NO_PAVE)
 })
 
 test('вспышки радара видит только хозяин: его копия открывает туман там же, где хост, а чужой про них не знает', () => {

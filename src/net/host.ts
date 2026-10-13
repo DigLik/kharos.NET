@@ -8,6 +8,8 @@ import { LAND, POSITION, encodeDelta, type Motion, type ShotRecord } from './cod
 import { deflate } from '../save/file'
 import { DEPOSIT_TYPES, fillDeposits, knowsDeposit, saveDeposits } from '../sim/deposits'
 import { knownEdits, pristineLand, takeLearned } from '../sim/landMemory'
+import { knownPaving, takePaveChanges, takePaveLearned } from '../sim/paveMemory'
+import { savePaving } from '../sim/paved'
 import type { ServerData } from './protocol'
 import { TRACE_CELL, type Trace } from '../sim/traces'
 import { createBucket } from './limits'
@@ -1144,6 +1146,10 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     })
     const edits = editing.has(send) ? currentEdits() : knownEdits(sim.landMemory, player)
     if (edits.length) send(JSON.stringify({ type: 'tiles', edits } satisfies ServerMessage))
+    // Покрытие — всё, что игрок знает; узнанное раньше и не отправленное в нём уже есть.
+    const tiles = editing.has(send) ? savePaving(sim.paving) : knownPaving(sim.paveMemory, player)
+    sim.paveMemory.learned.delete(player)
+    send(JSON.stringify({ type: 'paving', tiles, reset: true } satisfies ServerMessage))
     depositsShown.delete(send)
     sendDeposits(send, player)
   }
@@ -1372,6 +1378,14 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
         if (edits.length) learned.set(player, JSON.stringify({ type: 'tiles', edits } satisfies ServerMessage))
       }
       sim.landMemory.learned.clear()
+      // Покрытие — так же: узнанное игроком уходит всем его вкладкам, редактору — всё изменившееся.
+      const paved = new Map<number, string>()
+      for (const player of new Set(peers.values())) {
+        const tiles = takePaveLearned(sim.paveMemory, player)
+        if (tiles.length) paved.set(player, JSON.stringify({ type: 'paving', tiles } satisfies ServerMessage))
+      }
+      const changes = takePaveChanges(sim)
+      const repaved = changes.length && editing.size ? JSON.stringify({ type: 'paving', tiles: changes } satisfies ServerMessage) : undefined
       // Месторождения поменялись — всем слой заново: он невелик, а меняется редко. Узнанные разведкой — при обходе ниже.
       if (sim.deposits.revision !== depositsSent) {
         depositsSent = sim.deposits.revision
@@ -1383,10 +1397,13 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       for (const [send, player] of peers) {
         if (editing.has(send)) {
           if (landChanged) send(JSON.stringify({ type: 'tiles', edits: currentEdits() } satisfies ServerMessage))
+          if (repaved) send(repaved)
           continue
         }
         const text = learned.get(player)
         if (text) send(text)
+        const pave = paved.get(player)
+        if (pave) send(pave)
       }
       // Подарки союзникам: об отправке и прибытии корабля узнают обе стороны. Говорит сам мир — корабль появился
       // или долетел, — поэтому весть не соврёт, даже если команда до сих пор не выполнилась, см. ferry.ts.

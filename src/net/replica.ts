@@ -7,7 +7,8 @@ import { createDeposits, loadDeposits } from '../sim/deposits'
 import { createLandMemory } from '../sim/landMemory'
 import { DEFAULT_RULES, boundsOf, type Command, type Sim } from '../sim'
 import { createOccupancy } from '../sim/buildings'
-import { createPaving } from '../sim/paved'
+import { createPaving, loadPaving, savePaving } from '../sim/paved'
+import { createPaveMemory } from '../sim/paveMemory'
 import { createReceivedTraces } from '../sim/traces'
 import { createVision } from '../sim/vision'
 import { BUILDINGS, type BuildingType } from '../sim/buildings'
@@ -129,6 +130,8 @@ export function createReplica(welcome: Extract<ServerMessage, { type: 'welcome' 
     // Пока не пришла карта мира, местность — по генератору; правки, пришедшие раньше карты, ждут её.
     replica.land = createLand(options.generator, areaOf(replica.bounds))
     replica.deposits.cells.clear()
+    // Покрытие придёт следом за приветствием: прежний мир его не знает.
+    paving.clear()
     // Пусто в слое потому, что он в пути, а не потому, что игрок ничего не знает: уведомления по нему не судят.
     replica.deposits.pending = true
     replica.deposits.revision++
@@ -236,6 +239,7 @@ export function createReplica(welcome: Extract<ServerMessage, { type: 'welcome' 
     world,
     occupancy,
     paving,
+    paveMemory: createPaveMemory(),
     vision: undefined as unknown as Replica['vision'],
     traces: undefined as unknown as ReturnType<typeof createReceivedTraces>,
     time,
@@ -349,7 +353,7 @@ export function createReplica(welcome: Extract<ServerMessage, { type: 'welcome' 
       pending = []
       return ticks
     },
-    save: (): SimSave => ({ version: SAVE_VERSION, ...replica.options, tick: time.tick, world: world.snapshot(SAVED), land: saveLand(replica.land) }),
+    save: (): SimSave => ({ version: SAVE_VERSION, ...replica.options, tick: time.tick, world: world.snapshot(SAVED), land: saveLand(replica.land), paving: savePaving(paving) }),
     destroy() {
       close()
       occupancy.destroy()
@@ -371,6 +375,10 @@ export function createReplica(welcome: Extract<ServerMessage, { type: 'welcome' 
       }
       else if (message.type === 'land') receiveLand(message.data).catch((error) => replica.fail(t('errors.landFailed', { reason: error instanceof Error ? error.message : String(error) })))
       else if (message.type === 'deposits') loadDeposits(replica.deposits, message.deposits)
+      else if (message.type === 'paving') {
+        if (message.reset) paving.clear()
+        loadPaving(paving, message.tiles)
+      }
       else if (message.type === 'tiles') {
         if (earlyEdits) earlyEdits.push(message.edits)
         else applyEdits(replica.land, message.edits)

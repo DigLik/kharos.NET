@@ -3,15 +3,15 @@ import { Terrain, isCliffFoot, isPassable, terrainAt, tileKey } from '../map/ter
 import { BUILDINGS, CORE, siteAt, type BuildingType } from './buildings'
 import { isOwn } from './common'
 import { Building, Owner, Pave, Position, Repair, Site, Unit } from './components'
-import { assignBuilders, cancelBuild, demolish } from './construction'
+import { assignBuilders, cancelBuild, demolish, workTicks } from './construction'
 import { pipeAt } from './piping'
 import { addCredits, pay } from './economy'
 import type { Sim } from './sim'
 import { inForeignZone } from './zones'
 import { PAVE_RESEARCH, hasResearch } from './topics'
-import { PAVE_KINDS, isPaved, type PaveKind } from './paved'
+import { NO_PAVE, PAVE_KINDS, isPaved, paveKindOf, paveOwnerOf, type PaveKind } from './paved'
 
-export { FOUNDATION_SPEED, PAVE_KINDS, ROAD_SPEED, createPaving, isPaved, type PaveKind, type Paving } from './paved'
+export { FOUNDATION_SPEED, NO_PAVE, PAVE_KINDS, ROAD_SPEED, createPaving, isPaved, paveCode, paveKindOf, paveOwnerAt, paveOwnerOf, type PaveKind, type Paving } from './paved'
 
 /** Цена тайла фундамента. */
 export const FOUNDATION_COST = 15
@@ -47,7 +47,7 @@ export function canPave(sim: Sim, player: number, kind: PaveKind, x: number, y: 
   if (isCliffFoot(sim.land, x, y)) return false
   // Покрытие открывают исследования: фундамент, дороги, а дорогу по болоту — мосты.
   if (!hasResearch(sim, player, PAVE_RESEARCH[kind === 'road' && terrain === Terrain.Swamp ? 'bridge' : kind])) return false
-  if (sim.paving.at(x, y) !== undefined || sim.occupancy.at(x, y) !== undefined || siteAt(sim, x, y) !== undefined) return false
+  if (sim.paving.at(x, y) !== undefined || sim.paving.laid(x, y) !== NO_PAVE || sim.occupancy.at(x, y) !== undefined || siteAt(sim, x, y) !== undefined) return false
   return !inForeignZone(sim, player, x, y, 1, 1)
 }
 
@@ -93,17 +93,27 @@ export function removePave(sim: Sim, player: number, tiles: readonly number[], u
     const building = buildingWithin(sim, player, tiles[i], tiles[i + 1], covered)
     if (building !== undefined && !taken.includes(building)) taken.push(building)
     const entity = sim.paving.at(tiles[i], tiles[i + 1])
-    if (entity === undefined || !isOwn(sim, player, entity)) continue
-    const pave = sim.world.get(entity, Pave)!
-    count++
-    if (!pave.done) {
-      addCredits(sim, player, paveCost(sim, pave.kind, tiles[i], tiles[i + 1]))
-      sim.world.destroy(entity)
+    if (entity !== undefined) {
+      if (!isOwn(sim, player, entity)) continue
+      const pave = sim.world.get(entity, Pave)!
+      count++
+      if (!pave.done) {
+        addCredits(sim, player, paveCost(sim, pave.kind, tiles[i], tiles[i + 1]))
+        sim.world.destroy(entity)
+        continue
+      }
+      pave.remove = true
+      sim.paving.reopen(entity)
+      first ??= entity
       continue
     }
-    pave.remove = true
-    sim.paving.reopen(entity)
-    first ??= entity
+    // Готовое покрытие разбирают строители: на тайле заводится работа разбора, а покрытие действует, пока она идёт.
+    const code = sim.paving.laid(tiles[i], tiles[i + 1])
+    if (code === NO_PAVE || paveOwnerOf(code) !== player) continue
+    count++
+    const kind = paveKindOf(code)
+    const work = workTicks(paveCost(sim, kind, tiles[i], tiles[i + 1]), sim.time.step)
+    first ??= sim.world.spawn(Position({ x: tiles[i], y: tiles[i + 1] }), Pave({ kind, work, done: true, remove: true }), Owner({ player }))
   }
   for (const entity of taken) {
     count++

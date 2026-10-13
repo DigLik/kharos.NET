@@ -11,7 +11,7 @@ import { scan } from './radar'
 import { gates } from './gates'
 import { materializeAlliances } from './allies'
 import { apply, type Command } from './commands'
-import { Building, Carrier, Inventory, Position, SAVED, Site, Unit } from './components'
+import { Building, Carrier, Inventory, Pave, Position, SAVED, Site, Unit } from './components'
 import { mountTurrets } from './turrets'
 import { adoptLegacyDeposits, createDeposits, saveDeposits, type DepositLayer, type DepositsSave } from './deposits'
 import { renewDeposits } from './renewal'
@@ -31,7 +31,8 @@ import { moveUnits, planPaths } from './movement'
 import { produceUnits } from './production'
 import { refine } from './refining'
 import { followCarriers, restTurrets } from './turrets'
-import { createPaving, type Paving } from './paved'
+import { createPaving, loadPaving, savePaving, settlePave, type Paving } from './paved'
+import { createPaveMemory, savePaveMemory, updatePaveMemory, type PaveMemory, type PaveMemorySave } from './paveMemory'
 import { createTraces, type Traces } from './traces'
 import { createVision, type Vision } from './vision'
 import { followOrders } from './orders'
@@ -167,6 +168,10 @@ export interface SimSave extends SimOptions {
   landMemory?: LandMemorySave
   /** Месторождения, см. DepositLayer. В прежних сохранениях их нет: клетки досчитает генератор. */
   deposits?: DepositsSave
+  /** Готовое покрытие, см. savePaving. В прежних сохранениях его нет: там оно — сущности, и при загрузке уходит в слой. */
+  paving?: number[]
+  /** Что игроки знают о покрытии, см. paveMemory.ts. */
+  paveMemory?: PaveMemorySave
 }
 
 /**
@@ -186,6 +191,8 @@ export interface Sim {
   readonly occupancy: Occupancy
   /** Какое покрытие — фундамент, дорога, мост — лежит на каком тайле. См. paving.ts. */
   readonly paving: Paving
+  /** Что игроки знают о покрытии: чужое игрок узнаёт, только увидев. */
+  readonly paveMemory: PaveMemory
   /** Что видит каждый игрок: по ней хост решает, что слать клиенту, а клиент рисует туман. */
   readonly vision: Vision
   /** Следы на земле: колеи, гарь, остовы. См. traces.ts. */
@@ -282,6 +289,7 @@ export function createSim(source: SimOptions | SimSave): Sim {
       () => updateLandMemory(sim),
       // Тоже после обзора: новые месторождения находят, ушедшие забывают те, кто видит их место.
       () => renewDeposits(sim),
+      () => updatePaveMemory(sim),
       () => closeBooks(sim),
     ],
   })
@@ -303,6 +311,7 @@ export function createSim(source: SimOptions | SimSave): Sim {
     deposits: createDeposits('deposits' in source ? source.deposits : undefined),
     occupancy: createOccupancy(world),
     paving: createPaving(world),
+    paveMemory: createPaveMemory('paveMemory' in source ? source.paveMemory : undefined),
     vision: createVision(world, bounds, () => loop.time.tick, options.fog !== false),
     traces: createTraces(world, () => loop.time.tick, loop.time.step),
     rules,
@@ -321,6 +330,8 @@ export function createSim(source: SimOptions | SimSave): Sim {
       land: savedLand(),
       ...(sim.landMemory.original.size && { landMemory: saveLandMemory(sim.landMemory) }),
       deposits: saveDeposits(sim.deposits),
+      paving: savePaving(sim.paving),
+      paveMemory: savePaveMemory(sim.paveMemory),
     }),
     destroy() {
       sim.occupancy.destroy()
@@ -329,8 +340,10 @@ export function createSim(source: SimOptions | SimSave): Sim {
     },
   }
 
+  if ('paving' in source && source.paving) loadPaving(sim.paving, source.paving)
   if ('world' in source) {
     world.restore(source.world, SAVED)
+    settlePaving(sim)
     materializeAlliances(sim)
     refreshStorage(sim)
     remount(sim)
@@ -338,6 +351,15 @@ export function createSim(source: SimOptions | SimSave): Sim {
     for (const [player, map] of Object.entries(source.explored ?? {})) sim.vision.explore(Number(player), map)
   }
   return sim
+}
+
+/**
+ * Готовое покрытие, сохранённое сущностями, — так его хранили до слоя, — уходит в слой, как достроенное, см. settlePave.
+ */
+function settlePaving(sim: Sim) {
+  const done: Entity[] = []
+  for (const [entity, pave] of sim.world.query(Pave)) if (pave.done && !pave.remove) done.push(entity)
+  for (const entity of done) settlePave(sim, entity)
 }
 
 /**

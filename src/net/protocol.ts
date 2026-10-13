@@ -11,7 +11,7 @@ import type { Text } from '../i18n'
  * из тех же компонентов и правил, что у сервера. Поднимай её при каждом изменении протокола, компонентов из SAVED
  * или симуляции, которое меняет то, что видит клиент.
  */
-export const PROTOCOL_VERSION = 34
+export const PROTOCOL_VERSION = 35
 
 /** Порт сервера по умолчанию. */
 export const DEFAULT_PORT = 8787
@@ -52,6 +52,11 @@ export type ServerMessage =
   | { type: 'land'; data: Uint8Array }
   /** Правки карты, см. takeEdits: x, y и четыре байта тайла подряд. */
   | { type: 'tiles'; edits: number[] }
+  /**
+   * Готовое покрытие, которое игрок знает, см. paveMemory.ts: x, y и код (paveCode) подряд, NO_PAVE — покрытия больше
+   * нет. При входе — всё знаемое (reset), дальше — узнанное.
+   */
+  | { type: 'paving'; tiles: number[]; reset?: true }
   /** Месторождения: слой целиком, см. DepositLayer. Шлётся при входе и когда слой поменялся. */
   | { type: 'deposits'; deposits: DepositsSave }
   /** Новые сообщения чата. Хост их не хранит: вошедший позже прошлых не увидит. */

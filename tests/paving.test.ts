@@ -4,12 +4,14 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, isCliffFoot, terrainAt } from '../src/map/terrain'
 import {
   BRIDGE_COST, Building, Path, CORE, FOUNDATION_COST, Owner, Pave, Position, ROAD_COST, ROAD_SPEED, Site, Unit,
-  FOUNDATION_SPEED, buildSpeed, canBuild, canPave, canPlace, createSim, creditsOf, isPaved, spawnStartingUnits, type Sim,
+  FOUNDATION_SPEED, buildSpeed, canBuild, canPave, canPlace, createSim, creditsOf, isPaved, paveCode, paveOwnerAt, spawnStartingUnits, type Sim,
 } from '../src/sim'
 import { orderMove, spawnUnit, terrainSpeed } from '../src/sim/units'
 import { canDeploy } from '../src/sim/conversion'
 import { breakSlabs } from '../src/sim/combat'
+import { settlePave } from '../src/sim/paved'
 import { addBuilders } from './builders'
+import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }
 const TICK = 1 / 20
@@ -63,8 +65,7 @@ function find(sim: Sim, terrain: Terrain, x: number, y: number, side: number) {
 }
 
 /** Кладёт готовое покрытие без строителей. */
-const lay = (sim: Sim, kind: 'foundation' | 'road', x: number, y: number) =>
-  sim.world.spawn(Position({ x, y }), Pave({ kind, done: true, work: 1 }), Owner({ player: 1 }))
+const lay = (sim: Sim, kind: 'foundation' | 'road', x: number, y: number) => sim.paving.lay(x, y, paveCode(kind, 1))
 
 test('строители кладут дорогу: тайлы оплачены сразу, достраиваются и ускоряют наземных', () => {
   const { sim, builders, x, y } = start()
@@ -98,7 +99,7 @@ test('дорога по болоту — мост: дороже, болото п
   sim.send(1, { type: 'pave', kind: 'road', tiles: [swamp.x, swamp.y], builders: [] })
   seconds(sim, TICK)
   expect(creditsOf(sim, 1)).toBe(credits - BRIDGE_COST)
-  sim.world.get(sim.paving.at(swamp.x, swamp.y)!, Pave)!.done = true
+  settlePave(sim, sim.paving.at(swamp.x, swamp.y)!)
   // Колёсные по мосту едут быстрее, гусеничные — как по скале: болото под мостом не вязнет, но и дорога им не помогает.
   expect(terrainSpeed(sim, 'buggy', swamp.x, swamp.y)).toBe(ROAD_SPEED)
   expect(terrainSpeed(sim, 'tank', swamp.x, swamp.y)).toBe(1)
@@ -134,14 +135,15 @@ test('снимают покрытие строители: недостроенн
   expect(sim.paving.at(far.x, far.y)).toBeUndefined()
   expect(creditsOf(sim, 1)).toBe(before + FOUNDATION_COST)
 
-  const near = lay(sim, 'road', x + 6, y + 9)
+  lay(sim, 'road', x + 6, y + 9)
   sim.send(1, { type: 'unpave', tiles: [x + 6, y + 9], builders })
   seconds(sim, TICK)
   // Пока разбирают, дорога ещё работает.
-  expect(sim.world.get(near, Pave)!.remove).toBe(true)
+  expect(sim.world.get(sim.paving.at(x + 6, y + 9)!, Pave)!.remove).toBe(true)
   expect(isPaved(sim, 'road', x + 6, y + 9)).toBe(true)
   seconds(sim, 10)
   expect(sim.paving.at(x + 6, y + 9)).toBeUndefined()
+  expect(isPaved(sim, 'road', x + 6, y + 9)).toBe(false)
 })
 
 test('на фундаменте на скале здание строится вдвое быстрее', () => {
@@ -176,14 +178,15 @@ const strip = (sim: Sim, x: number, row: number, length: number) => {
 test('наземный взрыв разбивает фундамент под собой, пуля — нет', () => {
   const { sim, x, y } = start()
   for (let dx = 0; dx < 3; dx++) lay(sim, 'foundation', x + 4 + dx, y + 10)
+  const slab = (dx: number) => isPaved(sim, 'foundation', x + dx, y + 10)
   breakSlabs(sim, x + 5.5, y + 10.5, 0.2)
-  expect(sim.paving.at(x + 5, y + 10)).toBeDefined()
+  expect(slab(5)).toBe(true)
   breakSlabs(sim, x + 5.5, y + 10.5, 1)
-  expect(sim.paving.at(x + 5, y + 10)).toBeUndefined()
-  expect(sim.paving.at(x + 4, y + 10)).toBeDefined()
+  expect(slab(5)).toBe(false)
+  expect(slab(4)).toBe(true)
   breakSlabs(sim, x + 5, y + 10.5, 3)
-  expect(sim.paving.at(x + 4, y + 10)).toBeUndefined()
-  expect(sim.paving.at(x + 6, y + 10)).toBeUndefined()
+  expect(slab(4)).toBe(false)
+  expect(slab(6)).toBe(false)
 })
 
 test('MCV разворачивается на фундаменте, лежащем на песке', () => {
@@ -259,4 +262,16 @@ test('дорогу ищут в обзоре юнита, а показалась 
   for (let tx = at.x + 2; tx < at.x + 30; tx++) lay(sim, 'road', tx, at.y + 5)
   for (let i = 0; i < 25; i++) sim.advance(1 / 20)
   expect(sim.world.get(buggy, Path)?.roads).toBe(true)
+})
+
+test('готовое покрытие — слой карты: переживает сохранение, а сохранённое сущностями уходит в слой при загрузке', () => {
+  const { sim, x, y } = start()
+  lay(sim, 'road', x + 6, y + 9)
+  // Так готовое покрытие хранилось до слоя: сущностью.
+  sim.world.spawn(Position({ x: x + 7, y: y + 9 }), Pave({ kind: 'foundation', done: true, work: 1 }), Owner({ player: 1 }))
+  const loaded = createSim(throughJson(sim.save()))
+  expect(isPaved(loaded, 'road', x + 6, y + 9)).toBe(true)
+  expect(isPaved(loaded, 'foundation', x + 7, y + 9)).toBe(true)
+  expect(paveOwnerAt(loaded, x + 7, y + 9)).toBe(1)
+  expect(loaded.world.count(Pave)).toBe(0)
 })

@@ -3,7 +3,7 @@ import { Biome, Terrain, biomeAt, isCliffFoot, isPassable, terrainAt, tileKey } 
 import { FOUNDATION_SPEED, ROAD_SPEED, isPaved } from './paved'
 import { isOwn } from './common'
 import { isOpenGate } from './buildings'
-import { Armed, Converting, Hauler, Health, Owner, Repair, Path, Pave, Position, Producer, Unit } from './components'
+import { Armed, Converting, Hauler, Health, Owner, Repair, Path, Position, Producer, Unit } from './components'
 import { unitSight } from './vision'
 import { STARTING_CREDITS, addCredits } from './economy'
 import { equipStorage, type BeamSpec } from './inventory'
@@ -274,7 +274,7 @@ function pavedFor(sim: Sim, type: UnitType, x: number, y: number) {
  */
 export function roadInSight(sim: Sim, entity: Entity) {
   // Покрытия нет вовсе — и смотреть нечего.
-  if (!sim.world.count(Pave)) return false
+  if (!sim.paving.size) return false
   const position = sim.world.get(entity, Position)
   const unit = sim.world.get(entity, Unit)
   if (!position || !unit) return false

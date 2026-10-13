@@ -4,7 +4,7 @@ import { createAtlas } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { Pave, type PaveKind, type Sim } from '../sim'
+import { NO_PAVE, Pave, paveKindOf, type PaveKind, type Sim } from '../sim'
 import type { Scene } from './scene'
 
 /** Пикселей спрайта на тайл, как у местности. */
@@ -96,8 +96,10 @@ const LOOKS = ['foundation', 'road', 'bridge'] as const
 type Look = (typeof LOOKS)[number]
 export const PAVE_ART: Record<Look, (mask: number) => Pixmap> = { foundation: drawFoundation, road: drawRoad, bridge: drawBridge }
 
-/** Покрытие этого вида на тайле, готовое или нет. */
+/** Вид покрытия на тайле, готового или нет. */
 function kindAt(sim: Sim, x: number, y: number): PaveKind | undefined {
+  const code = sim.paving.laid(x, y)
+  if (code !== NO_PAVE) return paveKindOf(code)
   const entity = sim.paving.at(x, y)
   return entity === undefined ? undefined : sim.world.get(entity, Pave)?.kind
 }
@@ -126,15 +128,14 @@ export function createPavingPass(gl: WebGL2RenderingContext, scene: Scene): Pass
       sprites.clear()
       for (let y = top; y <= bottom; y++) {
         for (let x = left; x <= right; x++) {
-          const entity = sim.paving.at(x, y)
-          if (entity === undefined) continue
-          const pave = sim.world.get(entity, Pave)
-          if (!pave) continue
-          const same = (dx: number, dy: number) => kindAt(sim, x + dx, y + dy) === pave.kind
+          const kind = kindAt(sim, x, y)
+          if (kind === undefined) continue
+          const same = (dx: number, dy: number) => kindAt(sim, x + dx, y + dy) === kind
           const mask = (same(0, -1) ? UP : 0) | (same(1, 0) ? RIGHT : 0) | (same(0, 1) ? DOWN : 0) | (same(-1, 0) ? LEFT : 0)
-          const look: Look = pave.kind === 'foundation' ? 'foundation' : terrainAt(sim.land, x, y) === Terrain.Swamp ? 'bridge' : 'road'
+          const look: Look = kind === 'foundation' ? 'foundation' : terrainAt(sim.land, x, y) === Terrain.Swamp ? 'bridge' : 'road'
           const frame = frameOf(look, mask)
-          const alpha = pave.done && !pave.remove ? 1 : UNFINISHED_ALPHA
+          // Готовое — плотно; что кладут или разбирают — бледнее.
+          const alpha = sim.paving.at(x, y) === undefined ? 1 : UNFINISHED_ALPHA
           sprites.push(x - camera.x, y - camera.y, 1, 1, frame.u, frame.v, frame.width, frame.height, alpha, alpha, alpha, alpha)
         }
       }
