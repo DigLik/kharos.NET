@@ -10,6 +10,7 @@
  *   research — компоненты и лестница исследований: сколько харита на карте, что даёт линия, когда открывается тема;
  *   movement — движение: строй, окружение цели, подъезд строителей и нагрузка; formation, surround, builders, load —
  *              его части по отдельности;
+ *   nuke    — ядерный удар и защита: цена, что сносит взрыв, удар по базе и залп против перехватчика;
  *   crossing — армия через карту 512×512 по диагонали на нескольких картах: доезжают ли все. Долгий.
  *
  * Запуск: bun run balance            — таблица и парные бои (как раньше);
@@ -21,6 +22,7 @@ import { runEconomy } from './harness/economy'
 import { runSiege } from './harness/siege'
 import { runRaids } from './harness/raid'
 import { runResearch } from './harness/research'
+import { runNuke } from './harness/nuke'
 import { printBuilders, printCrossing, printFormation, printLoad, printSurround, runMovement } from './harness/movement'
 
 const modes: Record<string, () => void> = {
@@ -31,6 +33,7 @@ const modes: Record<string, () => void> = {
   siege: () => runSiege(),
   raid: () => runRaids(),
   research: () => runResearch(),
+  nuke: () => runNuke(),
   movement: () => runMovement(),
   formation: () => printFormation(),
   surround: () => printSurround(),
@@ -43,6 +46,7 @@ const modes: Record<string, () => void> = {
     runSiege()
     runRaids()
     runResearch()
+    runNuke()
     runMovement()
     printCrossing()
   },
