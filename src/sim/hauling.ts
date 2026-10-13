@@ -10,6 +10,7 @@ import { GOODS, resourceOf, type Good } from './resources'
 import type { Sim } from './sim'
 import { UNITS } from './units'
 import { networkOf } from './zones'
+import { SEARCH_LIMIT, searchedTiles, withSearchQuota } from './path'
 import { runRoutes } from './routes'
 import { sweepDrops } from './drops'
 
@@ -159,11 +160,33 @@ export function seekDue(sim: Sim, truck: Entity, hauler: { waiting: boolean; mis
   return onTurn(sim.time, truck, RETRY_TICKS << Math.min(hauler.misses, MAX_BACKOFF))
 }
 
-/** Подводит грузовик к зданию на длину луча; не нашёл подъезда — промах, следующая попытка позже, см. seekDue. */
+/**
+ * Сколько тайлов за тик вместе осматривают поиски подъезда всех грузовиков. Отсрочка seekDue бережёт тик от частых
+ * попыток, а норма — от дорогих: к зданию за стеной труб каждая попытка — с десяток поисков по сотне тысяч тайлов,
+ * и на сервере грузовики такой шахты замирали мир на секунды.
+ */
+const SEEK_TILES = SEARCH_LIMIT
+
+/** Сколько тайлов поиски подъезда осмотрели в этом тике: тик и счётчик поисков на его начало, см. searchedTiles. */
+const seekSpent = new WeakMap<Sim, { tick: number; from: number }>()
+
+/**
+ * Подводит грузовик к зданию на длину луча; не нашёл подъезда — промах, следующая попытка позже, см. seekDue. Норма
+ * тика вышла — грузовик ищет в свою следующую очередь, и это не промах. Поиск, который норма оборвала, — промах:
+ * подъезд, которого не найти за целую норму, ищется реже, как недоступный.
+ */
 export function seekBeam(sim: Sim, truck: Entity, building: Entity, beam: Entity | undefined) {
   if (beam === undefined) return
+  let spent = seekSpent.get(sim)
+  if (spent?.tick !== sim.time.tick) seekSpent.set(sim, (spent = { tick: sim.time.tick, from: searchedTiles() }))
+  const left = SEEK_TILES - (searchedTiles() - spent.from)
+  if (left <= 0) return
   const hauler = sim.world.get(truck, Hauler)!
-  if (approach(sim, truck, building, sim.world.get(beam, Beam)!.radius)) hauler.misses = 0
+  let found = false
+  withSearchQuota(left, () => {
+    found = approach(sim, truck, building, sim.world.get(beam, Beam)!.radius)
+  })
+  if (found) hauler.misses = 0
   else hauler.misses++
 }
 
