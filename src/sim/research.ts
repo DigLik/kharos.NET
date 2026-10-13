@@ -1,6 +1,6 @@
 import type { Entity, Time, WorldSnapshot } from '../ecs'
 import { BUILDING_TYPES, RESEARCH_FOR, buildingSpec, isReady } from './buildings'
-import { Building, Inventory, Owner, Player, Research, Site } from './components'
+import { Building, Inventory, Off, Owner, Player, Research, Site } from './components'
 import { DEPOSIT_CELL, depositsIn } from './deposits'
 import { amountOf, take } from './inventory'
 import { spend } from './economy'
@@ -26,7 +26,7 @@ import { networkStock, takeFromNetwork } from './upgrades'
  */
 
 /** Почему лаборатория стоит: нет темы, нет энергии, не хватает кредитов или этого груза в её сети. */
-export type LabLack = 'idle' | 'power' | 'credits' | Good
+export type LabLack = 'idle' | 'off' | 'power' | 'credits' | Good
 
 /** Ведёт ли это здание исследования: готовая лаборатория игрока. */
 export const isLab = (sim: Sim, player: number, building: Entity) => {
@@ -205,6 +205,11 @@ export function research(sim: Sim, time: Time) {
     const ticks = Math.max(1, price.seconds / time.step)
     let done = world.get(entity, Player)!.progress[topic] ?? 0
     for (const lab of list) {
+      // Выключенная энергию не берёт, но стоит не от нехватки: игрок видит «выключена», а не «нет энергии».
+      if (world.has(lab, Off)) {
+        report(sim, lab, 0, 'off')
+        continue
+      }
       const power = supply.get(lab) ?? 0
       const share = Math.min(power / ticks, 1 - done)
       if (share <= EPSILON) {

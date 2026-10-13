@@ -708,6 +708,7 @@
     "labCount": "(laboratoires : {count})",
     "lackCredits": "des crédits",
     "lackPower": "de l’énergie",
+    "lackOff": "d’être allumés",
     "hint": "Clic : en fin de file avec tout ce qu’il exige ; Maj+clic : en tête. Vert : recherchable maintenant, jaune : quand la file aura atteint ce qu’il faut, rouge : pas encore. Les laboratoires dépensent crédits et matériaux de leur réseau au fil du travail ; plusieurs vont plus vite ensemble",
     "queue": "File :",
     "queueEmpty": "vide — clique sur un sujet ci-dessous",

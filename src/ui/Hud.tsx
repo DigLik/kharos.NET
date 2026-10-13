@@ -732,7 +732,7 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
             {t('hud.researching', { name: t(`research.${state.research.topic}`), percent: percent(state.research.progress) })}
           </Progress>
         )}
-        {state.research?.topic && (
+        {state.research?.topic && state.research.lack !== 'off' && (
           <div class={state.research.lack ? 'hud__hint is-short' : 'hud__hint'}>
             {state.research.lack === 'power' ? t('hud.labNoPower')
               : state.research.lack === 'credits' ? t('hud.labNoCredits')

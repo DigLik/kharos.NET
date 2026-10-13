@@ -708,6 +708,7 @@
     "labCount": "(laboratoriyalar: {count})",
     "lackCredits": "kredit",
     "lackPower": "energiya",
+    "lackOff": "yoqilish",
     "hint": "Bosish — navbat oxiriga undan oldin keraklilari bilan, Shift+bosish — boshiga. Yashillarni hozir o‘rganish mumkin, sariqlarni — navbat kerakligiga yetganda, qizillarni — hozircha yo‘q. Laboratoriyalar ish davomida kredit va tarmog‘idagi xomashyoni sarflaydi; bir nechtasi birga tezroq ishlaydi",
     "queue": "Navbat:",
     "queueEmpty": "bo‘sh — pastdagi mavzuni bosing",

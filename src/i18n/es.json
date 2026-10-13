@@ -708,6 +708,7 @@
     "labCount": "(laboratorios: {count})",
     "lackCredits": "créditos",
     "lackPower": "energía",
+    "lackOff": "encenderse",
     "hint": "Clic: al final de la cola con todo lo que necesita; Mayús+clic: al principio. Verde se puede investigar ya, amarillo cuando la cola llegue a lo que necesita, rojo todavía no. Los laboratorios gastan créditos y materiales de su red según avanzan; varios juntos van más rápido",
     "queue": "Cola:",
     "queueEmpty": "vacía: haz clic en un tema de abajo",

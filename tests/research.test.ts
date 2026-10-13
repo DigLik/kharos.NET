@@ -319,6 +319,8 @@ test('очередь ведёт тему вместе с предшествен�
   plan(sim, 'blocks', true)
   seconds(sim, 2)
   expect(progressOf(sim, 1, 'blocks')).toBe(half)
+  // Стоит, потому что выключена, а не от нехватки энергии.
+  expect(sim.world.get(lab, Research)!.lack).toBe('off')
   sim.world.remove(lab, Off)
   // Без электростанций энергии нет вовсе.
   for (const plant of plants) sim.world.destroy(plant)

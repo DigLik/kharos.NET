@@ -708,6 +708,7 @@
     "labCount": "(laboratórios: {count})",
     "lackCredits": "créditos",
     "lackPower": "energia",
+    "lackOff": "ser ligados",
     "hint": "Clique: no fim da fila com tudo o que exige; Shift+clique: no início. Verde pode ser pesquisado agora, amarelo quando a fila chegar ao que precisa, vermelho ainda não. Os laboratórios gastam créditos e materiais da sua rede conforme trabalham; vários juntos são mais rápidos",
     "queue": "Fila:",
     "queueEmpty": "vazia — clique em um tema abaixo",

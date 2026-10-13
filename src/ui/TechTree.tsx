@@ -34,7 +34,8 @@ function iconOf(view: TopicView, size: number) {
 }
 
 /** Почему лаборатории стоят: «кредитов», «энергии» или название груза. */
-const lackName = (lack: LabLack) => (lack === 'credits' ? t('tech.lackCredits') : lack === 'power' || lack === 'idle' ? t('tech.lackPower') : t(`goods.${lack}`))
+const lackName = (lack: LabLack) =>
+  lack === 'credits' ? t('tech.lackCredits') : lack === 'off' ? t('tech.lackOff') : lack === 'power' || lack === 'idle' ? t('tech.lackPower') : t(`goods.${lack}`)
 
 function Tile({ view, send, hover }: { view: TopicView; send: TechTreeProps['send']; hover: (view: TopicView | null, element?: HTMLElement) => void }) {
   // Тему-открытие и открытую в очередь не ставят.
@@ -221,7 +222,7 @@ export function TechTree({ tech, send, close }: TechTreeProps) {
           {t('tech.lacks')}
           {labs.lacks.map(({ lack, count }) => (
             <span key={lack} class="tech__lack">
-              {lack !== 'credits' && lack !== 'power' && lack !== 'idle' ? <Res resource={lack} /> : null}
+              {lack !== 'credits' && lack !== 'off' && lack !== 'power' && lack !== 'idle' ? <Res resource={lack} /> : null}
               {lackName(lack)} <small>{t('tech.labCount', { count })}</small>
             </span>
           ))}

@@ -708,6 +708,7 @@
     "labCount": "(laboratories: {count})",
     "lackCredits": "credits",
     "lackPower": "power",
+    "lackOff": "to be switched on",
     "hint": "Click — add to the end of the queue with everything it needs, Shift+click — to the front. Green can be researched now, yellow once the queue reaches what it needs, red not yet. Laboratories spend credits and materials from their network as they work; several work faster together",
     "queue": "Queue:",
     "queueEmpty": "empty — click a topic below",

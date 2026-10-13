@@ -708,6 +708,7 @@
     "labCount": "(Labore: {count})",
     "lackCredits": "Credits",
     "lackPower": "Energie",
+    "lackOff": "Einschalten",
     "hint": "Klick — ans Ende der Warteschlange samt allem Nötigen, Umschalt+Klick — an den Anfang. Grün ist jetzt erforschbar, gelb, sobald die Warteschlange das Nötige erreicht, rot noch nicht. Labore verbrauchen Credits und Rohstoffe aus ihrem Netz während der Arbeit; mehrere sind zusammen schneller",
     "queue": "Warteschlange:",
     "queueEmpty": "leer — klicke unten auf ein Thema",
