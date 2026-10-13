@@ -4,6 +4,7 @@ import { CHANNELS, loadLevel, loadMuted, loadVolume, storeLevel, storeMuted, sto
 import { createMenuMusic, type MenuMusic } from '../audio/music'
 import { createSlot, deleteSave, exportSave, importSave, listSaves, renameSave, storeSave, type SaveSlot } from '../game/storage'
 import { DEFAULT_SETTINGS } from '../map/settings'
+import { SELECTION_LEVELS, prefs, setPrefs, type Prefs } from '../game/prefs'
 import { FPS_LIMITS, PRESETS as GRAPHICS_PRESETS, RESOLUTIONS, graphics, presetOf, setGraphics, type Detail, type Graphics, type Preset } from '../render/graphics'
 import { DEFAULT_CONFIG, type GeneratorConfig } from '../map/terrain'
 import { DEFAULT_WEATHER, createSim } from '../sim'
@@ -732,6 +733,7 @@ export function Settings({ back, onSound }: SettingsProps) {
           </label>
         ))}
         <GraphicsSettings />
+        <InterfaceSettings />
       </div>
     </Window>
   )
@@ -807,6 +809,28 @@ function GraphicsSettings() {
         onChange={(fps) => change({ ...value, fps })}
       />
       <p class="menu__note">{t('menu.graphicsNote')}</p>
+    </>
+  )
+}
+
+/** Интерфейс: то, что дело вкуса, а не мощности устройства. Смена видна сразу. */
+function InterfaceSettings() {
+  const [value, setValue] = useState(prefs)
+  const change = (next: Prefs) => {
+    setPrefs(next)
+    setValue(next)
+  }
+  return (
+    <>
+      <h3 class="menu__group">{t('menu.interface')}</h3>
+      <Choice
+        label={t('menu.selection')}
+        tip={t('menu.selectionTip')}
+        values={SELECTION_LEVELS}
+        value={value.selection}
+        name={(share) => `${Math.round(share * 100)}%`}
+        onChange={(selection) => change({ ...value, selection })}
+      />
     </>
   )
 }

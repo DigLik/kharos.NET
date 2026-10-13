@@ -7,6 +7,7 @@ import { createSpriteProgram, createSprites } from '../render/sprites'
 import { Armed, Attached, BUILDINGS, Building, Converting, Orders, Owner, Path, Position, Producer, Site, UNITS, Unit, buildTicks, networkOf, siteTicks } from '../sim'
 import type { Scene } from './scene'
 import { statusLift } from './statusBars'
+import { prefs } from './prefs'
 import { drawnPosition } from './units/unitsPass'
 
 /** Сторона картинки кольца в пикселях. */
@@ -34,7 +35,8 @@ const PATH_GOAL = 0.4
 const QUEUE_ALPHA = 0.55
 
 type Color = readonly [number, number, number]
-const SELECTED: Color = [0.35, 1, 0.45]
+/** Зелёный выделения — приглушённый: чистый резал глаз на тёмной земле. Яркость колец и рамок — в настройках, см. prefs.ts. */
+const SELECTED: Color = [0.45, 0.92, 0.55]
 /** Пунктир к цели выбранного стрелка и рамка на ней. */
 const TARGET: Color = [1, 0.35, 0.3]
 const TARGET_ALPHA = 0.7
@@ -215,10 +217,12 @@ export function createSelectionPass(gl: WebGL2RenderingContext, scene: Scene, ar
         rect(toX - camera.x + pixel, toY - camera.y - 0.9, 0.45, 0.3, SELECTED, 1)
       }
 
-      /** Кольцо вокруг юнита или рамка вокруг здания; alpha — насколько ярко. */
-      const mark = (entity: Entity, alpha: number) => {
+      /** Кольцо вокруг юнита или рамка вокруг здания; alpha — насколько ярко, до настройки игрока. */
+      const brightness = prefs().selection
+      const mark = (entity: Entity, share: number) => {
         const bounds = boundsOf(entity)
         if (!bounds) return
+        const alpha = share * brightness
         if (bounds.round) {
           sprites.push(
             bounds.x, bounds.y, bounds.width, bounds.height,
