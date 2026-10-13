@@ -6,7 +6,7 @@ import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
   armyOf, overLimit, Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
-  awaitsMaterials, buildTicks, canDemolish, freeCredits, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridOf, gridsOf,
+  awaitsMaterials, buildTicks, canDemolish, freeCredits, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridOf, gridsOf, RELIEF_BELOW,
   Research, TOPICS, PAVE_RESEARCH, DIG_KINDS, DIG_RESEARCH, type DigKind, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
@@ -84,6 +84,8 @@ export interface HudState {
   unlinked: boolean
   /** Выбранное доходное здание стоит в зоне без главного здания и денег не приносит. */
   coreless: boolean
+  /** Выбрано своё главное здание, и идёт подмога: кредитов меньше порога, доход выше обычного, см. RELIEF_BELOW. */
+  relief: boolean
   /** Выбранные юниты по видам. */
   units: { type: UnitType; count: number }[]
   /**
@@ -763,6 +765,7 @@ export function readHud(scene: Scene): HudState {
     repair,
     starved,
     coreless: idle,
+    relief: building === CORE && buildingCount === 1 && site === null && credits < RELIEF_BELOW && [...scene.selection].every((entity) => isOwn(sim, player, entity)),
     unlinked: loose,
     units: UNIT_TYPES.filter((type) => counts.has(type)).map((type) => ({ type, count: counts.get(type)! })),
     gift: gift.length ? gift : null,

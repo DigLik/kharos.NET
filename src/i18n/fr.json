@@ -512,6 +512,7 @@
     "overloaded": " — surcharge, les centrales se détruisent",
     "gridTip": "Réseau du bâtiment sélectionné ; rien de sélectionné — réseau du bâtiment principal",
     "coreless": "Ne rapporte rien : la zone n'a pas de centre de commandement",
+    "relief": "Secours : tant que vous avez moins de {below} crédits, le bâtiment principal donne {income} par seconde",
     "unlinked": "Non relié au réseau : posez un tuyau, sinon les ressources n'arrivent ni ne repartent",
     "starved": "⚡ Énergie insuffisante : le bâtiment travaille plus lentement ou est à l'arrêt",
     "switchedOff": "Éteint : ne consomme pas d'énergie et ne travaille pas ; allumez-le dans la grille à droite",

@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import type { Entity } from '../src/ecs'
 import {
-  BUILDINGS, Beam, DEPOSIT_CELL, DEPOSIT_KINDS, DEPOSIT_TYPES, Deposit, Hauler, Inventory, REFINE_RATE, REFINE_RATIO, RESOURCE_SPECS, SELL_SECONDS, TRUCK_CAPACITY, Trade, amountOf, canBuild, deliveredTo, gapBetween, canSell, isWalkable, stockOf, canPlace, createSim, creditsOf, depositAt, depositIn, depositNear, reserveLeft, rewardsOf,
+  BUILDINGS, Beam, RELIEF_BELOW, DEPOSIT_CELL, DEPOSIT_KINDS, DEPOSIT_TYPES, Deposit, Hauler, Inventory, REFINE_RATE, REFINE_RATIO, RESOURCE_SPECS, SELL_SECONDS, TRUCK_CAPACITY, Trade, amountOf, canBuild, deliveredTo, gapBetween, canSell, isWalkable, stockOf, canPlace, createSim, creditsOf, depositAt, depositIn, depositNear, reserveLeft, rewardsOf,
   zonesOf, type BuildingType, type DepositSpot, type Good, type Sim,
 } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
@@ -314,6 +314,8 @@ test('космопорт продаёт по заявке: диспетчер ш
   sim.world.get(first, Inventory)!.items.metal = 80
   const second = placeBuilding(sim.world, 'metalYard', spot.x + 9, spot.y + 5, 1)
   sim.world.get(second, Inventory)!.items.metal = 15
+  // С деньгами главное здание даёт обычный доход, без подмоги: иначе её не отличить от выручки.
+  addCredits(sim, 1, RELIEF_BELOW)
   const credits = creditsOf(sim, 1)
   const hauler = () => sim.world.get(truck, Hauler)!
   const stored = () => metalIn(sim, first) + metalIn(sim, second)

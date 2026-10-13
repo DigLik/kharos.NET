@@ -512,6 +512,7 @@
     "overloaded": " — overload, power plants are breaking down",
     "gridTip": "The selected building's grid; nothing selected — the main building's grid",
     "coreless": "Earns nothing: the zone has no command center",
+    "relief": "Relief: while you have fewer than {below} credits, the main building gives {income} per second",
     "unlinked": "Not connected to the network: lay a pipe — otherwise resources neither arrive nor leave",
     "starved": "⚡ Not enough power: the building works slower or stops",
     "switchedOff": "Switched off: draws no power and does not work; switch it on in the grid on the right",

@@ -7,7 +7,7 @@ import type { PaveTool } from '../game/scene'
 import { buildingPortrait, pavePortrait, unitPortrait } from '../game/portraits'
 import { goodIcon } from '../game/goodIcons'
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { REWARDS, resourceOf, type UnitType, type BuildingType, type Command, type Good, type Reward } from '../sim'
+import { RELIEF_BELOW, RELIEF_INCOME, REWARDS, resourceOf, type UnitType, type BuildingType, type Command, type Good, type Reward } from '../sim'
 import { GRID_KEYS, commandsOf, dealOf, keyLabel, type Deal, type FerryDraft, type Page, type Slot } from './commands'
 import { rich, t, type Key } from '../i18n'
 import { TechTree } from './TechTree'
@@ -560,6 +560,7 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
           </div>
         )}
         {state.coreless && <div class="hud__hint is-short">{t('hud.coreless')}</div>}
+        {state.relief && <div class="hud__hint">{t('hud.relief', { below: RELIEF_BELOW, income: RELIEF_INCOME })}</div>}
         {state.unlinked && <div class="hud__hint is-short">{t('hud.unlinked')}</div>}
         {state.starved && <div class="hud__hint hud__power is-short">{t('hud.starved')}</div>}
         {state.switchable && !state.switchable.on && <div class="hud__hint is-short">{t('hud.switchedOff')}</div>}

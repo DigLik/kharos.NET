@@ -1,6 +1,7 @@
 import type { Entity } from '../ecs'
 import { BUILDINGS, buildingSpec, levelFactor, type BuildingSpec, type BuildingType } from './buildings'
 import { isOwn } from './common'
+import { creditsOf } from './economy'
 import { Accumulator, Assembly, Building, Health, Off, Player, Site } from './components'
 import { isBurning, meltdown } from './reactors'
 import type { Sim } from './sim'
@@ -18,6 +19,15 @@ export interface Economy {
   /** Сколько энергии в этот тик отдают зоне её накопители, см. storeEnergy. */
   stored: number
 }
+
+/**
+ * Подмога главного здания: пока у игрока меньше RELIEF_BELOW кредитов, одно его главное здание даёт RELIEF_INCOME
+ * в секунду вместо обычного дохода. 600 — строитель, электростанция и генератор материи: без денег и без зданий
+ * игрок не в тупике, а дальше выбирается сам. Подмога одна на игрока, сколько бы главных зданий он ни поставил,
+ * и меньше одного генератора материи — фермы из неё не выходит.
+ */
+export const RELIEF_BELOW = 600
+export const RELIEF_INCOME = 1
 
 /** Есть ли в зоне главное здание: без него доход приносит только оно само, генераторы материи стоят. */
 const hasCore = (sim: Sim, zone: Zone) => zone.buildings.some((entity) => sim.world.get(entity, Building)!.type === 'command')
@@ -104,7 +114,16 @@ function books(sim: Sim): Book[] {
   if (ledger?.books) return ledger.books
   const result: Book[] = []
   for (const [player, zones] of allGrids(sim)) {
-    for (const zone of zones) result.push({ player, zone, economy: economyOfZone(sim, zone) })
+    // Подмога — первой сети с главным зданием: они идут первыми, см. allGrids.
+    let relief = creditsOf(sim, player) < RELIEF_BELOW ? RELIEF_INCOME - (BUILDINGS.command.income ?? 0) : 0
+    for (const zone of zones) {
+      const economy = economyOfZone(sim, zone)
+      if (relief > 0 && hasCore(sim, zone)) {
+        economy.income += relief
+        relief = 0
+      }
+      result.push({ player, zone, economy })
+    }
   }
   if (ledger) ledger.books = result
   return result

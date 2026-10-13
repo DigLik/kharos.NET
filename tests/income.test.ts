@@ -4,12 +4,12 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, isCliffFoot, terrainAt } from '../src/map/terrain'
 import {
   BUILDINGS, Building, Builds, CORE, Health, Owner, Player, SCAN_SIZE, Site, Unit, buildingSight, scanRadius,
-  Off, OVERLOAD_DAMAGE, REPAIR_COST, coreless, powerSupply, REPAIR_SPEED, canBuild, canDeploy, canPlace, createSim, creditsOf, economyOf, powerOf, powerStates, refundOf, rewardsOf, siteAt, zoneEconomies, zoneOf, zonesOf, spawnStartingUnits, type BuildingType, type Sim,
+  Off, OVERLOAD_DAMAGE, RELIEF_BELOW, RELIEF_INCOME, REPAIR_COST, coreless, powerSupply, REPAIR_SPEED, canBuild, canDeploy, canPlace, createSim, creditsOf, economyOf, powerOf, powerStates, refundOf, rewardsOf, siteAt, zoneEconomies, zoneOf, zonesOf, spawnStartingUnits, type BuildingType, type Sim,
 } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
 import { Scan } from '../src/sim/components'
 import { connectAll, connectBuilding } from '../src/sim/piping'
-import { REWARDS, STARTING_CREDITS } from '../src/sim/economy'
+import { REWARDS, STARTING_CREDITS, addCredits } from '../src/sim/economy'
 import { spawnUnit } from '../src/sim/units'
 import { addBuilders } from './builders'
 
@@ -333,13 +333,13 @@ test('строители чинят повреждённое здание — п
   const paid = credits + 1.2 * repairTime - creditsOf(sim, 1)
   expect(Math.abs(paid - 0.8 * BUILDINGS.generator.cost * REPAIR_COST)).toBeLessThan(15)
 
-  // Денег нет — починка идёт только на то, что капает доходом зоны (1,7 в секунду), а секунда полной работы
-  // стоит 20 кредитов: за десять секунд наберётся десятая часть работы, не больше.
+  // Денег нет — починка идёт только на то, что капает доходом зоны (2,5 в секунду: без денег главное здание даёт
+  // подмогу), а секунда полной работы стоит 20 кредитов: за десять секунд наберётся восьмая часть работы, не больше.
   sim.world.get(plant, Health)!.value = 0.5
   for (const [entity, player] of sim.world.query(Player)) if (player.id === 1) sim.world.set(entity, Player, { credits: 0, earned: 0 })
   seconds(sim, 10)
   expect(health()).toBeGreaterThan(0.5)
-  expect(health()).toBeLessThan(0.65)
+  expect(health()).toBeLessThan(0.7)
   sim.world.get(plant, Health)!.value = 1
   sim.advance(TICK)
   expect(sim.world.has(builders[0], Builds)).toBe(false)
@@ -414,8 +414,29 @@ test('генератор материи приносит деньги, толь�
   expect(economyOf(sim, 1).income).toBe(0)
   expect(coreless(sim).has(matter)).toBe(true)
   put(sim, 'command', 6, 0)
+  addCredits(sim, 1, RELIEF_BELOW)
   expect(economyOf(sim, 1).income).toBeCloseTo(BUILDINGS.command.income! + BUILDINGS.matter.income!)
   expect(coreless(sim).size).toBe(0)
+})
+
+test('подмога: пока кредитов мало, главное здание даёт больше — одно на игрока и только пока оно стоит', () => {
+  const sim = createSim({ generator: { ...DEFAULT_SETTINGS.generator, blank: true }, size: 256 })
+  addCredits(sim, 1, 0)
+  // Без главного здания подмоги нет: спасать нечего.
+  expect(economyOf(sim, 1).income).toBe(0)
+  put(sim, 'command', 0, 0)
+  expect(economyOf(sim, 1).income).toBeCloseTo(RELIEF_INCOME)
+  // Второе главное здание, в своей сети, подмогу не удваивает: оно даёт свой обычный доход.
+  put(sim, 'command', 60, 60)
+  expect(zoneEconomies(sim, 1).length).toBe(2)
+  expect(economyOf(sim, 1).income).toBeCloseTo(RELIEF_INCOME + BUILDINGS.command.income!)
+  // Накопил — доход прежний; потратил — подмога вернулась.
+  seconds(sim, 5)
+  expect(creditsOf(sim, 1)).toBe(Math.floor(5 * (RELIEF_INCOME + BUILDINGS.command.income!)))
+  addCredits(sim, 1, RELIEF_BELOW)
+  expect(economyOf(sim, 1).income).toBeCloseTo(BUILDINGS.command.income! * 2)
+  addCredits(sim, 1, -RELIEF_BELOW)
+  expect(economyOf(sim, 1).income).toBeCloseTo(RELIEF_INCOME + BUILDINGS.command.income!)
 })
 
 test('радар разведывает вспышками в своём радиусе; уровень растит радиус и потребление, выключенный не разведывает', () => {

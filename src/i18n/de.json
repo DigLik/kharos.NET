@@ -512,6 +512,7 @@
     "overloaded": " — Überlast, die Kraftwerke gehen kaputt",
     "gridTip": "Netz des ausgewählten Gebäudes; nichts ausgewählt — Netz des Hauptgebäudes",
     "coreless": "Bringt kein Geld: Die Zone hat keine Kommandozentrale",
+    "relief": "Nothilfe: Solange du weniger als {below} Credits hast, gibt das Hauptgebäude {income} pro Sekunde",
     "unlinked": "Nicht ans Netz angeschlossen: Verlege ein Rohr — sonst kommen Rohstoffe weder an noch weg",
     "starved": "⚡ Zu wenig Energie: Das Gebäude arbeitet langsamer oder steht still",
     "switchedOff": "Ausgeschaltet: zieht keine Energie und arbeitet nicht; im Raster rechts einschalten",

@@ -512,6 +512,7 @@
     "overloaded": " — sobrecarga, las centrales se están destruyendo",
     "gridTip": "Red del edificio seleccionado; sin selección — red del centro de mando",
     "coreless": "No da dinero: la zona no tiene centro de mando",
+    "relief": "Auxilio: mientras tengas menos de {below} créditos, el centro de mando da {income} por segundo",
     "unlinked": "No está conectado a la red: tiende una tubería; sin ella los recursos ni llegan ni salen",
     "starved": "⚡ Falta energía: el edificio trabaja más despacio o está parado",
     "switchedOff": "Apagado: no consume energía ni trabaja; enciéndelo en la cuadrícula de la derecha",

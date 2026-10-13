@@ -512,6 +512,7 @@
     "overloaded": " — ortiqcha yuklama, stansiyalar buzilmoqda",
     "gridTip": "Tanlangan bino tarmog‘i; hech narsa tanlanmagan bo‘lsa — bosh bino tarmog‘i",
     "coreless": "Daromad keltirmaydi: zonada bosh bino yo‘q",
+    "relief": "Yordam: kreditlar {below} dan kam bo‘lsa, bosh bino soniyasiga {income} beradi",
     "unlinked": "Tarmoqqa ulanmagan: quvur o‘tkazing — aks holda resurslar kelmaydi ham, ketmaydi ham",
     "starved": "⚡ Energiya yetarli emas: bino sekinroq ishlaydi yoki to‘xtaydi",
     "switchedOff": "O‘chirilgan: energiya sarflamaydi va ishlamaydi; o‘ngdagi to‘rda yoqing",
