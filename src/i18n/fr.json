@@ -484,6 +484,7 @@
     "clockStorm": "Heure du jour ; tempête en cours",
     "storm": " · tempête",
     "depositTip": "Gisement : {name:lower}",
+    "orBuy": "ou acheter : {building}",
     "leftUnknown": "réserve inconnue",
     "left": "reste {amount}",
     "depleted": "épuisé",

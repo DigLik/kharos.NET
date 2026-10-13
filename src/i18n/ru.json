@@ -484,6 +484,7 @@
     "clockStorm": "Время суток; идёт непогода",
     "storm": " · непогода",
     "depositTip": "Месторождение: {name:lower}",
+    "orBuy": "или купить: {building}",
     "leftUnknown": "остаток неизвестен",
     "left": "осталось {amount}",
     "depleted": "выработано",

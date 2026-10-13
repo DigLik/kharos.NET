@@ -1249,6 +1249,54 @@ body {
   color: var(--warn);
 }
 
+/* Материалы в цене: значок, название, сколько нужно; у нехватающего — сколько есть и откуда его берут. */
+.card__goods {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.card__goods li {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  align-items: center;
+  gap: 0 6px;
+}
+
+.card__goods img {
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+}
+
+.card__goods .is-short b {
+  color: var(--warn);
+}
+
+.card__goods small {
+  grid-column: 2 / -1;
+  color: var(--text-dim);
+}
+
+.card__goods b {
+  font-weight: 400;
+}
+
+/* Подсказка в несколько строк, в каждой — свой ряд значков и текста. */
+.tip.tip--rows {
+  display: block;
+}
+
+.tip.tip--rows > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* Параметры юнита: подпись слева, значение справа. */
 .card__stats {
   display: grid;

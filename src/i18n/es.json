@@ -484,6 +484,7 @@
     "clockStorm": "Hora del día; hay tormenta",
     "storm": " · tormenta",
     "depositTip": "Yacimiento: {name:lower}",
+    "orBuy": "o comprar: {building}",
     "leftUnknown": "reserva desconocida",
     "left": "quedan {amount}",
     "depleted": "agotado",

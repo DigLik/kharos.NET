@@ -11,6 +11,7 @@ import { REWARDS, resourceOf, type UnitType, type BuildingType, type Command, ty
 import { GRID_KEYS, commandsOf, dealOf, keyLabel, type Deal, type FerryDraft, type Page, type Slot } from './commands'
 import { rich, t, type Key } from '../i18n'
 import { TechTree } from './TechTree'
+import { chainOf, sourceOf } from './sources'
 import { unitStats, unitStatsLine, unitStatsText } from './unitStats'
 
 interface HudProps {
@@ -392,9 +393,14 @@ function SlotImage({ slot }: { slot: Slot }) {
 /** Карточки ячеек сетки для подсказки: ячейка кладёт сюда свою при каждой отрисовке, подсказка находит её по data-card. */
 const CARDS = new Map<string, ComponentChildren>()
 
-/** Карточка ячейки: название с клавишей, пояснение, полная цена и энергия. */
-function SlotCard({ slot, hotkey }: { slot: Slot; hotkey: string }) {
-  const price = slot.cost !== undefined || slot.materials?.length || slot.power
+/**
+ * Карточка ячейки: название с клавишей, пояснение, полная цена и энергия. Материалы — строками с названием: карточка
+ * сама подсказка, и навести на значок в ней нельзя. Чего в хранилищах (stock) меньше, чем нужно, — «есть/нужно»
+ * и откуда это берётся, см. sourceOf.
+ */
+function SlotCard({ slot, hotkey, stock }: { slot: Slot; hotkey: string; stock: Stack[] }) {
+  const price = slot.cost !== undefined || slot.power
+  const stored = (good: Good) => Math.floor(stock.find(({ resource }) => resource === good)?.amount ?? 0)
   return (
     <div class="card">
       <div class="card__title">
@@ -415,9 +421,23 @@ function SlotCard({ slot, hotkey }: { slot: Slot; hotkey: string }) {
               {slot.gain ? `+${slot.cost}` : slot.cost}
             </span>
           )}
-          {slot.materials?.length ? <Stacks items={slot.materials} /> : null}
           {slot.power ? <span class="hud__power">⚡{slot.power > 0 ? `+${slot.power}` : slot.power}</span> : null}
         </div>
+      ) : null}
+      {slot.materials?.length ? (
+        <ul class="card__goods">
+          {slot.materials.map(({ resource, amount }) => {
+            const short = stored(resource) < amount
+            return (
+              <li key={resource} class={short ? 'is-short' : undefined}>
+                <img src={goodIcon(resource)} alt="" />
+                <span>{t(`goods.${resource}`)}</span>
+                <b>{short ? `${stored(resource)}/${amount}` : amount}</b>
+                {short && <small>{sourceOf(resource)}</small>}
+              </li>
+            )
+          })}
+        </ul>
       ) : null}
     </div>
   )
@@ -427,13 +447,13 @@ function SlotCard({ slot, hotkey }: { slot: Slot; hotkey: string }) {
 const pictured = (slot: Slot) => !!(slot.building || slot.unit || slot.good || slot.pave)
 
 /** Сетка команд 4×3: ячейка — кнопка со своей клавишей. */
-function CommandGrid({ slots }: { slots: (Slot | null)[] }) {
+function CommandGrid({ slots, stock }: { slots: (Slot | null)[]; stock: Stack[] }) {
   return (
     <div class="bar__grid">
       {slots.map((slot, i) => {
         const key = keyLabel(GRID_KEYS[i])
         if (!slot) return <div key={i} class="bar__cell bar__cell--empty" />
-        CARDS.set(String(i), <SlotCard slot={slot} hotkey={key} />)
+        CARDS.set(String(i), <SlotCard slot={slot} hotkey={key} stock={stock} />)
         return (
           <button
             key={i}
@@ -1018,9 +1038,13 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
           say={say}
         />}
       {state.hover && (
-        <div class="hud tip" style={{ left: `${state.hover.x + 16}px`, top: `${state.hover.y + 16}px` }}>
-          <Res resource={state.hover.kind} /> {t('hud.depositTip', { name: t(`goods.${state.hover.kind}`) })}
-          <small>{state.hover.left === null ? t('hud.leftUnknown') : state.hover.left > 0 ? t('hud.left', { amount: state.hover.left }) : t('hud.depleted')}</small>
+        <div class="hud tip tip--rows" style={{ left: `${state.hover.x + 16}px`, top: `${state.hover.y + 16}px` }}>
+          <div>
+            <Res resource={state.hover.kind} /> {t('hud.depositTip', { name: t(`goods.${state.hover.kind}`) })}
+            <small>{state.hover.left === null ? t('hud.leftUnknown') : state.hover.left > 0 ? t('hud.left', { amount: state.hover.left }) : t('hud.depleted')}</small>
+          </div>
+          {/* Что из него выйдет и через что: руду ещё надо переработать. */}
+          <small>{chainOf(state.hover.kind)}</small>
         </div>
       )}
 
@@ -1083,7 +1107,7 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
               ))}
           </div>
         )}
-        {!state.editor && <CommandGrid slots={selected ? slots : Array(GRID_KEYS.length).fill(null)} />}
+        {!state.editor && <CommandGrid slots={selected ? slots : Array(GRID_KEYS.length).fill(null)} stock={state.stock?.items ?? []} />}
       </section>
     </>
   )

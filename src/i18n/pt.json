@@ -484,6 +484,7 @@
     "clockStorm": "Hora do dia; há tempestade",
     "storm": " · tempestade",
     "depositTip": "Jazida: {name:lower}",
+    "orBuy": "ou comprar: {building}",
     "leftUnknown": "reserva desconhecida",
     "left": "restam {amount}",
     "depleted": "esgotada",

@@ -484,6 +484,7 @@
     "clockStorm": "Time of day; a storm is raging",
     "storm": " · storm",
     "depositTip": "Deposit: {name:lower}",
+    "orBuy": "or buy: {building}",
     "leftUnknown": "reserve unknown",
     "left": "{amount} left",
     "depleted": "depleted",

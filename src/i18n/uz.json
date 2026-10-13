@@ -484,6 +484,7 @@
     "clockStorm": "Kun vaqti; bo‘ron ko‘tarilmoqda",
     "storm": " · bo‘ron",
     "depositTip": "Kon: {name:lower}",
+    "orBuy": "yoki sotib olish: {building}",
     "leftUnknown": "qoldiq noma’lum",
     "left": "{amount} qoldi",
     "depleted": "tugagan",

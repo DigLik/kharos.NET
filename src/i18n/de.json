@@ -484,6 +484,7 @@
     "clockStorm": "Tageszeit; es herrscht Unwetter",
     "storm": " · Unwetter",
     "depositTip": "Vorkommen: {name}",
+    "orBuy": "oder kaufen: {building}",
     "leftUnknown": "Vorrat unbekannt",
     "left": "noch {amount}",
     "depleted": "erschöpft",

@@ -484,6 +484,7 @@
     "clockStorm": "Час доби; триває негода",
     "storm": " · негода",
     "depositTip": "Родовище: {name:lower}",
+    "orBuy": "або купити: {building}",
     "leftUnknown": "залишок невідомий",
     "left": "залишилося {amount}",
     "depleted": "вироблено",
