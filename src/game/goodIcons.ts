@@ -165,12 +165,11 @@ function shade(color: number, amount: number) {
   return [channel(16), channel(8), channel(0)] as const
 }
 
-const cache = new Map<Good, string>()
+/** Сторона мини-иконки груза в пикселях. */
+export const GOOD_ICON = SIZE
 
-/** Адрес картинки мини-иконки груза. Рисуется один раз. */
-export function goodIcon(good: Good) {
-  let url = cache.get(good)
-  if (url) return url
+/** Рисует мини-иконку груза: put получает место и цвет каждого закрашенного пикселя. Работает и без браузера. */
+export function paintGood(good: Good, put: (x: number, y: number, color: readonly [number, number, number]) => void) {
   const ore = isOre(good)
   const base = ore ? ROCK : GOOD_COLORS[good]
   const tones: Record<string, readonly [number, number, number]> = {
@@ -180,16 +179,22 @@ export function goodIcon(good: Good) {
     d: shade(base, -0.4),
     x: shade(ore ? GOOD_COLORS[resourceOf(good)] : base, 0.1),
   }
-  const mask = MASKS[ore ? 'ore' : good]
-  const image = new ImageData(SIZE, SIZE)
-  mask.forEach((row, y) => {
+  MASKS[ore ? 'ore' : good].forEach((row, y) => {
     for (let x = 0; x < SIZE; x++) {
       const tone = tones[row[x]]
-      if (!tone) continue
-      const index = (y * SIZE + x) * 4
-      image.data.set([...tone, 255], index)
+      if (tone) put(x, y, tone)
     }
   })
+}
+
+const cache = new Map<Good, string>()
+
+/** Адрес картинки мини-иконки груза. Рисуется один раз. */
+export function goodIcon(good: Good) {
+  let url = cache.get(good)
+  if (url) return url
+  const image = new ImageData(SIZE, SIZE)
+  paintGood(good, (x, y, tone) => image.data.set([...tone, 255], (y * SIZE + x) * 4))
   const canvas = document.createElement('canvas')
   canvas.width = canvas.height = SIZE
   canvas.getContext('2d')!.putImageData(image, 0, 0)

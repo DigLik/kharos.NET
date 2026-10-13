@@ -4,7 +4,9 @@ import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atl
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Building, Position, powerStates, shutDown, unlinked, type PowerState } from '../sim'
+import { BUILDINGS, Building, GOODS, Position, Site, powerStates, shutDown, unlinked, type Good, type PowerState } from '../sim'
+import { GOOD_ICON, paintGood } from './goodIcons'
+import { lacksOf } from './lacks'
 import { STATUS_BAR, STATUS_GAP, STATUS_STACK, statusBarsOf, statusLift } from './statusBars'
 import type { Scene } from './scene'
 
@@ -103,6 +105,17 @@ function drawOff() {
   return image
 }
 
+/** Значок «Не хватает груза»: мини-иконка этого груза на тёмном круге в красном кольце. */
+function drawLack(good: Good) {
+  const image = new Pixmap(ICON_SIZE, ICON_SIZE)
+  image.circle(8, 8, 8, 0x0b111b)
+  image.circle(8, 8, 7, 0xe5492f)
+  image.circle(8, 8, 6, 0x121c2a)
+  const shift = (ICON_SIZE - GOOD_ICON) / 2
+  paintGood(good, (x, y, [red, green, blue]) => image.rect(shift + x, shift + y, 1, 1, (red << 16) | (green << 8) | blue))
+  return image
+}
+
 type Color = readonly [number, number, number]
 const BAR_BACK: Color = [0.03, 0.05, 0.08]
 const BAR_GOOD: Color = [0.45, 0.9, 0.55]
@@ -114,13 +127,17 @@ const BAR_SHIELD: Color = [0.3, 0.55, 1]
 export function powerSprites(): Sprite[] {
   const bolts = Array.from({ length: BOLTS }, (_, i) => drawBolt(i))
   const white = new Pixmap(4, 4).rect(0, 0, 4, 4, 0xffffff)
-  return [...bolts, drawIcon(), white, drawLoose(), drawOff()].map(ready)
+  return [...bolts, drawIcon(), white, drawLoose(), drawOff(), ...GOODS.map(drawLack)].map(ready)
 }
 
+/** Раз во сколько тиков симуляции пересчитывается, каким своим зданиям чего не хватает: это обход складов и сетей. */
+const LACK_TICKS = 10
+
 /**
- * Проход нехватки энергии: молнии перегруза на электростанциях, значок над зданиями, которые из-за нехватки
- * работают медленнее, значок «Не подключено к сети» над своими зданиями со складом без труб, значок «Выключено» над
- * своими выключенными, над зданиями — полоски прочности повреждённых и синие полоски запаса генераторов щита,
+ * Проход тревог над зданиями: молнии перегруза на электростанциях, значок над зданиями, которые из-за нехватки
+ * энергии работают медленнее, значок «Не подключено к сети» над своими зданиями со складом без труб, значок груза
+ * над своими зданиями и стройками, которые стоят без него (см. lacks.ts), значок «Выключено» над своими
+ * выключенными, над зданиями — полоски прочности повреждённых и синие полоски запаса генераторов щита,
  * см. statusBars.ts. Ставить выше освещения, чтобы ночью не темнело.
  */
 export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: PackedAtlas): Pass {
@@ -130,6 +147,7 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
   const whiteFrame = atlas.frames[BOLTS + 1]
   const looseFrame = atlas.frames[BOLTS + 2]
   const offFrame = atlas.frames[BOLTS + 3]
+  const lackFrames = new Map(GOODS.map((good, i) => [good, atlas.frames[BOLTS + 4 + i]]))
   const whiteU = whiteFrame.u + whiteFrame.width / 2
   const whiteV = whiteFrame.v + whiteFrame.height / 2
 
@@ -139,6 +157,9 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
   // Кому не хватает энергии, пересчитывается раз в тик симуляции, а не каждый кадр.
   let states = new Map<Entity, PowerState>()
   let tick = -1
+  let lacks = new Map<Entity, Good>()
+  let lacksAt = -Infinity
+  let lacksSim: unknown
 
   return {
     draw({ camera, width, height, time, view }) {
@@ -147,6 +168,11 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
       if (sim.time.tick !== tick) {
         tick = sim.time.tick
         states = powerStates(sim)
+      }
+      if (lacksSim !== sim || Math.abs(sim.time.tick - lacksAt) >= LACK_TICKS) {
+        lacks = lacksOf(sim, scene.player)
+        lacksAt = sim.time.tick
+        lacksSim = sim
       }
       const halfWidth = width / 2 / camera.zoom + 2
       const halfHeight = height / 2 / camera.zoom + 2
@@ -179,6 +205,8 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
         const icons: [frame: typeof iconFrame, shown: boolean][] = []
         if (unlinked(sim, scene.player, entity)) icons.push([looseFrame, iconOn])
         if (state === 'starved') icons.push([iconFrame, iconOn])
+        const lack = lacks.get(entity)
+        if (lack) icons.push([lackFrames.get(lack)!, iconOn])
         if (shutDown(sim, scene.player, entity)) icons.push([offFrame, true])
         icons.forEach(([frame, shown], i) => {
           if (!shown) return
@@ -198,6 +226,20 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
           sprites.push(x, top, spec.width, barHeight, whiteU, whiteV, 0, 0, ...BAR_BACK, 1)
           sprites.push(x, top, spec.width * share, barHeight, whiteU, whiteV, 0, 0, ...color, 1)
         })
+      }
+
+      // Площадки, к которым строитель ещё не приступил: здания на них нет, а материалов они уже ждут.
+      for (const [entity, lack] of lacks) {
+        if (world.has(entity, Building)) continue
+        const site = world.get(entity, Site)
+        const position = world.get(entity, Position)
+        if (!site || !position || !iconOn) continue
+        const spec = BUILDINGS[site.type]
+        const x = position.x - camera.x
+        const y = position.y - camera.y
+        if (x + spec.width < -halfWidth || x > halfWidth || y + spec.height < -halfHeight || y > halfHeight) continue
+        const frame = lackFrames.get(lack)!
+        sprites.push(x + spec.width / 2 - ICON_TILES / 2, y - ICON_TILES / 2, ICON_TILES, ICON_TILES, frame.u, frame.v, frame.width, frame.height, 1, 1, 1, 1)
       }
 
       setBlend(gl, 'alpha')
