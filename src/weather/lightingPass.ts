@@ -97,7 +97,13 @@ void main() {
 }
 `
 
-const BEAM_FRAGMENT = `#version 300 es
+/**
+ * Шейдер луча на заданное число проверок тени. Число вшито константой, а не приходит юниформом: в Chrome на Windows
+ * шейдер переводится в HLSL, и цикл с границей, не известной при сборке, его компилятор разворачивает вслепую —
+ * сборка занимает десятки секунд и держит процесс видеокарты, общий на весь браузер. По той же причине выборка
+ * в цикле — textureLod: ей не нужны производные, из-за которых цикл нельзя оставить циклом.
+ */
+const beamFragment = (steps: number) => `#version 300 es
 precision highp float;
 in vec2 vTexel;
 flat in vec4 vBeam;
@@ -113,7 +119,7 @@ const float LEVELS = 5.0;
 const float BAYER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
 // Сколько раз луч зрения проверяется на преграду (настройка графики: 10, 20 или 40) и на сколько пикселей
 // от источника проверка не доходит: источник стоит у самого края своего юнита, и тот не должен затенять собственный свет.
-uniform int uSteps;
+const int STEPS = ${steps};
 const float SKIP = 1.5;
 
 void main() {
@@ -130,13 +136,15 @@ void main() {
   vec2 from = vBeam.xy + uOffset + texel / TEXELS_PER_TILE;
   vec2 to = vBeam.xy + uOffset + direction * SKIP / TEXELS_PER_TILE;
   bool outside = false;
-  for (int i = 0; i < uSteps; i++) {
-    vec2 tile = mix(from, to, (float(i) + 0.5) / float(uSteps));
+  bool shaded = false;
+  for (int i = 0; i < STEPS; i++) {
+    vec2 tile = mix(from, to, (float(i) + 0.5) / float(STEPS));
     vec2 uv = vec2(tile.x * uScale.x, -tile.y * uScale.y) * 0.5 + 0.5;
-    bool solid = texture(uOccluders, uv).a > 0.5;
+    bool solid = textureLod(uOccluders, uv, 0.0).a > 0.5;
     if (!solid) outside = true;
-    else if (outside) discard;
+    else if (outside) shaded = true;
   }
+  if (shaded) discard;
 
   float dither = (BAYER[(cell.y & 3) * 4 + (cell.x & 3)] + 0.5) / 16.0;
   float stepped = min(1.0, floor(value * LEVELS + dither) / LEVELS);
@@ -159,8 +167,10 @@ export function createLightingPass(gl: WebGL2RenderingContext, scene: Scene, cas
   const cut = createQuads(gl, spotProgram, { aSpot: 4 })
   const bloom = createQuads(gl, spotProgram, { aSpot: 4 })
   const lightmap = createTarget(gl)
-  const beamProgram = createProgram(gl, BEAM_VERTEX, BEAM_FRAGMENT)
-  const beams = createQuads(gl, beamProgram, { aBeam: 4, aCone: 4 })
+  // Программа луча собрана под текущую точность теней; сменили настройку — собирается заново вместе с квадратами.
+  let steps = SHADOW_STEPS[graphics().shadows]
+  let beamProgram = createProgram(gl, BEAM_VERTEX, beamFragment(steps))
+  let beams = createQuads(gl, beamProgram, { aBeam: 4, aCone: 4 })
   const occluders = createTarget(gl)
   /** Карты освещённости и силуэтов: у них свой размер и свой сдвиг. */
   const grid = createTexelGrid()
@@ -183,6 +193,13 @@ export function createLightingPass(gl: WebGL2RenderingContext, scene: Scene, cas
         if (data[i + 3] > 0) bloom.push(x, y, data[i + 3], level)
       }
 
+      if (steps !== SHADOW_STEPS[graphics().shadows]) {
+        beams.destroy()
+        beamProgram.destroy()
+        steps = SHADOW_STEPS[graphics().shadows]
+        beamProgram = createProgram(gl, BEAM_VERTEX, beamFragment(steps))
+        beams = createQuads(gl, beamProgram, { aBeam: 4, aCone: 4 })
+      }
       beams.clear()
       const rays = lights.beams
       for (let i = 0; i < rays.length; i += 8) {
@@ -211,7 +228,7 @@ export function createLightingPass(gl: WebGL2RenderingContext, scene: Scene, cas
         spotProgram.use(mapView, { uColor: LIGHT_COLOR, uStrength: 1 })
         cut.draw()
         if (beams.count) {
-          beamProgram.use(mapView, { uColor: LIGHT_COLOR, uOccluders: occluders.texture, uSteps: SHADOW_STEPS[graphics().shadows] })
+          beamProgram.use(mapView, { uColor: LIGHT_COLOR, uOccluders: occluders.texture })
           beams.draw()
         }
 
