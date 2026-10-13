@@ -2,7 +2,7 @@ import { setBlend } from '../gl'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites, createWhiteTexture } from '../render/sprites'
 import type { Entity } from '../ecs'
-import { BUILDINGS, Building, CONTROL_RADIUS, Silo, Hauler, Owner, Position, Tactics, allZones, buildingSpec, wellPartners, type BuildingType } from '../sim'
+import { BUILDINGS, Building, CONTROL_RADIUS, EXPAND_RADIUS, Silo, Hauler, Owner, Position, Tactics, allZones, buildingSpec, gridOf, wellPartners, type BuildingSpec, type BuildingType, type Zone } from '../sim'
 import { paveStrokeOf, placementOf } from './placing'
 import type { Scene } from './scene'
 
@@ -90,6 +90,8 @@ function routesOf(scene: Scene): DrawnRoute[] {
 /** Граница радиуса контроля — пунктир: столько штрихов на круг, каждый такой длины и толщины в пикселях экрана. */
 const CONTROL_DASHES = 120
 const CONTROL_DASH = 3
+/** Насколько бледнее границы зон рисуются энергосеть выбранного здания и круг, который добавит ставящееся. */
+const FAINT_ALPHA = 0.5
 
 /**
  * Точки внешней границы зоны, x и y подряд. zone — круги: x, y и радиус подряд. Точка внутри соседнего круга —
@@ -134,7 +136,9 @@ export function outlineOf(zone: readonly number[]) {
 
 /**
  * Подсветка под указателем мыши, пока игрок выбирает место под здание: его основание (зелёное, если строить можно,
- * красное, если нельзя) и границы зон строительства. Так же — тайлы покрытия, которое игрок тянет мышью.
+ * красное, если нельзя), круг, которым оно расширит зону, и границы зон строительства. Так же — тайлы покрытия,
+ * которое игрок тянет мышью. Границы зон видны и без выбора места: пока зажат Alt или курсор стоит на кнопке
+ * здания в меню стройки; у выбранного своего здания — граница его энергосети.
  * В остальное время ничего не рисует.
  * Ставить выше освещения, чтобы ночью не темнела.
  */
@@ -166,16 +170,34 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
    * Границы зон: свои — где строить можно, чужие — где нельзя. Считаются заново, только когда сменились сами зоны
    * (allZones отдаёт новый набор) или игрок, а не каждый кадр.
    */
-  let borders: { zones: unknown; player: number; own: number[]; foreign: number[] } | undefined
+  let borders: { zones: unknown; player: number; own: number[]; foreign: number[]; circles: number[] } | undefined
   const bordersOf = () => {
     const zones = allZones(scene.sim)
     if (borders?.zones === zones && borders.player === scene.player) return borders
-    borders = { zones, player: scene.player, own: [], foreign: [] }
+    borders = { zones, player: scene.player, own: [], foreign: [], circles: [] }
     for (const [player, list] of zones) {
-      if (player === scene.player) borders.own = outlineOf(list.flatMap((zone) => zone.circles))
+      if (player === scene.player) borders.own = outlineOf((borders.circles = list.flatMap((zone) => zone.circles)))
       else for (const zone of list) for (const value of outlineOf(zone.circles)) borders.foreign.push(value)
     }
     return borders
+  }
+  /** Границы энергосетей: считаются раз на сеть — с любой стройкой или сносом сети собираются заново. */
+  const gridBorders = new WeakMap<Zone, number[]>()
+  /** Границы энергосетей выбранных своих зданий, каждая по разу. */
+  const selectedGrids = () => {
+    const { sim } = scene
+    const seen = new Set<Zone>()
+    const list: number[][] = []
+    for (const entity of scene.selection) {
+      if (!sim.world.has(entity, Building) || sim.world.get(entity, Owner)?.player !== scene.player) continue
+      const grid = gridOf(sim, entity)
+      if (!grid || seen.has(grid)) continue
+      seen.add(grid)
+      let dots = gridBorders.get(grid)
+      if (!dots) gridBorders.set(grid, (dots = outlineOf(grid.circles)))
+      list.push(dots)
+    }
+    return list
   }
 
   return {
@@ -186,7 +208,10 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
       // Наводка ядерного удара: под указателем — круг взрыва и его ядра. Наводить можно только готовую боеголовку.
       const aim = scene.aiming !== null && scene.sim.world.get(scene.aiming, Silo)?.ready ? scene.camera.pointerTile : null
       const guards = guardsOf(scene, placement)
-      if (!placement && !stroke && !routes.length && !aim && !guards.length) return
+      // Все зоны — пока ставят, тянут, держат Alt или смотрят кнопку здания; иначе — только сеть выбранного.
+      const zones = !!placement || !!stroke || scene.zonesHeld || scene.zonesHover
+      const grids = zones ? [] : selectedGrids()
+      if (!zones && !grids.length && !routes.length && !aim && !guards.length) return
 
       /** Прямоугольник в тайлах от камеры. */
       const rect = (x: number, y: number, width: number, height: number, [r, g, b]: Color, alpha: number) =>
@@ -229,22 +254,25 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
           }
         }
       }
-      if (placement || stroke) {
-        const size = CONTROL_DASH / camera.zoom
-        const reachX = width / 2 / camera.zoom + size
-        const reachY = height / 2 / camera.zoom + size
-        /** Внешняя граница зоны пунктиром: те её точки, что попали в кадр. dots — x и y подряд. */
-        const outline = (dots: readonly number[], color: Color) => {
-          for (let i = 0; i < dots.length; i += 2) {
-            const x = dots[i] - camera.x
-            const y = dots[i + 1] - camera.y
-            if (Math.abs(x) > reachX || Math.abs(y) > reachY) continue
-            rect(x - size / 2, y - size / 2, size, size, color, BORDER_ALPHA)
-          }
+      const size = CONTROL_DASH / camera.zoom
+      const reachX = width / 2 / camera.zoom + size
+      const reachY = height / 2 / camera.zoom + size
+      /** Внешняя граница зоны пунктиром: те её точки, что попали в кадр. dots — x и y подряд. */
+      const outline = (dots: readonly number[], color: Color, alpha = BORDER_ALPHA) => {
+        for (let i = 0; i < dots.length; i += 2) {
+          const x = dots[i] - camera.x
+          const y = dots[i + 1] - camera.y
+          if (Math.abs(x) > reachX || Math.abs(y) > reachY) continue
+          rect(x - size / 2, y - size / 2, size, size, color, alpha)
         }
+      }
+      if (zones) {
         const { own, foreign } = bordersOf()
         outline(own, CONTROL)
         outline(foreign, FORBIDDEN)
+      }
+      for (const dots of grids) outline(dots, CONTROL, FAINT_ALPHA)
+      if (placement || stroke) {
         /**
          * С чем свяжется ставящееся: колодец — пунктир до парных колодцев, без пары — красная метка.
          */
@@ -274,6 +302,29 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
           const { width, height } = BUILDINGS[placement.type]
           // Само здание рисует призраком проход зданий: здесь — только обводка основания.
           frame(placement.x, placement.y, width, height, placement.allowed ? ALLOWED : FORBIDDEN)
+          // Круг, которым готовое здание расширит зону: та его часть, что выходит за нынешние зоны.
+          const { zone, expand, isolated }: BuildingSpec = BUILDINGS[placement.type]
+          const radius = isolated ? 0 : (zone ?? expand ?? EXPAND_RADIUS)
+          if (placement.allowed && radius > 0) {
+            const cx = placement.x + width / 2
+            const cy = placement.y + height / 2
+            const { circles } = bordersOf()
+            // Нынешние круги, до которых новый дотягивается: только с ними сверяется каждая его точка.
+            const near: number[] = []
+            for (let i = 0; i < circles.length; i += 3) {
+              if (Math.hypot(circles[i] - cx, circles[i + 1] - cy) < circles[i + 2] + radius) near.push(circles[i], circles[i + 1], circles[i + 2])
+            }
+            const dashes = Math.round((CONTROL_DASHES * radius) / CONTROL_RADIUS)
+            const added: number[] = []
+            dashes: for (let dash = 0; dash < dashes; dash++) {
+              const angle = (dash / dashes) * Math.PI * 2
+              const x = cx + Math.cos(angle) * radius
+              const y = cy + Math.sin(angle) * radius
+              for (let i = 0; i < near.length; i += 3) if (Math.hypot(x - near[i], y - near[i + 1]) < near[i + 2] - 0.01) continue dashes
+              added.push(x, y)
+            }
+            outline(added, CONTROL, FAINT_ALPHA)
+          }
           if (!scene.edit) connections(placement.type, placement.x, placement.y)
         }
         if (stroke) {

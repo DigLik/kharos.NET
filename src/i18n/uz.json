@@ -500,7 +500,7 @@
       "nukeIntercepted": "Raketa tutib olindi",
       "nukeDowned": "Raketamiz urib tushirildi"
     },
-    "nothingSelected": "Hech narsa tanlanmagan. Chap tugma — tanlash, ramka — bir nechta bo‘linma, o‘ng tugma — buyruq. Ctrl+raqam — guruhni saqlash, raqam — tanlash",
+    "nothingSelected": "Hech narsa tanlanmagan. Chap tugma — tanlash, ramka — bir nechta bo‘linma, o‘ng tugma — buyruq. Ctrl+raqam — guruhni saqlash, raqam — tanlash. Alt bosib turilsa — qurilish zonalari chegaralari",
     "buildingsCount": "Binolar: {count}",
     "demolition": "Buzish: {name}",
     "construction": "Qurilish: {name}",

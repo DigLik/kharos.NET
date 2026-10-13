@@ -88,6 +88,8 @@ export interface Game {
   place(building: BuildingType | null): void
   /** Начинает укладку или снятие покрытия; null — отменяет. */
   pave(tool: PaveTool | null): void
+  /** Курсор встал на кнопку здания в меню стройки или ушёл с неё: пока он там, на карте видны границы зон. */
+  zones(shown: boolean): void
   /** Начинает набор маршрута выбранным грузовикам щелчками по зданиям; false — отменяет. */
   route(start: boolean): void
   /** Начинает выбор зданий, которые будут обслуживать выбранные грузовики; false — отменяет. */
@@ -163,6 +165,8 @@ export function createGame(
     patrolling: false,
     aiming: null,
     grid: false,
+    zonesHeld: false,
+    zonesHover: false,
     weather: weatherAt(session.sim.options, session.sim.time.elapsed),
   }
 
@@ -419,6 +423,9 @@ export function createGame(
       scene.paving = tool
       scene.paveFrom = null
       if (tool) scene.placing = null
+    },
+    zones(shown) {
+      scene.zonesHover = shown
     },
     minimap: createMinimap(scene),
     lookAt: (x, y) => motion.jump(x, y),

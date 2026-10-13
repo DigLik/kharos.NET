@@ -19,6 +19,8 @@ interface HudProps {
   place: (building: BuildingType | null) => void
   /** Начать укладку или снятие покрытия; null — отменить. */
   pave: (tool: PaveTool | null) => void
+  /** Курсор встал на кнопку здания в сетке или ушёл с неё: пока он там, на карте видны границы зон. */
+  zones: (shown: boolean) => void
   /** Начать набор маршрута грузовикам; false — отменить. */
   route: (start: boolean) => void
   /** Начать выбор зданий, которые обслуживают грузовики; false — отменить. */
@@ -799,7 +801,7 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
 }
 
 /** Интерфейс игрока: верхняя полоса со счётом и нижняя панель — мини-карта, выбранное, сетка команд. */
-export function Hud({ state, send, place, pave, route, serve, patrol, aim, minimap, lookAt, flyTo, lookAtSelection, narrow, moveSelected, say, menu }: HudProps) {
+export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim, minimap, lookAt, flyTo, lookAtSelection, narrow, moveSelected, say, menu }: HudProps) {
   const selected = state.units.length > 0 || state.building !== null
   const fresh = useNewRewards(state.rewards, state.loaded)
 
@@ -839,6 +841,22 @@ export function Hud({ state, send, place, pave, route, serve, patrol, aim, minim
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Границы зон на карте — пока курсор на кнопке здания. Слушаем окно, а не кнопку, как и подсказка: недоступная
+  // кнопка своих событий мыши не получает, а зону смотрят как раз тогда, когда строить не на что.
+  useEffect(() => {
+    let shown = false
+    const onMove = (event: PointerEvent) => {
+      const card = event.target instanceof Element ? event.target.closest('.bar__grid [data-card]')?.getAttribute('data-card') : null
+      const next = card != null && !!slotsRef.current[Number(card)]?.zones
+      if (next !== shown) zones((shown = next))
+    }
+    window.addEventListener('pointermove', onMove)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      if (shown) zones(false)
+    }
   }, [])
 
   // Окно исследований: открывается кнопкой на верхней полосе, клавишей R и из лаборатории, закрывается ими же и Esc.

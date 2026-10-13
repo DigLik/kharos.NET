@@ -313,6 +313,8 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
     if (event.target instanceof HTMLInputElement || paused) return
     keys.add(event.code)
     if (event.altKey) {
+      // Пока Alt зажат, видны границы зон строительства: посмотреть их можно и без строителя и кредитов.
+      if (event.code === 'AltLeft' || event.code === 'AltRight') scene.zonesHeld = true
       if (event.code === 'KeyG') scene.grid = !scene.grid
       event.preventDefault()
       return
@@ -384,13 +386,21 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
     if (!count) return
     motion.flyTo(x / count, y / count)
   }
-  const onKeyUp = (event: KeyboardEvent) => keys.delete(event.code)
+  const onKeyUp = (event: KeyboardEvent) => {
+    keys.delete(event.code)
+    if (event.code === 'AltLeft' || event.code === 'AltRight') {
+      scene.zonesHeld = keys.has('AltLeft') || keys.has('AltRight')
+      // Отпущенный Alt иначе уводит фокус в меню браузера.
+      event.preventDefault()
+    }
+  }
   /** Открыть меню игры: его рисует интерфейс, см. Game.onMenu. */
   let onMenu = () => {}
   /** Открыто меню поверх игры: клавиши и край экрана камеру не двигают. Мышь меню и так закрывает. */
   let paused = false
   const onBlur = () => {
     keys.clear()
+    scene.zonesHeld = false
     screenPointer = null
   }
 

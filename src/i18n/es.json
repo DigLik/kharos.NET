@@ -500,7 +500,7 @@
       "nukeIntercepted": "Misil interceptado",
       "nukeDowned": "Derribaron nuestro misil"
     },
-    "nothingSelected": "Nada seleccionado. Botón izquierdo — seleccionar, recuadro — varias unidades, botón derecho — orden. Ctrl+número — recordar un grupo, número — seleccionarlo",
+    "nothingSelected": "Nada seleccionado. Botón izquierdo — seleccionar, recuadro — varias unidades, botón derecho — orden. Ctrl+número — recordar un grupo, número — seleccionarlo. Alt pulsado — límites de las zonas de construcción",
     "buildingsCount": "Edificios: {count}",
     "demolition": "Desmontaje: {name}",
     "construction": "Construcción: {name}",

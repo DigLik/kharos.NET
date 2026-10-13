@@ -68,6 +68,8 @@ export interface Slot {
   active?: boolean
   /** Переключатель: лампа в углу горит, пока включено (true), и гаснет красным выключенное. */
   lamp?: boolean
+  /** Пока курсор на ячейке, на карте видны границы зон строительства: кнопка здания или трубы, даже недоступная. */
+  zones?: boolean
   /** Что это такое: описание на карточке. */
   about?: string
   /** Пояснение или почему кнопка недоступна. */
@@ -184,6 +186,7 @@ export function commandsOf(
       power,
       materials,
       active: construction.placing === building,
+      zones: true,
       about: aboutOf(building),
       disabled: !affordable,
       title: affordable ? undefined : t('grid.noCredits'),
@@ -243,7 +246,7 @@ export function commandsOf(
         const active = construction.paving?.tool === tool
         slots[i] = {
           label: t(`grid.tools.${tool}`),
-          ...(tool === 'pipe' || tool === 'well' ? { building: tool } : { pave: tool }),
+          ...(tool === 'pipe' || tool === 'well' ? { building: tool, zones: true } : { pave: tool }),
           cost: active && construction.paving!.tiles > 1 ? construction.paving!.cost : cost,
           active,
           disabled: credits < cost,

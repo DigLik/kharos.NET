@@ -108,6 +108,7 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
           send={(command) => gameRef.current?.send(command)}
           place={(building) => gameRef.current?.place(building)}
           pave={(tool) => gameRef.current?.pave(tool)}
+          zones={(shown) => gameRef.current?.zones(shown)}
           route={(start) => gameRef.current?.route(start)}
           serve={(start) => gameRef.current?.serve(start)}
           patrol={(start) => gameRef.current?.patrol(start)}

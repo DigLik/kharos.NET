@@ -500,7 +500,7 @@
       "nukeIntercepted": "Rakete abgefangen",
       "nukeDowned": "Unsere Rakete wurde abgeschossen"
     },
-    "nothingSelected": "Nichts ausgewählt. Linke Taste — auswählen, Rahmen — mehrere Einheiten, rechte Taste — Befehl. Strg+Ziffer — Gruppe merken, Ziffer — sie auswählen",
+    "nothingSelected": "Nichts ausgewählt. Linke Taste — auswählen, Rahmen — mehrere Einheiten, rechte Taste — Befehl. Strg+Ziffer — Gruppe merken, Ziffer — sie auswählen. Alt halten — Grenzen der Bauzonen",
     "buildingsCount": "Gebäude: {count}",
     "demolition": "Abbau: {name}",
     "construction": "Bau: {name}",

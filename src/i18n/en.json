@@ -500,7 +500,7 @@
       "nukeIntercepted": "Missile intercepted",
       "nukeDowned": "Our missile was shot down"
     },
-    "nothingSelected": "Nothing selected. Left button — select, drag a box — several units, right button — order. Ctrl+digit — remember a group, digit — select it",
+    "nothingSelected": "Nothing selected. Left button — select, drag a box — several units, right button — order. Ctrl+digit — remember a group, digit — select it. Hold Alt — build zone borders",
     "buildingsCount": "Buildings: {count}",
     "demolition": "Dismantling: {name}",
     "construction": "Construction: {name}",
