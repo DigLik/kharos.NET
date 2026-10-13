@@ -12,6 +12,12 @@ import { JAM_TRIES, UNITS, canStand, fastestOf, flies, onFoot, orderMove, roadIn
  * Считается не «сдвинулся ли», а «приблизился ли»: ёрзающий на месте в толпе тоже застрял.
  */
 const WAIT_TICKS = 30
+/**
+ * Сколько тиков подряд ехавший напрямую может упираться в местность или здание — скользить вдоль или стоять, — прежде
+ * чем попросить путь. Скольжение почти всегда чуть приближает к точке и сошло бы за продвижение: юнит тёрся бы о стену
+ * до угла. Ждать WAIT_TICKS тут незачем — местность сама не разойдётся, в отличие от толпы.
+ */
+const SLIDE_TICKS = 4
 /** На сколько тайлов надо подобраться к точке пути ближе прежнего, чтобы это считалось продвижением. */
 const PROGRESS = 0.05
 /** Сколько раз путь к одной точке прокладывается заново, прежде чем юнит сдастся и встанет. */
@@ -190,7 +196,7 @@ export function moveUnits(sim: Sim, time: Time) {
   const open = (body: Body, x: number, y: number, inside: boolean) => inside || canStand(sim, body.air, Math.floor(x), Math.floor(y), body.foot)
 
   // Ход. Пути меняются после всех проходов: во время них состав мира трогать нельзя.
-  const movers: { entity: Entity; body: Body; path: DataOf<[typeof Path]>[0]; walled: boolean; inside: boolean }[] = []
+  const movers: { entity: Entity; body: Body; path: DataOf<[typeof Path]>[0]; walled: boolean; slid: boolean; inside: boolean }[] = []
   /** Увидевшие дорогу на ходу: перестраивают путь с ней. */
   const roadward: { entity: Entity; x: number; y: number; near: number }[] = []
   for (const [entity, position, unit, path] of world.query(Position, Unit, Path)) {
@@ -203,7 +209,7 @@ export function moveUnits(sim: Sim, time: Time) {
     }
     // Юнит, под которым выросло здание, выходит из него: внутри здания тайлы ему не преграда.
     const inside = !canStand(sim, body.air, Math.floor(position.x), Math.floor(position.y), body.foot)
-    const mover = { entity, body, path, walled: false, inside }
+    const mover = { entity, body, path, walled: false, slid: false, inside }
     movers.push(mover)
     if (body.rooted) continue
     const dx = points[0] - position.x
@@ -247,6 +253,7 @@ export function moveUnits(sim: Sim, time: Time) {
     if (alongX > 0 && alongX >= alongY) position.x += stepX
     else if (alongY > 0) position.y += stepY
     else mover.walled = true
+    mover.slid = true
   }
 
   // Расталкивание: зашедших друг в друга разводят. Начинают те, кто ехал, — стоящие, которых сдвинули, продолжают
@@ -332,7 +339,7 @@ export function moveUnits(sim: Sim, time: Time) {
     return neighbours.find((other) => Math.hypot(other.position.x - x, other.position.y - y) < self.radius + other.radius)
   }
 
-  for (const { entity, body, path, walled } of movers) {
+  for (const { entity, body, path, walled, slid } of movers) {
     const { points } = path
     const { position, radius, air } = body
     const left = Math.hypot(points[0] - position.x, points[1] - position.y)
@@ -367,6 +374,15 @@ export function moveUnits(sim: Sim, time: Time) {
         // Вернуть точку: пока путь ищется (а норма тика могла кончиться), юнит едет к ней же.
         points.push(position.x, position.y)
         further.push({ entity, x: path.goalX, y: path.goalY, tries: 0, near: path.near, blocked: settled ? [Math.floor(blocker!.position.x), Math.floor(blocker!.position.y)] : undefined })
+      }
+      continue
+    }
+    // Ехал напрямую и упёрся в местность или здание: путь нужен сразу, продвижение вдоль стены не в счёт.
+    if (path.direct && (slid || walled)) {
+      if (++path.wait >= SLIDE_TICKS) {
+        path.stuck = true
+        path.wait = 0
+        path.best = -1
       }
       continue
     }
