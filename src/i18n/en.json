@@ -273,6 +273,8 @@
     "interface": "Interface",
     "selection": "Selection brightness",
     "selectionTip": "How bright the rings around selected units and the frames around buildings are",
+    "minimap": "Minimap size",
+    "minimapTip": "The minimap side in pixels. 140 is level with the bottom bar; larger ones rise above it",
     "aboutText": "A multiplayer browser RTS: a founding vehicle, a procedural map, mining and refining ore, cargo logistics and base defence.",
     "authors": "Authors",
     "sourceCode": "Source code",

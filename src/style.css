@@ -628,11 +628,16 @@ body {
   right: auto;
 }
 
-/* Мини-карта: холст MINIMAP_SIZE показывается 1:1 внутри рамки окна. */
+/*
+ * Мини-карта: сторону задаёт настройка игрока (стиль холста, см. MinimapView), пиксели холста — по плотности экрана.
+ * Стоит на нижнем поле панели и, когда крупнее её, выступает вверх: панель из-за неё не растёт.
+ */
 .bar__minimap {
   flex: none;
+  align-self: flex-end;
   width: var(--bar-inner);
   height: var(--bar-inner);
+  margin-bottom: 8px;
   image-rendering: pixelated;
   cursor: crosshair;
 }
@@ -2108,7 +2113,7 @@ body {
 
 /* Чат, как в Minecraft: строки на полупрозрачной подложке над нижней панелью слева. */
 .chat {
-  left: 12px;
+  left: var(--chat-left, 12px);
   bottom: calc(var(--bar-height) + 8px);
   display: flex;
   flex-direction: column;

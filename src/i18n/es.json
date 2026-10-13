@@ -273,6 +273,8 @@
     "interface": "Interfaz",
     "selection": "Brillo de la selección",
     "selectionTip": "Qué tan brillantes son los anillos de las unidades seleccionadas y los marcos de los edificios",
+    "minimap": "Tamaño del minimapa",
+    "minimapTip": "Lado del minimapa en píxeles. 140 — a ras del panel inferior; más grande — sobresale por encima",
     "aboutText": "RTS multijugador de navegador: un vehículo fundador, mapa procedural, extracción y refinado de mineral, logística de carga y defensa de la base.",
     "authors": "Autores",
     "sourceCode": "Código fuente",

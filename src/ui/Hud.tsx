@@ -2,7 +2,8 @@ import { complete, quoteName } from '../net/chatCommands'
 import type { ComponentChildren } from 'preact'
 import type { HudState, Stack } from '../game/hud'
 import { GRID_PRESS, type GridPress } from '../game/interfaceSounds'
-import { MINIMAP_SIZE, type Minimap } from '../game/minimap'
+import type { Minimap } from '../game/minimap'
+import { prefs } from '../game/prefs'
 import type { PaveTool } from '../game/scene'
 import { buildingPortrait, pavePortrait, unitPortrait } from '../game/portraits'
 import { goodIcon } from '../game/goodIcons'
@@ -339,15 +340,33 @@ function Chat({ lines, picking, commands, admin, names, say }: ChatProps) {
   )
 }
 
+/** Сторона мини-карты, при которой она вровень с нижней панелью (--bar-inner): крупнее — выступает над ней. */
+const MINIMAP_FLUSH = 140
+
 function MinimapView({ minimap, lookAt, moveSelected }: Pick<HudProps, 'minimap' | 'lookAt' | 'moveSelected'>) {
   const ref = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
-    const context = ref.current!.getContext('2d')!
+    const canvas = ref.current!
+    const context = canvas.getContext('2d')!
+    let fitted = ''
     let frame = requestAnimationFrame(function draw() {
+      // Сторона — из настроек, пикселей в холсте — по плотности экрана: то и другое меняется на ходу (меню,
+      // другой монитор), поэтому сверяется каждый кадр. Чат встаёт правее карты, когда она выше панели.
+      const side = prefs().minimap
+      const key = `${side}:${devicePixelRatio}`
+      if (key !== fitted) {
+        fitted = key
+        canvas.style.width = canvas.style.height = `${side}px`
+        canvas.width = canvas.height = Math.max(1, Math.round(canvas.clientWidth * devicePixelRatio))
+        document.documentElement.style.setProperty('--chat-left', side > MINIMAP_FLUSH ? `${side + 12}px` : '12px')
+      }
       minimap.draw(context)
       frame = requestAnimationFrame(draw)
     })
-    return () => cancelAnimationFrame(frame)
+    return () => {
+      cancelAnimationFrame(frame)
+      document.documentElement.style.removeProperty('--chat-left')
+    }
   }, [minimap])
 
   const tileOf = (event: PointerEvent) => {
@@ -362,8 +381,6 @@ function MinimapView({ minimap, lookAt, moveSelected }: Pick<HudProps, 'minimap'
     <canvas
       ref={ref}
       class="bar__minimap"
-      width={MINIMAP_SIZE}
-      height={MINIMAP_SIZE}
       onPointerDown={(event) => {
         const { x, y } = tileOf(event)
         if (event.button === 2) return moveSelected(x, y)

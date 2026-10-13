@@ -273,6 +273,8 @@
     "interface": "Interface",
     "selection": "Luminosité de la sélection",
     "selectionTip": "Luminosité des anneaux autour des unités sélectionnées et des cadres autour des bâtiments",
+    "minimap": "Taille de la mini-carte",
+    "minimapTip": "Côté de la mini-carte en pixels. 140 — au niveau du panneau du bas, plus grand — elle dépasse au-dessus",
     "aboutText": "Un RTS multijoueur dans le navigateur : véhicule fondateur, carte procédurale, extraction et raffinage du minerai, logistique de fret et défense de la base.",
     "authors": "Auteurs",
     "sourceCode": "Code source",

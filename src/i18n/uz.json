@@ -273,6 +273,8 @@
     "interface": "Interfeys",
     "selection": "Tanlov yorqinligi",
     "selectionTip": "Tanlangan bo‘linmalar atrofidagi halqalar va binolar atrofidagi ramkalar qanchalik yorqin",
+    "minimap": "Mini-xarita o‘lchami",
+    "minimapTip": "Mini-xarita tomoni piksellarda. 140 — pastki panel bilan teng, kattasi — undan yuqoriga chiqadi",
     "aboutText": "Ko‘p o‘yinchili brauzer RTS: asoschi mashina, protsedurali xarita, ruda qazib olish va qayta ishlash, yuk logistikasi va baza mudofaasi.",
     "authors": "Mualliflar",
     "sourceCode": "Manba kodi",

@@ -273,6 +273,8 @@
     "interface": "Oberfläche",
     "selection": "Helligkeit der Auswahl",
     "selectionTip": "Wie hell die Ringe um ausgewählte Einheiten und die Rahmen um Gebäude sind",
+    "minimap": "Größe der Minikarte",
+    "minimapTip": "Seitenlänge der Minikarte in Pixeln. 140 — bündig mit der unteren Leiste, größer — ragt darüber hinaus",
     "aboutText": "Ein Mehrspieler-RTS im Browser: Gründerfahrzeug, prozedurale Karte, Erzabbau und -verarbeitung, Frachtlogistik und Basisverteidigung.",
     "authors": "Autoren",
     "sourceCode": "Quellcode",

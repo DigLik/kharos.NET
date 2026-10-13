@@ -5,8 +5,11 @@ import { ALERT_SECONDS } from './alerts'
 import { cssColor } from './resourceColors'
 import type { Scene } from './scene'
 
-/** Сторона мини-карты в пикселях холста. Карта квадратная: один пиксель — несколько тайлов. */
-export const MINIMAP_SIZE = 132
+/**
+ * Сторона холста, под которую подобраны размеры значков: на холсте крупнее они растут вместе с ним. Сам холст —
+ * какой дали: сторону задаёт настройка игрока и плотность экрана, см. MinimapView в Hud.tsx.
+ */
+const BASE_SIZE = 132
 /** Сколько миллисекунд за кадр можно тратить на подготовку местности мини-карты. */
 const BUDGET = 4
 
@@ -34,8 +37,10 @@ const NEUTRAL = '#c8c8c8'
 const FOG_ALPHA = [235, 120, 0]
 
 export function createMinimap(scene: Scene) {
-  const fog = new ImageData(MINIMAP_SIZE, MINIMAP_SIZE)
-  const fogCanvas = new OffscreenCanvas(MINIMAP_SIZE, MINIMAP_SIZE)
+  /** Сторона холста в его пикселях. Карта квадратная: один пиксель — несколько тайлов. */
+  let size = BASE_SIZE
+  let fog = new ImageData(size, size)
+  let fogCanvas = new OffscreenCanvas(size, size)
   let fogChanged = -1
   let fogCells: Uint8Array | null = null
   let sim: Sim | null = null
@@ -53,14 +58,14 @@ export function createMinimap(scene: Scene) {
    */
   const fit = ({ left, top, right, bottom }: Sim['bounds']) => {
     const span = Math.max(right - left, bottom - top)
-    return { span, scale: MINIMAP_SIZE / span, left: left - (span - (right - left)) / 2, top: top - (span - (bottom - top)) / 2 }
+    return { span, scale: size / span, left: left - (span - (right - left)) / 2, top: top - (span - (bottom - top)) / 2 }
   }
 
   /** Мир сменился — местность считается заново. */
   const reset = () => {
     sim = scene.sim
-    terrain = new ImageData(MINIMAP_SIZE, MINIMAP_SIZE)
-    canvas = new OffscreenCanvas(MINIMAP_SIZE, MINIMAP_SIZE)
+    terrain = new ImageData(size, size)
+    canvas = new OffscreenCanvas(size, size)
     row = 0
     const { left, top, right, bottom } = sim.bounds
     deposits = []
@@ -73,15 +78,15 @@ export function createMinimap(scene: Scene) {
 
   /** Досчитывает строки местности, пока не выйдет время кадра. */
   const prepare = () => {
-    if (!sim || !terrain || row >= MINIMAP_SIZE) return
+    if (!sim || !terrain || row >= size) return
     const { bounds } = sim
     const view = fit(bounds)
     const start = performance.now()
-    while (row < MINIMAP_SIZE && performance.now() - start < BUDGET) {
+    while (row < size && performance.now() - start < BUDGET) {
       const y = view.top + (row + 0.5) / view.scale
-      for (let column = 0; column < MINIMAP_SIZE; column++) {
+      for (let column = 0; column < size; column++) {
         const x = view.left + (column + 0.5) / view.scale
-        const index = (row * MINIMAP_SIZE + column) * 4
+        const index = (row * size + column) * 4
         // Вне карты — прозрачно: там фон мини-карты.
         if (x < bounds.left || y < bounds.top || x >= bounds.right || y >= bounds.bottom) {
           terrain.data[index + 3] = 0
@@ -99,8 +104,16 @@ export function createMinimap(scene: Scene) {
   }
 
   return {
-    /** Рисует мини-карту на холст размером MINIMAP_SIZE. */
+    /** Рисует мини-карту во весь холст; холст квадратный. */
     draw(context: CanvasRenderingContext2D) {
+      // Холст сменил размер — местность и туман считаются заново под него.
+      if (context.canvas.width !== size) {
+        size = context.canvas.width
+        fog = new ImageData(size, size)
+        fogCanvas = new OffscreenCanvas(size, size)
+        fogCells = null
+        sim = null
+      }
       if (sim !== scene.sim) reset()
       if (land !== scene.sim.land || revision !== scene.sim.land.revision) {
         land = scene.sim.land
@@ -113,15 +126,18 @@ export function createMinimap(scene: Scene) {
       const { scale } = view
       const toX = (x: number) => (x - view.left) * scale
       const toY = (y: number) => (y - view.top) * scale
+      /** Во сколько раз значки крупнее, чем на холсте BASE_SIZE; точка — не меньше двух пикселей. */
+      const k = size / BASE_SIZE
+      const dot = Math.max(2, Math.round(2 * k))
 
       context.fillStyle = '#05090f'
-      context.fillRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE)
+      context.fillRect(0, 0, size, size)
       context.drawImage(canvas!, 0, 0)
 
       for (const { x, y, color } of deposits) {
         if (!scene.sim.vision.explored(scene.player, x, y)) continue
         context.fillStyle = color
-        context.fillRect(toX(x) - 1, toY(y) - 1, 2, 2)
+        context.fillRect(toX(x) - dot / 2, toY(y) - dot / 2, dot, dot)
       }
       // Туман: как на карте, только пиксель — несколько тайлов.
       const { cells, changed } = scene.sim.vision.cells(scene.player)
@@ -130,12 +146,12 @@ export function createMinimap(scene: Scene) {
         fogCells = cells
         const width = bounds.right - bounds.left
         const height = bounds.bottom - bounds.top
-        for (let y = 0; y < MINIMAP_SIZE; y++) {
+        for (let y = 0; y < size; y++) {
           const tileY = Math.floor(view.top + y / scale) - bounds.top
-          for (let x = 0; x < MINIMAP_SIZE; x++) {
+          for (let x = 0; x < size; x++) {
             const tileX = Math.floor(view.left + x / scale) - bounds.left
             const inside = tileX >= 0 && tileY >= 0 && tileX < width && tileY < height
-            fog.data[(y * MINIMAP_SIZE + x) * 4 + 3] = inside ? FOG_ALPHA[cells[tileY * width + tileX]] : 0
+            fog.data[(y * size + x) * 4 + 3] = inside ? FOG_ALPHA[cells[tileY * width + tileX]] : 0
           }
         }
         fogCanvas.getContext('2d')!.putImageData(fog, 0, 0)
@@ -150,10 +166,10 @@ export function createMinimap(scene: Scene) {
         if (type !== undefined) {
           const spec = buildingSpec(type)
           context.fillStyle = colorOf(owner.player)
-          context.fillRect(toX(position.x), toY(position.y), Math.max(2, spec.width * scale), Math.max(2, spec.height * scale))
+          context.fillRect(toX(position.x), toY(position.y), Math.max(dot, spec.width * scale), Math.max(dot, spec.height * scale))
         } else if (world.has(entity, Unit)) {
           context.fillStyle = colorOf(owner.player)
-          context.fillRect(toX(position.x) - 1, toY(position.y) - 1, 2, 2)
+          context.fillRect(toX(position.x) - dot / 2, toY(position.y) - dot / 2, dot, dot)
         }
       }
 
@@ -161,26 +177,27 @@ export function createMinimap(scene: Scene) {
       for (const [, mark, position] of world.query(Mark, Position)) {
         const x = toX(position.x)
         const y = toY(position.y)
-        context.lineWidth = 2
+        context.lineWidth = 2 * k
         if (mark.kind === 'launch') {
+          const arm = 4 * k
           context.strokeStyle = '#ffb347'
           context.beginPath()
-          context.moveTo(x - 4, y - 4)
-          context.lineTo(x + 4, y + 4)
-          context.moveTo(x + 4, y - 4)
-          context.lineTo(x - 4, y + 4)
+          context.moveTo(x - arm, y - arm)
+          context.lineTo(x + arm, y + arm)
+          context.moveTo(x + arm, y - arm)
+          context.lineTo(x - arm, y + arm)
           context.stroke()
         } else {
           context.strokeStyle = FOE
           context.beginPath()
-          context.arc(x, y, Math.max(4, BUILDINGS.silo.warhead.blast.radius * scale), 0, Math.PI * 2)
+          context.arc(x, y, Math.max(4 * k, BUILDINGS.silo.warhead.blast.radius * scale), 0, Math.PI * 2)
           context.stroke()
         }
       }
       for (const [, missile] of world.query(Missile)) {
         const at = missileAt(missile, scene.sim.time.tick, scene.sim.time.step)
         context.fillStyle = '#ffffff'
-        context.fillRect(toX(at.x) - 1.5, toY(at.y) - 1.5, 3, 3)
+        context.fillRect(toX(at.x) - 1.5 * k, toY(at.y) - 1.5 * k, 3 * k, 3 * k)
       }
 
       // Уведомления: мигающее кольцо там, где напали или заметили врага.
@@ -189,9 +206,9 @@ export function createMinimap(scene: Scene) {
         const pulse = (alert.age * 2) % 1
         context.strokeStyle = alert.kind === 'attacked' || alert.kind === 'nuke' ? FOE : alert.kind === 'found' || alert.kind === 'intercepted' ? '#8fe0a8' : '#ffd27a'
         context.globalAlpha = 1 - pulse
-        context.lineWidth = 2
+        context.lineWidth = 2 * k
         context.beginPath()
-        context.arc(toX(alert.x), toY(alert.y), 3 + pulse * 12, 0, Math.PI * 2)
+        context.arc(toX(alert.x), toY(alert.y), (3 + pulse * 12) * k, 0, Math.PI * 2)
         context.stroke()
         context.globalAlpha = 1
       }
@@ -200,11 +217,12 @@ export function createMinimap(scene: Scene) {
       const { camera } = scene
       // Только видимая часть: то, что закрыто панелями, на экране не видно.
       const { from, to } = camera.visible
+      const line = Math.max(1, Math.round(k))
       context.strokeStyle = '#e4f4ff'
-      context.lineWidth = 1
+      context.lineWidth = line
       context.strokeRect(
-        Math.round(toX(from.x)) + 0.5,
-        Math.round(toY(from.y)) + 0.5,
+        Math.round(toX(from.x)) + line / 2,
+        Math.round(toY(from.y)) + line / 2,
         Math.round((to.x - from.x) * scale),
         Math.round((to.y - from.y) * scale),
       )
