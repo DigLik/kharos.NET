@@ -278,8 +278,9 @@ export function requestsOf(sim: Sim, player: number, flows = flowsOf(sim)): Requ
     const room = roomFor(inventory, ore)
     if (room > 0) need(entity, ore, room, PRIORITY.refine, 'mines')
   }
-  // Лаборатории: сырьё нынешней темы, по LAB_STOCK каждого, но не больше, чем теме осталось потратить, за вычетом
-  // того, что уже лежит в других лабораториях игрока. Руду — из своих шахт, где бы они ни стояли, как переработке.
+  // Лаборатории: сырьё нынешней темы, по LAB_STOCK каждого, но не больше своей доли того, что теме осталось потратить:
+  // остаток делится поровну, и работают все. Раньше каждая просила остаток за вычетом чужого — и первая забирала всё.
+  // Лишнее у одной увезут обратно, когда тема кончится. Руду — из своих шахт, где бы они ни стояли, как переработке.
   const labs: Entity[] = []
   for (const [entity, building, owner] of world.query(Building, Owner)) {
     if (owner.player !== player || !buildingSpec(building.type).researches || !world.has(entity, Inventory)) continue
@@ -289,12 +290,8 @@ export function requestsOf(sim: Sim, player: number, flows = flowsOf(sim)): Requ
   if (labs.length) {
     const needs = researchNeeds(sim, player)
     for (const [good, left] of entriesOf(needs)) {
-      const held = labs.reduce((sum, lab) => sum + amountOf(world.get(lab, Inventory)!, good) + (flows.incoming.get(lab)?.[good] ?? 0), 0)
-      for (const lab of labs) {
-        const own = amountOf(world.get(lab, Inventory)!, good)
-        const others = held - own - (flows.incoming.get(lab)?.[good] ?? 0)
-        need(lab, good, Math.min(LAB_STOCK, Math.ceil(left - others - 1e-6)) - own, PRIORITY.production, isOre(good) ? 'mines' : 'zone')
-      }
+      const share = Math.min(LAB_STOCK, Math.ceil(left / labs.length - 1e-6))
+      for (const lab of labs) need(lab, good, share - amountOf(world.get(lab, Inventory)!, good), PRIORITY.production, isOre(good) ? 'mines' : 'zone')
     }
   }
   // Включённые заводы изделий: сырьё рецепта, сколько его держат про запас.

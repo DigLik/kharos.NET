@@ -185,6 +185,35 @@ test('руду в лабораторию без труб до шахты вез�
   void mine
 })
 
+test('руду из шахты грузовики везут во все лаборатории, а не в одну', () => {
+  const sim = createSim(options)
+  let found: { labs: Entity[]; x: number; y: number } | undefined
+  for (let cellY = -6; cellY < 6 && !found; cellY++) {
+    for (let cellX = -6; cellX < 6 && !found; cellX++) {
+      const spot = depositIn(sim, cellX, cellY)
+      if (spot?.kind !== 'metal') continue
+      const [mine] = row(sim, ['mine'], spot) ?? []
+      const base = mine && row(sim, ['generator', 'lab', 'lab'], { x: spot.x + 5, y: spot.y })
+      if (base) found = { labs: base.slice(1), x: spot.x + 3, y: spot.y + 3 }
+    }
+  }
+  if (!found) throw new Error('Не нашлось месторождения металла с местом рядом')
+  const { labs, x, y } = found
+  addCredits(sim, 1, 1000)
+  spawnUnit(sim, 'truck', 1, x, y)
+  spawnUnit(sim, 'truck', 1, x, y + 1)
+  grantResearch(sim, 1, ['science', 'prospecting'])
+  plan(sim, 'metalOre')
+  // Обе лаборатории в работе хоть раз: каждой привезли её долю руды.
+  const worked = new Set<Entity>()
+  for (let i = 0; i < Math.round(60 / TICK) && !hasResearch(sim, 1, 'metalOre'); i++) {
+    sim.advance(TICK)
+    for (const lab of labs) if (sim.world.get(lab, Research)!.speed > 0) worked.add(lab)
+  }
+  expect(hasResearch(sim, 1, 'metalOre')).toBe(true)
+  expect(worked.size).toBe(2)
+})
+
 test('лаборатория тратит столько, сколько сделала; открытое остаётся у игрока и переживает сохранение', () => {
   const { sim, buildings: [lab], stash } = base(['lab'])
   learn(sim, 'metalOre', 'siliconOre')
@@ -242,6 +271,8 @@ test('несколько лабораторий складывают скоро�
   void second
   seconds(sim, time / 6 + 1)
   expect(hasResearch(sim, 1, 'ammo')).toBe(true)
+  // Доля каждой лаборатории округляется вверх: неистраченное трубы увозят обратно.
+  seconds(sim, 5)
   expect(100 - stockOf(sim, 1).items.metal!).toBeCloseTo(materials.metal!, 3)
   void cost
 })
