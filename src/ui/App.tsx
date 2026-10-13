@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks'
 import { markActivated } from '../audio/audio'
 import { loadSounds } from '../audio/loadSounds'
 import { loadArt } from '../game/loadArt'
+import { warmUp } from '../game/warmUp'
 import { DEFAULT_SETTINGS } from '../map/settings'
 import { EditorView } from './EditorView'
 import { GameView } from './GameView'
@@ -25,14 +26,16 @@ export function App() {
 
 /**
  * Доли общей работы загрузки: звук синтезируется примерно вдесятеро дольше, чем рисуется графика. Оба воркера идут
- * разом, и полоса показывает, сколько всего готово.
+ * разом, и полоса показывает, сколько всего готово. Нарисованная графика по частям уходит на видеокарту (warmUp.ts) —
+ * это идёт, пока синтезируется звук.
  */
-const ART_SHARE = 0.1
-const SOUND_SHARE = 0.9
+const ART_SHARE = 0.08
+const GPU_SHARE = 0.04
+const SOUND_SHARE = 0.88
 
 /**
  * Пока воркеры рисуют графику и синтезируют звук — экран загрузки: без графики не открыть ни меню с витриной, ни игру,
- * а звук в игре должен быть готов к первому же нажатию. Готово — игрок нажимает «Продолжить»: браузер не даёт звуку
+ * на видеокарту она заливается здесь же, понемногу, а звук в игре должен быть готов к первому же нажатию. Готово — игрок нажимает «Продолжить»: браузер не даёт звуку
  * играть, пока на странице ничего не нажали, а так и музыка меню, и игра звучат сразу.
  */
 function WithAssets() {
@@ -42,10 +45,11 @@ function WithAssets() {
   useEffect(() => {
     let live = true
     let art = 0
+    let gpu = 0
     let sound = 0
-    const show = () => live && setShare(art * ART_SHARE + sound * SOUND_SHARE)
+    const show = () => live && setShare(art * ART_SHARE + gpu * GPU_SHARE + sound * SOUND_SHARE)
     Promise.all([
-      loadArt((value) => ((art = value), show())),
+      loadArt((value) => ((art = value), show())).then((drawn) => warmUp(drawn, (value) => ((gpu = value), show()))),
       loadSounds((value) => ((sound = value), show())),
     ]).then(() => live && setReady(true))
     return () => {

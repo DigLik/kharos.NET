@@ -259,6 +259,11 @@ body {
   height: 100%;
 }
 
+/* Место общего холста (см. Stage.tsx): сам в раскладке не участвует, холст растягивается по экрану игры. */
+.stage {
+  display: contents;
+}
+
 .game__canvas {
   display: block;
   width: 100%;

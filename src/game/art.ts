@@ -55,8 +55,13 @@ export function drawArt(progress: (share: number) => void = () => {}): Art {
   }
 }
 
+/** Все атласы графики: большие — юнитов и зданий — первыми. */
+export function artAtlases(art: Art): PackedAtlas[] {
+  const { units, buildings, ...simple } = art
+  return [units.atlas, buildings.atlas, ...Object.values(simple)]
+}
+
 /** Пиксели всех атласов: их воркер передаёт странице без копирования. */
 export function artBuffers(art: Art): ArrayBuffer[] {
-  const { units, buildings, ...simple } = art
-  return [units.atlas, buildings.atlas, ...Object.values(simple)].map((atlas) => atlas.data.buffer)
+  return artAtlases(art).map((atlas) => atlas.data.buffer)
 }

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { createGame, type Game } from '../game/game'
+import { stage } from '../game/stage'
+import { Stage } from './Stage'
 import type { HudState } from '../game/hud'
 import type { MapSettings } from '../map/settings'
 import { EditorPanel } from './EditorPanel'
@@ -22,7 +24,6 @@ interface GameViewProps {
 
 /** Экран игры: холст, на котором живёт сама игра, и интерфейс поверх него. */
 export function GameView({ launch, settings, exit }: GameViewProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
   const gameRef = useRef<Game | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [hud, setHud] = useState<HudState | null>(null)
@@ -63,7 +64,7 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
       const session = await startSession(launch.kind === 'server' && password !== undefined ? { ...launch, password } : launch, settings, abort.signal)
       setConnecting(false)
       if (closed) return session.sim.destroy()
-      gameRef.current = createGame(canvasRef.current!, settings, setError, session, { slot: launch.kind === 'save' ? launch.slot.id : undefined })
+      gameRef.current = createGame(stage(), settings, setError, session, { slot: launch.kind === 'save' ? launch.slot.id : undefined })
       gameRef.current.onMenu = () => setPaused(true)
     }
     const attempt = (password?: string) =>
@@ -101,7 +102,7 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
 
   return (
     <main class="game">
-      <canvas ref={canvasRef} class="game__canvas" />
+      <Stage name="game__canvas" />
       {hud && error === null && gameRef.current && (
         <Hud
           state={hud}

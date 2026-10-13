@@ -1,3 +1,4 @@
+import { shared } from './shared'
 import type { Texture } from './texture'
 
 export type UniformValue = number | ArrayLike<number> | Texture
@@ -10,6 +11,7 @@ export interface Program {
    * Имена, которых в шейдере нет, пропускаются — один набор годится для разных шейдеров.
    */
   use(...uniforms: Uniforms[]): void
+  /** Программа общая на контекст (см. shared.ts) и остаётся жить: вызов ничего не освобождает. */
   destroy(): void
 }
 
@@ -28,8 +30,14 @@ function compile(gl: WebGL2RenderingContext, type: number, source: string) {
  * Собирает программу из исходников GLSL ES 3.00. Юниформы находит сама: use({ uZoom: 32, uMap: texture }).
  * Текстуры раскладываются по текстурным блокам автоматически. Атрибут aCorner всегда получает место 0 —
  * это угол единичного квадрата, общий для всех шейдеров (см. quads.ts).
+ * Программа с такими исходниками собирается на контекст один раз: сборка шейдера — самое долгое, что делает
+ * видеокарта при запуске, и новой игре (а витрине меню — каждому слайду) повторять её незачем.
  */
 export function createProgram(gl: WebGL2RenderingContext, vertex: string, fragment: string): Program {
+  return shared(gl, `program\n${vertex}\n${fragment}`, () => build(gl, vertex, fragment))
+}
+
+function build(gl: WebGL2RenderingContext, vertex: string, fragment: string): Program {
   const handle = gl.createProgram()!
   const shaders = [compile(gl, gl.VERTEX_SHADER, vertex), compile(gl, gl.FRAGMENT_SHADER, fragment)]
   for (const shader of shaders) gl.attachShader(handle, shader)
@@ -88,8 +96,6 @@ export function createProgram(gl: WebGL2RenderingContext, vertex: string, fragme
         for (const name in group) setters.get(name)?.(group[name])
       }
     },
-    destroy() {
-      gl.deleteProgram(handle)
-    },
+    destroy() {},
   }
 }

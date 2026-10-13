@@ -38,6 +38,7 @@ import { createPowerPass } from './powerPass'
 import { createSelectionPass } from './selectionPass'
 import { loadCamera, storeCamera } from './storage'
 import { createUnitsPasses } from './units/unitsPass'
+import type { Art } from './art'
 import { loadedArt } from './loadArt'
 
 /** Как часто вкладка запоминает место камеры, в секундах. */
@@ -130,6 +131,105 @@ export interface Game {
 
 export const simOptions = (settings: MapSettings): SimOptions => ({ generator: settings.generator, size: settings.world.size, rules: settings.rules })
 
+/** Состояние клиента для мира sim: ничего не выбрано, никаких режимов. */
+export function createScene(sim: Sim, player: number, settings: MapSettings, camera = new Camera()): Scene {
+  return {
+    sim,
+    player,
+    camera,
+    settings,
+    selection: new Set(),
+    selectionBox: null,
+    placing: null,
+    paving: null,
+    paveFrom: null,
+    routing: null,
+    serving: null,
+    patrolling: false,
+    aiming: null,
+    grid: false,
+    zonesHeld: false,
+    zonesHover: false,
+    weather: weatherAt(sim.options, sim.time.elapsed),
+  }
+}
+
+/**
+ * Создаёт проходы игры по одному, отдавая управление после каждого: проход собирает свои шейдеры и заливает свой
+ * атлас, и экран загрузки растягивает это на кадры (см. warmUp.ts). Игре, которой нужны все проходы сразу, — finish.
+ * Порядок проходов — порядок отрисовки, снизу вверх. Витрине не нужны зоны, выделение и курсор.
+ */
+export function* stagePasses(gl: WebGL2RenderingContext, scene: Scene, art: Art, showcase: boolean): Generator<void, { passes: Pass[]; landWindow: LandWindow }> {
+  const landWindow = createLandWindow(gl)
+  const terrain = createTerrainPass(gl, scene, landWindow)
+  yield
+  const deposits = createDepositsPass(gl, scene, art.deposits)
+  yield
+  const paving = createPavingPass(gl, scene, art.paving)
+  yield
+  const drops = createDropsPass(gl, scene, art.drops)
+  yield
+  const decals = createDecalsPass(gl, scene, art.decals)
+  yield
+  const units = createUnitsPasses(gl, scene, art.units)
+  yield
+  const buildings = createBuildingsPass(gl, scene, art.buildings)
+  yield
+  const flow = createFlowPass(gl, scene)
+  yield
+  const combat = createCombatPasses(gl, scene, art.combat)
+  yield
+  const precipitation = createPrecipitationPass(gl, scene, landWindow)
+  yield
+  const lighting = createLightingPass(gl, scene, [units.ground, buildings, units.emplacements])
+  yield
+  const fog = createFogPass(gl, scene)
+  yield
+  let play: { power: Pass; selection: Pass; cursor: Pass } | null = null
+  if (!showcase) {
+    const power = createPowerPass(gl, scene, art.power)
+    yield
+    const selection = createSelectionPass(gl, scene, art.selection)
+    yield
+    play = { power, selection, cursor: createCursorPass(gl, scene) }
+    yield
+  }
+  const passes = [
+    terrain,
+    deposits,
+    paving,
+    drops,
+    // Следы, гарь и остовы — на земле, под юнитами.
+    decals,
+    units.ground,
+    buildings,
+    // Поток по трубам — поверх труб, под турелями и летающими.
+    flow,
+    units.emplacements,
+    // Пыль от винтов — на земле и на крышах, под летающими.
+    combat.dust,
+    // Летающие — над зданиями.
+    units.air,
+    precipitation,
+    combat.lights,
+    lighting,
+    // Туман — над миром и его светом, под зонами, выделением и курсором. Он же — темнота за краем мира: её видно
+    // и в витрине, где тумана нет.
+    fog,
+    ...(play ? [play.power] : []),
+    combat.effects,
+    ...(play ? [play.selection, play.cursor] : []),
+  ]
+  return { passes, landWindow }
+}
+
+/** Доводит пошаговую работу до конца сразу, без передышек. */
+export function finish<T>(steps: Generator<void, T>): T {
+  let step = steps.next()
+  while (!step.done) step = steps.next()
+  return step.value
+}
+
 /**
  * Собирает игру на холсте: отрисовку и управление поверх копии мира из session — и запускает кадры.
  * Сам мир считает хост: воркер локальной игры или сервер. Если запустить не удалось (нет WebGL 2, не собрался
@@ -150,66 +250,18 @@ export function createGame(
     camera.y = view.y
     camera.zoomTo(view.zoom)
   }
-  const scene: Scene = {
-    sim: session.sim,
-    player: session.player,
-    camera,
-    settings,
-    selection: new Set(),
-    selectionBox: null,
-    placing: null,
-    paving: null,
-    paveFrom: null,
-    routing: null,
-    serving: null,
-    patrolling: false,
-    aiming: null,
-    grid: false,
-    zonesHeld: false,
-    zonesHover: false,
-    weather: weatherAt(session.sim.options, session.sim.time.elapsed),
-  }
+  const scene = createScene(session.sim, session.player, settings, camera)
 
-  // Всё, что живёт на видеокарте, создаётся здесь: после потери контекста рендер вызовет это заново. Атласы уже
-  // нарисованы (см. loadArt.ts), их остаётся только залить.
+  // Всё, что живёт на видеокарте, создаётся здесь: после потери контекста рендер вызовет это заново. Атласы и
+  // шейдеры уже на видеокарте — их по частям готовит экран загрузки (см. warmUp.ts), — здесь только то, что у игры своё.
   const art = loadedArt()
   let landWindow: LandWindow
   const renderer = createRenderer(
     canvas,
     (gl) => {
-      landWindow = createLandWindow(gl)
-      const units = createUnitsPasses(gl, scene, art.units)
-      const buildings = createBuildingsPass(gl, scene, art.buildings)
-      const combat = createCombatPasses(gl, scene, art.combat)
-      // Порядок проходов — порядок отрисовки, снизу вверх. Витрине не нужны зоны, выделение и курсор.
-      const play = (pass: Pass) => (showcase ? [] : [pass])
-      return [
-        createTerrainPass(gl, scene, landWindow),
-        createDepositsPass(gl, scene, art.deposits),
-        createPavingPass(gl, scene, art.paving),
-        createDropsPass(gl, scene, art.drops),
-        // Следы, гарь и остовы — на земле, под юнитами.
-        createDecalsPass(gl, scene, art.decals),
-        units.ground,
-        buildings,
-        // Поток по трубам — поверх труб, под турелями и летающими.
-        createFlowPass(gl, scene),
-        units.emplacements,
-        // Пыль от винтов — на земле и на крышах, под летающими.
-        combat.dust,
-        // Летающие — над зданиями.
-        units.air,
-        createPrecipitationPass(gl, scene, landWindow),
-        combat.lights,
-        createLightingPass(gl, scene, [units.ground, buildings, units.emplacements]),
-        // Туман — над миром и его светом, под зонами, выделением и курсором. Он же — темнота за краем мира: её видно
-        // и в витрине, где тумана нет.
-        createFogPass(gl, scene),
-        ...play(createPowerPass(gl, scene, art.power)),
-        combat.effects,
-        ...play(createSelectionPass(gl, scene, art.selection)),
-        ...play(createCursorPass(gl, scene)),
-      ]
+      const built = finish(stagePasses(gl, scene, art, showcase))
+      landWindow = built.landWindow
+      return built.passes
     },
     onError,
   )

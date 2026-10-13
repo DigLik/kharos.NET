@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'preact/hooks'
+import { useEffect, useState } from 'preact/hooks'
 import { createGame, simOptions, type Game } from '../game/game'
 import type { MapSettings } from '../map/settings'
 import { LOCAL_PLAYER } from '../net/local'
 import { SCENES, createSim, type SceneName } from '../sim'
+import { stage } from '../game/stage'
+import { Stage } from './Stage'
 
 /** Сколько длится слайд и затемнение между слайдами, в миллисекундах. */
 const SLIDE_TIME = 40000
@@ -35,7 +37,6 @@ const nextScene = (current?: SceneName) => {
  * запустилась (нет WebGL 2), фон просто остаётся тёмным.
  */
 export function Showcase({ settings }: { settings: MapSettings }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
   const [slide, setSlide] = useState(() => ({ index: 0, scene: nextScene() }))
   const [shown, setShown] = useState(false)
 
@@ -60,7 +61,7 @@ export function Showcase({ settings }: { settings: MapSettings }) {
       return () => timers.forEach(clearTimeout)
     }
     try {
-      game = createGame(canvasRef.current!, local, () => setShown(false), { sim, player: LOCAL_PLAYER }, { showcase: true })
+      game = createGame(stage(), local, () => setShown(false), { sim, player: LOCAL_PLAYER }, { showcase: true })
     } catch {
       sim.destroy()
       return
@@ -84,7 +85,7 @@ export function Showcase({ settings }: { settings: MapSettings }) {
 
   return (
     <div class="showcase" aria-hidden="true">
-      <canvas key={slide.index} ref={canvasRef} class="showcase__canvas" />
+      <Stage name="showcase__canvas" />
       <div class={shown ? 'showcase__veil' : 'showcase__veil is-dark'} />
     </div>
   )

@@ -5,6 +5,11 @@ export interface TextureOptions {
   data?: Uint8Array
   /** nearest — чёткие пиксели (по умолчанию), linear — сглаживание. */
   filter?: 'nearest' | 'linear'
+  /**
+   * Память выделяется сразу и навсегда (texStorage2D): размер не меняется, пиксели пишутся потом через write, хоть
+   * по частям. Так заливаются атласы: драйверу не приходится гадать о размере и перекладывать текстуру.
+   */
+  fixed?: boolean
 }
 
 export interface Texture {
@@ -13,7 +18,7 @@ export interface Texture {
   readonly height: number
   /** Записывает пиксели RGBA в прямоугольник; по умолчанию — во всю текстуру. */
   write(data: Uint8Array, x?: number, y?: number, width?: number, height?: number): void
-  /** Меняет размер; содержимое теряется. */
+  /** Меняет размер; содержимое теряется. У текстуры с fixed — ошибка. */
   resize(width: number, height: number): void
   destroy(): void
 }
@@ -28,7 +33,11 @@ export function createTexture(gl: WebGL2RenderingContext, options: TextureOption
     gl.bindTexture(gl.TEXTURE_2D, handle)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data)
   }
-  allocate(options.data ?? null)
+  if (options.fixed) {
+    gl.bindTexture(gl.TEXTURE_2D, handle)
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, width, height)
+    if (options.data) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, options.data)
+  } else allocate(options.data ?? null)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -47,6 +56,7 @@ export function createTexture(gl: WebGL2RenderingContext, options: TextureOption
       gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, gl.RGBA, gl.UNSIGNED_BYTE, data)
     },
     resize(nextWidth, nextHeight) {
+      if (options.fixed) throw new Error('Размер текстуры с постоянной памятью не меняется')
       width = nextWidth
       height = nextHeight
       allocate(null)

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { createGame, type Game } from '../game/game'
+import { stage } from '../game/stage'
+import { Stage } from './Stage'
 import { loadSave, storeSave } from '../game/storage'
 import type { MapSettings } from '../map/settings'
 import { decodeSave, encodeSave, readJson, type Sections } from '../save/file'
@@ -34,7 +36,6 @@ async function open(launch: EditorLaunch): Promise<Opened> {
  * см. EditorPanel. Тумана нет; разведанное игроками сохраняется таким, каким было.
  */
 export function EditorView({ launch, settings, exit }: { launch: EditorLaunch; settings: MapSettings; exit(): void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
   const [game, setGame] = useState<Game | null>(null)
   const simRef = useRef<Sim | null>(null)
   const openedRef = useRef<Opened | null>(null)
@@ -54,7 +55,7 @@ export function EditorView({ launch, settings, exit }: { launch: EditorLaunch; s
         // Симуляция стоит: кадры игры зовут advance, а тиков нет.
         const frozen: Sim = Object.create(sim, { advance: { value: () => 0 } })
         simRef.current = sim
-        made = createGame(canvasRef.current!, settings, setError, { sim: frozen, player: playersOf(sim)[0] ?? 1 }, { editor: true })
+        made = createGame(stage(), settings, setError, { sim: frozen, player: playersOf(sim)[0] ?? 1 }, { editor: true })
         setGame(made)
       })
       .catch(setError)
@@ -97,7 +98,7 @@ export function EditorView({ launch, settings, exit }: { launch: EditorLaunch; s
   const sim = simRef.current
   return (
     <main class="game editor">
-      <canvas ref={canvasRef} class="game__canvas" />
+      <Stage name="game__canvas" />
       {sim && game && error === null && (
         <EditorPanel
           sim={sim}

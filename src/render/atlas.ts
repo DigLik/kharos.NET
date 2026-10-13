@@ -1,4 +1,4 @@
-import { createTexture, type Texture } from '../gl'
+import { createTexture, isShared, shared, type Texture } from '../gl'
 import { Pixmap } from './pixmap'
 
 /** Место картинки в атласе, в долях текстуры: левый верхний угол и размер. */
@@ -81,7 +81,60 @@ export function packAtlas(sprites: Sprite[], drawn: () => void = () => {}): Pack
   return { width: atlasWidth, height, data, frames }
 }
 
-/** Заливает собранный атлас на видеокарту одним вызовом. */
-export function uploadAtlas(gl: WebGL2RenderingContext, atlas: PackedAtlas): { texture: Texture; frames: AtlasFrame[] } {
-  return { texture: createTexture(gl, { width: atlas.width, height: atlas.height, data: atlas.data }), frames: atlas.frames }
+/** Атлас на видеокарте. Текстура общая на контекст: её destroy ничего не освобождает. */
+export interface UploadedAtlas {
+  texture: Texture
+  frames: AtlasFrame[]
+}
+
+/** Сколько байт пикселей уходит на видеокарту за один шаг заливки: полоса атласа шириной 4096 — 64 строки. */
+const STRIP_BYTES = 1 << 20
+
+/** Сколько шагов займёт заливка атласа по частям. */
+export function uploadSteps(atlas: PackedAtlas) {
+  return Math.ceil(atlas.height / stripRows(atlas))
+}
+
+const stripRows = (atlas: PackedAtlas) => Math.max(1, Math.floor(STRIP_BYTES / (atlas.width * 4)))
+
+/**
+ * Заливает атлас на видеокарту полосами, отдавая управление после каждой: атлас зданий — 39 МБ, и залитый одним
+ * вызовом он на слабой видеокарте останавливает весь браузер (процесс видеокарты у вкладок общий). Готовый атлас
+ * становится общим на контекст — после этого uploadAtlas берёт его сразу. Уже залитый шагов не делает.
+ */
+export function* uploadAtlasSlowly(gl: WebGL2RenderingContext, atlas: PackedAtlas): Generator<void, UploadedAtlas> {
+  if (isShared(gl, atlas)) return uploadAtlas(gl, atlas)
+  const { width, height, data } = atlas
+  const texture = createTexture(gl, { width, height, fixed: true })
+  const rows = stripRows(atlas)
+  for (let y = 0; y < height; y += rows) {
+    const count = Math.min(rows, height - y)
+    texture.write(data.subarray(y * width * 4, (y + count) * width * 4), 0, y, width, count)
+    yield
+  }
+  // Кто-то успел залить атлас целиком, пока шли полосы: общий — его, эта копия лишняя.
+  if (isShared(gl, atlas)) texture.destroy()
+  return shared(gl, atlas, () => ({ texture: lasting(texture), frames: atlas.frames }))
+}
+
+/** Та же текстура, которую нельзя уничтожить: ею пользуются все игры контекста. */
+const lasting = (texture: Texture): Texture => ({
+  handle: texture.handle,
+  width: texture.width,
+  height: texture.height,
+  write: texture.write,
+  resize: texture.resize,
+  destroy() {},
+})
+
+/**
+ * Атлас на видеокарте, общий на контекст: заливается при первом обращении, целиком и сразу. На экране загрузки
+ * атласы заливаются заранее и по частям (см. warmUp.ts) — тогда здесь они уже готовы; сразу — только после
+ * восстановления потерянного контекста.
+ */
+export function uploadAtlas(gl: WebGL2RenderingContext, atlas: PackedAtlas): UploadedAtlas {
+  return shared(gl, atlas, () => ({
+    texture: lasting(createTexture(gl, { width: atlas.width, height: atlas.height, data: atlas.data, fixed: true })),
+    frames: atlas.frames,
+  }))
 }

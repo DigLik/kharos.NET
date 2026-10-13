@@ -1,11 +1,11 @@
 import type { Program } from './program'
+import { shared } from './shared'
 
 /** Единичный квадрат, общий на весь контекст: углы (0,0), (1,0), (0,1), (1,1). Шейдеры получают их как aCorner. */
-const corners = new WeakMap<WebGL2RenderingContext, { buffer: WebGLBuffer; screen: WebGLVertexArrayObject }>()
+const CORNERS = Symbol('corners')
 
 function cornersOf(gl: WebGL2RenderingContext) {
-  let shared = corners.get(gl)
-  if (!shared) {
+  return shared(gl, CORNERS, () => {
     const buffer = gl.createBuffer()!
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW)
@@ -14,14 +14,8 @@ function cornersOf(gl: WebGL2RenderingContext) {
     gl.enableVertexAttribArray(0)
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
     gl.bindVertexArray(null)
-    corners.set(gl, (shared = { buffer, screen }))
-  }
-  return shared
-}
-
-/** Забывает общие ресурсы контекста. Вызывать после его восстановления: старые буферы больше не действуют. */
-export function forgetContext(gl: WebGL2RenderingContext) {
-  corners.delete(gl)
+    return { buffer, screen }
+  })
 }
 
 /**

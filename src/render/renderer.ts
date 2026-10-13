@@ -191,6 +191,10 @@ export function createRenderer(canvas: HTMLCanvasElement, setup: Setup, onError?
       canvas.removeEventListener('webglcontextrestored', onRestored)
       for (const pass of passes) pass.destroy()
       passes = []
+      // Холст и контекст общие на все игры (см. stage.ts): следующая не начнётся с последнего кадра этой.
+      bindScreen(gl)
+      gl.clearColor(0, 0, 0, 1)
+      gl.clear(gl.COLOR_BUFFER_BIT)
     },
   }
 }
