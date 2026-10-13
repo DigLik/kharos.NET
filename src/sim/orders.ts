@@ -69,26 +69,38 @@ export function isBusyBuilder(sim: Sim, entity: Entity) {
   return !!sim.world.get(entity, Builds)?.ordered || !!sim.world.get(entity, Orders)?.list.length
 }
 
-/** Нечем занят: не едет, не строит, не гонится за целью по приказу, не патрулирует и не работает по приказу игрока. */
+/**
+ * Занят делом, у которого нет конца: грузовик на маршруте, при шахте или зданиях, боец в патруле. Ждать, пока оно
+ * кончится, нечего — приказ из очереди его прерывает, как прервал бы приказ без Shift.
+ */
+function endless(sim: Sim, entity: Entity) {
+  const { world } = sim
+  const hauler = world.get(entity, Hauler)
+  if (hauler && (hauler.mine !== NONE || hauler.route.length || hauler.serve.length)) return true
+  return !!world.get(entity, Tactics)?.patrol.length
+}
+
+/** Нечем занят: не едет, не строит, не гонится за целью по приказу и не работает по приказу игрока. Дело без конца — не в счёт. */
 function idle(sim: Sim, entity: Entity) {
   const { world } = sim
+  if (endless(sim, entity)) return true
   if (world.has(entity, Path) || world.has(entity, Builds) || world.has(entity, Converting)) return false
   for (const gunner of [entity, ...turretsOf(sim, entity)]) {
     const armed = world.get(gunner, Armed)
     if (armed?.ordered && armed.target !== NONE) return false
   }
-  const tactics = world.get(entity, Tactics)
-  // В патруле или не дошёл, куда шёл: отвлёкся на врага по дороге или возвращается после погони.
-  if (tactics?.patrol.length || tactics?.away) return false
-  // Заявки зон грузовик возит и сам, без приказа: их очередь прерывает.
+  // Не дошёл, куда шёл: отвлёкся на врага по дороге или возвращается после погони.
+  if (world.get(entity, Tactics)?.away) return false
+  // Заявки зон грузовик возит и сам, без приказа: их очередь прерывает. Разовое поручение игрока — ждёт.
   const hauler = world.get(entity, Hauler)
-  if (hauler && (hauler.mine !== NONE || hauler.pickup !== NONE || hauler.supply !== NONE || hauler.route.length || hauler.serve.length)) return false
+  if (hauler && (hauler.pickup !== NONE || hauler.supply !== NONE)) return false
   return true
 }
 
 /**
  * Раз в тик: освободившиеся юниты берут следующий приказ из очереди. Приказ группы ждёт, пока освободятся все её
- * юниты, у которых он следующий, — тогда они получают его вместе и встают строем, а не в одну точку.
+ * юниты, у которых он следующий, — тогда они получают его вместе и встают строем, а не в одну точку. Юнит с делом
+ * без конца (см. endless) группу не держит и бросает это дело, когда приказ взят.
  */
 export function followOrders(sim: Sim) {
   const { world } = sim

@@ -171,3 +171,20 @@ test('маршрут снимает прежние приказы: назнач�
   sim.advance(TICK)
   expect(hauler).toMatchObject({ route: [from, to], serve: [], supply: -1, pickup: -1 })
 })
+
+test('приказ с Shift прерывает маршрут: грузовик на маршруте не держит группу и идёт с ней', () => {
+  const { sim, buildings: [from, to], truck } = base(['metalYard', 'metalYard'])
+  const at = sim.world.get(truck, Position)!
+  const tank = spawnUnit(sim, 'tank', 1, Math.floor(at.x) + 2, Math.floor(at.y) + 1)
+  sim.world.get(from, Inventory)!.items.metal = 100
+  sim.send(1, { type: 'route', units: [truck], stops: [from, to] })
+  seconds(sim, 1)
+  expect(sim.world.get(truck, Hauler)!.route.length).toBe(2)
+  const goal = { x: Math.floor(at.x) + 6, y: Math.floor(at.y) + 3 }
+  sim.send(1, { type: 'move', units: [truck, tank], ...goal, queue: true })
+  seconds(sim, 0.2)
+  // Маршрут конца не имеет: ждать его танку было бы вечно.
+  expect(sim.world.get(truck, Hauler)!.route).toEqual([])
+  until(sim, () => Math.hypot(sim.world.get(tank, Position)!.x - goal.x, sim.world.get(tank, Position)!.y - goal.y) < 2.5, 30)
+  until(sim, () => Math.hypot(sim.world.get(truck, Position)!.x - goal.x, sim.world.get(truck, Position)!.y - goal.y) < 2.5, 30)
+})
