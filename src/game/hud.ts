@@ -37,6 +37,18 @@ const gridState = (economy: Economy): GridState => ({
   overload: overloadOf(economy) > 0,
 })
 
+/**
+ * Режим наведения и что о нём сказать игроку: placing — какое здание закладывается; paving — что тянется мышью
+ * и почём, как у construction.paving; routing — сколько остановок набрано; serving — сколько зданий отмечено.
+ */
+export type ModeState =
+  | { kind: 'placing'; building: BuildingType }
+  | { kind: 'paving'; tool: PaveTool; cost: number; tiles: number; short: number }
+  | { kind: 'routing'; stops: number }
+  | { kind: 'serving'; count: number }
+  | { kind: 'patrolling' | 'aiming' | 'deploying' }
+  | null
+
 export interface HudState {
   credits: number
   /** Уведомления, от старых к новым: at — когда, по нему строка узнаётся между опросами. */
@@ -73,6 +85,8 @@ export interface HudState {
   editor: boolean
   /** Игрок набирает маршрут или список обслуживания: Enter сейчас завершает его, а не открывает чат. */
   picking: boolean
+  /** Режим, в котором щелчок по карте значит не выбор, а действие: его показывает полоса над полем. null — обычный. */
+  mode: ModeState
   /** Пришёл ли мир от хоста: до этого наград ноль не потому, что их нет, а потому, что мира ещё нет. */
   loaded: boolean
   /** Игрок проиграл: у него не осталось ни зданий, ни MCV. */
@@ -753,6 +767,8 @@ export function readHud(scene: Scene): HudState {
     level.next.materials = exactOf(upgradeMaterials)
     if (credits < level.next.cost && level.next.lack !== 'research') level.next.lack = 'credits'
   }
+  // Протянутое мышью покрытие — и для полосы режима, и для кнопок строителя.
+  const paving = pavingOf(scene)
   const state: HudState = {
     credits,
     hover: hoverOf(scene),
@@ -770,6 +786,7 @@ export function readHud(scene: Scene): HudState {
     admin: 'admin' in sim && (sim as Replica).admin,
     editor: 'editor' in sim && (sim as Replica).editor,
     picking: !!(scene.routing || scene.serving),
+    mode: modeOf(scene, paving),
     players: 'players' in sim
       ? (sim as Replica).players.map(({ player, name, online, safe }) => ({
           player,
@@ -825,7 +842,7 @@ export function readHud(scene: Scene): HudState {
     construction: counts.has('builder')
       ? {
           placing: scene.placing,
-          paving: pavingOf(scene),
+          paving,
           tools: ([['foundation', PAVE_RESEARCH.foundation], ['road', PAVE_RESEARCH.road], ['bridge', PAVE_RESEARCH.bridge], ['peak', DIG_RESEARCH], ['cliff', DIG_RESEARCH], ['pipe', RESEARCH_FOR.pipe], ['well', RESEARCH_FOR.well]] as const)
             .filter(([, topic]) => hasResearch(sim, player, topic))
             .map(([tool]) => tool),
@@ -885,6 +902,18 @@ export function readHud(scene: Scene): HudState {
     army: sim.rules.armyLimit > 0 ? { used: armyOf(sim, player), limit: sim.rules.armyLimit } : null,
   }
   return state
+}
+
+/** Режим наведения — в том же порядке, в каком их снимает Esc, см. controls.ts. */
+function modeOf(scene: Scene, paving: NonNullable<HudState['construction']>['paving']): ModeState {
+  if (scene.aiming !== null) return { kind: 'aiming' }
+  if (scene.deploying !== null) return { kind: 'deploying' }
+  if (scene.patrolling) return { kind: 'patrolling' }
+  if (scene.routing) return { kind: 'routing', stops: scene.routing.length }
+  if (scene.serving) return { kind: 'serving', count: scene.serving.length }
+  if (paving) return { kind: 'paving', ...paving }
+  if (scene.placing) return { kind: 'placing', building: scene.placing }
+  return null
 }
 
 /** Укладка покрытия, которую игрок тянет мышью: инструмент, цена и сколько тайлов ляжет. */

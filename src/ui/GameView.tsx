@@ -119,6 +119,8 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
           lookAt={(x, y) => gameRef.current?.lookAt(x, y)}
           flyTo={(x, y) => gameRef.current?.flyTo(x, y)}
           lookAtSelection={() => gameRef.current?.lookAtSelection()}
+          cancelMode={() => gameRef.current?.cancelMode()}
+          finishMode={() => gameRef.current?.finishMode()}
           narrow={(type, remove) => gameRef.current?.narrow(type, remove)}
           moveSelected={(x, y) => gameRef.current?.moveSelected(x, y)}
           say={(text) => gameRef.current?.say(text)}

@@ -612,6 +612,44 @@ body {
   transform: translateX(-50%);
 }
 
+/* Под полосой режима награды опускаются ниже, чтобы её не закрыть. */
+.hud--rewards.is-low {
+  top: 96px;
+}
+
+/*
+ * Полоса режима: по центру под верхней полосой, на виду, пока режим не кончится. Кнопки — с палец, чтобы выйти из
+ * режима можно было и на сенсорном экране, где нет ни Esc, ни правой кнопки.
+ */
+.mode {
+  top: 44px;
+  left: 50%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 12px;
+  max-width: calc(100vw - 24px);
+  padding: 6px 8px 6px 12px;
+  transform: translateX(-50%);
+  width: max-content;
+}
+
+.mode strong {
+  color: var(--team-light);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.mode span {
+  color: var(--text-soft);
+}
+
+.hud.mode button {
+  min-height: 32px;
+  padding: 2px 14px;
+}
+
 /*
  * Нижняя панель: мини-карта | выбранное | сетка команд. Высота — одна на всех (--bar-inner): мини-карта, портрет и
  * три ряда сетки ложатся в неё без остатка; над панелью от неё же отступают чат и союзники.

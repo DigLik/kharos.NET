@@ -360,20 +360,26 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
       }
     }
     if (event.code === 'Escape') {
-      // Сначала отменяется выбор места, и только следующим нажатием — выделение.
-      if (scene.aiming !== null) scene.aiming = null
-      else if (scene.deploying !== null) scene.deploying = null
-      else if (scene.patrolling) scene.patrolling = false
-      else if (scene.routing) scene.routing = null
-      else if (scene.serving) scene.serving = null
-      else if (scene.paving) {
-        scene.paving = null
-        scene.paveFrom = null
-      } else if (scene.placing) scene.placing = null
-      else if (scene.selection.size) scene.selection.clear()
+      // Сначала отменяется режим, и только следующим нажатием — выделение.
+      if (cancelMode()) return
+      if (scene.selection.size) scene.selection.clear()
       // Отменять нечего — Escape открывает меню игры.
       else onMenu()
     }
+  }
+  /** Выходит из режима наведения, ничего не отдавая; false — режима не было. Порядок тот же, что у полосы режима, см. hud.ts. */
+  const cancelMode = () => {
+    if (scene.aiming !== null) scene.aiming = null
+    else if (scene.deploying !== null) scene.deploying = null
+    else if (scene.patrolling) scene.patrolling = false
+    else if (scene.routing) scene.routing = null
+    else if (scene.serving) scene.serving = null
+    else if (scene.paving) {
+      scene.paving = null
+      scene.paveFrom = null
+    } else if (scene.placing) scene.placing = null
+    else return false
+    return true
   }
   /** Отдаёт набранный маршрут выбранным грузовикам; меньше двух остановок — набор просто кончается. */
   const finishRoute = () => {
@@ -497,6 +503,13 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
   return {
     update,
     lookAtSelection,
+    cancelMode,
+    /** «Готово» полосы режима: набранный маршрут и список обслуживания отдаются грузовикам, остальные режимы просто кончаются. */
+    finishMode() {
+      if (scene.routing) finishRoute()
+      else if (scene.serving) finishServe()
+      else cancelMode()
+    },
     set onMenu(value: () => void) {
       onMenu = value
     },

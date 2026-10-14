@@ -117,6 +117,10 @@ export interface Game {
   narrow(type: UnitType, remove: boolean): void
   /** Наводит камеру на выделенное. */
   lookAtSelection(): void
+  /** Выходит из режима наведения, ничего не отдавая: «Отмена» полосы режима. */
+  cancelMode(): void
+  /** Завершает режим наведения: набранный маршрут и обслуживание отдаются грузовикам. «Готово» полосы режима. */
+  finishMode(): void
   /** Посылает выделенных юнитов в точку карты, в тайлах. */
   moveSelected(x: number, y: number): void
   /** Выключен ли звук; выбор хранится в браузере. */
@@ -494,6 +498,8 @@ export function createGame(
     lookAt: (x, y) => motion.jump(x, y),
     flyTo: (x, y) => motion.flyTo(x, y),
     lookAtSelection: () => controls?.lookAtSelection(),
+    cancelMode: () => controls?.cancelMode(),
+    finishMode: () => controls?.finishMode(),
     narrow: (type, remove) => controls?.narrow(type, remove),
     moveSelected(x, y) {
       const units = [...scene.selection].filter((entity) => scene.sim.world.has(entity, Unit))

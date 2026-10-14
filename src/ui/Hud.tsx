@@ -1,6 +1,6 @@
 import { complete, quoteName } from '../net/chatCommands'
 import type { ComponentChildren } from 'preact'
-import type { GridState, HudState, Stack } from '../game/hud'
+import type { GridState, HudState, ModeState, Stack } from '../game/hud'
 import { GRID_PRESS, type GridPress } from '../game/interfaceSounds'
 import type { Minimap } from '../game/minimap'
 import { prefs } from '../game/prefs'
@@ -41,6 +41,10 @@ interface HudProps {
   flyTo: (x: number, y: number) => void
   /** Камера на выделенное. */
   lookAtSelection: () => void
+  /** Выйти из режима наведения, ничего не отдавая. */
+  cancelMode: () => void
+  /** Завершить режим наведения: набранное отдаётся грузовикам. */
+  finishMode: () => void
   /** Оставить в выделении только этот вид юнитов; remove — убрать его. */
   narrow: (type: UnitType, remove: boolean) => void
   /** Выделенных — в точку карты. */
@@ -691,11 +695,7 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
               items: state.cargo.items.length ? <Stacks items={state.cargo.items} /> : t('common.empty'),
               capacity: state.cargo.capacity,
             })}
-            {state.haul?.routing !== null && state.haul?.routing !== undefined
-              ? t('hud.routing', { stops: state.haul.routing })
-              : state.haul?.serving !== null && state.haul?.serving !== undefined
-              ? t('hud.serving', { count: state.haul.serving })
-              : state.cargo.bound > 0
+            {state.cargo.bound > 0
               ? t('hud.haulsOre')
               : state.haul && state.haul.served > 0
                 ? t('hud.serves')
@@ -774,7 +774,7 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
           <Progress value={state.silo.progress}>{t('hud.warheadAssembling', { percent: percent(state.silo.progress) })}</Progress>
         ) : (
           <div class={state.silo.stage === 'launching' ? 'hud__hint is-short' : 'hud__hint'}>
-            {state.silo.aiming ? t('hud.launchAim') : state.silo.stage === 'launching' ? t('hud.launching', { seconds: state.silo.launch }) : state.silo.stage === 'ready' ? t('hud.warheadReady') : t('hud.warheadEmpty')}
+            {state.silo.stage === 'launching' ? t('hud.launching', { seconds: state.silo.launch }) : state.silo.stage === 'ready' ? t('hud.warheadReady') : t('hud.warheadEmpty')}
           </div>
         ))}
         {state.interceptor && (() => {
@@ -843,31 +843,63 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
             {production.rally ? t('hud.rallySet') : t('hud.rallyTip')}
           </div>
         )}
-        {state.tactics?.picking && (
-          <div class="hud__hint">{t('hud.patrolPick')}</div>
-        )}
-        {construction?.paving && (
-          <div class="hud__hint">
-            {construction.paving.tool === 'remove' ? t('hud.pavingRemove') : t('hud.paving', { tiles: construction.paving.tiles, cost: construction.paving.cost })}
-            {construction.paving.tool !== 'remove' && construction.paving.short ? t('hud.pavingShort', { short: construction.paving.short }) : null}
-            {t('hud.pavingEnd')}
-          </div>
-        )}
         {construction && !construction.placing && !construction.paving && (
           <div class="hud__hint">{t('hud.builderTip')}</div>
         )}
         {/* MCV: что с ним делать — новому игроку это первый вопрос. */}
-        {conversion?.kind === 'deploy' && conversion.progress === null && (
-          <div class="hud__hint">{conversion.choosing ? t('hud.deployPlacingTip') : conversion.traveling ? t('hud.deployTravel') : t('hud.mcvTip')}</div>
+        {conversion?.kind === 'deploy' && conversion.progress === null && !conversion.choosing && (
+          <div class="hud__hint">{conversion.traveling ? t('hud.deployTravel') : t('hud.mcvTip')}</div>
         )}
-        {construction?.placing && <div class="hud__hint">{t('hud.placingTip')}</div>}
       </div>
     </div>
   )
 }
 
+/** Как называется инструмент протяжки: у стены и ворот — как здание, у разбора — как его кнопка. */
+const toolName = (tool: PaveTool) => (tool === 'remove' ? t('grid.remove') : tool === 'wall' || tool === 'gate' ? t(`buildings.${tool}`) : t(`grid.tools.${tool}`))
+
+/** Что делать в режиме дальше. */
+function modeTip(mode: NonNullable<ModeState>) {
+  switch (mode.kind) {
+    case 'placing': return t('mode.tips.placing')
+    case 'paving':
+      if (mode.tool === 'remove') return t('mode.tips.remove')
+      if (!mode.tiles) return t('mode.tips.pavingStart')
+      return t('mode.tips.paving', { tiles: mode.tiles, cost: mode.cost }) + (mode.short ? t('mode.tips.pavingShort', { short: mode.short }) : '')
+    case 'routing': return t('mode.tips.routing', { stops: mode.stops })
+    case 'serving': return t('mode.tips.serving', { count: mode.count })
+    default: return t(`mode.tips.${mode.kind}`)
+  }
+}
+
+/**
+ * Полоса режима над полем: какой режим, что делать дальше и как из него выйти. Esc и правая кнопка работают
+ * по-прежнему, но о них надо знать, а на сенсорном экране их нет вовсе. Стройка и укладка кончаются «Готово» —
+ * заложенное остаётся; маршрут и обслуживание — «Готово» отдаёт набранное, «Отмена» бросает; остальное — «Отмена».
+ */
+function ModeBar({ mode, cancel, finish }: { mode: NonNullable<ModeState>; cancel: () => void; finish: () => void }) {
+  const picking = mode.kind === 'routing' || mode.kind === 'serving'
+  const ends = mode.kind === 'placing' || mode.kind === 'paving'
+  return (
+    <div class="hud mode" role="status">
+      <strong>{mode.kind === 'placing' ? t('mode.placing', { name: t(`buildings.${mode.building}`) }) : mode.kind === 'paving' ? toolName(mode.tool) : t(`mode.${mode.kind}`)}</strong>
+      <span>{modeTip(mode)}</span>
+      {(picking || ends) && (
+        <button class="menu__primary" data-tip={t(picking ? 'mode.doneTip' : 'mode.endTip')} onClick={finish}>
+          {t('mode.done')}
+        </button>
+      )}
+      {!ends && (
+        <button data-tip={t(picking ? 'mode.cancelTip' : 'mode.endTip')} onClick={cancel}>
+          {t('mode.cancel')}
+        </button>
+      )}
+    </div>
+  )
+}
+
 /** Интерфейс игрока: верхняя полоса со счётом и нижняя панель — мини-карта, выбранное, сетка команд. */
-export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim, deploy, minimap, lookAt, flyTo, lookAtSelection, narrow, moveSelected, say, menu }: HudProps) {
+export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim, deploy, minimap, lookAt, flyTo, lookAtSelection, cancelMode, finishMode, narrow, moveSelected, say, menu }: HudProps) {
   const selected = state.units.length > 0 || state.building !== null
   const fresh = useNewRewards(state.rewards, state.loaded)
 
@@ -1097,8 +1129,10 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
         </div>
       )}
 
+      {state.mode && !state.editor && <ModeBar mode={state.mode} cancel={cancelMode} finish={finishMode} />}
+
       {fresh.length > 0 && (
-        <div class="hud hud--rewards">
+        <div class={state.mode ? 'hud hud--rewards is-low' : 'hud hud--rewards'}>
           {fresh.map((key) => (
             <div key={key} class="hud__reward">
               <span class="hud__coin" />
