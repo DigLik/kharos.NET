@@ -2,14 +2,14 @@ import type { Entity } from '../ecs'
 import { inputsOf } from './assembly'
 import { BUILDINGS, buildingSpec, feedOf, isReady, type BuildingSpec } from './buildings'
 import { NONE, isOwn } from './common'
-import { Assembly, Batch, Building, Converting, Drop, Hauler, Inventory, Off, Owner, Path, Position, Producer, Site, Trade, Unit } from './components'
+import { Assembly, Batch, Building, Converting, Drop, Hauler, Inventory, Off, Owner, Path, Position, Producer, Site, Trade, Unit, Unreachable } from './components'
 import { depositAt } from './deposits'
-import { amountOf, loadOf, roomFor } from './inventory'
+import { POCKET, amountOf, loadOf, roomFor } from './inventory'
 import { entriesOf, GOODS, isOre, isProduct, ORE_OF, WARES, stockedFor, type Amounts, type Good, type Ore, type Resource } from './resources'
 import type { Sim } from './sim'
 import { researchNeeds } from './topics'
 import { deliveredTo, isStore } from './trade'
-import { unitSpec } from './units'
+import { unitSpec, vehicleReach } from './units'
 import { inCircles, networkOf, zonesOf, type Zone } from './zones'
 
 /**
@@ -336,6 +336,15 @@ export interface Job {
  * Сколько груза ещё поместится на склад для этого грузовика: место за вычетом того, что туда уже везут другие.
  * Иначе грузовики, глядя на одно свободное место, набрали бы каждый по кузову и остались с грузом, который некуда деть.
  */
+/** Не подъехать грузовикам игрока к зданию или дропу: отметка Unreachable ещё действует, см. hauling.ts. */
+export const unreachable = (sim: Sim, entity: Entity) => (sim.world.get(entity, Unreachable)?.until ?? 0) > sim.time.tick
+
+/** Заперт ли грузовик: из его тайла технике не выехать дальше кармана в POCKET тайлов. */
+export function walledIn(sim: Sim, truck: Entity) {
+  const position = sim.world.get(truck, Position)
+  return !!position && vehicleReach(sim, Math.floor(position.x), Math.floor(position.y), POCKET).size < POCKET
+}
+
 export function spaceFor(sim: Sim, truck: Entity, to: Entity, resource: Good, flows = flowsOf(sim, truck)) {
   const inventory = sim.world.get(to, Inventory)
   return inventory ? roomFor(inventory, resource) - (flows.incoming.get(to)?.[resource] ?? 0) : 0
@@ -352,7 +361,7 @@ export function storeFor(sim: Sim, truck: Entity, resource: Good, except: Entity
   let bestFill = Infinity
   let bestDistance = Infinity
   for (const [entity, inventory] of sim.world.query(Inventory, Building)) {
-    if (entity === except || !isStore(sim, entity) || !isReady(sim, player, entity) || sim.world.has(entity, Converting)) continue
+    if (entity === except || !isStore(sim, entity) || !isReady(sim, player, entity) || sim.world.has(entity, Converting) || unreachable(sim, entity)) continue
     const space = spaceFor(sim, truck, entity, resource, flows)
     if (space <= 1e-9) continue
     const holds = Math.min(inventory.limits[resource] ?? inventory.capacity, inventory.capacity)
@@ -377,7 +386,7 @@ export function refineryFor(sim: Sim, truck: Entity, ore: Ore, except: Entity = 
   for (const [entity, , building] of sim.world.query(Inventory, Building)) {
     if (entity === except || buildingSpec(building.type).refines !== ore || !isReady(sim, player, entity) || sim.world.has(entity, Converting) || sim.world.has(entity, Off)) continue
     if (spaceFor(sim, truck, entity, ore, flows) <= 1e-9) continue
-    if (skip && networkOf(sim, entity) === skip) continue
+    if ((skip && networkOf(sim, entity) === skip) || unreachable(sim, entity)) continue
     const far = distance(sim, truck, entity)
     if (far < bestDistance) {
       best = entity
@@ -466,9 +475,15 @@ const isIdle = (sim: Sim, truck: Entity) => {
  */
 export function dispatch(sim: Sim) {
   const { world } = sim
+  // Отметки «не подъехать», чей срок вышел, снимаются: здание снова получает работу.
+  const expired: Entity[] = []
+  for (const [entity, mark] of world.query(Unreachable)) if (mark.until <= sim.time.tick) expired.push(entity)
+  for (const entity of expired) world.remove(entity, Unreachable)
   const idle = new Map<number, Entity[]>()
-  for (const [entity, , owner] of world.query(Hauler, Owner, Unit)) {
+  for (const [entity, hauler, owner] of world.query(Hauler, Owner, Unit)) {
     if (!isIdle(sim, entity)) continue
+    // Запертому работы не дают, пока ему не откроют проход: заливка кармана — несколько десятков тайлов.
+    if (hauler.trapped && (hauler.trapped = walledIn(sim, entity))) continue
     let list = idle.get(owner.player)
     if (!list) idle.set(owner.player, (list = []))
     list.push(entity)
@@ -538,14 +553,14 @@ export function dispatch(sim: Sim) {
       let best: (Job & { score: number }) | undefined
       for (const request of requests) {
         if (request.amount < MIN_JOB || !carries(request.resource)) continue
-        if (serving && !serving.has(request.to)) continue
+        if ((serving && !serving.has(request.to)) || unreachable(sim, request.to)) continue
         // Внутри сети груз идёт по трубам: сам грузовик везёт только то, чего в сети заказчика нет, — из других сетей.
         const network = serving ? undefined : networkOf(sim, request.to)
         if (network && hasLocal(network, request.resource, Math.min(request.amount, MIN_JOB), request.sale)) continue
         let found = false
         const look = (sources: readonly Entity[]) => {
           for (const source of sources) {
-            if (source === request.to || !offersOf(sim, source).includes(request.resource)) continue
+            if (source === request.to || !offersOf(sim, source).includes(request.resource) || unreachable(sim, source)) continue
             if (network && networkOf(sim, source) === network) continue
             // Руду шахты, у которой уже есть привязанный грузовик, свободные не возят.
             if (request.source === 'mines' && bound.has(source)) continue
@@ -566,6 +581,7 @@ export function dispatch(sim: Sim) {
       if (!best && !serving) {
         // Заявок нет — увозит готовое из переработки и цехов; куда именно, решит, когда наберёт груз.
         for (const source of outlets) {
+          if (unreachable(sim, source)) continue
           for (const resource of offersOf(sim, source)) {
             if (!carries(resource)) continue
             // Есть куда отправить по трубам своей сети — грузовик не нужен.

@@ -1,18 +1,18 @@
 import type { Entity } from '../ecs'
 import { BUILDINGS, buildingSpec, isReady, levelFactor, levelOf, type BuildingSpec } from './buildings'
 import { NONE, isOwn, onTurn } from './common'
-import { Beam, Building, Converting, Drop, Hauler, Inventory, Owner, Path, Position, Site } from './components'
+import { Beam, Building, Converting, Drop, Hauler, Inventory, Owner, Path, Position, Site, Unreachable } from './components'
 import { DEPOSIT_KINDS, reserveLeft, takeReserve } from './deposits'
 import { amountOf, approach, beamFor, put, reaches, resetBeams, roomFor, transfer } from './inventory'
 import { isStore } from './trade'
-import { acceptsDelivery, deliveryFor, dispatch, mineOre, offersOf, offersPickup, refineryFor, requestsOf, spaceFor, spareOf } from './logistics'
+import { acceptsDelivery, deliveryFor, dispatch, mineOre, offersOf, offersPickup, refineryFor, requestsOf, spaceFor, spareOf, unreachable, walledIn } from './logistics'
 import { GOODS, resourceOf, type Good } from './resources'
 import type { Sim } from './sim'
 import { UNITS } from './units'
 import { networkOf } from './zones'
 import { SEARCH_LIMIT, searchedTiles, withSearchQuota } from './path'
 import { runRoutes } from './routes'
-import { sweepDrops } from './drops'
+import { dropItems, sweepDrops } from './drops'
 
 /** Сколько ресурсов помещается в грузовик. */
 export const TRUCK_CAPACITY = UNITS.truck.inventory
@@ -20,6 +20,13 @@ export const TRUCK_CAPACITY = UNITS.truck.inventory
 const RETRY_TICKS = 20
 /** Раз во сколько тиков диспетчер раздаёт работу свободным грузовикам. */
 const DISPATCH_TICKS = 10
+/**
+ * После скольких промахов подъезда подряд грузовик решает, что подъезда нет: первый промах бывает и от затора.
+ * С отсрочкой seekDue это около 15 секунд.
+ */
+const GIVE_UP = 3
+/** Сколько секунд здание, к которому не подъехать, не получает работы: потом диспетчер пробует снова. */
+const UNREACHABLE_SECONDS = 120
 const EPSILON = 1e-9
 const owner = (sim: Sim, truck: Entity) => sim.world.get(truck, Owner)?.player ?? 0
 
@@ -136,7 +143,7 @@ function requesterFor(sim: Sim, truck: Entity, resource: Good): Entity {
   let best = NONE as Entity
   let bestDistance = Infinity
   for (const request of requestsOf(sim, owner(sim, truck))) {
-    if (request.resource !== resource) continue
+    if (request.resource !== resource || unreachable(sim, request.to)) continue
     const at = sim.world.get(request.to, Position)!
     const far = Math.hypot(at.x - x, at.y - y)
     if (far < bestDistance) {
@@ -173,7 +180,9 @@ const seekSpent = new WeakMap<Sim, { tick: number; from: number }>()
 /**
  * Подводит грузовик к зданию на длину луча; не нашёл подъезда — промах, следующая попытка позже, см. seekDue. Норма
  * тика вышла — грузовик ищет в свою следующую очередь, и это не промах. Поиск, который норма оборвала, — промах:
- * подъезд, которого не найти за целую норму, ищется реже, как недоступный.
+ * подъезд, которого не найти за целую норму, ищется реже, как недоступный. После GIVE_UP промахов подряд подъезда
+ * нет на деле: заперт сам грузовик — он отмечается запертым, иначе здание — недоступным для грузовиков игрока
+ * (Unreachable). Так же и с подъездом, до которого путь длиннее, чем ищет поиск. Подъехал — отметки снимаются.
  */
 export function seekBeam(sim: Sim, truck: Entity, building: Entity, beam: Entity | undefined) {
   if (beam === undefined) return
@@ -186,13 +195,64 @@ export function seekBeam(sim: Sim, truck: Entity, building: Entity, beam: Entity
   withSearchQuota(left, () => {
     found = approach(sim, truck, building, sim.world.get(beam, Beam)!.radius)
   })
-  if (found) hauler.misses = 0
-  else hauler.misses++
+  const { world } = sim
+  if (found) {
+    hauler.misses = 0
+    hauler.trapped = false
+    if (world.has(building, Unreachable)) world.remove(building, Unreachable)
+  } else if (++hauler.misses >= GIVE_UP) {
+    if (walledIn(sim, truck)) hauler.trapped = true
+    else world.add(building, Unreachable({ until: sim.time.tick + Math.round(UNREACHABLE_SECONDS / sim.time.step) }))
+  }
+}
+
+/** Бросает весь груз грузовика на землю дропом под ним и снимает с него работу. */
+function unload(sim: Sim, truck: Entity) {
+  const cargo = sim.world.get(truck, Inventory)!
+  const { x, y } = sim.world.get(truck, Position)!
+  dropItems(sim, x, y, cargo.items)
+  for (const good of GOODS) if (cargo.items[good]) cargo.items[good] = 0
+  dropJob(sim, truck)
+}
+
+/** Принимает ли этот груз хоть одно здание игрока, к которому его грузовикам сейчас не подъехать. */
+function blockedTaker(sim: Sim, player: number, resource: Good) {
+  for (const [entity] of sim.world.query(Unreachable)) {
+    if (unreachable(sim, entity) && acceptsDelivery(sim, player, entity, resource)) return true
+  }
+  return false
+}
+
+/**
+ * Грузовик бросает работу, к которой ему не подъехать. Груз в кузове едет туда, куда подъехать можно: в хранилище
+ * или на переработку, заказчику или обратно, откуда взят. Такого места нет — груз ложится на землю дропом
+ * у грузовика: диспетчер увезёт его, когда появится куда, а сам грузовик свободен. Запертый грузовик груз держит:
+ * дроп в его кармане никому не забрать, а откроют проход — он довезёт сам.
+ */
+function abandon(sim: Sim, truck: Entity, building: Entity) {
+  const { world } = sim
+  const hauler = world.get(truck, Hauler)!
+  hauler.misses = 0
+  if (hauler.pickup === building) hauler.pickup = NONE
+  const resource = carriedBy(sim, truck)
+  if (!resource) return dropJob(sim, truck)
+  if (hauler.trapped) return
+  const from = hauler.from as Entity
+  let to = deliveryFor(sim, truck, resource, building)
+  if (to === NONE) to = requesterFor(sim, truck, resource)
+  if (to === NONE && from !== NONE && from !== building && !unreachable(sim, from) && returnsTo(sim, from, resource)) to = from
+  if (to !== NONE) {
+    Object.assign(hauler, { to, resource, full: true, waiting: false })
+    return
+  }
+  unload(sim, truck)
 }
 
 /** Подводит грузовик к зданию на длину луча, который перенесёт ресурс между ними. */
 function seek(sim: Sim, truck: Entity, building: Entity, toBuilding: boolean) {
   seekBeam(sim, truck, building, toBuilding ? beamFor(sim, truck, building) : beamFor(sim, building, truck))
+  const hauler = sim.world.get(truck, Hauler)!
+  if (hauler.misses >= GIVE_UP && (hauler.trapped || unreachable(sim, building))) abandon(sim, truck, building)
 }
 
 /** Раз в тик: шахты добывают руду в свои склады, пока там есть место; что и как быстро — решает месторождение. */
@@ -380,7 +440,7 @@ export function haul(sim: Sim) {
     hauler.waiting = false
     // Взятое из хранилища и ставшее ненужным едет обратно туда же: возить из одного хранилища в другое незачем.
     const from = hauler.from as Entity
-    if (from !== NONE && isStore(sim, from) && acceptsDelivery(sim, owner(sim, truck), from, resource)) {
+    if (from !== NONE && isStore(sim, from) && !unreachable(sim, from) && acceptsDelivery(sim, owner(sim, truck), from, resource)) {
       hauler.to = from
       continue
     }
@@ -391,7 +451,10 @@ export function haul(sim: Sim) {
     // Хранилищ с местом нет — груз едет тому, кто его заказывал, а нет и таких — обратно, откуда взят, если там есть
     // место. Иначе грузовик так и стоял бы с полным кузовом и не брал работу.
     if (hauler.to === NONE) hauler.to = requesterFor(sim, truck, resource)
-    if (hauler.to === NONE && from !== NONE && returnsTo(sim, from, resource)) hauler.to = from
+    if (hauler.to === NONE && from !== NONE && !unreachable(sim, from) && returnsTo(sim, from, resource)) hauler.to = from
+    // Места нет только там, куда не подъехать, — груз ложится на землю, как у бросившего работу, см. abandon.
+    // Просто полные хранилища — другое дело: груз ждёт в кузове, пока место не освободится.
+    if (hauler.to === NONE && !hauler.trapped && blockedTaker(sim, owner(sim, truck), resource)) unload(sim, truck)
   }
 
   runRoutes(sim)

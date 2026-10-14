@@ -629,6 +629,8 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
         {state.coreless && <div class="hud__hint is-short">{t('hud.coreless')}</div>}
         {state.relief && <div class="hud__hint">{t('hud.relief', { below: RELIEF_BELOW, income: RELIEF_INCOME })}</div>}
         {state.unlinked && <div class="hud__hint is-short">{t('hud.unlinked')}</div>}
+        {state.unreachable && <div class="hud__hint is-short">{t('hud.unreachable')}</div>}
+        {state.trapped > 0 && <div class="hud__hint is-short">{t('hud.trapped', { count: state.trapped })}</div>}
         {state.starved && <div class="hud__hint hud__power is-short">{t('hud.starved')}</div>}
         {state.switchable && !state.switchable.on && <div class="hud__hint is-short">{t('hud.switchedOff')}</div>}
         {state.health !== null && (

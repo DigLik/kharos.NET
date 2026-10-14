@@ -4,7 +4,7 @@ import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atl
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Building, GOODS, Position, Site, powerStates, shutDown, unlinked, type Good, type PowerState } from '../sim'
+import { BUILDINGS, Building, GOODS, Hauler, Owner, Position, Site, powerStates, shutDown, unlinked, unreachable, type Good, type PowerState } from '../sim'
 import { GOOD_ICON, paintGood } from './goodIcons'
 import { lacksOf, type Lack } from './lacks'
 import { STATUS_BAR, STATUS_GAP, STATUS_STACK, statusBarsOf, statusLift } from './statusBars'
@@ -128,6 +128,20 @@ function drawBroke() {
   return image
 }
 
+/** Значок «Не подъехать»: белая черта на красном круге, как знак «въезд запрещён». Над зданием и запертым грузовиком. */
+function drawBlocked() {
+  const image = new Pixmap(ICON_SIZE, ICON_SIZE)
+  image.circle(8, 8, 8, 0x0b111b)
+  image.circle(8, 8, 7, 0xc8321f)
+  image.circle(7.5, 7.5, 5.5, 0xe5492f)
+  image.rect(3, 6, 10, 4, 0x0b111b)
+  image.rect(4, 7, 8, 2, 0xf2f5f8)
+  return image
+}
+
+/** Насколько значок запертого грузовика выше его середины, в тайлах. */
+const TRUCK_ICON_RISE = 0.9
+
 type Color = readonly [number, number, number]
 const BAR_BACK: Color = [0.03, 0.05, 0.08]
 const BAR_GOOD: Color = [0.45, 0.9, 0.55]
@@ -139,7 +153,7 @@ const BAR_SHIELD: Color = [0.3, 0.55, 1]
 export function powerSprites(): Sprite[] {
   const bolts = Array.from({ length: BOLTS }, (_, i) => drawBolt(i))
   const white = new Pixmap(4, 4).rect(0, 0, 4, 4, 0xffffff)
-  return [...bolts, drawIcon(), white, drawLoose(), drawOff(), ...GOODS.map(drawLack), drawBroke()].map(ready)
+  return [...bolts, drawIcon(), white, drawLoose(), drawOff(), ...GOODS.map(drawLack), drawBroke(), drawBlocked()].map(ready)
 }
 
 /** Раз во сколько тиков симуляции пересчитывается, каким своим зданиям чего не хватает: это обход складов и сетей. */
@@ -148,7 +162,8 @@ const LACK_TICKS = 10
 /**
  * Проход тревог над зданиями: молнии перегруза на электростанциях, значок над зданиями, которые из-за нехватки
  * энергии работают медленнее, значок «Не подключено к сети» над своими зданиями со складом без труб, значок груза
- * над своими зданиями и стройками, которые стоят без него (см. lacks.ts), значок «Выключено» над своими
+ * над своими зданиями и стройками, которые стоят без него (см. lacks.ts), значок «Не подъехать» над своими зданиями,
+ * к которым не подъехать грузовикам, и над запертыми грузовиками, значок «Выключено» над своими
  * выключенными, над зданиями — полоски прочности повреждённых и синие полоски запаса генераторов щита,
  * см. statusBars.ts. Ставить выше освещения, чтобы ночью не темнело.
  */
@@ -161,6 +176,7 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
   const offFrame = atlas.frames[BOLTS + 3]
   const lackFrames = new Map<Lack, (typeof atlas.frames)[number]>(GOODS.map((good, i) => [good, atlas.frames[BOLTS + 4 + i]]))
   lackFrames.set('credits', atlas.frames[BOLTS + 4 + GOODS.length])
+  const blockedFrame = atlas.frames[BOLTS + 5 + GOODS.length]
   const whiteU = whiteFrame.u + whiteFrame.width / 2
   const whiteV = whiteFrame.v + whiteFrame.height / 2
 
@@ -217,6 +233,7 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
         const lifted = y - statusLift(world, entity, camera.zoom)
         const icons: [frame: typeof iconFrame, shown: boolean][] = []
         if (unlinked(sim, scene.player, entity)) icons.push([looseFrame, iconOn])
+        if (unreachable(sim, entity) && world.get(entity, Owner)?.player === scene.player) icons.push([blockedFrame, iconOn])
         if (state === 'starved') icons.push([iconFrame, iconOn])
         const lack = lacks.get(entity)
         if (lack) icons.push([lackFrames.get(lack)!, iconOn])
@@ -239,6 +256,18 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
           sprites.push(x, top, spec.width, barHeight, whiteU, whiteV, 0, 0, ...BAR_BACK, 1)
           sprites.push(x, top, spec.width * share, barHeight, whiteU, whiteV, 0, 0, ...color, 1)
         })
+      }
+
+      // Запертые свои грузовики: им не выехать, пока не разберут то, чем их обстроили.
+      if (iconOn) {
+        for (const [, hauler, position, owner] of world.query(Hauler, Position, Owner)) {
+          if (!hauler.trapped || owner.player !== scene.player) continue
+          const x = position.x - camera.x
+          const y = position.y - camera.y
+          if (x < -halfWidth || x > halfWidth || y < -halfHeight || y > halfHeight) continue
+          const frame = blockedFrame
+          sprites.push(x - ICON_TILES / 2, y - TRUCK_ICON_RISE - ICON_TILES / 2, ICON_TILES, ICON_TILES, frame.u, frame.v, frame.width, frame.height, 1, 1, 1, 1)
+        }
       }
 
       // Площадки, к которым строитель ещё не приступил: здания на них нет, а материалов они уже ждут.

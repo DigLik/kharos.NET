@@ -541,6 +541,8 @@
     "coreless": "Bringt kein Geld: Die Zone hat keine Kommandozentrale",
     "relief": "Nothilfe: Solange du weniger als {below} Credits hast, gibt das Hauptgebäude {income} pro Sekunde",
     "unlinked": "Nicht ans Netz angeschlossen: Verlege ein Rohr — sonst kommen Rohstoffe weder an noch weg",
+    "unreachable": "Lastwagen kommen nicht heran: rund um das Gebäude ist alles zugebaut — schaffe eine Zufahrt",
+    "trapped": "Eingeschlossene Lastwagen: {count} — sie kommen nicht heraus; reiß ab, was sie einschließt",
     "starved": "⚡ Zu wenig Energie: Das Gebäude arbeitet langsamer oder steht still",
     "switchedOff": "Ausgeschaltet: zieht keine Energie und arbeitet nicht; im Raster rechts einschalten",
     "shield": "Schild: {charge} von {capacity}",

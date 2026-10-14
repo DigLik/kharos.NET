@@ -6,7 +6,7 @@ import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
   armyOf, overLimit, Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Deploys, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
-  awaitsMaterials, sitesShortOfCredits, buildTicks, canDemolish, freeCredits, canFight, canSendDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, idlePowerOf, overloadOf, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridOf, gridsOf, RELIEF_BELOW,
+  awaitsMaterials, sitesShortOfCredits, buildTicks, canDemolish, freeCredits, canFight, canSendDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, idlePowerOf, overloadOf, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, unreachable, zoneEconomies, gridOf, gridsOf, RELIEF_BELOW,
   Research, TOPICS, PAVE_RESEARCH, DIG_KINDS, DIG_RESEARCH, type DigKind, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, pickTopic, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   type Economy, Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
@@ -120,6 +120,10 @@ export interface HudState {
   starved: boolean
   /** Выбранное здание со складом не подключено к сети труб, см. unlinked. */
   unlinked: boolean
+  /** К выбранному своему зданию не подъехать его грузовикам, см. Unreachable. */
+  unreachable: boolean
+  /** Сколько среди выбранных своих грузовиков запертых: им не выехать, см. Hauler.trapped. */
+  trapped: number
   /** Выбранное доходное здание стоит в зоне без главного здания и денег не приносит. */
   coreless: boolean
   /** Выбрано своё главное здание, и идёт подмога: кредитов меньше порога, доход выше обычного, см. RELIEF_BELOW. */
@@ -526,6 +530,8 @@ export function readHud(scene: Scene): HudState {
   let starved = false
   let idle = false
   let loose = false
+  let blocked = false
+  let walled = 0
   const zones = zoneEconomies(sim, player)
   const producers: Entity[] = []
   let armed = 0
@@ -576,6 +582,7 @@ export function readHud(scene: Scene): HudState {
       haul ??= { units: [], routed: 0, served: 0, filter: [...hauler.filter], routing: scene.routing ? scene.routing.length : null, serving: scene.serving ? scene.serving.length : null }
       haul.units.push(entity)
       if (hauler.route.length) haul.routed++
+      if (hauler.trapped && isOwn(sim, player, entity)) walled++
       if (hauler.serve.length) haul.served++
     }
     const built = world.get(entity, Building)
@@ -738,6 +745,7 @@ export function readHud(scene: Scene): HudState {
     if (built && powerStates(sim).get(entity) === 'starved') starved = true
     if (built && coreless(sim).has(entity)) idle = true
     if (unlinked(sim, player, entity)) loose = true
+    if (isOwn(sim, player, entity) && unreachable(sim, entity)) blocked = true
     const work = world.get(entity, Site)
     if (work) {
       const progress = round(Math.min(1, work.progress / siteTicks(work.type, sim.time.step)))
@@ -818,6 +826,8 @@ export function readHud(scene: Scene): HudState {
     coreless: idle,
     relief: building === CORE && buildingCount === 1 && site === null && credits < RELIEF_BELOW && [...scene.selection].every((entity) => isOwn(sim, player, entity)),
     unlinked: loose,
+    unreachable: blocked,
+    trapped: walled,
     units: UNIT_TYPES.filter((type) => counts.has(type)).map((type) => ({ type, count: counts.get(type)! })),
     gift: gift.length ? gift : null,
     army: unitCount ? { armed, health: round(unitHealth / unitCount) } : null,

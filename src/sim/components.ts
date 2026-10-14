@@ -157,6 +157,11 @@ export const Hauler = component('Hauler', () => ({
    * заявкам, беря груз где угодно у игрока, а когда заявок у него не осталось — свободен. -1 — такого приказа нет.
    */
   supply: -1,
+  /**
+   * Грузовик заперт: его обстроили, и выехать ему некуда — к работе он не подъедет, к какому зданию её ни дай.
+   * Диспетчер такому работу не даёт, пока проход не откроют, см. hauling.ts.
+   */
+  trapped: false,
 }))
 
 /**
@@ -283,6 +288,13 @@ export const Tactics = component('Tactics', () => ({ stance: 'defensive' as Stan
  * радар видит не дальше обычного здания. См. setWorking в assembly.ts.
  */
 export const Off = component('Off', {})
+
+/**
+ * Грузовикам игрока не подъехать к этому зданию или дропу: вокруг на длину луча нет места, куда доехать. Ставит его
+ * грузовик, который раз за разом не нашёл подъезда; до тика until диспетчер работу сюда не даёт, а игрок видит
+ * значок. Подъедет кто-то — отметка снимается. См. hauling.ts.
+ */
+export const Unreachable = component('Unreachable', { until: 0 })
 
 /**
  * Потребитель энергии занят делом и просит у зоны всю свою энергию; без метки — стоит и просит меньше. Ставит
@@ -417,4 +429,4 @@ export const Dig = component('Dig', { kind: 'peak' as 'peak' | 'cliff', cost: 0,
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Deploys, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Busy, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare, Dig]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Deploys, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Busy, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare, Dig, Unreachable]
