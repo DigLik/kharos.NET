@@ -1,5 +1,5 @@
 // Запись кадров игры через CDP screencast.
-// bun rec.ts <url> <outDir> <seconds> [--warm=ms] [--css=file] [--script=file.js] [--size=540x960]
+// bun rec.ts <url> <outDir> <seconds> [--warm=ms] [--css=file] [--script=file.js] [--size=540x960] [--lang=en-US]
 import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs'
 import { spawn } from 'child_process'
 
@@ -17,8 +17,9 @@ mkdirSync(outDir, { recursive: true })
 const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
   '--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, `--window-size=${w},${h}`,
   `--force-device-scale-factor=${opt.dpr ?? 2}`, '--hide-scrollbars', '--mute-audio', '--enable-gpu', '--ignore-gpu-blocklist',
+  ...(opt.lang ? [`--lang=${opt.lang}`, `--accept-lang=${opt.lang}`] : []),
   'about:blank',
-], { stdio: 'ignore' })
+], { stdio: 'ignore', env: opt.lang ? { ...process.env, LANG: `${opt.lang.replace('-', '_')}.UTF-8` } : process.env })
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 let targets: any[] = []
@@ -45,7 +46,7 @@ handlers.push((m) => { if (m.method === 'Runtime.consoleAPICalled' && m.params.t
 await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: Number(opt.dpr ?? 2), mobile: false })
 await send('Page.navigate', { url })
 for (let i = 0; i < 100; i++) {
-  const clicked = await evaluate(`(() => { const b = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Продолжить'); if (b) { b.click(); return true } return false })()`)
+  const clicked = await evaluate(`(() => { const b = [...document.querySelectorAll('button')].find((b) => ['Продолжить', 'Continue'].includes(b.textContent.trim())); if (b) { b.click(); return true } return false })()`)
   if (clicked) break
   await sleep(200)
 }
