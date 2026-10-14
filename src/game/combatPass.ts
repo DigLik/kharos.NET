@@ -6,7 +6,7 @@ import { createLineProgram, createLines } from '../render/lines'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Beam, Blast, Building, Chaser, Ghost, Health, Mark, Missile, Position, Shield, Shot, Silo, UNITS, Unit, WEAPONS, activeRepairs, buildingSpec, flies, type RepairLink, type WeaponSpec } from '../sim'
+import { BUILDINGS, Beam, Blast, Building, Chaser, Dig, Ghost, Health, Mark, Missile, Position, Shield, Shot, Silo, UNITS, Unit, WEAPONS, activeRepairs, buildingSpec, flies, type RepairLink, type WeaponSpec } from '../sim'
 import { chaserAt, missileAt } from './missiles'
 import { GOOD_COLORS } from './resourceColors'
 import type { Scene } from './scene'
@@ -139,6 +139,9 @@ const CORE: Color = [1, 1, 1]
 /** Луч стройки и починки и луч разбора. */
 const MEND: Color = [0.3, 1, 0.55]
 const WRECK: Color = [1, 0.22, 0.1]
+/** Землеройные работы: гору срывают красным лучом, обрыв сглаживают коричневым. */
+const BLAST: Color = [1, 0.12, 0.08]
+const GRADE: Color = [0.55, 0.3, 0.1]
 /** Транспортный луч и груз на нём. */
 const TRACTOR: Color = [0.25, 0.95, 0.85]
 /** Цвет груза на луче — цвет ресурса. */
@@ -862,11 +865,13 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene, art
           dot(glow, x, y, 8, STRIKE, 0.6 + 0.4 * beat)
         }
 
-        // Работа ремонтников: луч от того, кто строит или чинит, к тому, что он строит или чинит; у разбора луч красный.
+        // Работа ремонтников: луч от того, кто строит или чинит, к тому, что он строит или чинит; у разбора луч красный,
+        // у срытия горы — тоже красный, у сглаживания обрыва — коричневый.
         for (const link of repairs) {
           const { fromX, fromY, toX, toY } = beamOf(link, alpha)
           if (!visible(fromX, fromY) && !visible(toX, toY)) continue
-          const color = link.demolish ? WRECK : MEND
+          const dig = world.get(link.to, Dig)?.kind
+          const color = link.demolish ? WRECK : dig === 'peak' ? BLAST : dig === 'cliff' ? GRADE : MEND
           const seed = link.from * 31 + link.to
           const flicker = 0.55 + 0.45 * noise(seed, Math.floor(time * WELD_RATE * 2))
           line(glow, fromX, fromY, toX, toY, 4, color, 0.35 * flicker)
