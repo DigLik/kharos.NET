@@ -68,8 +68,10 @@ export interface Slot {
   gain?: boolean
   /** Кредитов на всю цену сейчас нет, но нажать можно: стройку оплачивают по ходу, и она подождёт. */
   short?: boolean
-  /** Новое: игрок ни разу не нажимал эту кнопку стройки, а у раздела — в нём есть такая. Подсвечено, см. seen.ts. */
+  /** Новое: игрок ещё не наводил на эту кнопку стройки и не нажимал её, а у раздела — в нём есть такая. См. seen.ts. */
   fresh?: boolean
+  /** Что отметить знакомым, когда на кнопку навели или её нажали: вид здания или инструмент протяжки. */
+  seen?: string
   /** Сюда ведёт текущий первый шаг новичка, см. firstSteps.ts: подсвечено ярче нового. */
   hint?: boolean
   power?: number
@@ -207,6 +209,7 @@ export function commandsOf(
       about: aboutOf(building),
       short: !affordable,
       fresh: !isSeen(building),
+      seen: building,
       hint: step?.building === building,
       title: affordable ? undefined : t('grid.shortCredits'),
       run: () => {
@@ -279,6 +282,7 @@ export function commandsOf(
           // Трубы и колодцы — стройки, их оплачивают по ходу; покрытие и землеройные работы — сразу.
           ...(tool === 'pipe' || tool === 'well' ? { short: credits < cost } : { disabled: credits < cost }),
           fresh: !isSeen(tool),
+          seen: tool,
           title: t(`grid.toolTips.${tool}`, { bridge: BRIDGE_COST, reach: UNDERGROUND_REACH, cost }),
           run: () => {
             markSeen(tool)
@@ -751,9 +755,10 @@ export function commandsOf(
     if (stage === 'launching') slots[CANCEL] = { label: t('grid.abortLaunch'), title: t('grid.abortLaunchTip'), run: () => send({ type: 'abortLaunch', silo: entity }) }
   }
 
-  if (site) {
+  // Отменённую стройку уже разбирают: передумать нельзя, кнопки нет.
+  if (site && !site.undo) {
     slots[DEMOLISH] = {
-      label: site.undo ? t('grid.resumeBuild') : site.demolish ? t('grid.cancelDemolish') : t('grid.cancelBuild'),
+      label: site.demolish ? t('grid.cancelDemolish') : t('grid.cancelBuild'),
       run: () => send({ type: 'cancelBuild', site: site.entity }),
     }
   }

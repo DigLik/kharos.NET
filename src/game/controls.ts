@@ -3,7 +3,7 @@ import { type BuildingType, Building, Site, Producer, Hauler, type UnitType, Own
 import type { CameraMotion } from './cameraMotion'
 import { DENIED } from './interfaceSounds'
 import { paveStrokeOf, placementOf } from './placing'
-import type { Scene } from './scene'
+import type { PaveTool, Scene } from './scene'
 
 const KEY_SPEED = 900 // пикселей экрана в секунду
 /** Во сколько раз быстрее камера с зажатым Shift. */
@@ -18,7 +18,8 @@ const CLICK_SLOP = 4
 const PICK_MARGIN = 6
 const LEFT = 0
 /** Почём тайл покрытия бывает: дорога по болоту — мост — дороже. Режим держится, пока хватает на самый дешёвый. */
-const PAVE_COSTS = { foundation: [FOUNDATION_COST], road: [ROAD_COST, BRIDGE_COST], peak: [PEAK_COST], cliff: [CLIFF_COST], pipe: [BUILDINGS.pipe.cost], well: [BUILDINGS.well.cost], wall: [BUILDINGS.wall.cost], gate: [BUILDINGS.gate.cost] } as const
+/** Цены того, что оплачивают сразу: покрытие и землеройные работы. Трубы, колодцы и стены — стройки, их платят по ходу. */
+const PAVE_COSTS: Partial<Record<PaveTool, readonly number[]>> = { foundation: [FOUNDATION_COST], road: [ROAD_COST, BRIDGE_COST], peak: [PEAK_COST], cliff: [CLIFF_COST] }
 const RIGHT = 2
 
 /**
@@ -469,10 +470,10 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
     }
     // Место выбирают выбранному своему MCV: его сняли с выбора или он уже разворачивается — выбор отменяется.
     if (scene.deploying !== null && (!scene.selection.has(scene.deploying) || !canSendDeploy(scene.sim, scene.player, scene.deploying))) scene.deploying = null
-    // Не хватает кредитов даже на одно здание или тайл покрытия — режим выбора выключается.
-    const credits = creditsOf(scene.sim, scene.player)
-    if (scene.placing && credits < BUILDINGS[scene.placing].cost) scene.placing = null
-    if (scene.paving && scene.paving !== 'remove' && credits < Math.min(...PAVE_COSTS[scene.paving])) scene.paving = null
+    // Не хватает кредитов даже на тайл покрытия — укладка выключается: её оплачивают сразу. Здания и всё, что строят
+    // как здание, закладывают и без кредитов — стройка подождёт их.
+    const prices = scene.paving ? PAVE_COSTS[scene.paving] : undefined
+    if (prices && creditsOf(scene.sim, scene.player) < Math.min(...prices)) scene.paving = null
     // Наводят готовую боеголовку выбранной своей шахты: шахту сняли с выбора, она пуста или пуск уже идёт — наводка кончается.
     if (scene.aiming !== null && (!scene.selection.has(scene.aiming) || !scene.sim.world.get(scene.aiming, Silo)?.ready)) scene.aiming = null
     // Патруль набирают бойцам: без них набор отменяется.

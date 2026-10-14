@@ -446,7 +446,6 @@
     "ferryEmpty": "The ship is empty: load cargo or money",
     "cancelDemolish": "Cancel dismantling",
     "cancelBuild": "Cancel construction",
-    "resumeBuild": "Resume",
     "demolishTip": "Builders dismantle the building; when they finish, half the price is refunded",
     "upgrade": "Level {level}",
     "upgradeTip": "Raise the level: {gain} ×{factor}. The price is paid at once, goods come from the building's network; builders do the work and the building keeps running",

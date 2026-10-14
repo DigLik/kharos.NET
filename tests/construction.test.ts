@@ -222,19 +222,18 @@ test('отмена разбирает недостроенное и возвра
   expect(sim.world.count(Builds)).toBe(0)
 })
 
-test('отмену стройки можно отменить: недостроенное строят дальше с того, до чего успели разобрать; площадку убирают сразу', () => {
+test('разбор отменённой стройки не отменить; площадку без начатой работы убирают сразу', () => {
   const { sim, builders, site } = start()
   sim.send(1, { type: 'build', building: 'generator', x: site.x, y: site.y, builders })
   seconds(sim, 8)
   const entity = sim.occupancy.at(site.x, site.y)!
   sim.send(1, { type: 'cancelBuild', site: entity })
   seconds(sim, 0.5)
-  const taken = sim.world.get(entity, Site)!.progress
+  const left = sim.world.get(entity, Site)!.progress
   sim.send(1, { type: 'cancelBuild', site: entity })
-  sim.advance(TICK)
-  expect(sim.world.get(entity, Site)).toMatchObject({ demolish: false, undo: false })
-  seconds(sim, 1)
-  expect(sim.world.get(entity, Site)!.progress).toBeGreaterThan(taken)
+  seconds(sim, 0.5)
+  expect(sim.world.get(entity, Site)).toMatchObject({ demolish: true, undo: true })
+  expect(sim.world.get(entity, Site)!.progress).toBeLessThan(left)
 
   // Площадка без начатой работы ничего не стоила — она исчезает сразу.
   sim.send(1, { type: 'build', building: 'generator', x: site.x, y: site.y + 4, builders: [] })

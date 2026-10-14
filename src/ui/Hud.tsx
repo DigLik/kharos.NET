@@ -10,6 +10,7 @@ import { buildingPortrait, pavePortrait, unitPortrait } from '../game/portraits'
 import { goodIcon } from '../game/goodIcons'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { RELIEF_BELOW, RELIEF_INCOME, REWARDS, resourceOf, type UnitType, type BuildingType, type Command, type Good, type Reward } from '../sim'
+import { markSeen } from './seen'
 import { GRID_KEYS, commandsOf, dealOf, keyLabel, type Deal, type FerryDraft, type Page, type Slot } from './commands'
 import { rich, t, type Key } from '../i18n'
 import { TechTree } from './TechTree'
@@ -1019,12 +1020,19 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
   }, [])
 
   // Границы зон на карте — пока курсор на кнопке здания. Слушаем окно, а не кнопку, как и подсказка: недоступная
-  // кнопка своих событий мыши не получает, а зону смотрят как раз тогда, когда строить не на что.
+  // кнопка своих событий мыши не получает, а зону смотрят как раз тогда, когда строить не на что. Новое под курсором
+  // становится знакомым: подсветка с него уходит, а с раздела — когда знакомо всё в нём.
+  const [, redraw] = useState(0)
   useEffect(() => {
     let shown = false
     const onMove = (event: PointerEvent) => {
       const card = event.target instanceof Element ? event.target.closest('.bar__grid [data-card]')?.getAttribute('data-card') : null
-      const next = card != null && !!slotsRef.current[Number(card)]?.zones
+      const slot = card != null ? slotsRef.current[Number(card)] : null
+      if (slot?.fresh && slot.seen) {
+        markSeen(slot.seen)
+        redraw((n) => n + 1)
+      }
+      const next = !!slot?.zones
       if (next !== shown) zones((shown = next))
     }
     window.addEventListener('pointermove', onMove)

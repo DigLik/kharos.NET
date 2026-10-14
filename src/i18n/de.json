@@ -446,7 +446,6 @@
     "ferryEmpty": "Das Schiff ist leer: Lege Fracht oder Geld hinein",
     "cancelDemolish": "Abbau abbrechen",
     "cancelBuild": "Bau abbrechen",
-    "resumeBuild": "Weiterbauen",
     "demolishTip": "Baufahrzeuge bauen das Gebäude ab; danach gibt es den halben Preis zurück",
     "upgrade": "Stufe {level}",
     "upgradeTip": "Stufe erhöhen: {gain} ×{factor}. Der Preis wird sofort abgezogen, die Güter kommen aus dem Netz des Gebäudes; Baufahrzeuge erledigen die Arbeit, das Gebäude läuft weiter",

@@ -446,7 +446,6 @@
     "ferryEmpty": "Kema bo‘sh: yuk yoki kredit soling",
     "cancelDemolish": "Buzishni bekor qilish",
     "cancelBuild": "Qurilishni bekor qilish",
-    "resumeBuild": "Davom etish",
     "demolishTip": "Binoni quruvchilar buzadi; tugatgach, narxining yarmi qaytadi",
     "upgrade": "Daraja {level}",
     "upgradeTip": "Darajani ko‘tarish: {gain} ×{factor}. Narx darhol to‘lanadi, tayyor mahsulot bino tarmog‘idan olinadi; ishni quruvchilar bajaradi, bino esa ishlashda davom etadi",

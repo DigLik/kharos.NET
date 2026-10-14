@@ -446,7 +446,6 @@
     "ferryEmpty": "A nave está vazia: coloque carga ou dinheiro",
     "cancelDemolish": "Cancelar desmontagem",
     "cancelBuild": "Cancelar construção",
-    "resumeBuild": "Retomar",
     "demolishTip": "Os construtores desmontam o edifício; ao terminar, metade do preço é devolvida",
     "upgrade": "Nível {level}",
     "upgradeTip": "Subir de nível: {gain} ×{factor}. O preço é cobrado na hora e os materiais saem da rede do edifício; os construtores fazem o trabalho e o edifício continua funcionando",

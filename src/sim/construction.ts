@@ -366,15 +366,14 @@ export function orderWalls(sim: Sim, player: number, tiles: readonly number[], b
  * Отменяет стройку. Площадка, к которой строитель ещё не приступил, исчезает сразу: за неё ничего не уплачено.
  * Недостроенное здание не исчезает, а разбирается, как готовое (undo): строители снимают построенное, и уплаченное
  * за него возвращается по ходу разбора (разбитое врагом не возвращается). Отмена разбора готового здания оставляет
- * его целым: денег за него ещё не выдавали; отмена разбора отменённой стройки — стройка идёт дальше с того, до чего
- * её успели разобрать.
+ * его целым: денег за него ещё не выдавали. Разбор отменённой стройки не отменить: недострой не может стать целым.
  */
 export function cancelBuild(sim: Sim, player: number, site: Entity) {
   if (!isOwnSite(sim, player, site)) return false
   const { demolish, undo } = sim.world.get(site, Site)!
+  if (undo) return false
   if (demolish) {
-    if (undo) sim.world.set(site, Site, { demolish: false, undo: false })
-    else sim.world.remove(site, Site)
+    sim.world.remove(site, Site)
     return true
   }
   if (sim.world.has(site, Building)) {
