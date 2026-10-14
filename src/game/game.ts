@@ -105,6 +105,8 @@ export interface Game {
   patrol(start: boolean): void
   /** Начинает наводку ядерного удара готовой боеголовкой шахты; null — отменяет. */
   aim(silo: number | null): void
+  /** Начинает выбор места, где MCV развернётся; null — отменяет. */
+  deploy(mcv: number | null): void
   /** Мини-карта нижней панели. */
   readonly minimap: Minimap
   /** Ставит центр экрана в точку карты, в тайлах. */
@@ -147,6 +149,7 @@ export function createScene(sim: Sim, player: number, settings: MapSettings, cam
     serving: null,
     patrolling: false,
     aiming: null,
+    deploying: null,
     grid: false,
     zonesHeld: false,
     zonesHover: false,
@@ -360,6 +363,7 @@ export function createGame(
       generation = session.sim.generation
       scene.selection.clear()
       scene.placing = null
+      scene.deploying = null
       scene.paving = null
       scene.paveFrom = null
       scene.routing = null
@@ -440,7 +444,7 @@ export function createGame(
     send: (command) => scene.sim.send(scene.player, command),
     place(building) {
       scene.placing = building
-      if (building) scene.paving = null
+      if (building) scene.paving = scene.deploying = null
     },
     say(text) {
       session.sim.say?.(text)
@@ -454,27 +458,34 @@ export function createGame(
     },
     patrol(start) {
       scene.patrolling = start
-      if (start) scene.placing = scene.paving = scene.routing = scene.serving = scene.aiming = null
+      if (start) scene.placing = scene.paving = scene.routing = scene.serving = scene.aiming = scene.deploying = null
     },
     aim(silo) {
       scene.aiming = silo as Entity | null
       if (silo !== null) {
-        scene.placing = scene.paving = scene.routing = scene.serving = null
+        scene.placing = scene.paving = scene.routing = scene.serving = scene.deploying = null
+        scene.patrolling = false
+      }
+    },
+    deploy(mcv) {
+      scene.deploying = mcv as Entity | null
+      if (mcv !== null) {
+        scene.placing = scene.paving = scene.routing = scene.serving = scene.aiming = null
         scene.patrolling = false
       }
     },
     route(start) {
       scene.routing = start ? [] : null
-      if (start) scene.placing = scene.paving = scene.serving = null
+      if (start) scene.placing = scene.paving = scene.serving = scene.deploying = null
     },
     serve(start) {
       scene.serving = start ? [] : null
-      if (start) scene.placing = scene.paving = scene.routing = null
+      if (start) scene.placing = scene.paving = scene.routing = scene.deploying = null
     },
     pave(tool) {
       scene.paving = tool
       scene.paveFrom = null
-      if (tool) scene.placing = null
+      if (tool) scene.placing = scene.deploying = null
     },
     zones(shown) {
       scene.zonesHover = shown

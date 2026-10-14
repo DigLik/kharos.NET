@@ -32,6 +32,8 @@ interface HudProps {
   patrol: (start: boolean) => void
   /** Начать наводку ядерного удара шахтой или бросить её (null). */
   aim: (silo: number | null) => void
+  /** Начать выбор места, где развернуть MCV, или бросить его (null). */
+  deploy: (mcv: number | null) => void
   minimap: Minimap
   /** Камера в точку карты, в тайлах: сразу. */
   lookAt: (x: number, y: number) => void
@@ -855,7 +857,9 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
           <div class="hud__hint">{t('hud.builderTip')}</div>
         )}
         {/* MCV: что с ним делать — новому игроку это первый вопрос. */}
-        {conversion?.kind === 'deploy' && conversion.progress === null && <div class="hud__hint">{t('hud.mcvTip')}</div>}
+        {conversion?.kind === 'deploy' && conversion.progress === null && (
+          <div class="hud__hint">{conversion.choosing ? t('hud.deployPlacingTip') : conversion.traveling ? t('hud.deployTravel') : t('hud.mcvTip')}</div>
+        )}
         {construction?.placing && <div class="hud__hint">{t('hud.placingTip')}</div>}
       </div>
     </div>
@@ -863,7 +867,7 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
 }
 
 /** Интерфейс игрока: верхняя полоса со счётом и нижняя панель — мини-карта, выбранное, сетка команд. */
-export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim, minimap, lookAt, flyTo, lookAtSelection, narrow, moveSelected, say, menu }: HudProps) {
+export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim, deploy, minimap, lookAt, flyTo, lookAtSelection, narrow, moveSelected, say, menu }: HudProps) {
   const selected = state.units.length > 0 || state.building !== null
   const fresh = useNewRewards(state.rewards, state.loaded)
 
@@ -884,7 +888,7 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
   const self = state.players.find(({ own }) => own)
   const dealing = trade && !trade.order && deal && (page === 'sell' || page === 'buy') ? dealOf(trade, state.credits, page === 'buy', deal) : null
 
-  const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, patrol, aim, open: setPage, pick: setDeal, draft: setFerry, tech: () => setTech(true) }, deal, ferry) : []
+  const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, patrol, aim, deploy, open: setPage, pick: setDeal, draft: setFerry, tech: () => setTech(true) }, deal, ferry) : []
 
   // Клавиши сетки. Читаются из ref, чтобы не переподписываться на каждое обновление.
   const slotsRef = useRef(slots)

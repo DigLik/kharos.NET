@@ -90,6 +90,8 @@ interface Actions {
   patrol: (start: boolean) => void
   /** Начать наводку ядерного удара шахтой или бросить её (null). */
   aim: (silo: number | null) => void
+  /** Начать выбор места, где развернуть MCV, или бросить его (null). */
+  deploy: (mcv: number | null) => void
   open: (page: Page) => void
   /** Набрать сделку космопорта или бросить её (null). */
   pick: (deal: Deal | null) => void
@@ -173,7 +175,7 @@ export function dealOf(trade: NonNullable<HudState['trade']>, credits: number, b
 export function commandsOf(
   state: HudState,
   page: Page,
-  { send, place, pave, route, serve, patrol, aim, open, pick, draft, tech }: Actions,
+  { send, place, pave, route, serve, patrol, aim, deploy, open, pick, draft, tech }: Actions,
   deal: Deal | null = null,
   ferry: FerryDraft | null = null,
 ): (Slot | null)[] {
@@ -318,16 +320,20 @@ export function commandsOf(
   }
 
   if (conversion) {
+    // MCV разворачивают как строят: кнопка включает выбор места, он доедет туда сам.
+    const mcv = conversion.command.type === 'deploy' ? conversion.command.unit : null
     if (conversion.progress === null) {
       slots[CONVERT] = {
         label: conversion.kind === 'deploy' ? t('grid.deploy') : t('grid.pack'),
         building: 'command',
         about: conversion.kind === 'deploy' ? t('buildingInfo.command') : undefined,
         disabled: !conversion.possible,
-        title: conversion.possible ? undefined : t('grid.deployBlocked'),
-        run: () => send(conversion.command),
+        active: conversion.choosing,
+        title: mcv !== null ? t('grid.deployTip') : undefined,
+        run: () => (mcv !== null ? deploy(conversion.choosing ? null : mcv) : send(conversion.command)),
       }
-    } else if (conversion.cancel) {
+    }
+    if ((conversion.progress !== null || conversion.traveling) && conversion.cancel) {
       const cancel = conversion.cancel
       slots[CANCEL] = { label: t('grid.cancel'), run: () => send(cancel) }
     }

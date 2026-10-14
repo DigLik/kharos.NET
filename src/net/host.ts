@@ -1,7 +1,7 @@
 import { applyEdit, type EditOp } from '../sim/editOps'
 import type { Entity } from '../ecs'
 import { Terrain, terrainAt, tileBytes } from '../map/terrain'
-import { UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownBy, sightingOf, allied, alliesOf, breakAlliance, exitAlliance, offerAlliance, giftable, spawnStartingUnits, wipePlayer, type Command, type Sim, type Sighting, type SimSave } from '../sim'
+import { BUILDINGS, CORE, canPlace, UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownBy, sightingOf, allied, alliesOf, breakAlliance, exitAlliance, offerAlliance, giftable, spawnStartingUnits, wipePlayer, type Command, type Sim, type Sighting, type SimSave } from '../sim'
 import { Armed, Attached, Blast, Building, Burst, Doomed, Gate, Glare, Health, Interceptor, Mark, Owner, Path, Player, Position, Scan, Shield, Shot, Silo, Transfer, Unit } from '../sim/components'
 import { pathOf, rememberedWire, seenBy, sharedWireOf, type Wired } from './wire'
 import { LAND, POSITION, encodeDelta, type Motion, type ShotRecord } from './codec'
@@ -10,6 +10,7 @@ import { DEPOSIT_TYPES, fillDeposits, knowsDeposit, saveDeposits } from '../sim/
 import { knownEdits, pristineLand, takeLearned } from '../sim/landMemory'
 import { knownPaving, takePaveChanges, takePaveLearned } from '../sim/paveMemory'
 import { forgetBuildings } from '../sim/buildMemory'
+import { inForeignZone } from '../sim/zones'
 import { savePaving } from '../sim/paved'
 import type { ServerData } from './protocol'
 import { TRACE_CELL, type Trace } from '../sim/traces'
@@ -1090,7 +1091,10 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
           for (let dx = -SPAWN_AREA; dx <= SPAWN_AREA; dx++) if (terrainAt(sim.land, x + dx, y + dy) === Terrain.Rock) rock++
         }
         // Обрывы не должны запирать базу: технике надо куда-то выехать.
-        if (rock >= SPAWN_ROCK && notWalledIn(sim, x, y)) return { x, y }
+        if (rock < SPAWN_ROCK || !notWalledIn(sim, x, y)) continue
+        // MCV встаёт ровно в точку: развернуться он должен сразу, не ища места.
+        const site = { x: x - Math.floor(BUILDINGS[CORE].width / 2), y: y - Math.floor(BUILDINGS[CORE].height / 2) }
+        if (canPlace(sim, CORE, site.x, site.y) && !inForeignZone(sim, 0, site.x, site.y, BUILDINGS[CORE].width, BUILDINGS[CORE].height)) return { x, y }
       }
     }
     return undefined

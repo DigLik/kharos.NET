@@ -5,7 +5,7 @@ import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'
 import type { Entity } from '../../ecs'
 import {
-  Armed, Attached, Building, Ghost, Owner, Position, TURN, TURRET_TYPES, Turret, UNIT_TYPES, Unit, WEAPONS, alliesOf, flies, weaponOf, wrap, type ShotKind, type TurretType,
+  Armed, Attached, Building, Converting, Ghost, Owner, Position, TURN, TURRET_TYPES, Turret, UNIT_TYPES, Unit, WEAPONS, alliesOf, flies, weaponOf, wrap, type ShotKind, type TurretType,
   type UnitType,
 } from '../../sim'
 import type { Scene } from '../scene'
@@ -192,8 +192,12 @@ export function createUnitsPasses(gl: WebGL2RenderingContext, scene: Scene, art:
             const batch = owner.player ? sprites : neutral
             const phase = phaseOf(entity, unit.type, x, y)
             const { u, v, width: frameWidth, height: frameHeight } = framesOf(unit.type, phase)[direction]
-            shadows.push(left + shadowShift, top + shadowShift, SPRITE_TILES, SPRITE_TILES, u, v, frameWidth, frameHeight, 0, 0, 0, shadowAlpha, 0)
-            batch.push(left, top, SPRITE_TILES, SPRITE_TILES, u, v, frameWidth, frameHeight, ...tint(ghost), TEAM_NAMES.indexOf(team))
+            // Разворачивающийся MCV тает, пока на его месте растёт главное здание, см. buildingsPass.
+            const converting = world.get(entity, Converting)
+            const fade = converting ? Math.max(0, Math.min(1, (converting.left - time.alpha) / converting.total)) : 1
+            const [r, g, b, a] = tint(ghost)
+            shadows.push(left + shadowShift, top + shadowShift, SPRITE_TILES, SPRITE_TILES, u, v, frameWidth, frameHeight, 0, 0, 0, shadowAlpha * fade, 0)
+            batch.push(left, top, SPRITE_TILES, SPRITE_TILES, u, v, frameWidth, frameHeight, r * fade, g * fade, b * fade, a * fade, TEAM_NAMES.indexOf(team))
           }
         }
         // Турели — поверх всех юнитов слоя: на своём носителе они должны лежать сверху.

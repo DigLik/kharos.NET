@@ -5,8 +5,8 @@ import { knownReserve } from './knownReserve'
 import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
-  armyOf, overLimit, Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
-  awaitsMaterials, buildTicks, canDemolish, freeCredits, canFight, canDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, idlePowerOf, overloadOf, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridOf, gridsOf, RELIEF_BELOW,
+  armyOf, overLimit, Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Deploys, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
+  awaitsMaterials, buildTicks, canDemolish, freeCredits, canFight, canSendDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, idlePowerOf, overloadOf, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, zoneEconomies, gridOf, gridsOf, RELIEF_BELOW,
   Research, TOPICS, PAVE_RESEARCH, DIG_KINDS, DIG_RESEARCH, type DigKind, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, pickTopic, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   type Economy, Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
@@ -282,6 +282,10 @@ export interface HudState {
     progress: number | null
     /** MCV готов развернуться, но под будущим зданием стоят юниты. */
     blocked: boolean
+    /** Игрок выбирает место, где развернуть этот MCV. */
+    choosing: boolean
+    /** MCV едет к выбранному месту, чтобы там развернуться. */
+    traveling: boolean
     /** Команда отмены, если идущее превращение можно отменить. */
     cancel: Command | null
   } | null
@@ -848,10 +852,12 @@ export function readHud(scene: Scene): HudState {
   if (!many && (isUnit || world.get(entity, Building)?.type === CORE)) state.conversion = {
     kind: isUnit ? 'deploy' : 'pack',
     command: isUnit ? { type: 'deploy', unit: entity } : { type: 'pack', building: entity },
-    possible: isUnit ? canDeploy(sim, player, entity) : canPack(sim, player, entity),
+    possible: isUnit ? canSendDeploy(sim, player, entity) : canPack(sim, player, entity),
     progress: converting ? round(1 - converting.left / converting.total) : null,
     blocked: isDeployBlocked(sim, entity),
-    cancel: converting && isUnit ? { type: 'cancelDeploy', unit: entity } : null,
+    choosing: scene.deploying === entity,
+    traveling: !converting && world.has(entity, Deploys),
+    cancel: isUnit && (converting || world.has(entity, Deploys)) ? { type: 'cancelDeploy', unit: entity } : null,
   }
 
   // Видна и отменяется очередь самого занятого из выбранных: заказы, наоборот, идут наименее занятому.

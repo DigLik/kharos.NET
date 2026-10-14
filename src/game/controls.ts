@@ -1,5 +1,5 @@
 import type { Entity } from '../ecs'
-import { type BuildingType, Building, Site, Producer, Hauler, type UnitType, Owner, Position, isOwn, UNITS, Unit, canFight, isStop, siteAt, BUILDINGS, BRIDGE_COST, CLIFF_COST, FOUNDATION_COST, PEAK_COST, ROAD_COST, Silo, creditsOf, type DigKind } from '../sim'
+import { type BuildingType, Building, Site, Producer, Hauler, type UnitType, Owner, Position, isOwn, UNITS, Unit, canFight, isStop, siteAt, BUILDINGS, BRIDGE_COST, CLIFF_COST, FOUNDATION_COST, PEAK_COST, ROAD_COST, Silo, canSendDeploy, creditsOf, type DigKind } from '../sim'
 import type { CameraMotion } from './cameraMotion'
 import { DENIED } from './interfaceSounds'
 import { paveStrokeOf, placementOf } from './placing'
@@ -169,7 +169,7 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
   }
   /** Тянет рамку от угла на карте до указателя. */
   const stretchBox = () => {
-    if (!pressed?.dragged || !anchor || !camera.pointer || scene.placing || scene.paving) return
+    if (!pressed?.dragged || !anchor || !camera.pointer || scene.placing || scene.paving || scene.deploying !== null) return
     const to = camera.screenToTile(camera.pointer.x, camera.pointer.y)
     scene.selectionBox = { fromX: anchor.x, fromY: anchor.y, toX: to.x, toY: to.y, hits: boxHits(anchor.x, anchor.y, to.x, to.y) }
   }
@@ -249,6 +249,14 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
           } else if (tool !== 'peak' && tool !== 'cliff') scene.sim.send(scene.player, tool === 'remove' ? { type: 'unpave', tiles, builders, queue } : tool === 'pipe' ? { type: 'pipes', tiles, builders, queue } : tool === 'wall' || tool === 'gate' ? { type: 'walls', tiles, builders, queue, ...(tool === 'gate' && { gate: true }) } : { type: 'pave', kind: tool, tiles, builders, queue })
         }
       }
+    } else if (scene.deploying !== null) {
+      // Место для MCV: щелчок — он едет туда и разворачивается, выбор кончается; правая кнопка — отмена.
+      if (button === RIGHT && !dragged) scene.deploying = null
+      const placement = button === LEFT && !dragged ? placementOf(scene) : null
+      if (placement?.allowed) {
+        scene.sim.send(scene.player, { type: 'deploy', unit: scene.deploying!, x: placement.x, y: placement.y })
+        scene.deploying = null
+      } else if (placement) window.dispatchEvent(new Event(DENIED))
     } else if (scene.placing) {
       if (button === RIGHT && !dragged) scene.placing = null
       const placement = button === LEFT && !dragged ? placementOf(scene) : null
@@ -348,12 +356,13 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
       for (const entity of scene.selection) fighters ||= canFight(scene.sim, entity)
       if (fighters) {
         scene.patrolling = true
-        scene.placing = scene.paving = scene.routing = scene.serving = null
+        scene.placing = scene.paving = scene.routing = scene.serving = scene.deploying = null
       }
     }
     if (event.code === 'Escape') {
       // Сначала отменяется выбор места, и только следующим нажатием — выделение.
       if (scene.aiming !== null) scene.aiming = null
+      else if (scene.deploying !== null) scene.deploying = null
       else if (scene.patrolling) scene.patrolling = false
       else if (scene.routing) scene.routing = null
       else if (scene.serving) scene.serving = null
@@ -452,6 +461,8 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
       for (const entity of scene.selection) builders ||= scene.sim.world.get(entity, Unit)?.type === 'builder'
       if (!builders) scene.placing = null
     }
+    // Место выбирают выбранному своему MCV: его сняли с выбора или он уже разворачивается — выбор отменяется.
+    if (scene.deploying !== null && (!scene.selection.has(scene.deploying) || !canSendDeploy(scene.sim, scene.player, scene.deploying))) scene.deploying = null
     // Не хватает кредитов даже на одно здание или тайл покрытия — режим выбора выключается.
     const credits = creditsOf(scene.sim, scene.player)
     if (scene.placing && credits < BUILDINGS[scene.placing].cost) scene.placing = null

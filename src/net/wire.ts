@@ -1,5 +1,5 @@
 import type { Component, Entity, World } from '../ecs'
-import { Accumulator, Armed, Assembly, Attached, Blast, Builds, Burst, Chaser, Drop, Hauler, Health, Interceptor, Inventory, Mark, Missile, Owner, Path, Position, Producer, Reactor, Repair, Scan, Shot, Silo, SAVED, Tactics, Trade, Turret, Unit } from '../sim/components'
+import { Accumulator, Armed, Assembly, Attached, Blast, Builds, Burst, Converting, Deploys, Chaser, Drop, Hauler, Health, Interceptor, Inventory, Mark, Missile, Owner, Path, Position, Producer, Reactor, Repair, Scan, Shot, Silo, SAVED, Tactics, Trade, Turret, Unit } from '../sim/components'
 import { quantize, type Motion } from './codec'
 
 /** До скольких знаков после запятой округляются дробные числа в сети: тысячная тайла глазу не видна. */
@@ -60,10 +60,10 @@ export interface Wired {
 }
 
 /**
- * Что о своём знает только хозяин: склад, очередь производства, работа грузовиков, копателей и строителей, сборка,
+ * Что о своём знает только хозяин: склад, очередь производства, работа грузовиков, копателей и строителей, куда едет разворачиваться MCV, сборка,
  * торговля, тактика, куда смотрит радар, заряжен ли перехватчик. Чужому это незачем рисовать, а знать — нечестно.
  */
-const PRIVATE = new Set([Inventory, Producer, Hauler, Assembly, Trade, Tactics, Builds, Repair, Scan, Accumulator, Reactor, Interceptor].map((component) => component.key))
+const PRIVATE = new Set([Inventory, Producer, Hauler, Assembly, Trade, Tactics, Builds, Deploys, Repair, Scan, Accumulator, Reactor, Interceptor].map((component) => component.key))
 
 /**
  * Сущность глазами игрока viewer: своё и ничьё — целиком, чужое — без PRIVATE и без цели стрелка; у чужой шахты —
@@ -73,7 +73,8 @@ export function seenBy(wired: Wired, viewer: number): Wired {
   if (wired.owner === undefined || wired.owner === 0 || wired.owner === viewer) return wired
   if (!wired.foreign) {
     const parts = new Map(wired.parts)
-    for (const key of PRIVATE) if (!(key === Inventory.key && wired.drop)) parts.delete(key)
+    // Куда едет чужой MCV — тайна, но где он уже разворачивается, видно всем: там растёт здание.
+    for (const key of PRIVATE) if (!(key === Inventory.key && wired.drop) && !(key === Deploys.key && parts.has(Converting.key))) parts.delete(key)
     // В кого целится стрелок, знает только хозяин: чужой узнал бы это раньше выстрела.
     const armed = parts.get(Armed.key)
     if (armed) {

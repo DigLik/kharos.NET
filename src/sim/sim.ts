@@ -19,7 +19,7 @@ import { unitSpec } from './units'
 import type { Entity } from '../ecs'
 import { REPAIR_COST, REPAIR_PAUSE, REPAIR_SPEED, construct } from './construction'
 import { chargeShields } from './shields'
-import { convert } from './conversion'
+import { convert, deployOrders } from './conversion'
 import { haul } from './hauling'
 import { pipeFlow } from './pipes'
 import { markBusy } from './busy'
@@ -246,6 +246,8 @@ export function createSim(source: SimOptions | SimSave): Sim {
     tick: 'tick' in source ? source.tick : 0,
     update: [
       commands,
+      // До превращений: доехавший MCV начинает разворачиваться в этот же тик.
+      () => deployOrders(sim),
       () => convert(sim),
       // До энергии зон: реакторы берут стержни, и горящий уже даёт энергию в этот тик.
       () => burnFuel(sim),

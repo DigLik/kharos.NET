@@ -5,7 +5,7 @@ import { FACING, MOTION_FIELDS, POSITION, SPAN_MOST, decodeDelta, encodeDelta } 
 import { decodeServer } from '../src/net/protocol'
 import type { WeaponType } from '../src/sim/weapons'
 import { createReplica, type Replica } from '../src/net/replica'
-import { Armed, Building, Ghost, Health, Inventory, NO_PAVE, Owner, Path, Player, Position, Producer, Unit, createSim, isWalkable, paveCode, shownTo } from '../src/sim'
+import { Armed, Building, Ghost, Health, Inventory, NO_PAVE, Owner, Path, Player, Position, Producer, Unit, canDeploy, createSim, isWalkable, paveCode, shownTo } from '../src/sim'
 import { SAVED, Scan } from '../src/sim/components'
 import { connectAll } from '../src/sim/piping'
 import { wireOf } from '../src/net/wire'
@@ -637,4 +637,17 @@ test('вспышки радара видит только хозяин: его �
   // Куда смотрит чужой радар, сосед не знает, даже видя сам радар.
   expect(wireOf(world as never, radar as never, 2, 0).parts.has(Scan.key)).toBe(false)
   expect(wireOf(world as never, radar as never, 1, 0).parts.has(Scan.key)).toBe(true)
+})
+
+test('новый игрок появляется там, где MCV сразу развернётся', () => {
+  const sim = createSim({ generator: DEFAULT_CONFIG, size: 1024 })
+  const host = createHost(sim)
+  for (let i = 0; i < 30; i++) host.join(() => {})
+  let mcvs = 0
+  for (const [entity, unit, owner] of sim.world.query(Unit, Owner)) {
+    if (unit.type !== 'mcv') continue
+    mcvs++
+    expect(canDeploy(sim, owner.player, entity)).toBe(true)
+  }
+  expect(mcvs).toBe(30)
 })

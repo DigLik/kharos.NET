@@ -1,5 +1,5 @@
 import { peakOf, tileKey } from '../map/terrain'
-import { BUILDINGS, DEPOSIT_SIZE, Owner, Pave, PAVE_LIMIT, digsIn, paveOwnerAt, peakTiles, type DigKind, canBuild, canPlace, canPave, creditsOf, depositNear, freeCredits, paveCost, buildingWithin, pipeAt, pipeStroke, wallStroke, isWellPair, wellsKept, UNDERGROUND_REACH, type BuildingSpec, type BuildingType } from '../sim'
+import { BUILDINGS, CORE, canDeployAt, DEPOSIT_SIZE, Owner, Pave, PAVE_LIMIT, digsIn, paveOwnerAt, peakTiles, type DigKind, canBuild, canPlace, canPave, creditsOf, depositNear, freeCredits, paveCost, buildingWithin, pipeAt, pipeStroke, wallStroke, isWellPair, wellsKept, UNDERGROUND_REACH, type BuildingSpec, type BuildingType } from '../sim'
 import type { PaveTool, Scene } from './scene'
 
 /** Где встанет здание, которое игрок сейчас выбирает место: левый верхний тайл основания и годится ли место. */
@@ -14,13 +14,21 @@ export interface Placement {
 const SNAP = 3
 
 /**
- * Место под выбранное здание: основание стоит серединой под указателем мыши. Шахта притягивается
- * к месторождению рядом с указателем: попадать в него тайл в тайл не нужно. Вне режима выбора места — null.
+ * Место под выбранное здание или под главное здание, которым развернётся MCV: основание стоит серединой под
+ * указателем мыши. Шахта притягивается к месторождению рядом с указателем: попадать в него тайл в тайл не нужно.
+ * Вне режима выбора места — null.
  */
 export function placementOf(scene: Scene): Placement | null {
-  const type = scene.placing
   const tile = scene.camera.pointerTile
-  if (!type || !tile) return null
+  if (!tile) return null
+  // Место для MCV — то же главное здание серединой под указателем; годится — где он сможет развернуться.
+  if (scene.deploying !== null) {
+    const x = tile.x - Math.floor(BUILDINGS[CORE].width / 2)
+    const y = tile.y - Math.floor(BUILDINGS[CORE].height / 2)
+    return { type: CORE, x, y, allowed: canDeployAt(scene.sim, scene.player, scene.deploying, x, y) }
+  }
+  const type = scene.placing
+  if (!type) return null
   const { width, height, extract }: BuildingSpec = BUILDINGS[type]
   let x = tile.x - Math.floor(width / 2)
   let y = tile.y - Math.floor(height / 2)

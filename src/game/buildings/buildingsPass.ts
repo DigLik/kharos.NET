@@ -4,7 +4,7 @@ import { uploadAtlas, type AtlasFrame, type PackedAtlas, type Sprite } from '../
 import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'
 import type { Entity } from '../../ecs'
-import { Assembly, BUILDINGS, BUILDING_TYPES, Building, Interceptor, Inventory, Owner, Position, Reactor, Research, Silo, Site, amountOf, buildingSpec, isBurning, isOpenGate, isPipe, loadedPlants, shutDown, siteTicks, type BuildingType } from '../../sim'
+import { Assembly, BUILDINGS, BUILDING_TYPES, Building, CORE, Converting, Deploys, Interceptor, Unit, deploySite, Inventory, Owner, Position, Reactor, Research, Silo, Site, amountOf, buildingSpec, isBurning, isOpenGate, isPipe, loadedPlants, shutDown, siteTicks, type BuildingType } from '../../sim'
 import { placementOf } from '../placing'
 import type { Scene } from '../scene'
 import { ART_FRAMES, ART_TILE, BUILDING_ART, GATE_OPEN_VARIANT, SILO_DOOR_STEPS, SILO_RISE_STEPS, WALL_CONNECTION, type BuildingArt } from './buildingArt'
@@ -37,6 +37,8 @@ const BLUEPRINT = [0.3, 0.6, 1, 0.4] as const
 const SWITCHED_OFF = [0.55, 0.57, 0.62, 1] as const
 const GHOST = [0.7, 0.7, 0.7, 0.7] as const
 const GHOST_FORBIDDEN = [0.7, 0.14, 0.1, 0.7] as const
+/** Место, куда едет разворачиваться свой MCV: призрак бледнее выбираемого, чтобы не путать их. */
+const PLANNED = [0.4, 0.4, 0.4, 0.4] as const
 
 /** Огонь чертежа: место в пикселях спрайта и яркость в каждом кадре. */
 interface ArtLight {
@@ -163,6 +165,8 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene, ar
       const pad = PAD / ART_TILE
 
       const { world, time: simTime } = scene.sim
+      /** Какая доля превращения ещё впереди, плавно между тиками. */
+      const remainingOf = (converting: { left: number; total: number }) => Math.max(0, Math.min(1, (converting.left - simTime.alpha) / converting.total))
       if (plantsOf !== scene.sim || Math.abs(time - plantsAt) >= PLANTS_EVERY) {
         plants = loadedPlants(scene.sim)
         plantsAt = time
@@ -244,15 +248,25 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene, ar
           working = time < state.until
         }
         const off = shutDown(scene.sim, scene.player, entity)
-        see(position, building.type, building.phase, site ? site.progress / siteTicks(site.type, simTime.step) : 1, working && !off, !world.get(entity, Owner)?.player, entity, off)
+        // Сворачивающееся главное здание уходит сверху вниз, как стройка наоборот: в конце от него остаётся MCV.
+        const packing = world.get(entity, Converting)
+        const built = site ? site.progress / siteTicks(site.type, simTime.step) : packing ? remainingOf(packing) : 1
+        see(position, building.type, building.phase, built, working && !off && !packing, !world.get(entity, Owner)?.player, entity, off)
       }
       // Площадки, к которым строитель ещё не приступил: здания на них пока нет.
       for (const [entity, position, site] of world.query(Position, Site)) {
         if (!world.has(entity, Building)) see(position, site.type, 0, 0)
       }
+      // Разворачивающийся MCV: главное здание растёт на своём месте снизу вверх, как стройка, а сам MCV тает.
+      for (const [entity, converting] of world.query(Converting, Unit)) see(deploySite(scene.sim, entity), CORE, 0, 1 - remainingOf(converting))
       if (step % 64 === 0) for (const entity of activity.keys()) if (!world.has(entity, Building)) activity.delete(entity)
       const placement = placementOf(scene)
-      if (!visible.length && !placement) return
+      // Куда едут разворачиваться свои MCV: место видно призраком, пока они в пути.
+      const planned: { x: number; y: number }[] = []
+      for (const [entity, deploys, owner] of world.query(Deploys, Owner)) {
+        if (owner.player === scene.player && !world.has(entity, Converting)) planned.push(deploys)
+      }
+      if (!visible.length && !placement && !planned.length) return
       // Нижние здания рисуются позже и перекрывают верхние.
       visible.sort((a, b) => a.bottom - b.bottom)
 
@@ -298,6 +312,11 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene, ar
 
       // Призрак выбираемого места — поверх всех зданий, своим слоем: тенью от лучей он не служит.
       ghosts.clear()
+      for (const { x, y } of planned) {
+        const sheet = sheets.get(CORE)![0]
+        const { u, v, width: frameWidth, height: frameHeight } = sheet.frames[step % ART_FRAMES]
+        ghosts.push(x - pad - camera.x, y - pad - camera.y, sheet.art.width + pad * 2, sheet.art.height + pad * 2, u, v, frameWidth, frameHeight, ...PLANNED)
+      }
       if (placement) {
         const sheet = sheets.get(placement.type)![0]
         const { u, v, width: frameWidth, height: frameHeight } = sheet.frames[step % ART_FRAMES]

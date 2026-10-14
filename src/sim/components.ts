@@ -90,6 +90,12 @@ export const Producer = component('Producer', () => ({ queue: [] as UnitType[], 
 export const Converting = component('Converting', { left: 0, total: 0 })
 
 /**
+ * MCV послан развернуться в другом месте: едет туда и разворачивается, см. deployOrders. x, y — левый верхний тайл
+ * основания главного здания; misses — сколько раз подряд не вышло подъехать. Остаётся и пока он разворачивается.
+ */
+export const Deploys = component('Deploys', { x: 0, y: 0, misses: 0 })
+
+/**
  * Стройка. Пока строитель не начал работу, это только площадка: у сущности нет компонента Building,
  * она не занимает тайлы и сквозь неё ходят. С началом работы появляется Building, а Site остаётся до конца стройки.
  * progress — сколько тиков работы одного строителя уже вложено. demolish — здание не строят, а разбирают:
@@ -410,4 +416,4 @@ export const Dig = component('Dig', { kind: 'peak' as 'peak' | 'cliff', cost: 0,
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Busy, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare, Dig]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Deploys, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Busy, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare, Dig]

@@ -4,9 +4,9 @@ import { ping } from './pings'
 import { BUILDINGS, type BuildingType } from './buildings'
 import { orderAttack, stopAttack } from './combat'
 import { isOwn } from './common'
-import { Builds, Building, Producer, Unit } from './components'
+import { Builds, Building, Converting, Deploys, Producer, Unit } from './components'
 import { assignBuilders, cancelBuild, demolish, orderBuild, orderWalls, workIn } from './construction'
-import { DEPLOY_SECONDS, PACK_SECONDS, canDeploy, canPack, cancelDeploy, startConverting } from './conversion'
+import { DEPLOY_SECONDS, PACK_SECONDS, canDeploy, canPack, cancelDeploy, orderDeploy, startConverting } from './conversion'
 import { assignHaulers, assignPickup, assignSupply, releaseHauler } from './hauling'
 import { setReserve } from './logistics'
 import { clearOrders, isBusyBuilder, queueOrder, unitsOf } from './orders'
@@ -46,8 +46,11 @@ export type Command = (
   | { type: 'move'; units: number[]; x: number; y: number }
   /** Точка сбора своего производящего здания: готовые юниты едут к тайлу (x, y). */
   | { type: 'rally'; building: number; x: number; y: number }
-  /** Развернуть свой MCV в главное здание на месте. */
-  | { type: 'deploy'; unit: number }
+  /**
+   * Развернуть свой MCV в главное здание: с x, y — доехать до места с этим левым верхним тайлом основания
+   * и развернуться там, без них — на месте.
+   */
+  | { type: 'deploy'; unit: number; x?: number; y?: number }
   | { type: 'cancelDeploy'; unit: number }
   /** Свернуть своё главное здание обратно в MCV. */
   | { type: 'pack'; building: number }
@@ -192,7 +195,12 @@ function accept(sim: Sim, player: number, command: Command): boolean {
   const done = run(sim, player, command)
   // Принятый приказ без Shift забывает очередь; негодный её не трогает. Стойка и фильтр груза — не приказы, а настройки.
   // Стройка из меню очередь не трогает: занятым строителям она сама встаёт в конец.
-  if (done && command.type !== 'stance' && command.type !== 'filter' && command.type !== 'build') clearOrders(sim, unitsOf(command).filter((entity) => isOwn(sim, player, entity)))
+  if (done && command.type !== 'stance' && command.type !== 'filter' && command.type !== 'build') {
+    const own = unitsOf(command).filter((entity) => isOwn(sim, player, entity))
+    clearOrders(sim, own)
+    // Другой приказ MCV отменяет поездку на разворачивание.
+    for (const entity of own) if (!sim.world.has(entity, Converting)) sim.world.remove(entity, Deploys)
+  }
   return done
 }
 
@@ -344,6 +352,8 @@ function run(sim: Sim, player: number, command: Command): boolean {
     }
     case 'deploy': {
       const unit = command.unit as Entity
+      // С местом — ехать туда и развернуться; без него — на месте, как раньше.
+      if (command.x !== undefined || command.y !== undefined) return isTile(command.x, command.y) && orderDeploy(sim, player, unit, command.x!, command.y!)
       if (!canDeploy(sim, player, unit)) return false
       startConverting(sim, unit, DEPLOY_SECONDS)
       return true

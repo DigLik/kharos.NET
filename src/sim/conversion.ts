@@ -2,10 +2,10 @@ import type { Entity } from '../ecs'
 import { BUILDINGS, CORE, canPlace, placeBuilding } from './buildings'
 import { clearDrops } from './drops'
 import { isOwn, onTurn, ownerOf } from './common'
-import { Building, Converting, Health, Path, Position, Producer, Unit } from './components'
+import { Building, Converting, Deploys, Health, Path, Position, Producer, Unit } from './components'
 import { reward } from './economy'
 import type { Sim } from './sim'
-import { clearGround, spawnUnit } from './units'
+import { clearGround, inBounds, orderMove, spawnUnit } from './units'
 import { inForeignZone } from './zones'
 
 /** Сколько секунд MCV разворачивается в главное здание и сколько здание сворачивается обратно. */
@@ -13,20 +13,105 @@ export const DEPLOY_SECONDS = 3
 export const PACK_SECONDS = 10
 
 /** Где встанет главное здание, если MCV развернётся на месте: левый верхний тайл основания. */
-export function deploySite(sim: Sim, entity: Entity) {
+export function siteUnder(sim: Sim, entity: Entity) {
   const position = sim.world.get(entity, Position)!
   const { width, height } = BUILDINGS[CORE]
   return { x: Math.floor(position.x) - Math.floor(width / 2), y: Math.floor(position.y) - Math.floor(height / 2) }
 }
 
-/** Может ли игрок развернуть этот юнит прямо сейчас: это его MCV, он не занят, под ним свободная скала или фундамент и не чужая зона. */
+/** Где встанет главное здание: куда MCV послан разворачиваться, а не послан — под ним. Левый верхний тайл основания. */
+export function deploySite(sim: Sim, entity: Entity) {
+  const target = sim.world.get(entity, Deploys)
+  return target ? { x: target.x, y: target.y } : siteUnder(sim, entity)
+}
+
+/**
+ * Может ли MCV развернуться главным зданием с левым верхним тайлом (x, y): это MCV игрока, он не разворачивается,
+ * там свободная скала или фундамент и не чужая зона.
+ */
+export function canDeployAt(sim: Sim, player: number, entity: Entity, x: number, y: number) {
+  if (!canSendDeploy(sim, player, entity) || !canPlace(sim, CORE, x, y)) return false
+  return !inForeignZone(sim, player, x, y, BUILDINGS[CORE].width, BUILDINGS[CORE].height)
+}
+
+/** Может ли игрок развернуть этот MCV прямо на месте. */
 export function canDeploy(sim: Sim, player: number, entity: Entity) {
+  if (!canSendDeploy(sim, player, entity)) return false
+  const site = siteUnder(sim, entity)
+  return canDeployAt(sim, player, entity, site.x, site.y)
+}
+
+/** Можно ли послать этот MCV разворачиваться: это MCV игрока, и он ещё не разворачивается. */
+export function canSendDeploy(sim: Sim, player: number, entity: Entity) {
   const { world } = sim
-  if (world.get(entity, Unit)?.type !== 'mcv' || !isOwn(sim, player, entity)) return false
-  if (world.has(entity, Converting)) return false
-  const site = deploySite(sim, entity)
-  if (!canPlace(sim, CORE, site.x, site.y)) return false
-  return !inForeignZone(sim, player, site.x, site.y, BUILDINGS[CORE].width, BUILDINGS[CORE].height)
+  return world.get(entity, Unit)?.type === 'mcv' && isOwn(sim, player, entity) && !world.has(entity, Converting)
+}
+
+/** Стоит ли MCV на основании будущего здания с левым верхним тайлом (x, y): дальше ехать незачем. */
+function standsOn(sim: Sim, entity: Entity, x: number, y: number) {
+  const position = sim.world.get(entity, Position)!
+  const { width, height } = BUILDINGS[CORE]
+  return position.x >= x && position.x < x + width && position.y >= y && position.y < y + height
+}
+
+/** Середина основания главного здания с левым верхним тайлом (x, y): туда едет MCV. */
+const middleOf = (x: number, y: number) => ({ x: x + Math.floor(BUILDINGS[CORE].width / 2), y: y + Math.floor(BUILDINGS[CORE].height / 2) })
+
+/**
+ * Посылает MCV развернуться главным зданием с левым верхним тайлом (x, y): стоит на этом месте — разворачивается
+ * сразу, иначе едет туда. Годится ли место, решается на месте: в тумане там может стоять чужое, о чём игрок не
+ * знает, и отказ сразу выдал бы это. Возвращает, принят ли приказ.
+ */
+export function orderDeploy(sim: Sim, player: number, entity: Entity, x: number, y: number) {
+  if (!canSendDeploy(sim, player, entity)) return false
+  const { width, height } = BUILDINGS[CORE]
+  if (!inBounds(sim, x, y) || !inBounds(sim, x + width - 1, y + height - 1)) return false
+  const { world } = sim
+  if (standsOn(sim, entity, x, y)) {
+    if (!canDeployAt(sim, player, entity, x, y)) return false
+    world.add(entity, Deploys({ x, y, misses: 0 }))
+    startConverting(sim, entity, DEPLOY_SECONDS)
+    return true
+  }
+  world.add(entity, Deploys({ x, y, misses: 0 }))
+  const middle = middleOf(x, y)
+  orderMove(sim, entity, middle.x, middle.y)
+  return true
+}
+
+/** Раз во сколько тиков MCV, который не доехал до места, пробует снова; с каждым промахом — вдвое реже. */
+const DEPLOY_RETRY_TICKS = 20
+/** После скольких промахов подряд MCV бросает поездку: к месту не подъехать. */
+const DEPLOY_MISSES = 5
+
+/**
+ * Раз в тик: посланные разворачиваться MCV, доехав, разворачиваются. Место оказалось негодным — приказ снимается,
+ * MCV остаётся машиной. Не доехал — пробует снова, всё реже, и после DEPLOY_MISSES промахов бросает.
+ */
+export function deployOrders(sim: Sim) {
+  const { world, time } = sim
+  const arrived: Entity[] = []
+  const late: Entity[] = []
+  for (const [entity, deploys] of world.query(Deploys)) {
+    if (world.has(entity, Converting) || world.has(entity, Path)) continue
+    if (standsOn(sim, entity, deploys.x, deploys.y)) arrived.push(entity)
+    else if (onTurn(time, entity, DEPLOY_RETRY_TICKS << deploys.misses)) late.push(entity)
+  }
+  // Состав компонентов меняется после обхода.
+  for (const entity of arrived) {
+    const { x, y } = world.get(entity, Deploys)!
+    if (canDeployAt(sim, ownerOf(sim, entity), entity, x, y)) startConverting(sim, entity, DEPLOY_SECONDS)
+    else world.remove(entity, Deploys)
+  }
+  for (const entity of late) {
+    const deploys = world.get(entity, Deploys)!
+    if (++deploys.misses > DEPLOY_MISSES) {
+      world.remove(entity, Deploys)
+      continue
+    }
+    const middle = middleOf(deploys.x, deploys.y)
+    orderMove(sim, entity, middle.x, middle.y)
+  }
 }
 
 /** Может ли игрок свернуть это здание: это его главное здание, и оно не сворачивается уже. */
@@ -39,11 +124,14 @@ export function canPack(sim: Sim, player: number, entity: Entity) {
 /** Раз во сколько тиков разворачивающийся MCV просит своих юнитов уйти из-под будущего здания. */
 const EVICT_TICKS = 20
 
-/** Отменяет разворачивание: MCV остаётся машиной и снова слушается приказов. */
+/** Отменяет разворачивание или поездку на него: MCV остаётся машиной, стоит и снова слушается приказов. */
 export function cancelDeploy(sim: Sim, player: number, entity: Entity) {
   const { world } = sim
-  if (!world.has(entity, Unit) || !world.has(entity, Converting) || !isOwn(sim, player, entity)) return false
+  if (!world.has(entity, Unit) || !isOwn(sim, player, entity)) return false
+  if (!world.has(entity, Converting) && !world.has(entity, Deploys)) return false
+  if (!world.has(entity, Converting)) world.remove(entity, Path)
   world.remove(entity, Converting)
+  world.remove(entity, Deploys)
   return true
 }
 
@@ -102,7 +190,10 @@ export function convert(sim: Sim) {
     if (world.has(entity, Unit)) {
       const site = deploySite(sim, entity)
       // За время разворачивания место могли занять. Тогда MCV остаётся машиной.
-      if (!canPlace(sim, CORE, site.x, site.y)) continue
+      if (!canPlace(sim, CORE, site.x, site.y)) {
+        world.remove(entity, Deploys)
+        continue
+      }
       world.destroy(entity)
       clearDrops(sim, site.x, site.y, BUILDINGS[CORE].width, BUILDINGS[CORE].height)
       const core = placeBuilding(world, CORE, site.x, site.y, player)

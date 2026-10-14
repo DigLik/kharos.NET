@@ -3,10 +3,12 @@ import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { isCliffFoot } from '../src/map/terrain'
 import {
-  Building, CORE, Converting, Owner, Player, Position, Producer, UNITS, Unit,
-  canDeploy, canPlace, createSim, creditsOf, producibleBy, spawnStartingUnits, type Sim,
+  Building, CORE, Converting, Deploys, Owner, Path, Player, Position, Producer, UNITS, Unit,
+  canDeploy, canDeployAt, canPlace, createSim, creditsOf, producibleBy, spawnStartingUnits, type Sim,
 } from '../src/sim'
 import { STARTING_CREDITS } from '../src/sim/economy'
+import { placeBuilding } from '../src/sim/buildings'
+import { DEPLOY_SECONDS } from '../src/sim/conversion'
 import { spawnUnit } from '../src/sim/units'
 import { throughJson } from './throughJson'
 
@@ -251,6 +253,79 @@ test('MCV не разворачивается, пока под будущим з
   sim.send(0, { type: 'move', units: [stranger], x: site.x - 3, y: site.y })
   seconds(sim, 5)
   expect(core(sim)).toBeDefined()
+})
+
+/** Место в нескольких тайлах от MCV, где он сможет развернуться: левый верхний тайл основания. */
+function siteAway(sim: Sim, mcv: Entity, site: { x: number; y: number }) {
+  for (let ring = 6; ring < 60; ring++) {
+    for (let dy = -ring; dy <= ring; dy++) {
+      for (let dx = -ring; dx <= ring; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue
+        const x = site.x + dx
+        const y = site.y + dy
+        if (canDeployAt(sim, 1, mcv, x, y) && clearOfCliffs(sim, x, y)) return { x, y }
+      }
+    }
+  }
+  throw new Error('Рядом нет второго места под главное здание')
+}
+
+test('MCV с местом едет туда и разворачивается там', () => {
+  const { sim, mcv, site } = start()
+  const target = siteAway(sim, mcv, site)
+  sim.send(2, { type: 'deploy', unit: mcv, x: target.x, y: target.y })
+  sim.send(1, { type: 'deploy', unit: mcv, x: target.x, y: target.y })
+  sim.advance(TICK)
+  expect(sim.world.get(mcv, Deploys)).toMatchObject(target)
+  expect(sim.world.has(mcv, Converting)).toBe(false)
+  for (let i = 0; i < 600 && sim.world.alive(mcv); i++) sim.advance(TICK)
+  expect(sim.world.alive(mcv)).toBe(false)
+  expect(sim.world.get(core(sim)!, Position)).toEqual(target)
+})
+
+test('на своём месте MCV разворачивается сразу, а негодное место не принимает', () => {
+  const { sim, mcv, site } = start()
+  // Вне карты — не принимается вовсе.
+  sim.send(1, { type: 'deploy', unit: mcv, x: -100000, y: 0 })
+  sim.advance(TICK)
+  expect(sim.world.has(mcv, Deploys)).toBe(false)
+  // Место под ним, но сдвинутое на тайл, — тоже на месте: ехать не нужно.
+  sim.send(1, { type: 'deploy', unit: mcv, x: site.x, y: site.y })
+  sim.advance(TICK)
+  expect(sim.world.has(mcv, Converting)).toBe(true)
+  seconds(sim, DEPLOY_SECONDS + 0.2)
+  expect(sim.world.get(core(sim)!, Position)).toEqual(site)
+})
+
+test('поездку на разворачивание снимают отмена и приказ идти', () => {
+  const { sim, mcv, site } = start()
+  const target = siteAway(sim, mcv, site)
+  sim.send(1, { type: 'deploy', unit: mcv, x: target.x, y: target.y })
+  sim.advance(TICK)
+  sim.send(1, { type: 'cancelDeploy', unit: mcv })
+  sim.advance(TICK)
+  expect(sim.world.has(mcv, Deploys)).toBe(false)
+  expect(sim.world.has(mcv, Path)).toBe(false)
+
+  sim.send(1, { type: 'deploy', unit: mcv, x: target.x, y: target.y })
+  sim.advance(TICK)
+  sim.send(1, { type: 'move', units: [mcv], x: site.x - 4, y: site.y })
+  sim.advance(TICK)
+  expect(sim.world.has(mcv, Deploys)).toBe(false)
+  seconds(sim, 30)
+  expect(core(sim)).toBeUndefined()
+})
+
+test('место заняли, пока MCV ехал: он остаётся машиной', () => {
+  const { sim, mcv, site } = start()
+  const target = siteAway(sim, mcv, site)
+  sim.send(1, { type: 'deploy', unit: mcv, x: target.x, y: target.y })
+  sim.advance(TICK)
+  placeBuilding(sim.world, 'generator', target.x, target.y, 2)
+  seconds(sim, 30)
+  expect(sim.world.alive(mcv)).toBe(true)
+  expect(sim.world.has(mcv, Deploys)).toBe(false)
+  expect(core(sim)).toBeUndefined()
 })
 
 test('разворачивание можно отменить: MCV снова едет', () => {
