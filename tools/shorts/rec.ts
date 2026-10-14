@@ -53,8 +53,11 @@ for (let i = 0; i < 100; i++) {
 await sleep(800)
 if (opt.css) await evaluate(`(() => { const s = document.createElement('style'); s.textContent = ${JSON.stringify(readFileSync(opt.css, 'utf8'))}; document.head.append(s) })()`)
 const mouse = (type: string, x: number, y: number, button = 'left', buttons = 0) => send('Input.dispatchMouseEvent', { type, x, y, button, buttons, clickCount: 1 })
+/** Строки игры на языке съёмки (--lang, по умолчанию русский): сцены жмут кнопки по ключу словаря, c.t('grid.deploy'). */
+const dict = JSON.parse(readFileSync(`${import.meta.dir}/../../src/i18n/${(opt.lang ?? 'ru').slice(0, 2)}.json`, 'utf8'))
+const t = (key: string): string => key.split('.').reduce((node: any, part) => node?.[part], dict) ?? key
 const ctx = {
-  evaluate, send, sleep,
+  evaluate, send, sleep, t,
   async click(x: number, y: number, right = false) {
     const b = right ? 'right' : 'left'
     await mouse('mouseMoved', x, y); await mouse('mousePressed', x, y, b, right ? 2 : 1); await sleep(70); await mouse('mouseReleased', x, y, b, 0)

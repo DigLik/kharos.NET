@@ -1,0 +1,13 @@
+{
+ "01": "40 солдат <b>vs</b> 4 танка<br>цена одинаковая",
+ "02": "Победа: <b>танки</b>",
+ "03": "4 танка <b>vs</b> 10 дронов",
+ "04": "Победа: <b>дроны</b><br>танк не бьёт в небо",
+ "05": "10 дронов <b>vs</b> 20 ракетчиков",
+ "06": "Победа: <b>ракетчики</b>",
+ "07": "20 ракетчиков <b>vs</b> 40 солдат",
+ "08": "Победа: <b>пехота</b><br>круг замкнулся",
+ "09": "Танки › пехота › ракетчики<br>› дроны › <b>танки</b>",
+ "end": "<div class=end><div class=logo>KHAROS</div><div class=t>Собери свою армию<br>бесплатно в браузере</div><div class=u>vicimpa.github.io/kharos</div></div>",
+ "cover": "<div style='position:absolute;left:0;right:0;top:260px;text-align:center'><div class=c style='font-size:120px;line-height:1.2;padding:40px 50px'>40 солдат<br><b>vs</b><br>4 танка</div></div><div style='position:absolute;left:0;right:0;top:1450px;text-align:center'><div class=c style='font-size:96px;padding:30px 50px'>Кто <b>победит?</b></div></div>"
+}

@@ -1,6 +1,6 @@
-import { createWorld } from '/Users/vic/CodeProjects/kharos/src/net/local'
-import { DEFAULT_CONFIG } from '/Users/vic/CodeProjects/kharos/src/map/terrain'
-import { canPlace, CORE, Unit, Position } from '/Users/vic/CodeProjects/kharos/src/sim'
+import { createWorld } from '../../src/net/local'
+import { DEFAULT_CONFIG } from '../../src/map/terrain'
+import { canPlace, CORE, Unit, Position } from '../../src/sim'
 for (const seed of [1000, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]) {
   const sim = createWorld({ generator: { ...DEFAULT_CONFIG, seed }, size: 1024 } as any, 'play', {} as any)
   let mcv: any
