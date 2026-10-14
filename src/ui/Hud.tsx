@@ -900,7 +900,21 @@ function FirstSteps({ done }: { done: boolean[] }) {
   const known = useRef<boolean | null>(null)
   known.current ??= finished
   const shown = prefs().steps
-  if (shown === 'off' || (finished && known.current)) return null
+  const hidden = shown === 'off' || (finished && known.current)
+  const box = useRef<HTMLElement>(null)
+  // Низ панели — в --steps-bottom: на узком экране колонка уведомлений встаёт под неё, а не поверх, см. style.css.
+  useEffect(() => {
+    const section = box.current
+    if (!section) return
+    const root = document.documentElement.style
+    const observer = new ResizeObserver(() => root.setProperty('--steps-bottom', `${section.getBoundingClientRect().bottom}px`))
+    observer.observe(section)
+    return () => {
+      observer.disconnect()
+      root.removeProperty('--steps-bottom')
+    }
+  }, [hidden])
+  if (hidden) return null
   const set = (steps: 'open' | 'folded' | 'off') => {
     setPrefs({ ...prefs(), steps })
     redraw((n) => n + 1)
@@ -908,7 +922,7 @@ function FirstSteps({ done }: { done: boolean[] }) {
   const current = done.indexOf(false)
   const count = done.filter(Boolean).length
   return (
-    <section class="hud steps" aria-label={t('steps.title')}>
+    <section ref={box} class="hud steps" aria-label={t('steps.title')}>
       <header>
         <button class="steps__toggle" data-tip={t(shown === 'open' ? 'steps.foldTip' : 'steps.unfoldTip')} onClick={() => set(shown === 'open' ? 'folded' : 'open')}>
           {t('steps.title')} <small>{count}/{STEPS.length}</small> {shown === 'open' ? '▾' : '▸'}

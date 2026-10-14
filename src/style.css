@@ -2589,6 +2589,12 @@ body {
     scrollbar-width: none;
   }
 
+  /* Рядом с первыми шагами колонке уведомлений не уместиться — она под ними, во всю ширину. */
+  .game:has(.steps) .toasts {
+    top: calc(var(--steps-bottom, var(--top-height)) + 6px);
+    max-width: calc(100vw - 24px);
+  }
+
   /* Первые шаги весь список закрыл бы пол-экрана: виден только текущий шаг с пояснением. */
   .steps li:not(.is-current) {
     display: none;
