@@ -1,6 +1,6 @@
 import { complete, quoteName } from '../net/chatCommands'
 import type { ComponentChildren } from 'preact'
-import type { GridState, HudState, ModeState, Stack } from '../game/hud'
+import type { GridState, HudState, ModeState, Stack, TopicView } from '../game/hud'
 import { GRID_PRESS, type GridPress } from '../game/interfaceSounds'
 import type { Minimap } from '../game/minimap'
 import { prefs } from '../game/prefs'
@@ -205,6 +205,33 @@ function useNewRewards(rewards: string[], loaded: boolean) {
   }, [rewards.length, loaded])
   return fresh
 }
+
+/**
+ * Темы, исследованные или открытые только что: каждая показывается TOAST_SECONDS, как награда. Исследованное
+ * до входа в игру не показывается; список стал короче — мир начался заново, считаем с нуля.
+ */
+function useNewTopics(topics: TopicView[], loaded: boolean) {
+  const done = topics.filter(({ status }) => status === 'done').map(({ topic }) => topic)
+  const seen = useRef<Set<string> | null>(null)
+  const ready = useRef(false)
+  const [fresh, setFresh] = useState<TopicView[]>([])
+  const key = done.join()
+  useEffect(() => {
+    const before = seen.current
+    const added = ready.current && before && done.length >= before.size ? topics.filter(({ topic, status }) => status === 'done' && !before.has(topic)) : []
+    ready.current = loaded
+    seen.current = new Set(done)
+    if (!added.length) return
+    setFresh((list) => [...list, ...added])
+    const gone = new Set(added.map(({ topic }) => topic))
+    setTimeout(() => setFresh((list) => list.filter(({ topic }) => !gone.has(topic))), TOAST_SECONDS * 1000)
+  }, [key, loaded])
+  return fresh
+}
+
+/** Что открыла тема: здания, юниты и инструменты покрытия, через запятую. */
+const opensOf = (view: TopicView) =>
+  [...view.buildings.map((type) => t(`buildings.${type}`)), ...view.units.map((type) => t(`units.${type}`)), ...view.paves.map((kind) => t(`grid.tools.${kind}`))].join(', ')
 
 /**
  * Мини-карта: перерисовывается каждый кадр. Левая кнопка (и протяжка) ставит туда камеру, правая — посылает
@@ -902,6 +929,7 @@ function ModeBar({ mode, cancel, finish }: { mode: NonNullable<ModeState>; cance
 export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim, deploy, minimap, lookAt, flyTo, lookAtSelection, cancelMode, finishMode, narrow, moveSelected, say, menu }: HudProps) {
   const selected = state.units.length > 0 || state.building !== null
   const fresh = useNewRewards(state.rewards, state.loaded)
+  const learned = useNewTopics(state.tech.topics, state.loaded)
 
   // Страница сетки строителя сбрасывается, когда выбрано другое.
   const [page, setPage] = useState<Page>('root')
@@ -1129,18 +1157,34 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
         </div>
       )}
 
-      {state.mode && !state.editor && <ModeBar mode={state.mode} cancel={cancelMode} finish={finishMode} />}
+      {/* Сверху по центру, друг под другом: режим, награды, новые исследования. */}
+      <div class="toasts">
+        {state.mode && !state.editor && <ModeBar mode={state.mode} cancel={cancelMode} finish={finishMode} />}
 
-      {fresh.length > 0 && (
-        <div class={state.mode ? 'hud hud--rewards is-low' : 'hud hud--rewards'}>
-          {fresh.map((key) => (
-            <div key={key} class="hud__reward">
-              <span class="hud__coin" />
-              <strong>+{REWARDS[key as Reward]}</strong> {t(`rewards.${key as Reward}`)}
-            </div>
-          ))}
-        </div>
-      )}
+        {fresh.length > 0 && (
+          <div class="hud hud--rewards">
+            {fresh.map((key) => (
+              <div key={key} class="hud__reward">
+                <span class="hud__coin" />
+                <strong>+{REWARDS[key as Reward]}</strong> {t(`rewards.${key as Reward}`)}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Новая тема: что исследовано или открыто и что это дало; щелчок — окно исследований. */}
+        {!state.editor && learned.map((view) => {
+          const opens = opensOf(view)
+          return (
+            <button key={view.topic} class="hud hud--learned" data-tip={t('tech.openTip')} onClick={() => setTech(true)}>
+              <span>
+                {t(view.trigger ? 'hud.discovered' : 'hud.researched')} <strong>{t(`research.${view.topic}`)}</strong>
+              </span>
+              {opens && <small>{t('hud.opens', { list: opens })}</small>}
+            </button>
+          )
+        })}
+      </div>
 
       {/* В редакторе справа его панель: от нижней остаётся только мини-карта. */}
       <section class={`hud bar${state.editor ? ' is-editor' : ''}`}>

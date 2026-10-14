@@ -605,25 +605,63 @@ body {
 }
 
 .hud--rewards {
-  top: 44px;
-  left: 50%;
   padding: 6px 10px;
   border-image-source: var(--skin-gold);
-  transform: translateX(-50%);
-}
-
-/* Под полосой режима награды опускаются ниже, чтобы её не закрыть. */
-.hud--rewards.is-low {
-  top: 96px;
 }
 
 /*
- * Полоса режима: по центру под верхней полосой, на виду, пока режим не кончится. Кнопки — с палец, чтобы выйти из
- * режима можно было и на сенсорном экране, где нет ни Esc, ни правой кнопки.
+ * Колонка по центру под верхней полосой: полоса режима, награды, новые исследования — друг под другом, не наезжая.
+ * Сама колонка мышь пропускает к карте, панели в ней — держат.
  */
-.mode {
+.toasts {
+  position: absolute;
   top: 44px;
   left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100vw - 24px);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.toasts > .hud {
+  position: static;
+  pointer-events: auto;
+}
+
+/* Новая тема: строка «Исследовано: …» и под ней — что открылось. */
+.hud.hud--learned {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 12px;
+  border-image: var(--skin-panel) 4 fill / 8px;
+  color: var(--text);
+  animation: toast-out 5s linear forwards;
+}
+
+.hud--learned strong {
+  color: var(--team-light);
+  font-weight: 400;
+}
+
+.hud--learned small {
+  color: var(--text-soft);
+}
+
+@keyframes toast-out {
+  0%, 80% { opacity: 1; }
+  100% { opacity: 0.3; }
+}
+
+/*
+ * Полоса режима: на виду, пока режим не кончится. Кнопки — с палец, чтобы выйти из режима можно было и на сенсорном
+ * экране, где нет ни Esc, ни правой кнопки.
+ */
+.mode {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -631,7 +669,6 @@ body {
   gap: 6px 12px;
   max-width: calc(100vw - 24px);
   padding: 6px 8px 6px 12px;
-  transform: translateX(-50%);
   width: max-content;
 }
 
