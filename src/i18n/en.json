@@ -691,6 +691,10 @@
         "title": "Build a smelter",
         "tip": "The smelter turns ore into metal — your first goods to sell."
       },
+      "metalYard": {
+        "title": "Build a metal yard",
+        "tip": "The smelter sends finished metal to a yard; without one it fills up and stops. Building sites and sales take metal from here too."
+      },
       "spaceport": {
         "title": "Build a spaceport",
         "tip": "It unlocks once you have the first refined resource. You sell and buy through it."

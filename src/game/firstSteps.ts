@@ -5,7 +5,8 @@ import { CORE, Owner, Unit, hasResearch, missingBuildings, rewardsOf, type Build
  * а не по сценарию: есть готовое здание, открыта тема, получена награда. Поэтому переделка зданий ломает только
  * тексты, а не обучение. Цепочка: MCV разворачивается в главное здание, оно выпускает строителя; электростанция даёт
  * энергию, генератор материи — первый доход; шахта ставится на месторождение, лаборатория исследует его руду — тема
- * тратит руду из шахты; тогда открывается плавильня, первый металл открывает космопорт, а продажа — главный доход.
+ * тратит руду из шахты; тогда открывается плавильня, а металл из неё нужно куда-то складывать — иначе она забьётся
+ * и встанет; первый металл открывает космопорт, а продажа — главный доход.
  */
 export interface StepSpec {
   key: StepKey
@@ -19,7 +20,7 @@ export interface StepSpec {
   sell?: true
 }
 
-export type StepKey = 'deploy' | 'builder' | 'generator' | 'matter' | 'mine' | 'lab' | 'metalOre' | 'smelter' | 'spaceport' | 'sale'
+export type StepKey = 'deploy' | 'builder' | 'generator' | 'matter' | 'mine' | 'lab' | 'metalOre' | 'smelter' | 'metalYard' | 'spaceport' | 'sale'
 
 export const STEPS: readonly StepSpec[] = [
   { key: 'deploy', deploy: true },
@@ -30,6 +31,7 @@ export const STEPS: readonly StepSpec[] = [
   { key: 'lab', building: 'lab' },
   { key: 'metalOre', research: 'metalOre' },
   { key: 'smelter', building: 'smelter' },
+  { key: 'metalYard', building: 'metalYard' },
   { key: 'spaceport', building: 'spaceport' },
   { key: 'sale', sell: true },
 ]
@@ -59,6 +61,7 @@ export function stepsDone(sim: Sim, player: number): boolean[] {
     metalOre: hasResearch(sim, player, 'metalOre'),
     // Торговля открывается первым готовым ресурсом — значит, плавильня уже поработала.
     smelter: built('smelter') || (sim.rules.techTree && hasResearch(sim, player, 'trade')),
+    metalYard: rewards.includes('metalYard') || built('metalYard'),
     spaceport: built('spaceport'),
     sale: rewards.includes('sale'),
   }

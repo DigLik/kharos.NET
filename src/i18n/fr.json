@@ -691,6 +691,10 @@
         "title": "Construis une fonderie",
         "tip": "La fonderie transforme le minerai en métal — ta première marchandise à vendre."
       },
+      "metalYard": {
+        "title": "Construis un entrepôt de métal",
+        "tip": "La fonderie envoie le métal à l’entrepôt ; sans lui elle se remplit et s’arrête. Les chantiers et la vente y prennent aussi le métal."
+      },
       "spaceport": {
         "title": "Construis un astroport",
         "tip": "Il se débloque dès la première ressource raffinée. On y vend et on y achète."

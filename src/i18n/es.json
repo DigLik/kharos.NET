@@ -691,6 +691,10 @@
         "title": "Construye una fundición",
         "tip": "La fundición convierte el mineral en metal: tu primer producto para vender."
       },
+      "metalYard": {
+        "title": "Construye un almacén de metal",
+        "tip": "La fundición envía el metal al almacén; sin él se llena y se para. De aquí también lo toman las obras y la venta."
+      },
       "spaceport": {
         "title": "Construye un puerto espacial",
         "tip": "Se desbloquea al tener el primer recurso refinado. Por él se vende y se compra."

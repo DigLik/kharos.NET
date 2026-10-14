@@ -691,6 +691,10 @@
         "title": "Eritish zavodini qur",
         "tip": "Eritish zavodi rudani metallga aylantiradi — sotish uchun birinchi tovar."
       },
+      "metalYard": {
+        "title": "Metall omborini qur",
+        "tip": "Eritish zavodi tayyor metallni omborga beradi; omborsiz u to‘lib, to‘xtab qoladi. Qurilish va savdo ham metallni shu yerdan oladi."
+      },
       "spaceport": {
         "title": "Kosmoport qur",
         "tip": "Birinchi tayyor resurs paydo bo‘lganda ochiladi. U orqali sotiladi va sotib olinadi."

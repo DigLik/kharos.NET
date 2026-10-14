@@ -691,6 +691,10 @@
         "title": "Construa uma fundição",
         "tip": "A fundição transforma minério em metal — o primeiro produto para vender."
       },
+      "metalYard": {
+        "title": "Construa um depósito de metal",
+        "tip": "A fundição manda o metal pronto para o depósito; sem ele ela enche e para. Daqui também tiram metal as obras e a venda."
+      },
       "spaceport": {
         "title": "Construa um espaçoporto",
         "tip": "Ele libera quando houver o primeiro recurso pronto. Por ele se vende e se compra."

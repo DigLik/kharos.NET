@@ -691,6 +691,10 @@
         "title": "Baue eine Schmelze",
         "tip": "Die Schmelze macht aus Erz Metall — deine erste Ware zum Verkauf."
       },
+      "metalYard": {
+        "title": "Baue ein Metalllager",
+        "tip": "Die Schmelze gibt fertiges Metall ans Lager ab; ohne Lager läuft sie voll und steht still. Von hier holen auch Baustellen und Verkauf das Metall."
+      },
       "spaceport": {
         "title": "Baue einen Raumhafen",
         "tip": "Er wird frei, sobald die erste fertige Ressource da ist. Darüber wird ge- und verkauft."
