@@ -542,17 +542,26 @@ export function dispatch(sim: Sim) {
         // Внутри сети груз идёт по трубам: сам грузовик везёт только то, чего в сети заказчика нет, — из других сетей.
         const network = serving ? undefined : networkOf(sim, request.to)
         if (network && hasLocal(network, request.resource, Math.min(request.amount, MIN_JOB), request.sale)) continue
-        for (const source of request.source === 'mines' ? mines : serving || network ? anyZone() : sourcesOf(request.zone)) {
-          if (source === request.to || !offersOf(sim, source).includes(request.resource)) continue
-          if (network && networkOf(sim, source) === network) continue
-          // Руду шахты, у которой уже есть привязанный грузовик, свободные не возят.
-          if (request.source === 'mines' && bound.has(source)) continue
-          const available = availableIn(sim, flows, source, request.resource, request.sale)
-          if (available < Math.min(request.amount, MIN_JOB)) continue
-          const score = request.priority * PRIORITY_WEIGHT - distance(sim, truck, source) - distance(sim, source, request.to)
-          if (best && score <= best.score) continue
-          best = { from: source, to: request.to, resource: request.resource, amount: Math.min(request.amount, available, room), score }
+        let found = false
+        const look = (sources: readonly Entity[]) => {
+          for (const source of sources) {
+            if (source === request.to || !offersOf(sim, source).includes(request.resource)) continue
+            if (network && networkOf(sim, source) === network) continue
+            // Руду шахты, у которой уже есть привязанный грузовик, свободные не возят.
+            if (request.source === 'mines' && bound.has(source)) continue
+            const available = availableIn(sim, flows, source, request.resource, request.sale)
+            if (available < Math.min(request.amount, MIN_JOB)) continue
+            found = true
+            const score = request.priority * PRIORITY_WEIGHT - distance(sim, truck, source) - distance(sim, source, request.to)
+            if (best && score <= best.score) continue
+            best = { from: source, to: request.to, resource: request.resource, amount: Math.min(request.amount, available, room), score }
+          }
         }
+        const local = request.source === 'zone' && !serving && !network
+        look(request.source === 'mines' ? mines : local ? sourcesOf(request.zone) : anyZone())
+        // В своей зоне взять нечего — груз везут из любой своей: иначе стройка в зоне без переработки, куда труб
+        // ещё не дотянули, ждала бы металл вечно, а он лежал бы в плавильне соседней зоны.
+        if (local && !found) look(anyZone())
       }
       if (!best && !serving) {
         // Заявок нет — увозит готовое из переработки и цехов; куда именно, решит, когда наберёт груз.

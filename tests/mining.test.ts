@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import type { Entity } from '../src/ecs'
 import {
   BUILDINGS, Beam, REWARDS, RELIEF_BELOW, DEPOSIT_CELL, DEPOSIT_KINDS, DEPOSIT_TYPES, Deposit, Hauler, Inventory, REFINE_RATE, REFINE_RATIO, RESOURCE_SPECS, SELL_SECONDS, TRUCK_CAPACITY, Trade, amountOf, canBuild, deliveredTo, gapBetween, canSell, isWalkable, stockOf, canPlace, createSim, creditsOf, depositAt, depositIn, depositNear, reserveLeft, rewardsOf,
-  zonesOf, type BuildingType, type DepositSpot, type Good, type Sim,
+  zonesOf, Owner, Position, Site, type BuildingType, type DepositSpot, type Good, type Sim,
 } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
 import { addCredits } from '../src/sim/economy'
@@ -400,4 +400,17 @@ test('здания можно ставить вплотную к шахте, а 
   // Переработанный металл свободный грузовик свозит в хранилище.
   until(sim, () => (stockOf(sim, 1).items.metal ?? 0) > 1)
   expect(canBuild(sim, 1, 'mine', spot.x, spot.y)).toBe(false)
+})
+
+test('стройке в зоне без нужного груза его везут из другой своей зоны: металл из плавильни за пределами базы', () => {
+  const { sim, spot, core } = base()
+  // Плавильня с готовым металлом — далеко, в своей зоне: труб к базе нет.
+  const smelter = place(sim, 'smelter', spot.x + 30, spot.y)
+  sim.world.get(smelter, Inventory)!.items = { metal: 30 }
+  // Стройка космопорта у главного здания ждёт металл.
+  const site = sim.world.spawn(Position({ x: spot.x + 9, y: spot.y }), Site({ type: 'spaceport' }), Owner({ player: 1 }))
+  sim.world.add(site, Inventory({ capacity: 20, accepts: ['metal'], limits: { metal: 20 } }))
+  expect(zonesOf(sim, 1).some((zone) => zone.buildings.includes(core) && zone.buildings.includes(smelter))).toBe(false)
+  until(sim, () => amountOf(sim.world.get(site, Inventory)!, 'metal') >= 20 - 1e-6)
+  expect(good(sim, smelter, 'metal')).toBeLessThan(30)
 })
