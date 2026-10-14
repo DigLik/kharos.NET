@@ -1447,6 +1447,33 @@ body {
   color: var(--good);
 }
 
+/*
+ * Новое в меню стройки: кнопка, которую игрок ещё не нажимал, и раздел, где такая есть. Золотая рамка мерцает, в углу —
+ * метка «новое»: так видно, что появилось и куда нажать. Нажал — подсветка уходит, см. seen.ts.
+ */
+.hud .bar__cell.is-fresh {
+  outline: 2px solid var(--gold);
+  outline-offset: -3px;
+  animation: cell-fresh 1.6s ease-in-out infinite;
+}
+
+/* Рамка скина с заливкой закрыла бы тень, а контур рисуется поверх неё. */
+.bar__cell.is-fresh::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--ink);
+  background: var(--gold);
+  content: "";
+}
+
+@keyframes cell-fresh {
+  0%, 100% { outline-color: rgb(240 201 90 / 0.2); }
+  50% { outline-color: rgb(240 201 90 / 0.95); }
+}
+
 /* Цены сейчас нет на счету: стройка встанет, пока кредитов не прибавится. */
 .bar__price b.is-short {
   color: var(--warn);

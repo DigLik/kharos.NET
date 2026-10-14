@@ -3,6 +3,7 @@ import type { PaveIcon } from '../game/portraits'
 import type { PaveTool } from '../game/scene'
 import { BRIDGE_COST, CLIFF_COST, PEAK_COST, BUILDINGS, SUPPLY, UNDERGROUND_REACH, BUILDING_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, TRANSFER_CAPACITY, WARES, type Amounts, type Stance, type BuildingType, type Command, type Good, type Resource } from '../sim'
 import { t } from '../i18n'
+import { isSeen, markSeen } from './seen'
 
 /** Клавиши ячеек сетки команд по порядку: три ряда по четыре, как на клавиатуре, справа от WASD. */
 export const GRID_KEYS = ['KeyT', 'KeyY', 'KeyU', 'KeyI', 'KeyG', 'KeyH', 'KeyJ', 'KeyK', 'KeyB', 'KeyN', 'KeyM', 'Comma'] as const
@@ -66,6 +67,8 @@ export interface Slot {
   gain?: boolean
   /** Кредитов на всю цену сейчас нет, но нажать можно: стройку оплачивают по ходу, и она подождёт. */
   short?: boolean
+  /** Новое: игрок ни разу не нажимал эту кнопку стройки, а у раздела — в нём есть такая. Подсвечено, см. seen.ts. */
+  fresh?: boolean
   power?: number
   /** Сколько энергии просит здание без дела, если не столько же, сколько в работе (power). */
   idle?: number
@@ -198,8 +201,10 @@ export function commandsOf(
       zones: true,
       about: aboutOf(building),
       short: !affordable,
+      fresh: !isSeen(building),
       title: affordable ? undefined : t('grid.shortCredits'),
       run: () => {
+        markSeen(building)
         pave(null)
         place(construction.placing === building ? null : building)
       },
@@ -214,6 +219,7 @@ export function commandsOf(
         active,
         title: option.affordable ? t('grid.wallTip') : `${t('grid.wallTip')}. ${t('grid.shortCredits')}`,
         run: () => {
+          markSeen(option.building)
           place(null)
           pave(active ? null : tool)
         },
@@ -222,10 +228,15 @@ export function commandsOf(
     if (page === 'root') {
       // Раздел появляется, когда в нём открыто хоть одно здание.
       const opened = (page: Page) => construction.options.some(({ building }) => sectionOf(building) === page)
+      // Раздел подсвечен, пока в нём есть кнопка, которую игрок ещё не нажимал.
+      const fresh = (page: Page) =>
+        construction.options.some(({ building }) => sectionOf(building) === page && !isSeen(building)) ||
+        (page === 'paving' || page === 'logistics' ? (page === 'paving' ? PAVE_TOOLS : PIPE_TOOLS).some(({ tool }) => construction.tools.includes(tool) && !isSeen(tool)) : false)
       const section = (page: 'economy' | 'storage' | 'industry' | 'production' | 'military' | 'defense' | 'paving' | 'logistics') => ({
         page,
         label: t(`grid.sections.${page}`),
         title: t(`grid.sectionTips.${page}`),
+        fresh: fresh(page),
         run: () => open(page),
       })
       const sections: (Slot & { page: Page })[] = [
@@ -260,8 +271,10 @@ export function commandsOf(
           active,
           // Трубы и колодцы — стройки, их оплачивают по ходу; покрытие и землеройные работы — сразу.
           ...(tool === 'pipe' || tool === 'well' ? { short: credits < cost } : { disabled: credits < cost }),
+          fresh: !isSeen(tool),
           title: t(`grid.toolTips.${tool}`, { bridge: BRIDGE_COST, reach: UNDERGROUND_REACH, cost }),
           run: () => {
+            markSeen(tool)
             place(null)
             pave(active ? null : tool)
           },

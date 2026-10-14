@@ -522,7 +522,7 @@ function CommandGrid({ slots, stock }: { slots: (Slot | null)[]; stock: Stack[] 
         return (
           <button
             key={i}
-            class={['bar__cell', slot.group !== undefined && 'bar__cell--group', slot.active && 'is-active', !pictured(slot) && 'is-bare']
+            class={['bar__cell', slot.group !== undefined && 'bar__cell--group', slot.active && 'is-active', !pictured(slot) && 'is-bare', slot.fresh && !slot.disabled && 'is-fresh']
               .filter(Boolean)
               .join(' ')}
             disabled={slot.disabled}
