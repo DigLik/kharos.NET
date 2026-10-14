@@ -27,6 +27,32 @@ index 599d893..8d267ba 100644
    }
  
    // Мир один на все вкладки, и начинает его заново хост; на сервере — не может никто.
+diff --git a/src/net/connect.ts b/src/net/connect.ts
+index 32b4af9..eef5ad4 100644
+--- a/src/net/connect.ts
++++ b/src/net/connect.ts
+@@ -151,6 +151,7 @@ export function connectLocal(setup: LocalSetup, onSave: (save: SimSave) => void,
+       port = new Worker(new URL('./local.worker.ts', import.meta.url), { type: 'module', name })
+     }
+     const control = (message: LocalControl) => port.postMessage(message)
++    ;(window as any).__host = (code: string) => new Promise((resolve) => { const ch = new MessageChannel(); ch.port1.onmessage = (e) => resolve(e.data); port.postMessage({ type: 'eval', code, reply: ch.port2 }, [ch.port2]) }) // TEMP-SHORTS
+     const leave = () => control({ type: 'leave' })
+     let sim: Replica | undefined
+ 
+diff --git a/src/net/local.ts b/src/net/local.ts
+index 030307d..c75d165 100644
+--- a/src/net/local.ts
++++ b/src/net/local.ts
+@@ -122,6 +122,9 @@ export function createLocalServer(): LocalServer {
+         } else if (control.type === 'restart' && setup) {
+           setup = { ...setup, options: control.options, battle: control.battle }
+           restart()
++        } else if ((control as any).type === 'eval' && host) { // TEMP-SHORTS
++          const { code, reply } = control as any // TEMP-SHORTS
++          Promise.resolve().then(() => (0, eval)(code)(host!.sim)).then((r) => reply.postMessage(r), (e) => reply.postMessage(String(e?.stack ?? e))) // TEMP-SHORTS
+         } else if (control.type === 'leave') {
+           // Уходящая вкладка уносит мир как есть: в меню список сохранений покажет его свежим.
+           if (peer && host && setup?.mode === 'play') port.postMessage({ type: 'saved', save: host.sim.save() } satisfies LocalNotice)
 diff --git a/src/sim/showcase.ts b/src/sim/showcase.ts
 index 4b721e4..a3c3364 100644
 --- a/src/sim/showcase.ts
@@ -57,3 +83,15 @@ index 2168e04..9286ea3 100644
  
  /** Отладка: ?scene=<имя> в адресной строке показывает только эту сценку. */
  const FORCED = NAMES.find((name) => name === new URLSearchParams(location.search).get('scene'))
+diff --git a/src/ui/launch.ts b/src/ui/launch.ts
+index 3c509f5..b730412 100644
+--- a/src/ui/launch.ts
++++ b/src/ui/launch.ts
+@@ -145,6 +145,7 @@ export function recallLaunch(): Launch | null {
+ export async function startSession(launch: PlayLaunch, settings: MapSettings, signal?: AbortSignal): Promise<Session> {
+   if (launch.kind === 'server') return connect(launch.url, launch.lag, launch.name, launch.password, signal)
+   const options = simOptions(settings)
++  if (new URLSearchParams(location.search).get('fog') === '0') options.fog = false // TEMP-SHORTS
+   if (launch.kind !== 'save') return connectLocal({ options, mode: launch.kind, battle: settings.battle, save: null }, () => {}, `kharos-${launch.kind}`)
+   const { slot } = launch
+   return connectLocal(
