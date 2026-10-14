@@ -21,7 +21,7 @@ if (process.env.VP) {
 const mouse = (type: string, x: number, y: number, button = 'left', buttons = 0) => send('Input.dispatchMouseEvent', { type, x, y, button, buttons, clickCount: 1 })
 
 if (cmd === 'eval') console.log(JSON.stringify(await evaluate(args[0]), null, 1))
-else if (cmd === 'shot') { const r = await send('Page.captureScreenshot', { format: 'jpeg', quality: 80 }); writeFileSync(args[0], Buffer.from(r.result.data, 'base64')) }
+else if (cmd === 'shot') { const png = args[0].endsWith('.png'); const r = await send('Page.captureScreenshot', png ? { format: 'png' } : { format: 'jpeg', quality: 80 }); writeFileSync(args[0], Buffer.from(r.result.data, 'base64')) }
 else if (cmd === 'click') {
   const [x, y] = args.map(Number); const b = args[2] === 'right' ? 'right' : 'left'; const bs = b === 'right' ? 2 : 1
   await mouse('mouseMoved', x, y); await mouse('mousePressed', x, y, b, bs); await sleep(60); await mouse('mouseReleased', x, y, b, 0)
