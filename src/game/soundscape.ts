@@ -1,7 +1,8 @@
 import type { Audio } from '../audio/audio'
 import type { SoundName } from '../audio/sounds'
 import type { Entity } from '../ecs'
-import { Blast, Building, Position, Shot, Unit, buildingSpec, unitSpec, type WeaponType } from '../sim'
+import { Biome, biomeAt } from '../map/terrain'
+import { Blast, Building, Mark, Owner, Position, Shot, Unit, alliesIn, buildingSpec, researchOf, unitSpec, type WeaponType } from '../sim'
 import { nearness, sideOf } from './hearing'
 import type { Scene } from './scene'
 import type { createShake } from './shake'
@@ -63,6 +64,15 @@ const FLIGHT_START = 20
 const FLIGHT_FULL = 500
 /** Ветер погоды, тайлов в секунду, при котором фон дует во всю силу. */
 const STRONG_WIND = 2.5
+/** Сколько противников в виду — уже сильная тревога: при стольких она на двух третях. */
+const THREAT_FOES = 6
+/** Бой — частота выстрелов своих и противника: за столько секунд счёт выстрелов тает на две трети… */
+const SHOTS_MEMORY = 3
+/** …и при стольких выстрелах в памяти бой на двух третях. */
+const BATTLE_SHOTS = 12
+/** Атака отбита: был бой, а потом столько секунд ни противника в виду, ни выстрелов. */
+const REPELLED_QUIET = 12
+const BIOMES = Object.values(Biome)
 
 /**
  * Звуки мира. Раз в кадр смотрит, какие выстрелы и взрывы появились в мире, и даёт им голос: громкость — по тому,
@@ -77,6 +87,14 @@ export function createSoundscape(scene: Scene, audio: Audio, shake: ReturnType<t
   let bodies = new Map<Entity, { x: number; y: number; kind: 'building' | 'machine' | 'soldier' }>()
   const last = new Map<SoundName, number>()
   let clock = 0
+  /** Обстановка для фона: счёт недавних выстрелов, биом под камерой, успехи — см. update. */
+  let shotsRecent = 0
+  let biomes = BIOMES.map(() => 1 / BIOMES.length)
+  let triumphs = 0
+  let research: { sim: unknown; count: number } | undefined
+  /** Был ли бой, который ещё не кончился победой, и с какой секунды тихо. */
+  let fought = false
+  let quietSince = 0
 
   /** Толчок от взрыва размера size в (x, y): чем больше и ближе к середине экрана, тем сильнее. */
   const jolt = (size: number, x: number, y: number) => {
@@ -97,6 +115,10 @@ export function createSoundscape(scene: Scene, audio: Audio, shake: ReturnType<t
     update(seconds: number, speed: number) {
       clock += seconds
       const { world } = scene.sim
+      // Противник — не свой, не ничей и не союзник, см. allies.ts.
+      const allies = alliesIn(world, scene.player)
+      const foe = (player: number) => player !== scene.player && player !== 0 && !allies.includes(player)
+      shotsRecent *= Math.exp(-seconds / SHOTS_MEMORY)
       // Новое — то, чего не было в прошлом кадре, или что моложе прежнего с тем же номером.
       const nextShots = new Map<Entity, number>()
       for (const [entity, shot] of world.query(Shot)) {
@@ -104,6 +126,7 @@ export function createSoundscape(scene: Scene, audio: Audio, shake: ReturnType<t
         nextShots.set(entity, shot.age)
         // Перескоки разряда — те же выстрелы в тот же миг: их глушит MIN_GAP.
         if (age !== undefined && shot.age >= age) continue
+        if (shot.player === scene.player || foe(shot.player)) shotsRecent++
         const sound = SHOT_SOUNDS[shot.weapon]
         play(sound.name, sound.volume, shot.fromX, shot.fromY)
         const hit = HIT_SOUNDS[shot.weapon]
@@ -145,11 +168,41 @@ export function createSoundscape(scene: Scene, audio: Audio, shake: ReturnType<t
 
       audio.flight(seconds, Math.log(speed / FLIGHT_START) / Math.log(FLIGHT_FULL / FLIGHT_START))
       const { weather, camera } = scene
+
+      // Тревога — противник в виду (хост шлёт только видимое), а летящая на нас ракета — тревога целиком.
+      let foes = 0
+      for (const [, , owner] of world.query(Unit, Owner)) if (foe(owner.player)) foes++
+      let struck = false
+      for (const [, mark] of world.query(Mark)) if (mark.kind === 'strike' && foe(mark.player)) struck = true
+      const threat = struck ? 1 : 1 - Math.exp(-foes / THREAT_FOES)
+      const battle = 1 - Math.exp(-shotsRecent / BATTLE_SHOTS)
+
+      // Успех: открыта новая тема или отбита атака. Темы, открытые до начала игры или в другом мире, — не успех.
+      const count = researchOf(scene.sim, scene.player).length
+      if (research?.sim === scene.sim && count > research.count) triumphs++
+      research = { sim: scene.sim, count }
+      if (battle > 0.5 && foes) fought = true
+      if (foes || battle > 0.1) quietSince = clock
+      else if (fought && clock - quietSince >= REPELLED_QUIET) {
+        fought = false
+        triumphs++
+      }
+
+      // Биом — под серединой экрана, пока камера не несётся над картой: пролёт не перекрашивает фон.
+      if (speed < FLIGHT_START) {
+        const here = biomeAt(scene.sim.land, camera.x, camera.y)
+        biomes = BIOMES.map((biome) => (biome === here ? 1 : 0))
+      }
+
       audio.ambience(seconds, {
         wind: Math.hypot(weather.windX, weather.windY) / STRONG_WIND,
         precipitation: weather.precipitation,
         light: weather.light,
         altitude: camera.altitude,
+        threat,
+        battle,
+        biomes,
+        triumphs,
       })
     },
   }
