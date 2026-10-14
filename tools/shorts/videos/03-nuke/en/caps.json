@@ -1,11 +1,11 @@
 {
- "01": "Fortress: <b>walls, turrets, shield</b>",
+ "01": "<b>76</b> turrets, <b>4</b> shields<br>double wall",
  "02": "Missile silo<br>warhead — <b>2000</b> credits",
  "03": "<b>Everyone</b> gets warned",
  "04": "<b>30 seconds</b> to launch",
  "05": "Anti-air <b>can't stop it</b>",
  "06": "<b>12-tile</b> radius<br>shields don't help",
- "07": "Only <b>craters</b> left",
+ "07": "Nothing <b>left</b> inside",
  "08": "<b>Interceptor</b><br>kills it mid-flight",
  "09": "Fortress <b>intact</b>",
  "end": "<div class=end><div class=logo>KHAROS</div><div class=t>Silo or interceptor?<br>free in your browser</div><div class=u>vicimpa.github.io/kharos</div></div>",

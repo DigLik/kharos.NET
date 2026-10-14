@@ -10,6 +10,9 @@ export default async (c: any) => {
   const f = await screen(c, '__stage.foe.x', '__stage.foe.y'); await c.move(f[0] - 40, f[1] - 30); await c.sleep(300); await c.move(f[0], f[1]); await c.sleep(300); await c.click(f[0], f[1]); await c.sleep(200); await c.move(360, 110)
   await c.sleep(2500)
   await glide(c, '__stage.silo.x', '__stage.silo.y', 26, 1500)
+  // Если щелчок не навёл ракету (попал не туда), пуск ставится напрямую — иначе ролик без удара.
+  const foe = await c.evaluate('__stage.foe')
+  await host(c, 'launch.js', { TX: foe.x, TY: foe.y, LEFT: 30 })
   await host(c, 'rush.js', { LEFT: 2.5 })
   await follow(c, 20, 4500)
 }

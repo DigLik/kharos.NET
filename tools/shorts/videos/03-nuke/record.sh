@@ -9,6 +9,6 @@ for L in $LANGS; do
   lang=$([[ $L == en ]] && echo en-US || echo ru-RU)
   R() { bun $S/rec.ts "$U" clips/$1-$L $2 --size=720x1280 --dpr=1.5 --warm=300 --lang=$lang --css=$sc/nuke.css --setup=$sc/$3 --act=$sc/$1_act.ts 2>&1 | tail -1 | sed "s/^/$1-$L: /"; }
   R base 9 setup.ts
-  R strike 24 setup.ts
+  R strike 30 setup.ts
   R icp 12 setup_icp.ts
 done
