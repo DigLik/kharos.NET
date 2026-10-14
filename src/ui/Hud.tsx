@@ -387,6 +387,10 @@ function Chat({ lines, picking, commands, admin, names, say }: ChatProps) {
   )
 }
 
+/** Подсказка по месту на карте — правее и ниже курсора, а у правого края (узкий экран) — левее него. */
+const besideCursor = (x: number, y: number) =>
+  x > window.innerWidth - 260 ? { right: `${window.innerWidth - x + 16}px`, top: `${y + 16}px` } : { left: `${x + 16}px`, top: `${y + 16}px` }
+
 /** Сторона мини-карты, при которой она вровень с нижней панелью (--bar-inner): крупнее — выступает над ней. */
 const MINIMAP_FLUSH = 140
 
@@ -1187,7 +1191,7 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
           say={say}
         />}
       {state.hover && (
-        <div class="hud tip tip--rows" style={{ left: `${state.hover.x + 16}px`, top: `${state.hover.y + 16}px` }}>
+        <div class="hud tip tip--rows" style={besideCursor(state.hover.x, state.hover.y)}>
           <div>
             <Res resource={state.hover.kind} /> {t('hud.depositTip', { name: t(`goods.${state.hover.kind}`) })}
             <small>{state.hover.left === null ? t('hud.leftUnknown') : state.hover.left > 0 ? t('hud.left', { amount: state.hover.left }) : t('hud.depleted')}</small>
@@ -1198,7 +1202,7 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
       )}
 
       {state.pipeHover && (
-        <div class="hud tip" style={{ left: `${state.pipeHover.x + 16}px`, top: `${state.pipeHover.y + 16}px` }}>
+        <div class="hud tip" style={besideCursor(state.pipeHover.x, state.pipeHover.y)}>
           {t('hud.network', { buildings: state.pipeHover.buildings })}
           <small>
             {state.pipeHover.stock.length
