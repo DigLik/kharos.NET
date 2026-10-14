@@ -1,0 +1,4 @@
+/* Только фон меню: прячем всё, кроме сценки. */
+body * { visibility: hidden !important; }
+.showcase, .showcase * { visibility: visible !important; }
+.showcase__veil { display: none !important; }
