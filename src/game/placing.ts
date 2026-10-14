@@ -1,5 +1,5 @@
 import { peakOf, tileKey } from '../map/terrain'
-import { BUILDINGS, CORE, canDeployAt, DEPOSIT_SIZE, Owner, Pave, PAVE_LIMIT, digsIn, paveOwnerAt, peakTiles, type DigKind, canBuild, canPlace, canPave, creditsOf, depositNear, freeCredits, paveCost, buildingWithin, pipeAt, pipeStroke, wallStroke, isWellPair, wellsKept, UNDERGROUND_REACH, type BuildingSpec, type BuildingType } from '../sim'
+import { BUILDINGS, CORE, canDeployAt, DEPOSIT_SIZE, Owner, Pave, PAVE_LIMIT, digsIn, paveOwnerAt, peakTiles, type DigKind, canBuild, canPlace, canPave, creditsOf, depositNear, paveCost, buildingWithin, pipeAt, pipeStroke, wallStroke, isWellPair, wellsKept, UNDERGROUND_REACH, type BuildingSpec, type BuildingType } from '../sim'
 import type { PaveTool, Scene } from './scene'
 
 /** Где встанет здание, которое игрок сейчас выбирает место: левый верхний тайл основания и годится ли место. */
@@ -65,12 +65,12 @@ function wellStrokeOf(scene: Scene, from: { x: number; y: number }, tile: { x: n
   const single = tiles.length === 2
   const valid = (single || isWellPair(tiles)) && fresh > 0
   const price = (cost / 2) * fresh
-  const affordable = creditsOf(sim, player) >= price
+  // Колодец — стройка, её оплачивают по ходу: кладут и без кредитов.
   return {
     tool: 'well',
     tiles,
-    allowed: fits.map((ok) => ok && valid && affordable),
-    short: fits.map((ok) => ok && valid && !affordable),
+    allowed: fits.map((ok) => ok && valid),
+    short: fits.map(() => false),
     cost: valid ? price : 0,
   }
 }
@@ -146,23 +146,19 @@ export function paveStrokeOf(scene: Scene): PaveStroke | null {
   const { sim, player } = scene
   const allowed: boolean[] = []
   const short: boolean[] = []
-  // Кредиты считаются по тайлу в том же порядке: на что не хватит, то и не ляжет. Стены платят по ходу стройки
-  // и закладываются на свободные кредиты; трубы — на все: по ним стройка получает материалы, см. orderPipes.
-  const credits = tool === 'wall' || tool === 'gate' ? freeCredits(sim, player) : creditsOf(sim, player)
   let cost = 0
   if (tool === 'pipe' || tool === 'wall' || tool === 'gate') {
-    // Труба и стена тянутся цепочкой: на чём кончились кредиты, дальше уже не лягут, см. orderPipes и orderWalls.
+    // Труба и стена — стройки: их оплачивают по ходу, поэтому ложатся и без кредитов, см. orderPipes и orderWalls.
     const price = BUILDINGS[tool].cost
-    let broke = false
     for (const ok of tool === 'pipe' ? pipeStroke(sim, player, tiles) : wallStroke(sim, player, tiles, tool)) {
-      const affordable = ok && !broke && cost + price <= credits
-      if (ok && !affordable) broke = true
-      allowed.push(affordable)
-      short.push(ok && !affordable)
-      if (affordable) cost += price
+      allowed.push(ok)
+      short.push(false)
+      if (ok) cost += price
     }
     return { tool, tiles, allowed, short, cost }
   }
+  // Покрытие оплачивают сразу: кредиты считаются по тайлу в том же порядке, на что не хватит, то и не ляжет.
+  const credits = creditsOf(sim, player)
   const covered = new Set<number>()
   if (tool === 'remove') for (let i = 0; i < tiles.length; i += 2) covered.add(tileKey(tiles[i], tiles[i + 1]))
   for (let i = 0; i < tiles.length; i += 2) {

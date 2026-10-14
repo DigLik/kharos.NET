@@ -4,8 +4,8 @@ import { BUILDINGS, CORE, RESEARCH_FOR, UNDERGROUND_REACH, buildingSpec, isPipe,
 import { hasResearch } from './topics'
 import { Building, Inventory, Owner, Position, Site } from './components'
 import type { Sim } from './sim'
-import { assignBuilders, cancelBuild, refundOf } from './construction'
-import { addCredits, creditsOf } from './economy'
+import { assignBuilders, refundOf, scrapSite } from './construction'
+import { addCredits } from './economy'
 import { PAVE_LIMIT } from './paving'
 import { allZones, inForeignZone, networkOf, type Zone } from './zones'
 
@@ -177,11 +177,11 @@ export function pipeSwap(sim: Sim, player: number, kind: PipeKind, x: number, y:
 export const wellAt = (sim: Sim, player: number, x: number, y: number) => pipeKindAt(sim, player, x, y) === 'well'
 
 /**
- * Убирает трубу, вместо которой кладут другую: не начатую и недостроенную — как отмену стройки, с возвратом цены,
- * готовую — сразу, с возвратом как за разбор.
+ * Убирает трубу, вместо которой кладут другую, сразу: не начатую и недостроенную — с возвратом уплаченного,
+ * готовую — с возвратом как за разбор.
  */
 function replacePipe(sim: Sim, player: number, entity: Entity) {
-  if (sim.world.has(entity, Site)) return void cancelBuild(sim, player, entity)
+  if (sim.world.has(entity, Site)) return void scrapSite(sim, player, entity)
   addCredits(sim, player, refundOf(sim.world.get(entity, Building)!.type))
   sim.world.destroy(entity)
 }
@@ -209,20 +209,16 @@ export function pipeStroke(sim: Sim, player: number, tiles: readonly number[], k
 
 /**
  * Закладывает протянутую наземную трубу (тайлы x, y подряд, по порядку протяжки) и посылает к ней строителей.
- * Платят по ходу стройки, как за любое здание. Закладывают на все кредиты, а не только на свободные (см. freeCredits):
- * труба — то, по чему стройка получит материалы, и обещанное ей не должно мешать её подвести. Дальше, чем хватает
- * кредитов, и куда нельзя (см. pipeStroke) — не кладут. Свой колодец на её пути заменяется трубой. Возвращает, сколько заложено.
+ * Платят по ходу стройки, как за любое здание, поэтому кладут и без кредитов. Куда нельзя (см. pipeStroke) — не кладут.
+ * Свой колодец на её пути заменяется трубой. Возвращает, сколько заложено.
  */
 export function orderPipes(sim: Sim, player: number, tiles: readonly number[], builders: Entity[]) {
   const allowed = pipeStroke(sim, player, tiles.slice(0, PAVE_LIMIT * 2))
   let first: Entity | undefined
   let count = 0
-  let budget = creditsOf(sim, player)
   for (let i = 0; i < allowed.length; i++) {
-    // Негодный тайл пропускается, как в предпросмотре; кончились кредиты — цепочка дальше не тянется.
+    // Негодный тайл пропускается, как в предпросмотре.
     if (!allowed[i]) continue
-    if (budget < BUILDINGS.pipe.cost) break
-    budget -= BUILDINGS.pipe.cost
     // Свой колодец на пути трубы заменяется ею.
     const swap = pipeSwap(sim, player, 'pipe', tiles[i * 2], tiles[i * 2 + 1])
     if (swap !== undefined) replacePipe(sim, player, swap)
@@ -271,7 +267,6 @@ export function orderWells(sim: Sim, player: number, tiles: readonly number[], b
   const fits = pipeStroke(sim, player, tiles, 'well')
   const fresh = kept.filter((item) => !item).length
   if (!fresh || !fits.every((ok, i) => ok || kept[i])) return false
-  if (creditsOf(sim, player) < BUILDINGS.well.cost * fresh) return false
   let first: Entity | undefined
   for (let i = 0; i < tiles.length; i += 2) {
     if (kept[i >> 1]) continue

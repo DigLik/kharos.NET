@@ -64,6 +64,8 @@ export interface Slot {
   cost?: number
   /** cost — не трата, а доход: продажа, возврат за разбор. */
   gain?: boolean
+  /** Кредитов на всю цену сейчас нет, но нажать можно: стройку оплачивают по ходу, и она подождёт. */
+  short?: boolean
   power?: number
   /** Сколько энергии просит здание без дела, если не столько же, сколько в работе (power). */
   idle?: number
@@ -195,8 +197,8 @@ export function commandsOf(
       active: construction.placing === building,
       zones: true,
       about: aboutOf(building),
-      disabled: !affordable,
-      title: affordable ? undefined : t('grid.noCredits'),
+      short: !affordable,
+      title: affordable ? undefined : t('grid.shortCredits'),
       run: () => {
         pave(null)
         place(construction.placing === building ? null : building)
@@ -210,7 +212,7 @@ export function commandsOf(
         ...buildingSlot(option),
         cost: active && construction.paving!.tiles > 1 ? construction.paving!.cost : option.cost,
         active,
-        title: option.affordable ? t('grid.wallTip') : t('grid.noCredits'),
+        title: option.affordable ? t('grid.wallTip') : `${t('grid.wallTip')}. ${t('grid.shortCredits')}`,
         run: () => {
           place(null)
           pave(active ? null : tool)
@@ -256,7 +258,8 @@ export function commandsOf(
           ...(tool === 'pipe' || tool === 'well' ? { building: tool, zones: true } : { pave: tool }),
           cost: active && construction.paving!.tiles > 1 ? construction.paving!.cost : cost,
           active,
-          disabled: credits < cost,
+          // Трубы и колодцы — стройки, их оплачивают по ходу; покрытие и землеройные работы — сразу.
+          ...(tool === 'pipe' || tool === 'well' ? { short: credits < cost } : { disabled: credits < cost }),
           title: t(`grid.toolTips.${tool}`, { bridge: BRIDGE_COST, reach: UNDERGROUND_REACH, cost }),
           run: () => {
             place(null)
@@ -727,7 +730,7 @@ export function commandsOf(
 
   if (site) {
     slots[DEMOLISH] = {
-      label: site.demolish ? t('grid.cancelDemolish') : t('grid.cancelBuild'),
+      label: site.undo ? t('grid.resumeBuild') : site.demolish ? t('grid.cancelDemolish') : t('grid.cancelBuild'),
       run: () => send({ type: 'cancelBuild', site: site.entity }),
     }
   }

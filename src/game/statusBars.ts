@@ -17,7 +17,7 @@ export function statusBarsOf(world: World, entity: Entity): { health?: number; s
   if (!building) return bars
   const site = world.get(entity, Site)
   const record = world.get(entity, Health)
-  if (record && record.value < record.max && !(site && !site.demolish)) bars.health = Math.max(0, record.value / record.max)
+  if (record && record.value < record.max && !(site && (!site.demolish || site.undo))) bars.health = Math.max(0, record.value / record.max)
   const dome = buildingSpec(building.type).shield
   const shield = !site && dome ? world.get(entity, Shield) : undefined
   if (shield && dome && !world.has(entity, Ghost)) bars.shield = Math.min(1, Math.max(0, shield.charge / dome.capacity))

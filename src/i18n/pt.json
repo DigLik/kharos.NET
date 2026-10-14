@@ -311,6 +311,7 @@
   "grid": {
     "unlocks": "{info}. Libera: {list}",
     "noCredits": "Créditos insuficientes",
+    "shortCredits": "Agora não há créditos para o preço todo — dá para colocar mesmo assim: a obra é paga aos poucos e espera chegar mais créditos",
     "wallTip": "Arraste uma linha com o mouse; um clique coloca um",
     "sections": {
       "economy": "Economia",
@@ -437,6 +438,7 @@
     "ferryEmpty": "A nave está vazia: coloque carga ou dinheiro",
     "cancelDemolish": "Cancelar desmontagem",
     "cancelBuild": "Cancelar construção",
+    "resumeBuild": "Retomar",
     "demolishTip": "Os construtores desmontam o edifício; ao terminar, metade do preço é devolvida",
     "upgrade": "Nível {level}",
     "upgradeTip": "Subir de nível: {gain} ×{factor}. O preço é cobrado na hora e os materiais saem da rede do edifício; os construtores fazem o trabalho e o edifício continua funcionando",
@@ -518,6 +520,7 @@
     "buildingsCount": "Edifícios: {count}",
     "demolition": "Desmontagem: {name}",
     "construction": "Construção: {name}",
+    "undoing": "Cancelando a obra: {name}",
     "narrowTip": "{name}: clique — manter só estas, Shift — tirar da seleção",
     "showOnMap": "Mostrar no mapa",
     "zonePower": "⚡ Energia da zona: {demand} de {produced} em uso",
@@ -595,7 +598,7 @@
     "interceptorNoCredits": "Mísseis {count} de {capacity}: o próximo custa {cost} créditos",
     "interceptorNoMaterials": "Mísseis {count} de {capacity}: falta na rede — precisa de {materials}",
     "building": "Em construção — {percent}",
-    "buildingBroke": "Parada em {percent}: a obra é paga conforme avança, e não há créditos",
+    "buildingBroke": "Aguardando créditos — {percent} pronto: a obra é paga aos poucos",
     "blocked": "O local está ocupado por unidades",
     "waitsBuilder": "Aguarda um construtor",
     "deploying": "Implantando",

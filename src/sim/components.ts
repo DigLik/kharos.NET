@@ -99,9 +99,10 @@ export const Deploys = component('Deploys', { x: 0, y: 0, misses: 0 })
  * Стройка. Пока строитель не начал работу, это только площадка: у сущности нет компонента Building,
  * она не занимает тайлы и сквозь неё ходят. С началом работы появляется Building, а Site остаётся до конца стройки.
  * progress — сколько тиков работы одного строителя уже вложено. demolish — здание не строят, а разбирают:
- * progress идёт от полного к нулю, и в нуле здание исчезает.
+ * progress идёт от полного к нулю, и в нуле здание исчезает. undo — разбирают отменённую стройку: уплаченное
+ * за неё возвращается по ходу разбора, а не доля цены в конце, как у готового здания.
  */
-export const Site = component('Site', { type: 'generator' as BuildingType, progress: 0, demolish: false })
+export const Site = component('Site', { type: 'generator' as BuildingType, progress: 0, demolish: false, undo: false })
 
 /**
  * Ремонтник едет к работе site — стройке, разбору или тому, что надо починить, — чтобы она оказалась в его радиусе.

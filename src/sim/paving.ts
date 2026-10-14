@@ -126,9 +126,11 @@ export function removePave(sim: Sim, player: number, tiles: readonly number[], u
   }
   for (const entity of taken) {
     count++
-    // Стройку отменяют целиком, с возвратом, как площадку; готовое строители разбирают.
-    if (sim.world.has(entity, Site)) cancelBuild(sim, player, entity)
-    else if (demolish(sim, player, entity, [])) first ??= entity
+    // Стройку отменяют: площадка исчезает сразу, недостроенное строители разбирают, как и готовое.
+    if (sim.world.has(entity, Site)) {
+      cancelBuild(sim, player, entity)
+      if (sim.world.alive(entity)) first ??= entity
+    } else if (demolish(sim, player, entity, [])) first ??= entity
   }
   if (first !== undefined) assignBuilders(sim, player, first, assign)
   return count > 0

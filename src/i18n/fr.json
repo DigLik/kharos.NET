@@ -311,6 +311,7 @@
   "grid": {
     "unlocks": "{info}. Débloque : {list}",
     "noCredits": "Crédits insuffisants",
+    "shortCredits": "Pas assez de crédits pour le prix complet pour l'instant — tu peux quand même la poser : le chantier se paie au fur et à mesure et attendra",
     "wallTip": "Tracez une ligne à la souris ; un clic en pose un seul",
     "sections": {
       "economy": "Économie",
@@ -437,6 +438,7 @@
     "ferryEmpty": "Le vaisseau est vide : chargez du fret ou de l'argent",
     "cancelDemolish": "Annuler le démontage",
     "cancelBuild": "Annuler le chantier",
+    "resumeBuild": "Reprendre",
     "demolishTip": "Les constructeurs démontent le bâtiment ; à la fin, la moitié du prix est rendue",
     "upgrade": "Niveau {level}",
     "upgradeTip": "Monter de niveau : {gain} ×{factor}. Le prix est payé tout de suite, les matériaux viennent du réseau du bâtiment ; les constructeurs font le travail et le bâtiment continue de fonctionner",
@@ -518,6 +520,7 @@
     "buildingsCount": "Bâtiments : {count}",
     "demolition": "Démontage : {name}",
     "construction": "Chantier : {name}",
+    "undoing": "Annulation du chantier : {name}",
     "narrowTip": "{name} : clic — ne garder qu'elles, Maj — les retirer de la sélection",
     "showOnMap": "Montrer sur la carte",
     "zonePower": "⚡ Énergie de la zone : {demand} consommés sur {produced}",
@@ -595,7 +598,7 @@
     "interceptorNoCredits": "Missiles {count} sur {capacity} : le suivant coûte {cost} crédits",
     "interceptorNoMaterials": "Missiles {count} sur {capacity} : il manque dans le réseau — il faut {materials}",
     "building": "En construction — {percent}",
-    "buildingBroke": "Arrêté à {percent} : le chantier se paie au fur et à mesure, et il n’y a plus de crédits",
+    "buildingBroke": "Attend des crédits — {percent} fait : le chantier se paie au fur et à mesure",
     "blocked": "L'emplacement est occupé par des unités",
     "waitsBuilder": "Attend un constructeur",
     "deploying": "Déploiement",

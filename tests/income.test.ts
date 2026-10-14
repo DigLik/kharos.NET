@@ -188,7 +188,7 @@ test('здание разбирают строители в полтора ра�
   sim.send(1, { type: 'demolish', building: plant, builders: [] })
   sim.send(1, { type: 'demolish', building: link, builders: [] })
   sim.advance(TICK)
-  expect(sim.world.get(plant, Site)).toEqual({ type: 'generator', progress: 300, demolish: true })
+  expect(sim.world.get(plant, Site)).toEqual({ type: 'generator', progress: 300, demolish: true, undo: false })
   expect(economyOf(sim, 1).produced).toBe(0)
   expect(canBuild(sim, 1, 'khariteVault', x + 17, y + 3)).toBe(false)
 

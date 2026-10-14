@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { lacksOf } from '../src/game/lacks'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { BUILDINGS, Inventory, UNITS, canPlace, createSim, type BuildingType, type Sim } from '../src/sim'
+import { BUILDINGS, Inventory, Owner, Position, Site, UNITS, canPlace, createSim, type BuildingType, type Sim } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
 import { Assembly } from '../src/sim/components'
 import { addCredits } from '../src/sim/economy'
@@ -62,4 +62,16 @@ test('знак нехватки: завод с заказом без матер�
   sim.send(1, { type: 'work', building: plant, on: false })
   seconds(sim, 0.5)
   expect(lacksOf(sim, 1).has(plant)).toBe(false)
+})
+
+test('знак нехватки: своя стройка без кредитов ждёт кредитов, разбор — нет', () => {
+  const sim = createSim(options)
+  const site = sim.world.spawn(Position({ x: 0, y: 0 }), Site({ type: 'wall' }), Owner({ player: 1 }))
+  expect(lacksOf(sim, 1).get(site)).toBe('credits')
+  expect(lacksOf(sim, 2).size).toBe(0)
+  addCredits(sim, 1, 100)
+  expect(lacksOf(sim, 1).has(site)).toBe(false)
+  addCredits(sim, 1, -100)
+  sim.world.set(site, Site, { demolish: true })
+  expect(lacksOf(sim, 1).has(site)).toBe(false)
 })

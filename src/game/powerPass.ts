@@ -6,7 +6,7 @@ import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
 import { BUILDINGS, Building, GOODS, Position, Site, powerStates, shutDown, unlinked, type Good, type PowerState } from '../sim'
 import { GOOD_ICON, paintGood } from './goodIcons'
-import { lacksOf } from './lacks'
+import { lacksOf, type Lack } from './lacks'
 import { STATUS_BAR, STATUS_GAP, STATUS_STACK, statusBarsOf, statusLift } from './statusBars'
 import type { Scene } from './scene'
 
@@ -116,6 +116,18 @@ function drawLack(good: Good) {
   return image
 }
 
+/** Значок «Не хватает кредитов»: золотая монета на тёмном круге в красном кольце, как у груза. */
+function drawBroke() {
+  const image = new Pixmap(ICON_SIZE, ICON_SIZE)
+  image.circle(8, 8, 8, 0x0b111b)
+  image.circle(8, 8, 7, 0xe5492f)
+  image.circle(8, 8, 6, 0x121c2a)
+  image.circle(8, 8, 4, 0x8a5a14)
+  image.circle(8, 8, 3.2, 0xf0c95a)
+  image.rect(7, 6, 2, 4, 0x8a5a14)
+  return image
+}
+
 type Color = readonly [number, number, number]
 const BAR_BACK: Color = [0.03, 0.05, 0.08]
 const BAR_GOOD: Color = [0.45, 0.9, 0.55]
@@ -127,7 +139,7 @@ const BAR_SHIELD: Color = [0.3, 0.55, 1]
 export function powerSprites(): Sprite[] {
   const bolts = Array.from({ length: BOLTS }, (_, i) => drawBolt(i))
   const white = new Pixmap(4, 4).rect(0, 0, 4, 4, 0xffffff)
-  return [...bolts, drawIcon(), white, drawLoose(), drawOff(), ...GOODS.map(drawLack)].map(ready)
+  return [...bolts, drawIcon(), white, drawLoose(), drawOff(), ...GOODS.map(drawLack), drawBroke()].map(ready)
 }
 
 /** Раз во сколько тиков симуляции пересчитывается, каким своим зданиям чего не хватает: это обход складов и сетей. */
@@ -147,7 +159,8 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
   const whiteFrame = atlas.frames[BOLTS + 1]
   const looseFrame = atlas.frames[BOLTS + 2]
   const offFrame = atlas.frames[BOLTS + 3]
-  const lackFrames = new Map(GOODS.map((good, i) => [good, atlas.frames[BOLTS + 4 + i]]))
+  const lackFrames = new Map<Lack, (typeof atlas.frames)[number]>(GOODS.map((good, i) => [good, atlas.frames[BOLTS + 4 + i]]))
+  lackFrames.set('credits', atlas.frames[BOLTS + 4 + GOODS.length])
   const whiteU = whiteFrame.u + whiteFrame.width / 2
   const whiteV = whiteFrame.v + whiteFrame.height / 2
 
@@ -157,7 +170,7 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
   // Кому не хватает энергии, пересчитывается раз в тик симуляции, а не каждый кадр.
   let states = new Map<Entity, PowerState>()
   let tick = -1
-  let lacks = new Map<Entity, Good>()
+  let lacks = new Map<Entity, Lack>()
   let lacksAt = -Infinity
   let lacksSim: unknown
 

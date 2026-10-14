@@ -512,7 +512,7 @@ function CommandGrid({ slots, stock }: { slots: (Slot | null)[]; stock: Stack[] 
             <span class="bar__price">
               {slot.group !== undefined && `${slot.group} ▸`}
               {slot.cost !== undefined && (
-                <b class={slot.gain ? 'is-gain' : undefined}>
+                <b class={slot.gain ? 'is-gain' : slot.short ? 'is-short' : undefined}>
                   <span class="hud__coin" />
                   {slot.gain ? `+${slot.cost}` : slot.cost}
                 </b>
@@ -556,7 +556,7 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
     building !== null
       ? state.buildings > 1
         ? state.mixed ? t('hud.buildingsCount', { count: state.buildings }) : `${t(`buildings.${building}`)} ×${state.buildings}`
-        : site ? t(site.demolish ? 'hud.demolition' : 'hud.construction', { name: t(`buildings.${building}`) }) : t(`buildings.${building}`)
+        : site ? t(site.undo ? 'hud.undoing' : site.demolish ? 'hud.demolition' : 'hud.construction', { name: t(`buildings.${building}`) }) : t(`buildings.${building}`)
       : units.map(({ type, count }) => (count > 1 ? `${t(`units.${type}`)} ×${count}` : t(`units.${type}`))).join(', ')
 
   return (

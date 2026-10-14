@@ -68,6 +68,16 @@ export function pay(sim: Sim, player: number, amount: number) {
   return true
 }
 
+/** Начисляет сумму с дробной частью: доли копятся в Player.earned, на счёт попадают целые кредиты, как у дохода. */
+export function earn(sim: Sim, player: number, amount: number) {
+  const entity = playerEntity(sim, player)
+  if (entity === undefined || amount <= 0) return
+  const { credits, earned } = sim.world.get(entity, Player)!
+  const total = earned + amount
+  const whole = Math.floor(total)
+  sim.world.set(entity, Player, { credits: credits + whole, earned: total - whole })
+}
+
 /**
  * Списывает сумму с дробной частью, если денег хватает: доли идут из заработанного, но ещё не дошедшего
  * до целого кредита (Player.earned), а когда его не хватает — разменивается целый кредит со счёта.

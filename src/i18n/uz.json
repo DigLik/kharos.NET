@@ -311,6 +311,7 @@
   "grid": {
     "unlocks": "{info}. Ochadi: {list}",
     "noCredits": "Kredit yetarli emas",
+    "shortCredits": "Hozir to‘liq narxga kredit yetmaydi — baribir qo‘yish mumkin: qurilish jarayonida to‘lanadi va kreditlar ko‘payguncha kutadi",
     "wallTip": "Sichqoncha bilan chiziq torting; bir marta bosish bitta qo‘yadi",
     "sections": {
       "economy": "Iqtisodiyot",
@@ -437,6 +438,7 @@
     "ferryEmpty": "Kema bo‘sh: yuk yoki kredit soling",
     "cancelDemolish": "Buzishni bekor qilish",
     "cancelBuild": "Qurilishni bekor qilish",
+    "resumeBuild": "Davom etish",
     "demolishTip": "Binoni quruvchilar buzadi; tugatgach, narxining yarmi qaytadi",
     "upgrade": "Daraja {level}",
     "upgradeTip": "Darajani ko‘tarish: {gain} ×{factor}. Narx darhol to‘lanadi, tayyor mahsulot bino tarmog‘idan olinadi; ishni quruvchilar bajaradi, bino esa ishlashda davom etadi",
@@ -518,6 +520,7 @@
     "buildingsCount": "Binolar: {count}",
     "demolition": "Buzish: {name}",
     "construction": "Qurilish: {name}",
+    "undoing": "Qurilish bekor qilinmoqda: {name}",
     "narrowTip": "{name}: bosish — faqat ularni qoldirish, Shift — tanlovdan chiqarish",
     "showOnMap": "Xaritada ko‘rsatish",
     "zonePower": "⚡ Zona energiyasi: {produced} dan {demand} sarflanmoqda",
@@ -595,7 +598,7 @@
     "interceptorNoCredits": "Raketalar {count}/{capacity}: keyingisi uchun {cost} kredit kerak",
     "interceptorNoMaterials": "Raketalar {count}/{capacity}: tarmoqda yetishmaydi — {materials} kerak",
     "building": "Qurilmoqda — {percent}",
-    "buildingBroke": "{percent} da to‘xtadi: qurilish borishi bilan to‘lanadi, kredit esa yo‘q",
+    "buildingBroke": "Kredit kutmoqda — {percent} tayyor: qurilish jarayonida to‘lanadi",
     "blocked": "Joy bo‘linmalar bilan band",
     "waitsBuilder": "Quruvchini kutmoqda",
     "deploying": "Ochilmoqda",

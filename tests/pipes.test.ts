@@ -244,7 +244,7 @@ test('здание со складом без трубы — не подключ
   expect(unlinked(sim, 1, yard)).toBe(false)
 })
 
-test('протяжка через стоящую трубу пропускает её тайл и тянется дальше; кончились кредиты — обрывается', () => {
+test('протяжка через стоящую трубу пропускает её тайл и тянется дальше, и без кредитов — тоже', () => {
   const pipeSites = (sim: Sim) => {
     let count = 0
     for (const [, site] of sim.world.query(Site)) if (site.type === 'pipe') count++
@@ -263,7 +263,8 @@ test('протяжка через стоящую трубу пропускает
     return pipeSites(sim)
   }
   expect(stroke(1000)).toBe(14)
-  expect(stroke(BUILDINGS.pipe.cost * 6)).toBe(6)
+  // Платят по ходу стройки: протяжка ложится целиком и без кредитов.
+  expect(stroke(BUILDINGS.pipe.cost * 6)).toBe(14)
 })
 
 /** Что лежит в тайле: вид готового здания или заложенной стройки. */

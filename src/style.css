@@ -1410,6 +1410,11 @@ body {
   color: var(--good);
 }
 
+/* Цены сейчас нет на счету: стройка встанет, пока кредитов не прибавится. */
+.bar__price b.is-short {
+  color: var(--warn);
+}
+
 .bar__price .hud__res {
   margin: 0;
 }
