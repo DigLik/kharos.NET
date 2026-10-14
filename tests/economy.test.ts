@@ -7,7 +7,7 @@ import {
 } from '../src/sim'
 import { STORES, placeBuilding, storeFor } from '../src/sim/buildings'
 import type { Amounts, Ware } from '../src/sim/resources'
-import { addCredits } from '../src/sim/economy'
+import { addCredits, rewardsOf } from '../src/sim/economy'
 import { Hauler } from '../src/sim/components'
 import { NONE } from '../src/sim/common'
 import { spawnUnit } from '../src/sim/units'
@@ -130,7 +130,7 @@ test('производство ждёт материалов первого за
   expect(oreIn(sim, store('parts'), 'parts') + oreIn(sim, factory, 'parts')).toBeCloseTo(10 - UNITS.tank.materials.parts)
 })
 
-test('космопорт продаёт любой ресурс по его цене', () => {
+test('космопорт продаёт любой ресурс по его цене; первая продажа — награда', () => {
   const { sim, x, y, store, stash, buildings } = base(['spaceport'])
   const [port] = buildings
   stash({ metal: 30 })
@@ -140,6 +140,7 @@ test('космопорт продаёт любой ресурс по его це
   until(sim, () => creditsOf(sim, 1) - before >= 20 * RESOURCE_SPECS.metal.price)
   expect(oreIn(sim, store('metal'), 'metal')).toBeCloseTo(10)
   expect(oreIn(sim, port, 'metal')).toBeCloseTo(0)
+  expect(rewardsOf(sim, 1)).toContain('sale')
   // Пока везли и летели, прошло не меньше полёта.
   expect(sim.time.tick * TICK).toBeGreaterThan(SELL_SECONDS)
 })

@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import type { Entity } from '../src/ecs'
 import {
-  BUILDINGS, Beam, RELIEF_BELOW, DEPOSIT_CELL, DEPOSIT_KINDS, DEPOSIT_TYPES, Deposit, Hauler, Inventory, REFINE_RATE, REFINE_RATIO, RESOURCE_SPECS, SELL_SECONDS, TRUCK_CAPACITY, Trade, amountOf, canBuild, deliveredTo, gapBetween, canSell, isWalkable, stockOf, canPlace, createSim, creditsOf, depositAt, depositIn, depositNear, reserveLeft, rewardsOf,
+  BUILDINGS, Beam, REWARDS, RELIEF_BELOW, DEPOSIT_CELL, DEPOSIT_KINDS, DEPOSIT_TYPES, Deposit, Hauler, Inventory, REFINE_RATE, REFINE_RATIO, RESOURCE_SPECS, SELL_SECONDS, TRUCK_CAPACITY, Trade, amountOf, canBuild, deliveredTo, gapBetween, canSell, isWalkable, stockOf, canPlace, createSim, creditsOf, depositAt, depositIn, depositNear, reserveLeft, rewardsOf,
   zonesOf, type BuildingType, type DepositSpot, type Good, type Sim,
 } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
@@ -363,7 +363,7 @@ test('космопорт продаёт по заявке: диспетчер ш
   expect(sim.world.has(port, Trade)).toBe(false)
   expect(delivered()).toBe(0)
   const income = BUILDINGS.command.income * SELL_SECONDS
-  expect(Math.abs(creditsOf(sim, 1) - before - 50 * RESOURCE_SPECS.metal.price - income)).toBeLessThanOrEqual(1)
+  expect(Math.abs(creditsOf(sim, 1) - before - 50 * RESOURCE_SPECS.metal.price - income - REWARDS.sale)).toBeLessThanOrEqual(1)
 
   // Грузовик, привязанный к шахте, на зов космопорта не идёт; заявку можно закрыть с тем, что привезли.
   sim.send(1, { type: 'haul', units: [truck], mine })

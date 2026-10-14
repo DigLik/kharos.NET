@@ -4,7 +4,7 @@ import { CHANNELS, loadLevel, loadMuted, loadVolume, storeLevel, storeMuted, sto
 import { createMenuMusic, type MenuMusic } from '../audio/music'
 import { createSlot, deleteSave, exportSave, importSave, listSaves, renameSave, storeSave, type SaveSlot } from '../game/storage'
 import { DEFAULT_SETTINGS } from '../map/settings'
-import { MINIMAP_SIDES, SELECTION_LEVELS, prefs, setPrefs, type Prefs } from '../game/prefs'
+import { MINIMAP_SIDES, SELECTION_LEVELS, STEPS_SHOWN, prefs, setPrefs, type Prefs } from '../game/prefs'
 import { FPS_LIMITS, PRESETS as GRAPHICS_PRESETS, RESOLUTIONS, graphics, presetOf, setGraphics, type Detail, type Graphics, type Preset } from '../render/graphics'
 import { DEFAULT_CONFIG, type GeneratorConfig } from '../map/terrain'
 import { DEFAULT_WEATHER, createSim } from '../sim'
@@ -838,6 +838,14 @@ function InterfaceSettings() {
         value={value.minimap}
         name={(side) => String(side)}
         onChange={(minimap) => change({ ...value, minimap })}
+      />
+      <Choice
+        label={t('menu.steps')}
+        tip={t('menu.stepsTip')}
+        values={STEPS_SHOWN}
+        value={value.steps}
+        name={(shown) => t(`menu.stepsShown.${shown}`)}
+        onChange={(steps) => change({ ...value, steps })}
       />
     </>
   )

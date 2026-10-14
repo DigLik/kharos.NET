@@ -1,7 +1,7 @@
 import type { Entity } from '../ecs'
 import { buildingSpec, isReady, levelFactor, levelOf } from './buildings'
 import { Building, Inventory, Owner, Trade, Transfer } from './components'
-import { addCredits, pay } from './economy'
+import { addCredits, pay, reward } from './economy'
 import { amountOf, put, roomFor, take } from './inventory'
 import { incomingTo } from './logistics'
 import { RESOURCE_SPECS, WARES, type Amounts, type Resource, type ResourceSpec, type Ware } from './resources'
@@ -183,5 +183,6 @@ export function trade(sim: Sim) {
     const sold = hold ? take(hold, order.resource, order.wanted) : 0
     world.remove(port, Trade)
     addCredits(sim, player, Math.round(sold * RESOURCE_SPECS[order.resource].price))
+    if (sold > 0) reward(sim, player, 'sale')
   }
 }

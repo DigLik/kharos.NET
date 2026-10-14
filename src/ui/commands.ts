@@ -4,6 +4,7 @@ import type { PaveTool } from '../game/scene'
 import { BRIDGE_COST, CLIFF_COST, PEAK_COST, BUILDINGS, SUPPLY, UNDERGROUND_REACH, BUILDING_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, TRANSFER_CAPACITY, WARES, type Amounts, type Stance, type BuildingType, type Command, type Good, type Resource } from '../sim'
 import { t } from '../i18n'
 import { isSeen, markSeen } from './seen'
+import { currentStep } from '../game/firstSteps'
 
 /** Клавиши ячеек сетки команд по порядку: три ряда по четыре, как на клавиатуре, справа от WASD. */
 export const GRID_KEYS = ['KeyT', 'KeyY', 'KeyU', 'KeyI', 'KeyG', 'KeyH', 'KeyJ', 'KeyK', 'KeyB', 'KeyN', 'KeyM', 'Comma'] as const
@@ -69,6 +70,8 @@ export interface Slot {
   short?: boolean
   /** Новое: игрок ни разу не нажимал эту кнопку стройки, а у раздела — в нём есть такая. Подсвечено, см. seen.ts. */
   fresh?: boolean
+  /** Сюда ведёт текущий первый шаг новичка, см. firstSteps.ts: подсвечено ярче нового. */
+  hint?: boolean
   power?: number
   /** Сколько энергии просит здание без дела, если не столько же, сколько в работе (power). */
   idle?: number
@@ -187,6 +190,8 @@ export function commandsOf(
   const slots: (Slot | null)[] = Array(GRID_SIZE).fill(null)
   const list = (items: Slot[]) => items.slice(0, LIST).forEach((slot, i) => (slots[i] = slot))
   const { construction, production, conversion, assembly, trade, site, demolish, credits } = state
+  // Куда ведёт текущий первый шаг: его кнопка подсвечена, пока шаг не пройден.
+  const step = state.steps ? currentStep(state.steps) : undefined
 
   if (construction) {
     /** Кнопка здания из списка строителя. */
@@ -202,6 +207,7 @@ export function commandsOf(
       about: aboutOf(building),
       short: !affordable,
       fresh: !isSeen(building),
+      hint: step?.building === building,
       title: affordable ? undefined : t('grid.shortCredits'),
       run: () => {
         markSeen(building)
@@ -237,6 +243,7 @@ export function commandsOf(
         label: t(`grid.sections.${page}`),
         title: t(`grid.sectionTips.${page}`),
         fresh: fresh(page),
+        hint: !!step?.building && sectionOf(step.building) === page && construction.options.some(({ building }) => building === step.building),
         run: () => open(page),
       })
       const sections: (Slot & { page: Page })[] = [
@@ -317,6 +324,7 @@ export function commandsOf(
         cost,
         materials,
         disabled: !affordable || production.full || missing.length > 0 || !!research || capped,
+        hint: step?.unit === unit,
         title: missing.length
           ? t('grid.needs', { list: missing.map((type) => t(`buildings.${type}`)).join(', ') })
           : research ? t('grid.needsResearch', { name: t(`research.${research}`) })
@@ -345,6 +353,7 @@ export function commandsOf(
         about: conversion.kind === 'deploy' ? t('buildingInfo.command') : undefined,
         disabled: !conversion.possible,
         active: conversion.choosing,
+        hint: mcv !== null && !!step?.deploy && !conversion.traveling,
         title: mcv !== null ? t('grid.deployTip') : undefined,
         run: () => (mcv !== null ? deploy(conversion.choosing ? null : mcv) : send(conversion.command)),
       }
@@ -524,6 +533,7 @@ export function commandsOf(
         label: t('grid.sell'),
         building: 'spaceport',
         active: !!order,
+        hint: !!step?.sell && !order,
         title: order ? t('grid.sellingTip') : t('grid.sellTip'),
         run: () => open('sell'),
       }

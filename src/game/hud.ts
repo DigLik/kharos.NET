@@ -12,6 +12,7 @@ import {
   type Economy, Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
   Accumulator, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
+import { stepsDone } from './firstSteps'
 import { paveStrokeOf } from './placing'
 import type { PaveTool, Scene } from './scene'
 
@@ -87,6 +88,8 @@ export interface HudState {
   picking: boolean
   /** Режим, в котором щелчок по карте значит не выбор, а действие: его показывает полоса над полем. null — обычный. */
   mode: ModeState
+  /** Первые шаги новичка: пройден ли каждый, см. firstSteps.ts. null — в редакторе, там их нет. */
+  steps: boolean[] | null
   /** Пришёл ли мир от хоста: до этого наград ноль не потому, что их нет, а потому, что мира ещё нет. */
   loaded: boolean
   /** Игрок проиграл: у него не осталось ни зданий, ни MCV. */
@@ -789,6 +792,7 @@ export function readHud(scene: Scene): HudState {
     editor: 'editor' in sim && (sim as Replica).editor,
     picking: !!(scene.routing || scene.serving),
     mode: modeOf(scene, paving),
+    steps: 'editor' in sim && (sim as Replica).editor ? null : stepsDone(sim, player),
     players: 'players' in sim
       ? (sim as Replica).players.map(({ player, name, online, safe }) => ({
           player,

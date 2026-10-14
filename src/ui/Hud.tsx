@@ -3,7 +3,8 @@ import type { ComponentChildren } from 'preact'
 import type { GridState, HudState, ModeState, Stack, TopicView } from '../game/hud'
 import { GRID_PRESS, type GridPress } from '../game/interfaceSounds'
 import type { Minimap } from '../game/minimap'
-import { prefs } from '../game/prefs'
+import { prefs, setPrefs } from '../game/prefs'
+import { STEPS } from '../game/firstSteps'
 import type { PaveTool } from '../game/scene'
 import { buildingPortrait, pavePortrait, unitPortrait } from '../game/portraits'
 import { goodIcon } from '../game/goodIcons'
@@ -522,7 +523,7 @@ function CommandGrid({ slots, stock }: { slots: (Slot | null)[]; stock: Stack[] 
         return (
           <button
             key={i}
-            class={['bar__cell', slot.group !== undefined && 'bar__cell--group', slot.active && 'is-active', !pictured(slot) && 'is-bare', slot.fresh && !slot.disabled && 'is-fresh']
+            class={['bar__cell', slot.group !== undefined && 'bar__cell--group', slot.active && 'is-active', !pictured(slot) && 'is-bare', slot.hint && !slot.disabled ? 'is-hint' : slot.fresh && !slot.disabled && 'is-fresh']
               .filter(Boolean)
               .join(' ')}
             disabled={slot.disabled}
@@ -882,6 +883,54 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
   )
 }
 
+/**
+ * Первые шаги новичка в углу: список с галочками, у текущего — что сделать и зачем. Заголовок сворачивает список,
+ * крестик прячет совсем (вернуть — в меню, «Интерфейс»). Мир, где всё уже пройдено, списка не показывает; пройденный
+ * в этой игре — показывает поздравление, пока его не закроют.
+ */
+function FirstSteps({ done }: { done: boolean[] }) {
+  const [, redraw] = useState(0)
+  // Пройдено ли всё было уже при входе: тогда список не нужен.
+  const finished = done.every(Boolean)
+  const known = useRef<boolean | null>(null)
+  known.current ??= finished
+  const shown = prefs().steps
+  if (shown === 'off' || (finished && known.current)) return null
+  const set = (steps: 'open' | 'folded' | 'off') => {
+    setPrefs({ ...prefs(), steps })
+    redraw((n) => n + 1)
+  }
+  const current = done.indexOf(false)
+  const count = done.filter(Boolean).length
+  return (
+    <section class="hud steps" aria-label={t('steps.title')}>
+      <header>
+        <button class="steps__toggle" data-tip={t(shown === 'open' ? 'steps.foldTip' : 'steps.unfoldTip')} onClick={() => set(shown === 'open' ? 'folded' : 'open')}>
+          {t('steps.title')} <small>{count}/{STEPS.length}</small> {shown === 'open' ? '▾' : '▸'}
+        </button>
+        <button class="steps__close" data-tip={t('steps.closeTip')} onClick={() => set('off')}>
+          ×
+        </button>
+      </header>
+      {shown === 'open' && (finished ? (
+        <p class="steps__done">{t('steps.finished')}</p>
+      ) : (
+        <ol>
+          {STEPS.map(({ key }, i) => (
+            <li key={key} class={done[i] ? 'is-done' : i === current ? 'is-current' : undefined}>
+              <span class="steps__mark">{done[i] ? '✓' : i + 1}</span>
+              <span>
+                {t(`steps.items.${key}.title`)}
+                {i === current && <small>{t(`steps.items.${key}.tip`)}</small>}
+              </span>
+            </li>
+          ))}
+        </ol>
+      ))}
+    </section>
+  )
+}
+
 /** Как называется инструмент протяжки: у стены и ворот — как здание, у разбора — как его кнопка. */
 const toolName = (tool: PaveTool) => (tool === 'remove' ? t('grid.remove') : tool === 'wall' || tool === 'gate' ? t(`buildings.${tool}`) : t(`grid.tools.${tool}`))
 
@@ -1088,7 +1137,11 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
         </span>
         {/* Исследования — слева от меню. */}
         {!state.editor && (
-          <button class={tech ? 'hud__tech is-active' : 'hud__tech'} data-tip={t('tech.openTip')} onClick={() => setTech(!tech)}>
+          <button
+            class={['hud__tech', tech && 'is-active', state.steps && STEPS[state.steps.indexOf(false)]?.research && 'is-hint'].filter(Boolean).join(' ')}
+            data-tip={t('tech.openTip')}
+            onClick={() => setTech(!tech)}
+          >
             {t('tech.button')}
             {state.tech.current && <small>{Math.round((state.tech.topics.find(({ topic }) => topic === state.tech.current)?.progress ?? 0) * 100)}%</small>}
           </button>
@@ -1146,6 +1199,8 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
           </small>
         </div>
       )}
+
+      {state.steps && <FirstSteps done={state.steps} />}
 
       {state.alerts.length > 0 && !state.editor && (
         <div class="hud hud--alerts" role="status">

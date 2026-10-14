@@ -39,6 +39,8 @@ export const REWARDS = {
   matter: 200,
   mine: 200,
   metalYard: 50,
+  /** Первая продажа на космопорте: корабль улетел с товаром. */
+  sale: 100,
 } satisfies Record<string, number>
 
 export type Reward = keyof typeof REWARDS

@@ -120,7 +120,8 @@
     "generator": "Erstes Kraftwerk",
     "matter": "Erster Materiegenerator",
     "mine": "Erste Mine",
-    "metalYard": "Erstes Metalllager"
+    "metalYard": "Erstes Metalllager",
+    "sale": "Erster Verkauf"
   },
   "goods": {
     "metal": "Metall",
@@ -275,6 +276,13 @@
     "selectionTip": "Wie hell die Ringe um ausgewählte Einheiten und die Rahmen um Gebäude sind",
     "minimap": "Größe der Minikarte",
     "minimapTip": "Seitenlänge der Minikarte in Pixeln. 140 — bündig mit der unteren Leiste, größer — ragt darüber hinaus",
+    "steps": "Erste Schritte",
+    "stepsTip": "Liste der ersten Schritte oben rechts im Spiel",
+    "stepsShown": {
+      "open": "Liste",
+      "folded": "Eingeklappt",
+      "off": "Aus"
+    },
     "aboutText": "Ein Mehrspieler-RTS im Browser: Gründerfahrzeug, prozedurale Karte, Erzabbau und -verarbeitung, Frachtlogistik und Basisverteidigung.",
     "authors": "Autoren",
     "sourceCode": "Quellcode",
@@ -643,6 +651,55 @@
       "patrolling": "Klicke, bis wohin patrouilliert wird; mit Shift — ein weiterer Punkt",
       "aiming": "Klicke auf die Karte — dort schlägt es ein",
       "deploying": "Klicke, wo aufgebaut wird: grün heißt ja, das MCV fährt selbst hin"
+    }
+  },
+  "steps": {
+    "title": "Erste Schritte",
+    "foldTip": "Liste einklappen",
+    "unfoldTip": "Liste ausklappen",
+    "closeTip": "Ausblenden: zurück im Menü unter „Oberfläche“",
+    "finished": "Erste Schritte geschafft! Weiter geht es mit mehr Abbau und Verarbeitung, neuer Forschung und Verteidigung.",
+    "items": {
+      "deploy": {
+        "title": "MCV aufbauen",
+        "tip": "Wähle das MCV, drücke „Aufbauen“ und klicke, wo das Hauptgebäude stehen soll: Es gibt Bauzone und Einkommen."
+      },
+      "builder": {
+        "title": "Bauarbeiter bestellen",
+        "tip": "Wähle das Hauptgebäude und bestelle einen Bauarbeiter: Nur sie errichten Gebäude."
+      },
+      "generator": {
+        "title": "Baue ein Kraftwerk",
+        "tip": "Wähle einen Bauarbeiter → „Wirtschaft“ → „Kraftwerk“. Ohne Energie arbeiten Gebäude langsamer oder gar nicht."
+      },
+      "matter": {
+        "title": "Baue einen Materiegenerator",
+        "tip": "Er bringt selbst Credits — das erste Einkommen der Basis. Er braucht Energie."
+      },
+      "mine": {
+        "title": "Setze eine Mine auf ein Vorkommen",
+        "tip": "Die Mine wird frei, sobald ein Vorkommen in Sicht ist — erkunde mit Buggys. Sie kommt direkt auf das Erzfeld."
+      },
+      "lab": {
+        "title": "Baue ein Labor",
+        "tip": "Fast alles wird durch Forschung freigeschaltet. Das Labor forscht und verbraucht Credits und Rohstoffe seines Netzes."
+      },
+      "metalOre": {
+        "title": "Erforsche „Metallerz“",
+        "tip": "Öffne „Forschung“ und wähle das Thema. Es braucht Erz aus der Mine: Mine und Labor müssen im selben Netz sein — verbinde sie mit Rohren (Thema „Rohre“) oder fahre Erz per Lkw."
+      },
+      "smelter": {
+        "title": "Baue eine Schmelze",
+        "tip": "Die Schmelze macht aus Erz Metall — deine erste Ware zum Verkauf."
+      },
+      "spaceport": {
+        "title": "Baue einen Raumhafen",
+        "tip": "Er wird frei, sobald die erste fertige Ressource da ist. Darüber wird ge- und verkauft."
+      },
+      "sale": {
+        "title": "Verkaufe Metall",
+        "tip": "Wähle den Raumhafen → „Verkaufen“ → Metall. Das Schiff fliegt mit der Ladung ab, die Credits kommen — das ist dein Haupteinkommen."
+      }
     }
   },
   "research": {

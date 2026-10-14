@@ -1474,6 +1474,25 @@ body {
   50% { outline-color: rgb(240 201 90 / 0.95); }
 }
 
+/* Сюда ведёт текущий первый шаг: та же рамка, но цвета команды и пульсирует сильнее — заметнее нового. */
+.hud .bar__cell.is-hint {
+  outline: 3px solid var(--team-light);
+  outline-offset: -3px;
+  animation: cell-hint 1s ease-in-out infinite;
+}
+
+@keyframes cell-hint {
+  0%, 100% { outline-color: rgb(90 169 255 / 0.3); }
+  50% { outline-color: rgb(90 169 255 / 1); }
+}
+
+/* Кнопка исследований, когда первый шаг — исследовать тему. */
+.hud .hud__tech.is-hint {
+  outline: 3px solid var(--team-light);
+  outline-offset: -3px;
+  animation: cell-hint 1s ease-in-out infinite;
+}
+
 /* Цены сейчас нет на счету: стройка встанет, пока кредитов не прибавится. */
 .bar__price b.is-short {
   color: var(--warn);
@@ -2391,4 +2410,84 @@ body {
   line-height: 40px;
   color: var(--text-soft);
   text-shadow: 1px 1px 0 var(--ink);
+}
+
+/*
+ * Первые шаги: справа под верхней полосой. Пройденные — приглушены с галочкой, текущий — ярко и с пояснением,
+ * следующие — тусклые.
+ */
+.steps {
+  top: 44px;
+  right: 12px;
+  width: min(300px, calc(100vw - 24px));
+  padding: 4px 6px 6px;
+}
+
+.steps header {
+  display: flex;
+  gap: 4px;
+}
+
+.hud .steps header button {
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+.hud .steps .steps__toggle {
+  flex: 1;
+  text-align: left;
+}
+
+.steps__toggle small {
+  color: var(--text-dim);
+}
+
+.steps ol {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0 2px;
+  list-style: none;
+}
+
+.steps li {
+  display: flex;
+  gap: 8px;
+  color: var(--text-muted);
+  line-height: 16px;
+}
+
+.steps li small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-soft);
+}
+
+.steps li.is-done {
+  color: var(--text-dim);
+}
+
+.steps li.is-done .steps__mark {
+  color: var(--good);
+}
+
+.steps li.is-current {
+  color: var(--text-bright);
+}
+
+.steps li.is-current .steps__mark {
+  color: var(--team-light);
+}
+
+.steps__mark {
+  flex: none;
+  width: 14px;
+  text-align: right;
+}
+
+.steps__done {
+  margin: 6px 2px 0;
+  color: var(--good);
+  line-height: 16px;
 }

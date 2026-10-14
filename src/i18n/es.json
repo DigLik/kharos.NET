@@ -120,7 +120,8 @@
     "generator": "Primera central eléctrica",
     "matter": "Primer generador de materia",
     "mine": "Primera mina",
-    "metalYard": "Primer depósito de metal"
+    "metalYard": "Primer depósito de metal",
+    "sale": "Primera venta"
   },
   "goods": {
     "metal": "Metal",
@@ -275,6 +276,13 @@
     "selectionTip": "Qué tan brillantes son los anillos de las unidades seleccionadas y los marcos de los edificios",
     "minimap": "Tamaño del minimapa",
     "minimapTip": "Lado del minimapa en píxeles. 140 — a ras del panel inferior; más grande — sobresale por encima",
+    "steps": "Primeros pasos",
+    "stepsTip": "Lista de primeros pasos en la esquina superior derecha",
+    "stepsShown": {
+      "open": "Lista",
+      "folded": "Plegada",
+      "off": "Oculta"
+    },
     "aboutText": "RTS multijugador de navegador: un vehículo fundador, mapa procedural, extracción y refinado de mineral, logística de carga y defensa de la base.",
     "authors": "Autores",
     "sourceCode": "Código fuente",
@@ -643,6 +651,55 @@
       "patrolling": "Haz clic hasta dónde patrullar; con Shift — otro punto",
       "aiming": "Haz clic en el mapa — el ataque caerá allí",
       "deploying": "Haz clic donde desplegar: en verde se puede, el MCV irá solo"
+    }
+  },
+  "steps": {
+    "title": "Primeros pasos",
+    "foldTip": "Plegar la lista",
+    "unfoldTip": "Desplegar la lista",
+    "closeTip": "Ocultar: se recupera en el menú, Interfaz",
+    "finished": "¡Primeros pasos hechos! Ahora: más extracción y refinado, nuevas investigaciones y defensa de la base.",
+    "items": {
+      "deploy": {
+        "title": "Despliega el MCV",
+        "tip": "Selecciona el MCV, pulsa Desplegar y haz clic donde irá el edificio principal: da zona de obra e ingresos."
+      },
+      "builder": {
+        "title": "Encarga un constructor",
+        "tip": "Selecciona el edificio principal y encarga un constructor: solo ellos levantan edificios."
+      },
+      "generator": {
+        "title": "Construye una central eléctrica",
+        "tip": "Selecciona un constructor → Economía → Central eléctrica. Sin energía los demás edificios van más lentos o se paran."
+      },
+      "matter": {
+        "title": "Construye un generador de materia",
+        "tip": "Genera créditos por sí solo: el primer ingreso de la base. Necesita energía."
+      },
+      "mine": {
+        "title": "Pon una mina en un yacimiento",
+        "tip": "La mina se desbloquea al ver un yacimiento: explora con buggies. Se coloca justo sobre la mancha de mineral."
+      },
+      "lab": {
+        "title": "Construye un laboratorio",
+        "tip": "Casi todo se desbloquea investigando. El laboratorio investiga gastando créditos y recursos de su red."
+      },
+      "metalOre": {
+        "title": "Investiga Mineral metálico",
+        "tip": "Abre Investigación y elige el tema. Necesita mineral de la mina: mina y laboratorio deben compartir red; únelos con tuberías (tema Tuberías) o lleva el mineral en camión."
+      },
+      "smelter": {
+        "title": "Construye una fundición",
+        "tip": "La fundición convierte el mineral en metal: tu primer producto para vender."
+      },
+      "spaceport": {
+        "title": "Construye un puerto espacial",
+        "tip": "Se desbloquea al tener el primer recurso refinado. Por él se vende y se compra."
+      },
+      "sale": {
+        "title": "Vende metal",
+        "tip": "Selecciona el puerto espacial → Vender → metal. La nave se va con la carga y llegan los créditos: es tu ingreso principal."
+      }
     }
   },
   "research": {

@@ -120,7 +120,8 @@
     "generator": "Birinchi elektr stansiyasi",
     "matter": "Birinchi materiya generatori",
     "mine": "Birinchi shaxta",
-    "metalYard": "Birinchi metall ombori"
+    "metalYard": "Birinchi metall ombori",
+    "sale": "Birinchi savdo"
   },
   "goods": {
     "metal": "Metall",
@@ -275,6 +276,13 @@
     "selectionTip": "Tanlangan bo‘linmalar atrofidagi halqalar va binolar atrofidagi ramkalar qanchalik yorqin",
     "minimap": "Mini-xarita o‘lchami",
     "minimapTip": "Mini-xarita tomoni piksellarda. 140 — pastki panel bilan teng, kattasi — undan yuqoriga chiqadi",
+    "steps": "Birinchi qadamlar",
+    "stepsTip": "O‘yinning yuqori o‘ng burchagidagi birinchi qadamlar ro‘yxati",
+    "stepsShown": {
+      "open": "Ro‘yxat",
+      "folded": "Yig‘ilgan",
+      "off": "Yashirin"
+    },
     "aboutText": "Ko‘p o‘yinchili brauzer RTS: asoschi mashina, protsedurali xarita, ruda qazib olish va qayta ishlash, yuk logistikasi va baza mudofaasi.",
     "authors": "Mualliflar",
     "sourceCode": "Manba kodi",
@@ -643,6 +651,55 @@
       "patrolling": "Qayergacha patrul qilishni bosing; Shift bilan — yana bir nuqta",
       "aiming": "Xaritani bosing — zarba o‘sha yerga tushadi",
       "deploying": "Qayerda yoyishni bosing: yashil — mumkin, MCV o‘zi boradi"
+    }
+  },
+  "steps": {
+    "title": "Birinchi qadamlar",
+    "foldTip": "Ro‘yxatni yig‘ish",
+    "unfoldTip": "Ro‘yxatni ochish",
+    "closeTip": "Yashirish: menyuda, «Interfeys» bo‘limida qaytarish mumkin",
+    "finished": "Birinchi qadamlar bajarildi! Endi — ko‘proq qazib olish va qayta ishlash, yangi tadqiqotlar va baza mudofaasi.",
+    "items": {
+      "deploy": {
+        "title": "MCV ni yoy",
+        "tip": "MCV ni tanlang, «Yoyish»ni bosing va bosh bino qayerda turishini bosing: u qurilish zonasi va daromad beradi."
+      },
+      "builder": {
+        "title": "Quruvchi buyurtma qil",
+        "tip": "Bosh binoni tanlang va quruvchi buyurtma qiling: binolarni faqat ular quradi."
+      },
+      "generator": {
+        "title": "Elektr stansiyasi qur",
+        "tip": "Quruvchini tanlang → «Xo‘jalik» → «Elektr stansiyasi». Energiyasiz boshqa binolar sekinlashadi yoki to‘xtaydi."
+      },
+      "matter": {
+        "title": "Materiya generatorini qur",
+        "tip": "U o‘zi kredit keltiradi — bazaning birinchi daromadi. Unga energiya kerak."
+      },
+      "mine": {
+        "title": "Konga shaxta qo‘y",
+        "tip": "Ko‘rinishda kon bo‘lsa, shaxta ochiladi — atrofni bagi bilan razvedka qiling. U ruda dog‘i ustiga qo‘yiladi."
+      },
+      "lab": {
+        "title": "Laboratoriya qur",
+        "tip": "Deyarli hammasi tadqiqot bilan ochiladi. Laboratoriya o‘z tarmog‘ining kredit va xomashyosini sarflab tadqiqot olib boradi."
+      },
+      "metalOre": {
+        "title": "«Metall rudasi»ni tadqiq qil",
+        "tip": "«Tadqiqotlar»ni oching va mavzuni tanlang. Unga shaxtadan ruda kerak: shaxta va laboratoriya bitta tarmoqda bo‘lishi lozim — ularni quvur bilan ulang («Quvurlar» mavzusi) yoki rudani yuk mashinasida tashing."
+      },
+      "smelter": {
+        "title": "Eritish zavodini qur",
+        "tip": "Eritish zavodi rudani metallga aylantiradi — sotish uchun birinchi tovar."
+      },
+      "spaceport": {
+        "title": "Kosmoport qur",
+        "tip": "Birinchi tayyor resurs paydo bo‘lganda ochiladi. U orqali sotiladi va sotib olinadi."
+      },
+      "sale": {
+        "title": "Metall sot",
+        "tip": "Kosmoportni tanlang → «Sotish» → metall. Kema yuk bilan uchib ketadi va kreditlar hisobga tushadi — bu asosiy daromad."
+      }
     }
   },
   "research": {

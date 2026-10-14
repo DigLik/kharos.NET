@@ -120,7 +120,8 @@
     "generator": "Première centrale électrique",
     "matter": "Premier générateur de matière",
     "mine": "Première mine",
-    "metalYard": "Premier dépôt de métal"
+    "metalYard": "Premier dépôt de métal",
+    "sale": "Première vente"
   },
   "goods": {
     "metal": "Métal",
@@ -275,6 +276,13 @@
     "selectionTip": "Luminosité des anneaux autour des unités sélectionnées et des cadres autour des bâtiments",
     "minimap": "Taille de la mini-carte",
     "minimapTip": "Côté de la mini-carte en pixels. 140 — au niveau du panneau du bas, plus grand — elle dépasse au-dessus",
+    "steps": "Premiers pas",
+    "stepsTip": "Liste des premiers pas en haut à droite du jeu",
+    "stepsShown": {
+      "open": "Liste",
+      "folded": "Repliée",
+      "off": "Masquée"
+    },
     "aboutText": "Un RTS multijoueur dans le navigateur : véhicule fondateur, carte procédurale, extraction et raffinage du minerai, logistique de fret et défense de la base.",
     "authors": "Auteurs",
     "sourceCode": "Code source",
@@ -643,6 +651,55 @@
       "patrolling": "Clique jusqu'où patrouiller ; avec Maj — un point de plus",
       "aiming": "Clique sur la carte — la frappe tombera là",
       "deploying": "Clique où déployer : en vert c'est possible, le MCV s'y rend seul"
+    }
+  },
+  "steps": {
+    "title": "Premiers pas",
+    "foldTip": "Replier la liste",
+    "unfoldTip": "Déplier la liste",
+    "closeTip": "Masquer : à réactiver dans le menu, Interface",
+    "finished": "Premiers pas terminés ! Ensuite : plus d’extraction et de raffinage, de nouvelles recherches et la défense de la base.",
+    "items": {
+      "deploy": {
+        "title": "Déploie le MCV",
+        "tip": "Sélectionne le MCV, appuie sur Déployer et clique où placer le bâtiment principal : il donne une zone de construction et un revenu."
+      },
+      "builder": {
+        "title": "Commande un ouvrier",
+        "tip": "Sélectionne le bâtiment principal et commande un ouvrier : seuls eux construisent."
+      },
+      "generator": {
+        "title": "Construis une centrale",
+        "tip": "Sélectionne un ouvrier → Économie → Centrale. Sans énergie, les autres bâtiments ralentissent ou s’arrêtent."
+      },
+      "matter": {
+        "title": "Construis un générateur de matière",
+        "tip": "Il rapporte des crédits tout seul — le premier revenu de la base. Il lui faut de l’énergie."
+      },
+      "mine": {
+        "title": "Pose une mine sur un gisement",
+        "tip": "La mine se débloque dès qu’un gisement est en vue — explore avec les buggys. Elle se pose sur la tache de minerai."
+      },
+      "lab": {
+        "title": "Construis un laboratoire",
+        "tip": "Presque tout se débloque par la recherche. Le laboratoire la mène en dépensant crédits et ressources de son réseau."
+      },
+      "metalOre": {
+        "title": "Recherche Minerai métallique",
+        "tip": "Ouvre Recherche et choisis le sujet. Il faut du minerai de la mine : mine et laboratoire doivent partager un réseau — relie-les par tuyaux (sujet Tuyaux) ou transporte le minerai en camion."
+      },
+      "smelter": {
+        "title": "Construis une fonderie",
+        "tip": "La fonderie transforme le minerai en métal — ta première marchandise à vendre."
+      },
+      "spaceport": {
+        "title": "Construis un astroport",
+        "tip": "Il se débloque dès la première ressource raffinée. On y vend et on y achète."
+      },
+      "sale": {
+        "title": "Vends du métal",
+        "tip": "Sélectionne l’astroport → Vendre → métal. Le vaisseau part avec la cargaison et les crédits arrivent — c’est ton revenu principal."
+      }
     }
   },
   "research": {

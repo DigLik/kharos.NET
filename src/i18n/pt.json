@@ -120,7 +120,8 @@
     "generator": "Primeira usina de energia",
     "matter": "Primeiro gerador de matéria",
     "mine": "Primeira mina",
-    "metalYard": "Primeiro depósito de metal"
+    "metalYard": "Primeiro depósito de metal",
+    "sale": "Primeira venda"
   },
   "goods": {
     "metal": "Metal",
@@ -275,6 +276,13 @@
     "selectionTip": "Quão brilhantes são os anéis das unidades selecionadas e as molduras dos edifícios",
     "minimap": "Tamanho do minimapa",
     "minimapTip": "Lado do minimapa em pixels. 140 — rente ao painel inferior; maior — fica acima dele",
+    "steps": "Primeiros passos",
+    "stepsTip": "Lista de primeiros passos no canto superior direito",
+    "stepsShown": {
+      "open": "Lista",
+      "folded": "Recolhida",
+      "off": "Oculta"
+    },
     "aboutText": "Um RTS multijogador de navegador: veículo fundador, mapa procedural, extração e refino de minério, logística de carga e defesa da base.",
     "authors": "Autores",
     "sourceCode": "Código-fonte",
@@ -643,6 +651,55 @@
       "patrolling": "Clique até onde patrulhar; com Shift — mais um ponto",
       "aiming": "Clique no mapa — o ataque cairá ali",
       "deploying": "Clique onde implantar: no verde pode, o MCV vai sozinho"
+    }
+  },
+  "steps": {
+    "title": "Primeiros passos",
+    "foldTip": "Recolher a lista",
+    "unfoldTip": "Expandir a lista",
+    "closeTip": "Ocultar: dá para voltar no menu, Interface",
+    "finished": "Primeiros passos concluídos! Agora: mais mineração e refino, novas pesquisas e defesa da base.",
+    "items": {
+      "deploy": {
+        "title": "Implante o MCV",
+        "tip": "Selecione o MCV, aperte Implantar e clique onde ficará o prédio principal: ele dá zona de obra e renda."
+      },
+      "builder": {
+        "title": "Peça um construtor",
+        "tip": "Selecione o prédio principal e peça um construtor: só eles erguem prédios."
+      },
+      "generator": {
+        "title": "Construa uma usina",
+        "tip": "Selecione um construtor → Economia → Usina. Sem energia os outros prédios ficam lentos ou param."
+      },
+      "matter": {
+        "title": "Construa um gerador de matéria",
+        "tip": "Ele rende créditos sozinho — a primeira renda da base. Precisa de energia."
+      },
+      "mine": {
+        "title": "Coloque uma mina numa jazida",
+        "tip": "A mina libera quando houver jazida à vista — explore com buggies. Ela vai direto na mancha de minério."
+      },
+      "lab": {
+        "title": "Construa um laboratório",
+        "tip": "Quase tudo é liberado por pesquisa. O laboratório pesquisa gastando créditos e recursos da sua rede."
+      },
+      "metalOre": {
+        "title": "Pesquise Minério metálico",
+        "tip": "Abra Pesquisa e escolha o tema. Ele precisa de minério da mina: mina e laboratório devem estar na mesma rede — ligue-os com canos (tema Canos) ou leve minério de caminhão."
+      },
+      "smelter": {
+        "title": "Construa uma fundição",
+        "tip": "A fundição transforma minério em metal — o primeiro produto para vender."
+      },
+      "spaceport": {
+        "title": "Construa um espaçoporto",
+        "tip": "Ele libera quando houver o primeiro recurso pronto. Por ele se vende e se compra."
+      },
+      "sale": {
+        "title": "Venda metal",
+        "tip": "Selecione o espaçoporto → Vender → metal. A nave parte com a carga e os créditos chegam — é a sua renda principal."
+      }
     }
   },
   "research": {

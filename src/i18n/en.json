@@ -120,7 +120,8 @@
     "generator": "First power plant",
     "matter": "First matter generator",
     "mine": "First mine",
-    "metalYard": "First metal yard"
+    "metalYard": "First metal yard",
+    "sale": "First sale"
   },
   "goods": {
     "metal": "Metal",
@@ -275,6 +276,13 @@
     "selectionTip": "How bright the rings around selected units and the frames around buildings are",
     "minimap": "Minimap size",
     "minimapTip": "The minimap side in pixels. 140 is level with the bottom bar; larger ones rise above it",
+    "steps": "First steps",
+    "stepsTip": "The first steps list in the top right corner of the game",
+    "stepsShown": {
+      "open": "List",
+      "folded": "Collapsed",
+      "off": "Hidden"
+    },
     "aboutText": "A multiplayer browser RTS: a founding vehicle, a procedural map, mining and refining ore, cargo logistics and base defence.",
     "authors": "Authors",
     "sourceCode": "Source code",
@@ -643,6 +651,55 @@
       "patrolling": "Click how far to patrol; with Shift — another point",
       "aiming": "Click on the map — the strike lands there",
       "deploying": "Click where to deploy: green means yes, the MCV drives there itself"
+    }
+  },
+  "steps": {
+    "title": "First steps",
+    "foldTip": "Collapse the list",
+    "unfoldTip": "Expand the list",
+    "closeTip": "Hide: bring it back in the menu, Interface",
+    "finished": "First steps done! Next: more mining and refining, new research and base defence.",
+    "items": {
+      "deploy": {
+        "title": "Deploy the MCV",
+        "tip": "Select the MCV, press Deploy and click where the Command Center goes: it gives a build zone and income."
+      },
+      "builder": {
+        "title": "Order a builder",
+        "tip": "Select the Command Center and order a builder: only builders put up buildings."
+      },
+      "generator": {
+        "title": "Build a power plant",
+        "tip": "Select a builder → Economy → Power plant. Without power other buildings run slower or stop."
+      },
+      "matter": {
+        "title": "Build a matter generator",
+        "tip": "It brings credits by itself — the base’s first income. It needs power."
+      },
+      "mine": {
+        "title": "Put a mine on a deposit",
+        "tip": "The mine unlocks once a deposit is in sight — scout around with buggies. It goes right on the ore patch."
+      },
+      "lab": {
+        "title": "Build a lab",
+        "tip": "Almost everything is unlocked by research. The lab runs it, spending credits and resources of its network."
+      },
+      "metalOre": {
+        "title": "Research Metal Ore",
+        "tip": "Open Research and pick the topic. It needs ore from the mine: the mine and the lab must share a network — link them with pipes (Pipes topic) or haul ore by truck."
+      },
+      "smelter": {
+        "title": "Build a smelter",
+        "tip": "The smelter turns ore into metal — your first goods to sell."
+      },
+      "spaceport": {
+        "title": "Build a spaceport",
+        "tip": "It unlocks once you have the first refined resource. You sell and buy through it."
+      },
+      "sale": {
+        "title": "Sell metal",
+        "tip": "Select the spaceport → Sell → metal. The ship leaves with the cargo and the credits arrive — this is your main income."
+      }
     }
   },
   "research": {
