@@ -540,7 +540,6 @@
     "gridTip": "The selected building's grid; nothing selected — the main building's grid",
     "coreless": "Earns nothing: the zone has no command center",
     "relief": "Relief: while you have fewer than {below} credits, the main building gives {income} per second",
-    "unlinked": "Not connected to the network: lay a pipe — otherwise resources neither arrive nor leave",
     "unreachable": "Trucks can't reach it: everything around the building is built up — clear a way in",
     "trapped": "Trucks walled in: {count} — they can't get out; demolish what boxes them in",
     "starved": "⚡ Not enough power: the building works slower or stops",

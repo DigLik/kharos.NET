@@ -540,7 +540,6 @@
     "gridTip": "Rede do edifício selecionado; nada selecionado — rede do centro de comando",
     "coreless": "Não rende dinheiro: a zona não tem centro de comando",
     "relief": "Socorro: enquanto você tiver menos de {below} créditos, o centro de comando dá {income} por segundo",
-    "unlinked": "Não está ligado à rede: estenda um cano; sem isso os recursos não chegam nem saem",
     "unreachable": "Os caminhões não conseguem chegar: tudo em volta do edifício está construído — abra um acesso",
     "trapped": "Caminhões presos: {count} — não conseguem sair; demola o que os cerca",
     "starved": "⚡ Falta energia: o edifício trabalha mais devagar ou está parado",

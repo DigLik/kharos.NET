@@ -7,7 +7,7 @@ import { amountOf, put } from '../src/sim/inventory'
 import { powerSupply } from '../src/sim/income'
 import { BATCH } from '../src/sim/pipes'
 import { networkOf, zonesOf } from '../src/sim/zones'
-import { pipeStroke, pipeSwap, unlinked, wellPartners } from '../src/sim/piping'
+import { pipeStroke, pipeSwap, wellPartners } from '../src/sim/piping'
 import { addCredits, creditsOf } from '../src/sim/economy'
 import { freeCredits } from '../src/sim/construction'
 import { spawnUnit } from '../src/sim/units'
@@ -230,18 +230,6 @@ test('«Разобрать» рамкой разбирает здания, то�
   run(sim, 1)
   expect(sim.world.get(inside, Site)?.demolish).toBe(true)
   expect(sim.world.has(half, Site)).toBe(false)
-})
-
-test('здание со складом без трубы — не подключено к сети, с трубой — подключено', () => {
-  const sim = createSim(options)
-  const { x, y } = rock(sim, 12, 4)
-  const yard = placeBuilding(sim.world, 'metalYard', x, y, 1)
-  const radar = placeBuilding(sim.world, 'radar', x + 8, y, 1)
-  expect(unlinked(sim, 1, yard)).toBe(true)
-  expect(unlinked(sim, 1, radar)).toBe(false)
-  expect(unlinked(sim, 2, yard)).toBe(false)
-  lay(sim, x, y + 2, 10)
-  expect(unlinked(sim, 1, yard)).toBe(false)
 })
 
 test('протяжка через стоящую трубу пропускает её тайл и тянется дальше, и без кредитов — тоже', () => {

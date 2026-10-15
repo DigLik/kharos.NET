@@ -4,7 +4,7 @@ import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atl
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Building, GOODS, Hauler, Magazine, Owner, Position, Site, UNITS, Unit, ammoOf, isEmpty, magazineOf, powerStates, shutDown, unlinked, unreachable, type Good, type PowerState } from '../sim'
+import { BUILDINGS, Building, GOODS, Hauler, Magazine, Owner, Position, Site, UNITS, Unit, ammoOf, isEmpty, magazineOf, powerStates, shutDown, unreachable, type Good, type PowerState } from '../sim'
 import { GOOD_ICON, paintGood } from './goodIcons'
 import { lacksOf, runningLow, type Lack } from './lacks'
 import { AMMO_REORDER } from '../sim/logistics'
@@ -79,20 +79,6 @@ function drawIcon() {
   return image
 }
 
-/** Значок «Не подключено к сети»: разорванная труба на оранжевом круге. */
-function drawLoose() {
-  const image = new Pixmap(ICON_SIZE, ICON_SIZE)
-  image.circle(8, 8, 8, 0x0b111b)
-  image.circle(8, 8, 7, 0xd9822b)
-  image.circle(7.5, 7.5, 5.5, 0xf09a3e)
-  // Два обрубка трубы с зазором посередине.
-  for (const [x, width] of [[2, 4], [10, 4]] as const) {
-    image.rect(x, 6, width, 5, 0x0b111b)
-    image.rect(x, 7, width, 3, 0xdfe6ee)
-  }
-  return image
-}
-
 /** Значок «Выключено»: знак питания на сером круге. Не тревога — не мигает. */
 function drawOff() {
   const image = new Pixmap(ICON_SIZE, ICON_SIZE)
@@ -163,7 +149,7 @@ const BAR_SHIELD: Color = [0.3, 0.55, 1]
 export function powerSprites(): Sprite[] {
   const bolts = Array.from({ length: BOLTS }, (_, i) => drawBolt(i))
   const white = new Pixmap(4, 4).rect(0, 0, 4, 4, 0xffffff)
-  return [...bolts, drawIcon(), white, drawLoose(), drawOff(), ...GOODS.map(drawLack), drawBroke(), drawBlocked()].map(ready)
+  return [...bolts, drawIcon(), white, drawOff(), ...GOODS.map(drawLack), drawBroke(), drawBlocked()].map(ready)
 }
 
 /** Раз во сколько тиков симуляции пересчитывается, каким своим зданиям чего не хватает: это обход складов и сетей. */
@@ -171,8 +157,7 @@ const LACK_TICKS = 10
 
 /**
  * Проход тревог над зданиями: молнии перегруза на электростанциях, значок над зданиями, которые из-за нехватки
- * энергии работают медленнее, значок «Не подключено к сети» над своими зданиями со складом без труб, значок груза
- * над своими зданиями и стройками, которые стоят без него (см. lacks.ts), — у турелей и реакторов на исходе он же
+ * энергии работают медленнее, значок груза над своими зданиями и стройками, которые стоят без него (см. lacks.ts), — у турелей и реакторов на исходе он же
  * бледный, — значок патронов над своими юнитами с пустым магазином и бледный — на исходе, значок «Не подъехать» над своими зданиями,
  * к которым не подъехать грузовикам, и над запертыми грузовиками, значок «Выключено» над своими
  * выключенными, над зданиями — полоски прочности повреждённых и синие полоски запаса генераторов щита,
@@ -183,11 +168,10 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
   const boltFrames = atlas.frames.slice(0, BOLTS)
   const iconFrame = atlas.frames[BOLTS]
   const whiteFrame = atlas.frames[BOLTS + 1]
-  const looseFrame = atlas.frames[BOLTS + 2]
-  const offFrame = atlas.frames[BOLTS + 3]
-  const lackFrames = new Map<Lack, (typeof atlas.frames)[number]>(GOODS.map((good, i) => [good, atlas.frames[BOLTS + 4 + i]]))
-  lackFrames.set('credits', atlas.frames[BOLTS + 4 + GOODS.length])
-  const blockedFrame = atlas.frames[BOLTS + 5 + GOODS.length]
+  const offFrame = atlas.frames[BOLTS + 2]
+  const lackFrames = new Map<Lack, (typeof atlas.frames)[number]>(GOODS.map((good, i) => [good, atlas.frames[BOLTS + 3 + i]]))
+  lackFrames.set('credits', atlas.frames[BOLTS + 3 + GOODS.length])
+  const blockedFrame = atlas.frames[BOLTS + 4 + GOODS.length]
   const whiteU = whiteFrame.u + whiteFrame.width / 2
   const whiteV = whiteFrame.v + whiteFrame.height / 2
 
@@ -245,7 +229,6 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
         // держат и пока погашены; «Выключено» горит ровно.
         const lifted = y - statusLift(world, entity, camera.zoom)
         const icons: [frame: typeof iconFrame, shown: boolean, alpha?: number][] = []
-        if (unlinked(sim, scene.player, entity)) icons.push([looseFrame, iconOn])
         if (unreachable(sim, entity) && world.get(entity, Owner)?.player === scene.player) icons.push([blockedFrame, iconOn])
         if (state === 'starved') icons.push([iconFrame, iconOn])
         const lack = lacks.get(entity)

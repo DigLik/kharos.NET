@@ -540,7 +540,6 @@
     "gridTip": "Tanlangan bino tarmog‘i; hech narsa tanlanmagan bo‘lsa — bosh bino tarmog‘i",
     "coreless": "Daromad keltirmaydi: zonada bosh bino yo‘q",
     "relief": "Yordam: kreditlar {below} dan kam bo‘lsa, bosh bino soniyasiga {income} beradi",
-    "unlinked": "Tarmoqqa ulanmagan: quvur o‘tkazing — aks holda resurslar kelmaydi ham, ketmaydi ham",
     "unreachable": "Yuk mashinalari yaqinlasha olmaydi: bino atrofi butunlay qurilgan — unga yo‘l oching",
     "trapped": "Qamalib qolgan yuk mashinalari: {count} — chiqa olmaydi; ularni o‘rab olgan narsani buzing",
     "starved": "⚡ Energiya yetarli emas: bino sekinroq ishlaydi yoki to‘xtaydi",

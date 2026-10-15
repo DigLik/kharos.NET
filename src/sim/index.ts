@@ -23,7 +23,7 @@ export { Dig, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, M
 export { DEMOLISH_REFUND, DEMOLISH_SPEED, REPAIR_COST, REPAIR_SPEED, activeRepairs, awaitsMaterials, sitesShortOfCredits, materialShare, repairCostOf, canBuild, freeCredits, wallStroke, canDemolish, canRepair, coreCenters, isSiteBlocked, prepaidOf, refundOf, siteTicks, upgradeTicks } from './construction'
 export { CONTROL_RADIUS, EXPAND_RADIUS, allGrids, allZones, gridOf, gridsOf, linkGap, networkOf, zoneOf, zonesOf } from './zones'
 export { BATCH, pipeFlow, routesFrom } from './pipes'
-export { ROUTE_REACH, connectAll, connectBuilding, isWellPair, orderPipes, orderWells, pipeAt, pipeRoute, pipeStroke, pipeSwap, unlinked, wellAt, wellPartners, wellsKept } from './piping'
+export { ROUTE_REACH, connectAll, connectBuilding, isWellPair, orderPipes, orderWells, pipeAt, pipeRoute, pipeStroke, pipeSwap, wellAt, wellPartners, wellsKept } from './piping'
 export type { Zone } from './zones'
 export type { RepairLink } from './construction'
 export { canDeploy, canDeployAt, canPack, canSendDeploy, deploySite, isDeployBlocked, siteUnder } from './conversion'

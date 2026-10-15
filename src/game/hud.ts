@@ -6,7 +6,7 @@ import type { Entity } from '../ecs'
 import { textOf } from '../i18n'
 import {
   armyOf, overLimit, Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Deploys, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
-  awaitsMaterials, sitesShortOfCredits, buildTicks, canDemolish, freeCredits, canFight, canSendDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, idlePowerOf, overloadOf, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unlinked, unreachable, zoneEconomies, gridOf, gridsOf, RELIEF_BELOW,
+  awaitsMaterials, sitesShortOfCredits, buildTicks, canDemolish, freeCredits, canFight, canSendDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, idlePowerOf, overloadOf, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unreachable, zoneEconomies, gridOf, gridsOf, RELIEF_BELOW,
   Research, TOPICS, PAVE_RESEARCH, DIG_KINDS, DIG_RESEARCH, type DigKind, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, pickTopic, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   type Economy, Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
@@ -118,8 +118,6 @@ export interface HudState {
   shield: { charge: number; capacity: number; down: number } | null
   /** Выбранному зданию не хватает энергии, и оно работает медленнее. */
   starved: boolean
-  /** Выбранное здание со складом не подключено к сети труб, см. unlinked. */
-  unlinked: boolean
   /** К выбранному своему зданию не подъехать его грузовикам, см. Unreachable. */
   unreachable: boolean
   /** Сколько среди выбранных своих грузовиков запертых: им не выехать, см. Hauler.trapped. */
@@ -533,7 +531,6 @@ export function readHud(scene: Scene): HudState {
   let repair = 0
   let starved = false
   let idle = false
-  let loose = false
   let blocked = false
   let walled = 0
   const zones = zoneEconomies(sim, player)
@@ -757,7 +754,6 @@ export function readHud(scene: Scene): HudState {
     }
     if (built && powerStates(sim).get(entity) === 'starved') starved = true
     if (built && coreless(sim).has(entity)) idle = true
-    if (unlinked(sim, player, entity)) loose = true
     if (isOwn(sim, player, entity) && unreachable(sim, entity)) blocked = true
     const work = world.get(entity, Site)
     if (work) {
@@ -838,7 +834,6 @@ export function readHud(scene: Scene): HudState {
     starved,
     coreless: idle,
     relief: building === CORE && buildingCount === 1 && site === null && credits < RELIEF_BELOW && [...scene.selection].every((entity) => isOwn(sim, player, entity)),
-    unlinked: loose,
     unreachable: blocked,
     trapped: walled,
     units: UNIT_TYPES.filter((type) => counts.has(type)).map((type) => ({ type, count: counts.get(type)! })),
