@@ -3,12 +3,11 @@ name: Клиент на GitHub Pages
 on:
   push:
     branches: [main]
-    # Документация, ридми, лицензия и исходники роликов не меняют сборку.
+    # Документация, ридми и лицензия не меняют сборку.
     paths-ignore:
       - 'docs/**'
       - '**.md'
       - 'LICENSE'
-      - 'tools/shorts/**'
   workflow_dispatch:
 
 jobs:
