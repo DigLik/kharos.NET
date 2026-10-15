@@ -77,15 +77,15 @@
     "silo": "20 ta sterjen va 10 ta komponentdan yadro jangovar kallagini yig‘adi va uni xaritaning istalgan nuqtasiga uchiradi. Uchirish haqida hamma chatda biladi, uchayotgan raketani hamma ko‘radi, radari bor o‘yinchilarga uchirish joyi belgilanadi. Radiusi 12 bo‘lgan portlash hammaga farqsiz zarar yetkazadi, qalqon uni ushlab qololmaydi. Ichida jangovar kallak bilan vayron bo‘lsa, portlaydi",
     "interceptor": "Tarmoqdan har biriga 600 kredit, 4 ta komponent va 10 yoqilg‘i olib, tutib oluvchi raketalarni birma-bir o‘zi yig‘adi va 4 tagacha saqlaydi. Har biri radiusi 80 bo‘lgan doiraga mo‘ljallangan bitta dushman yadro raketasini doiraga kirishi bilan urib tushiradi. Energiyasiz sekinroq yig‘adi, o‘chirilgani yig‘maydi va o‘q uzmaydi",
     "matter": "O‘z-o‘zidan kredit keltiradi, ammo energiya sarflaydi. Zonadagi har bir keyingisi ko‘proq energiya talab qiladi",
-    "mine": "Kon ustiga quriladi va rudani o‘z omboriga qazib oladi; yuk mashinalari uni qayta ishlashga tashiydi. O‘zi kichik zonani boshlab beradi",
+    "mine": "Kon ustiga quriladi va rudani o‘z omboriga qazib oladi. Uning tarmog‘idagi qayta ishlash va laboratoriya rudani o‘zi oladi — ularni yonma-yon qo‘ying yoki quvur torting; boshqa tarmoqlarga uni yuk mashinalari tashiydi. O‘zi kichik zonani boshlab beradi",
     "smelter": "Metall rudasini eritib, metallga aylantiradi",
     "siliconWorks": "Kremniy rudasini qayta ishlab, kremniy hosil qiladi",
     "distillery": "Xom neftni haydab, yoqilg‘i ishlab chiqaradi",
     "enricher": "Xarit rudasini boyitib, xaritga aylantiradi — eng qimmatbaho resurs",
     "evaporator": "Litiy rudasini bug‘latib litiyga aylantiradi. Litiy asosan sho‘rxoklarda bo‘ladi",
     "uraniumMill": "Uran rudasini uranga qayta ishlaydi. Uran asosan qizil sahrolarda bo‘ladi; uni orbitadan sotib olib bo‘lmaydi",
-    "blockPlant": "Metalldan qurilish bloklarini yasaydi: ular binolarni qurish uchun zarur",
-    "ammoPlant": "Minoralar uchun o‘q-dori ishlab chiqaradi",
+    "blockPlant": "Metall va kremniydan qurilish bloklarini yasaydi: ulardan zavodlar va harbiy binolar quriladi",
+    "ammoPlant": "Metalldan o‘q-dori ishlab chiqaradi: minoralar va armiya magazinlari uchun",
     "partsPlant": "Murakkab texnika uchun komponentlar yig‘adi",
     "rodPlant": "Uran va metalldan yoqilg‘i sterjenlarini yig‘adi",
     "metalYard": "Zonaning metallini saqlaydi",
@@ -99,13 +99,13 @@
     "partsLocker": "Zonaning komponentlarini saqlaydi",
     "rodRack": "Zonaning yoqilg‘i sterjenlarini saqlaydi",
     "requestStation": "Siz buyurtma qilgan yukni saqlaydi: yuk mashinalari va quvurlar yetishmaganini olib keladi, ortiqchasini omborlarga olib ketadi. Zaxirasi o‘z tarmog‘i ehtiyojlariga — qurilish, turellar, armiyaga beriladi",
-    "spaceport": "Zona omborlaridagi resurslarni sotadi va yetishmayotganlarini kreditga sotib oladi",
+    "spaceport": "Tarmoq omborlaridagi resurslarni sotadi va yetishmayotganlarini kreditga sotib oladi",
     "radar": "Urush tumani orqali uzoqni ko‘radi",
     "windtrap": "Shamoldan namlikni tutib oladi",
-    "barracks": "Piyodalarni tayyorlaydi: o‘qchilar, raketachilar va olovpurkovchilar",
+    "barracks": "Piyodalarni tayyorlaydi: piyoda askarlar, raketachilar va olovpurkovchilar",
     "factory": "Quruqlik texnikasi va yangi bazalar uchun MCV ishlab chiqaradi",
     "airfield": "Aviatsiyani ishlab chiqaradi: uchar yuk mashinalari, dronlar, shturmoviklar va bombardimonchilar. Uning ustida aviatsiya o‘q-dorini tarmog‘idagi omborlardan to‘ldiradi",
-    "lab": "Tadqiqot olib boradi: ular qayta ishlash, sexlar, armiya va bino darajalarini ochadi. Bir nechta laboratoriya bitta mavzuni birga, tezroq o‘rganadi",
+    "lab": "Tadqiqot olib boradi: ular qayta ishlash, zavodlar, armiya va bino darajalarini ochadi. Bir nechta laboratoriya bitta mavzuni birga, tezroq o‘rganadi",
     "repairStation": "Yaqindagi texnika va binolarni kredit evaziga ta’mirlaydi, lekin o‘q ostida emas; yaqindagi piyoda tezroq tiklanadi. Energiya talab qiladi",
     "supplyDepot": "Taʼminot mashinalari uchun o‘q-dori zaxirasini saqlaydi va ularni o‘z nuri bilan omborlardan to‘rt barobar tezroq yuklaydi. Yuk mashinalari va quvurlar uni to‘la tutadi; umumiy buyurtmalarga bermaydi",
     "wall": "Arzon va mustahkam to‘siq: yo‘lni to‘sadi va o‘qlardan himoya qiladi. Zonadan tashqarida ham quriladi",
@@ -341,7 +341,7 @@
       "storage": "Resurslar va mahsulotlar ombori",
       "industry": "Rudani resurslarga qayta ishlash",
       "production": "Mahsulot zavodlari: qurilish bloklari, o‘q-dori, komponentlar va sterjenlar",
-      "military": "Kazarma, texnika zavodi, aerodrom, ta’mirlash stansiyasi va raketa shaxtasi",
+      "military": "Kazarma, mashinasozlik zavodi, aerodrom, ta’mirlash stansiyasi, taʼminot stansiyasi va raketa shaxtasi",
       "defense": "Devorlar, minoralar, qalqon, yadro raketalarini tutib oluvchi va radar",
       "paving": "Poydevor, yo‘llar va ko‘priklar",
       "logistics": "Quvurlar va quduqlar: bir-biridan uzoq binolarni tarmoqqa birlashtiradi; yonma-yon binolar baribir ulangan"
@@ -684,51 +684,53 @@
     "foldTip": "Ro‘yxatni yig‘ish",
     "unfoldTip": "Ro‘yxatni ochish",
     "closeTip": "Yashirish: menyuda, «Interfeys» bo‘limida qaytarish mumkin",
+    "show": "Ko‘rsatish",
+    "showTip": "Kamera shu qadam bajariladigan joyga; xaritada u chizib ko‘rsatilgan",
     "finished": "Birinchi qadamlar bajarildi! Endi — ko‘proq qazib olish va qayta ishlash, yangi tadqiqotlar va baza mudofaasi.",
     "items": {
       "deploy": {
-        "title": "MCV ni yoy",
-        "tip": "MCV ni tanlang, «Yoyish»ni bosing va bosh bino qayerda turishini bosing: u qurilish zonasi va daromad beradi."
+        "title": "MCV ni joylashtir",
+        "tip": "MCV ni tanlang, «Joylashtirish»ni bosing va bo‘sh qoyaga bosing: MCV u yerga borib Bosh binoga aylanadi. U qurilish zonasini belgilaydi, daromad beradi va quruvchilar chiqaradi."
       },
       "builder": {
         "title": "Quruvchi buyurtma qil",
-        "tip": "Bosh binoni tanlang va quruvchi buyurtma qiling: binolarni faqat ular quradi."
+        "tip": "Bosh binoni tanlang va o‘ngdagi to‘rda «Quruvchi»ni bosing. Quruvchilar barcha binolarni quradi va materialni o‘zlari olib keladi."
       },
       "generator": {
-        "title": "Elektr stansiyasi qur",
-        "tip": "Quruvchini tanlang → «Xo‘jalik» → «Elektr stansiyasi». Energiyasiz boshqa binolar sekinlashadi yoki to‘xtaydi."
+        "title": "Elektr stansiyasini qur",
+        "tip": "Quruvchini tanlang → «Iqtisodiyot» → «Elektr stansiyasi» va qurilish zonasida Bosh bino yoniga bosing. Energiyasiz boshqa binolar sekin ishlaydi yoki to‘xtaydi."
       },
       "matter": {
         "title": "Materiya generatorini qur",
-        "tip": "U o‘zi kredit keltiradi — bazaning birinchi daromadi. Unga energiya kerak."
+        "tip": "Quruvchi → «Iqtisodiyot» → «Materiya generatori». U o‘zi kredit keltiradi — bazaning birinchi daromadi — va energiyani stansiyadan oladi."
       },
       "mine": {
-        "title": "Konga shaxta qo‘y",
-        "tip": "Ko‘rinishda kon bo‘lsa, shaxta ochiladi — atrofni bagi bilan razvedka qiling. U ruda dog‘i ustiga qo‘yiladi."
+        "title": "Metall rudasiga shaxta qo‘y",
+        "tip": "«Ko‘rsatish»ni bosing: kamera eng yaqin topilgan metall konini ko‘rsatadi, xaritada u chizilgan. Quruvchi → «Iqtisodiyot» → «Shaxta» — to‘g‘ri uning ustiga bosing. Hali birortasi topilmagan bo‘lsa — atrofni bagi bilan razvedka qiling."
       },
       "lab": {
-        "title": "Laboratoriya qur",
-        "tip": "Deyarli hammasi tadqiqot bilan ochiladi. Laboratoriya o‘z tarmog‘ining kredit va xomashyosini sarflab tadqiqot olib boradi."
+        "title": "Shaxta yonida laboratoriya qur",
+        "tip": "Quruvchi → «Iqtisodiyot» → «Laboratoriya» — shaxtaga yonma-yon: yonma-yon binolar bitta tarmoq, laboratoriya rudani shaxtadan o‘zi oladi. Tadqiqotlar deyarli hamma narsani ochadi."
       },
       "metalOre": {
         "title": "«Metall eritish»ni tadqiq qil",
-        "tip": "«Tadqiqotlar»ni oching va «Metall eritish»ni tanlang. Laboratoriyaga shaxtadan metall rudasi kerak: laboratoriyani shaxtaga yonma-yon qo‘ying — yonma-yon binolar bitta tarmoq — yoki rudani yuk mashinasi olib keladi."
+        "tip": "Yuqori paneldagi «Tadqiqotlar»ni bosing va «Metall eritish»ni tanlang. Laboratoriya uni shaxtadagi metall rudasida o‘rganadi."
       },
       "smelter": {
-        "title": "Eritish zavodini qur",
-        "tip": "Eritish zavodi rudani metallga aylantiradi — sotish uchun birinchi tovar."
+        "title": "Shaxta yonida eritish zavodini qur",
+        "tip": "Quruvchi → «Qayta ishlash» → «Eritish zavodi» — shaxtaga yoki uning yonidagi laboratoriyaga yonma-yon: ruda zavodga o‘zi kiradi, undan metall chiqadi."
       },
       "metalYard": {
-        "title": "Metall omborini qur",
-        "tip": "Eritish zavodi tayyor metallni omborga beradi; omborsiz u to‘lib, to‘xtab qoladi. Qurilish va savdo ham metallni shu yerdan oladi."
+        "title": "Eritish zavodi yonida metall ombori qur",
+        "tip": "Quruvchi → «Omborlar» → «Metall ombori» — eritish zavodiga yonma-yon. Omborsiz zavod metallga to‘lib to‘xtaydi; qurilish va sotuv ham metallni shu yerdan oladi."
       },
       "spaceport": {
-        "title": "Kosmoport qur",
-        "tip": "Birinchi tayyor resurs paydo bo‘lganda ochiladi. U orqali sotiladi va sotib olinadi."
+        "title": "Kosmodrom qur",
+        "tip": "Quruvchi → «Iqtisodiyot» → «Kosmodrom», yaxshisi metall omboriga yonma-yon. Unga 20 metall kerak — quruvchi uni ombordan o‘zi olib keladi."
       },
       "sale": {
         "title": "Metall sot",
-        "tip": "Kosmoportni tanlang → «Sotish» → metall. Kema yuk bilan uchib ketadi va kreditlar hisobga tushadi — bu asosiy daromad."
+        "tip": "Kosmodromni tanlang → «Sotish» → metall. Metall kosmodromga olib kelinadi, kema u bilan uchib ketadi va kreditlar hisobga tushadi — bu asosiy daromad."
       }
     }
   },
@@ -797,12 +799,12 @@
     "infantry": "Kazarma va piyoda askarlar — birinchi armiya. Faqat kredit",
     "khariteOre": "Xaritni boyitish. Xarit rudasida o‘rganiladi",
     "lithiumOre": "Sho‘r suvdan litiy bug‘latish. Litiy rudasida o‘rganiladi",
-    "blocks": "Qurilish bloklari sexi: zavodlar va harbiy binolar ulardan quriladi",
-    "ammo": "O‘q-dori sexi va pulemyot minorasi",
+    "blocks": "Qurilish bloklari zavodi: zavodlar va harbiy binolar ulardan quriladi",
+    "ammo": "O‘q-dori zavodi va pulemyot minorasi",
     "rockets": "Raketachilar va raketa minorasi — zirhga qarshi",
     "flamer": "Olovotarlar — piyodalar va binolarga qarshi",
     "uraniumOre": "Rudadan uran olish. Uran rudasida o‘rganiladi",
-    "parts": "Komponentlar sexi: ularda xarit bor, butun yuqori texnika ularga bog‘liq",
+    "parts": "Komponentlar zavodi: ularda xarit bor, butun yuqori texnika ularga bog‘liq",
     "vehicles": "Texnika zavodi, baggi va zenitka",
     "aviation": "Aerodrom, uchar yuk mashinasi va dron",
     "levels2": "Binolarning ikkinchi darajasi: shaxtalar, qayta ishlash, omborlar, kosmoport va elektr stansiyalari",
@@ -813,7 +815,7 @@
     "bombing": "Bombardimonchi: binolar va kolonnalarni havodan buzadi",
     "shields": "Qalqon generatori: gumbazi uzoqdan otishni to‘xtatadi",
     "levels3": "Binolarning uchinchi darajasi",
-    "rods": "Yoqilg‘i sterjenlari sexi: reaktor va kallaklar uchun uran",
+    "rods": "Sterjen zavodi: reaktor va kallaklar uchun urandan yoqilg‘i sterjenlari",
     "arcs": "Razryadchi va razryad minorasi — olomonga qarshi",
     "siege": "Artilleriya va tashuvchi",
     "atom": "Reaktor: bir joyda olti elektr stansiyasi, sterjen yoqadi",

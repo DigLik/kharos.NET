@@ -77,15 +77,15 @@
     "silo": "Assembles a nuclear warhead from 20 rods and 10 parts and launches it at any point on the map. Everyone learns of the launch in chat and sees the missile in flight, players with a radar get the launch site marked. The blast of radius 12 hits everyone alike, shields do not stop it. Destroyed with a warhead inside, it explodes",
     "interceptor": "Assembles interceptor missiles by itself, one at a time for 600 credits, 4 parts and 10 fuel from the network, and holds up to 4. Each shoots down one enemy nuclear missile aimed inside its radius of 80 as soon as that missile enters it. Assembles slower without power; switched off, it neither assembles nor fires",
     "matter": "Earns credits on its own but eats power. Each next one in the zone asks for more power",
-    "mine": "Placed on a deposit, it digs ore into its own store; trucks take it to be refined. Starts a small zone of its own",
+    "mine": "Placed on a deposit, it digs ore into its own store. Refineries and labs in its network take the ore themselves — place them right next to it or lay a pipe; trucks carry it to other networks. Starts a small zone of its own",
     "smelter": "Smelts metal ore into metal",
     "siliconWorks": "Refines silicon ore into silicon",
     "distillery": "Distils oil into fuel",
     "enricher": "Enriches kharite ore into kharite — the most valuable resource",
     "evaporator": "Evaporates lithium ore into lithium. Lithium lies mostly on the salt flats",
     "uraniumMill": "Processes uranium ore into uranium. Uranium lies mostly in the red wastes; it cannot be bought from orbit",
-    "blockPlant": "Makes building blocks from metal: they are needed to construct buildings",
-    "ammoPlant": "Makes ammo for turrets",
+    "blockPlant": "Makes building blocks from metal and silicon: plants and military buildings are built with them",
+    "ammoPlant": "Makes ammo from metal: for turrets and the army's magazines",
     "partsPlant": "Makes parts for advanced vehicles",
     "rodPlant": "Assembles fuel rods from uranium and metal",
     "metalYard": "Stores the zone's metal",
@@ -99,7 +99,7 @@
     "partsLocker": "Stores the zone's parts",
     "rodRack": "Stores the zone's fuel rods",
     "requestStation": "Keeps the cargo you order: trucks and pipes bring what is missing and haul any surplus to storage. Its stock serves its own network — construction, turrets, the army",
-    "spaceport": "Sells resources from the zone's stores and buys missing ones for credits",
+    "spaceport": "Sells resources from the network's stores and buys missing ones for credits",
     "radar": "Sees its surroundings and scouts distant spots in flashes; finds deposits",
     "windtrap": "Catches moisture from the wind",
     "barracks": "Trains infantry: riflemen, rocketeers and flamethrowers",
@@ -341,7 +341,7 @@
       "storage": "Stores for resources and products",
       "industry": "Ore refining into resources",
       "production": "Product plants: blocks, ammo, parts and rods",
-      "military": "Barracks, vehicle factory, airfield, repair station and missile silo",
+      "military": "Barracks, vehicle factory, airfield, repair station, supply depot and missile silo",
       "defense": "Walls, turrets, shield, nuclear missile interceptor and radar",
       "paving": "Foundation, roads and bridges",
       "logistics": "Pipes and wells: they link buildings that stand apart; buildings side by side are linked anyway"
@@ -684,51 +684,53 @@
     "foldTip": "Collapse the list",
     "unfoldTip": "Expand the list",
     "closeTip": "Hide: bring it back in the menu, Interface",
+    "show": "Show",
+    "showTip": "Camera to where this step is done; it is outlined on the map",
     "finished": "First steps done! Next: more mining and refining, new research and base defence.",
     "items": {
       "deploy": {
         "title": "Deploy the MCV",
-        "tip": "Select the MCV, press Deploy and click where the Command Center goes: it gives a build zone and income."
+        "tip": "Select the MCV, press Deploy, then click free rock: the MCV drives there and becomes the Command Center. It sets the build zone, earns income and turns out builders."
       },
       "builder": {
         "title": "Order a builder",
-        "tip": "Select the Command Center and order a builder: only builders put up buildings."
+        "tip": "Select the Command Center and press Builder in the grid on the right. Builders raise every building and bring it materials themselves."
       },
       "generator": {
         "title": "Build a power plant",
-        "tip": "Select a builder → Economy → Power plant. Without power other buildings run slower or stop."
+        "tip": "Select a builder → Economy → Power Plant and click inside the build zone next to the Command Center. Without power other buildings work slower or stop."
       },
       "matter": {
         "title": "Build a matter generator",
-        "tip": "It brings credits by itself — the base’s first income. It needs power."
+        "tip": "Builder → Economy → Matter Generator. It earns credits by itself — the base’s first income — and draws power from the plant."
       },
       "mine": {
-        "title": "Put a mine on a deposit",
-        "tip": "The mine unlocks once a deposit is in sight — scout around with buggies. It goes right on the ore patch."
+        "title": "Put a mine on metal ore",
+        "tip": "Press Show: the camera goes to the nearest found metal deposit, outlined on the map. Builder → Economy → Mine — click right on it. None found yet — scout around with buggies."
       },
       "lab": {
-        "title": "Build a lab",
-        "tip": "Almost everything is unlocked by research. The lab runs it, spending credits and resources of its network."
+        "title": "Build a lab by the mine",
+        "tip": "Builder → Economy → Laboratory — right next to the mine: buildings side by side share one network, and the lab takes ore from the mine by itself. Research unlocks almost everything."
       },
       "metalOre": {
         "title": "Research Metal Smelting",
-        "tip": "Open Research and pick Metal Smelting. The lab needs metal ore from the mine: put the lab right next to the mine — buildings side by side share a network — or a truck will bring the ore."
+        "tip": "Press Research on the top bar and pick Metal Smelting. The lab studies it on metal ore from the mine."
       },
       "smelter": {
-        "title": "Build a smelter",
-        "tip": "The smelter turns ore into metal — your first goods to sell."
+        "title": "Build a smelter by the mine",
+        "tip": "Builder → Refining → Smelter — next to the mine or to the lab beside it: ore flows into the smelter by itself, and metal comes out."
       },
       "metalYard": {
-        "title": "Build a metal yard",
-        "tip": "The smelter sends finished metal to a yard; without one it fills up and stops. Building sites and sales take metal from here too."
+        "title": "Build a metal yard by the smelter",
+        "tip": "Builder → Storage → Metal Yard — next to the smelter. Without it the smelter fills up with metal and stops; construction and sales take metal from here too."
       },
       "spaceport": {
         "title": "Build a spaceport",
-        "tip": "It unlocks once you have the first refined resource. You sell and buy through it."
+        "tip": "Builder → Economy → Spaceport, best right next to the metal yard. It needs 20 metal — the builder brings it from the yard itself."
       },
       "sale": {
         "title": "Sell metal",
-        "tip": "Select the spaceport → Sell → metal. The ship leaves with the cargo and the credits arrive — this is your main income."
+        "tip": "Select the spaceport → Sell → metal. The metal is brought to the spaceport, the ship flies off with it, and credits arrive — this is your main income."
       }
     }
   },
@@ -797,12 +799,12 @@
     "infantry": "Barracks and infantry — the first army. Credits only",
     "khariteOre": "How to enrich kharite. Researched on kharite ore",
     "lithiumOre": "How to evaporate lithium from brine. Researched on lithium ore",
-    "blocks": "Block plant: factories and military buildings are built from blocks",
-    "ammo": "Ammo plant and machine gun turret",
+    "blocks": "Block Plant: factories and military buildings are built from blocks",
+    "ammo": "Ammo Plant and machine gun turret",
     "rockets": "Rocketeers and rocket turret — against armor",
     "flamer": "Flamethrowers — against infantry and buildings",
     "uraniumOre": "How to extract uranium from ore. Researched on uranium ore",
-    "parts": "Parts plant: parts carry kharite, and all top-tier machines depend on them",
+    "parts": "Parts Plant: parts carry kharite, and all top-tier machines depend on them",
     "vehicles": "Vehicle factory, buggy and flak",
     "aviation": "Airfield, air truck and drone",
     "levels2": "Second building level: mines, refineries, stores, spaceport and power plants",
@@ -813,7 +815,7 @@
     "bombing": "Bomber: levels buildings and columns from the air",
     "shields": "Shield generator: its dome stops fire from afar",
     "levels3": "Third building level",
-    "rods": "Fuel rod plant: uranium for the reactor and warheads",
+    "rods": "Rod Plant: uranium fuel rods for the reactor and warheads",
     "arcs": "Tesla and arc turret — against crowds",
     "siege": "Artillery and carrier",
     "atom": "Reactor: six power plants in one place, burns rods",

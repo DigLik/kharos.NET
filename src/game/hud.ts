@@ -12,7 +12,7 @@ import {
   type Economy, Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
   Accumulator, Wanted, Fetch, Repair, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, ammoOf, isEmpty, magazineOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
-import { stepsDone } from './firstSteps'
+import { currentStep, stepTarget, stepsDone, type StepTarget } from './firstSteps'
 import { paveStrokeOf } from './placing'
 import type { PaveTool, Scene } from './scene'
 
@@ -90,6 +90,8 @@ export interface HudState {
   mode: ModeState
   /** Первые шаги новичка: пройден ли каждый, см. firstSteps.ts. null — в редакторе, там их нет. */
   steps: boolean[] | null
+  /** Где делать текущий шаг: туда ведёт кнопка «Показать», см. stepTarget. null — показать нечего. */
+  stepTarget: StepTarget | null
   /** Пришёл ли мир от хоста: до этого наград ноль не потому, что их нет, а потому, что мира ещё нет. */
   loaded: boolean
   /** Игрок проиграл: у него не осталось ни зданий, ни MCV. */
@@ -548,6 +550,8 @@ export function readHud(scene: Scene): HudState {
   const credits = creditsOf(sim, player)
   // Свободные — за вычетом недоплаченного за свои стройки: на них закладывают новые, см. freeCredits.
   const free = freeCredits(sim, player)
+  const steps = 'editor' in sim && (sim as Replica).editor ? null : stepsDone(sim, player)
+  const step = steps && currentStep(steps)
 
   const counts = new Map<UnitType, number>()
   let building: BuildingType | null = null
@@ -891,7 +895,8 @@ export function readHud(scene: Scene): HudState {
     editor: 'editor' in sim && (sim as Replica).editor,
     picking: !!(scene.routing || scene.serving),
     mode: modeOf(scene, paving),
-    steps: 'editor' in sim && (sim as Replica).editor ? null : stepsDone(sim, player),
+    steps,
+    stepTarget: (step && stepTarget(sim, player, step.key)) ?? null,
     players: 'players' in sim
       ? (sim as Replica).players.map(({ player, name, online, safe }) => ({
           player,

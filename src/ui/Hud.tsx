@@ -1006,7 +1006,7 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
  * крестик прячет совсем (вернуть — в меню, «Интерфейс»). Мир, где всё уже пройдено, списка не показывает; пройденный
  * в этой игре — показывает поздравление, пока его не закроют.
  */
-function FirstSteps({ done }: { done: boolean[] }) {
+function FirstSteps({ done, target, lookAt }: { done: boolean[]; target: HudState['stepTarget']; lookAt: HudProps['lookAt'] }) {
   const [, redraw] = useState(0)
   // Пройдено ли всё было уже при входе: тогда список не нужен.
   const finished = done.every(Boolean)
@@ -1054,6 +1054,11 @@ function FirstSteps({ done }: { done: boolean[] }) {
               <span>
                 {t(`steps.items.${key}.title`)}
                 {i === current && <small>{t(`steps.items.${key}.tip`)}</small>}
+                {i === current && target && (
+                  <button class="steps__show" data-tip={t('steps.showTip')} onClick={() => lookAt(target.x + target.width / 2, target.y + target.height / 2)}>
+                    {t('steps.show')}
+                  </button>
+                )}
               </span>
             </li>
           ))}
@@ -1339,7 +1344,7 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
         </div>
       )}
 
-      {state.steps && <FirstSteps done={state.steps} />}
+      {state.steps && <FirstSteps done={state.steps} target={state.stepTarget} lookAt={flyTo} />}
 
       {state.alerts.length > 0 && !state.editor && (
         <div class="hud hud--alerts" role="status">

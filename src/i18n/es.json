@@ -77,15 +77,15 @@
     "silo": "Arma una ojiva nuclear con 20 barras y 10 componentes y la lanza a cualquier punto del mapa. Todos se enteran del lanzamiento por el chat y ven el misil en vuelo, y a quien tiene radar se le marca el lugar de lanzamiento. La explosión de radio 12 golpea a todos por igual, los escudos no la detienen. Si lo destruyen con una ojiva dentro, explota",
     "interceptor": "Arma por sí mismo misiles interceptores, de uno en uno por 600 créditos, 4 componentes y 10 de combustible de la red, y guarda hasta 4. Cada uno derriba un misil nuclear enemigo que apunte dentro de su radio de 80 en cuanto entra en él. Sin energía arma más despacio; apagado, ni arma ni dispara",
     "matter": "Genera créditos por sí solo, pero consume energía. Cada uno más en la zona pide más energía",
-    "mine": "Se coloca sobre un yacimiento y extrae mineral a su almacén; los camiones lo llevan a refinar. Inicia una pequeña zona propia",
+    "mine": "Se coloca sobre un yacimiento y extrae mineral a su almacén. Las refinerías y laboratorios de su red lo toman solos —ponlos pegados o tiende una tubería—; a otras redes lo llevan los camiones. Inicia una pequeña zona propia",
     "smelter": "Funde mineral de metal en metal",
     "siliconWorks": "Refina mineral de silicio en silicio",
     "distillery": "Destila petróleo en combustible",
     "enricher": "Enriquece mineral de kharita en kharita, el recurso más valioso",
     "evaporator": "Evapora mineral de litio en litio. El litio está sobre todo en las salinas",
     "uraniumMill": "Procesa mineral de uranio en uranio. El uranio está sobre todo en los yermos rojos; no se puede comprar en órbita",
-    "blockPlant": "Fabrica bloques de construcción con metal: hacen falta para levantar edificios",
-    "ammoPlant": "Fabrica munición para las torretas",
+    "blockPlant": "Fabrica bloques de construcción con metal y silicio: con ellos se levantan plantas y edificios militares",
+    "ammoPlant": "Fabrica munición con metal: para las torretas y los cargadores del ejército",
     "partsPlant": "Fabrica componentes para vehículos avanzados",
     "rodPlant": "Fabrica barras de combustible con uranio y metal",
     "metalYard": "Guarda el metal de la zona",
@@ -99,7 +99,7 @@
     "partsLocker": "Guarda los componentes de la zona",
     "rodRack": "Guarda las barras de combustible de la zona",
     "requestStation": "Guarda la carga que pidas: camiones y tuberías traen lo que falta y llevan el sobrante a los almacenes. Su reserva sirve a su propia red: obras, torretas, ejército",
-    "spaceport": "Vende recursos de los almacenes de la zona y compra los que faltan con créditos",
+    "spaceport": "Vende recursos de los almacenes de la red y compra los que faltan con créditos",
     "radar": "Ve los alrededores y explora lugares lejanos con destellos; encuentra yacimientos",
     "windtrap": "Atrapa la humedad del viento",
     "barracks": "Entrena infantería: fusileros, lanzacohetes y lanzallamas",
@@ -341,7 +341,7 @@
       "storage": "Almacenes de recursos y productos",
       "industry": "Refinado de mineral en recursos",
       "production": "Plantas de productos: bloques, munición, componentes y barras",
-      "military": "Cuartel, fábrica de vehículos, aeródromo, estación de reparación y silo de misiles",
+      "military": "Cuartel, fábrica de vehículos, aeródromo, estación de reparación, depósito de suministro y silo de misiles",
       "defense": "Muros, torretas, escudo, interceptor de misiles nucleares y radar",
       "paving": "Cimientos, carreteras y puentes",
       "logistics": "Tuberías y pozos: unen los edificios separados; los edificios pegados ya están unidos"
@@ -684,51 +684,53 @@
     "foldTip": "Plegar la lista",
     "unfoldTip": "Desplegar la lista",
     "closeTip": "Ocultar: se recupera en el menú, Interfaz",
+    "show": "Mostrar",
+    "showTip": "La cámara va adonde se hace este paso; en el mapa está marcado",
     "finished": "¡Primeros pasos hechos! Ahora: más extracción y refinado, nuevas investigaciones y defensa de la base.",
     "items": {
       "deploy": {
         "title": "Despliega el MCV",
-        "tip": "Selecciona el MCV, pulsa Desplegar y haz clic donde irá el edificio principal: da zona de obra e ingresos."
+        "tip": "Selecciona el MCV, pulsa Desplegar y haz clic en roca libre: el MCV irá allí y se convertirá en el Centro de mando. Marca la zona de obras, da ingresos y fabrica constructores."
       },
       "builder": {
         "title": "Encarga un constructor",
-        "tip": "Selecciona el edificio principal y encarga un constructor: solo ellos levantan edificios."
+        "tip": "Selecciona el Centro de mando y pulsa Constructor en la cuadrícula de la derecha. Los constructores levantan todos los edificios y les llevan el material ellos mismos."
       },
       "generator": {
         "title": "Construye una central eléctrica",
-        "tip": "Selecciona un constructor → Economía → Central eléctrica. Sin energía los demás edificios van más lentos o se paran."
+        "tip": "Selecciona un constructor → Economía → Central eléctrica y haz clic en la zona de obras junto al Centro de mando. Sin energía los demás edificios van más lentos o se paran."
       },
       "matter": {
         "title": "Construye un generador de materia",
-        "tip": "Genera créditos por sí solo: el primer ingreso de la base. Necesita energía."
+        "tip": "Constructor → Economía → Generador de materia. Da créditos por sí solo —el primer ingreso de la base— y toma energía de la central."
       },
       "mine": {
-        "title": "Pon una mina en un yacimiento",
-        "tip": "La mina se desbloquea al ver un yacimiento: explora con buggies. Se coloca justo sobre la mancha de mineral."
+        "title": "Pon una mina en mineral de metal",
+        "tip": "Pulsa Mostrar: la cámara irá al yacimiento de metal hallado más cercano, marcado en el mapa. Constructor → Economía → Mina: haz clic justo encima. Si aún no hay ninguno, explora con buggies."
       },
       "lab": {
-        "title": "Construye un laboratorio",
-        "tip": "Casi todo se desbloquea investigando. El laboratorio investiga gastando créditos y recursos de su red."
+        "title": "Construye un laboratorio junto a la mina",
+        "tip": "Constructor → Economía → Laboratorio, pegado a la mina: los edificios pegados forman una sola red y el laboratorio toma el mineral de la mina por sí solo. La investigación desbloquea casi todo."
       },
       "metalOre": {
         "title": "Investiga Fundición de metal",
-        "tip": "Abre Investigación y elige Fundición de metal. El laboratorio necesita mineral de metal de la mina: ponlo pegado a la mina —los edificios pegados comparten red— o un camión traerá el mineral."
+        "tip": "Pulsa Investigación en la barra superior y elige Fundición de metal. El laboratorio la estudiará con mineral de metal de la mina."
       },
       "smelter": {
-        "title": "Construye una fundición",
-        "tip": "La fundición convierte el mineral en metal: tu primer producto para vender."
+        "title": "Construye una fundición junto a la mina",
+        "tip": "Constructor → Refinado → Fundición, pegada a la mina o al laboratorio de al lado: el mineral entrará solo y saldrá metal."
       },
       "metalYard": {
-        "title": "Construye un almacén de metal",
-        "tip": "La fundición envía el metal al almacén; sin él se llena y se para. De aquí también lo toman las obras y la venta."
+        "title": "Construye un depósito de metal junto a la fundición",
+        "tip": "Constructor → Almacenes → Depósito de metal, pegado a la fundición. Sin él la fundición se llena de metal y se para; las obras y la venta también toman el metal de aquí."
       },
       "spaceport": {
         "title": "Construye un puerto espacial",
-        "tip": "Se desbloquea al tener el primer recurso refinado. Por él se vende y se compra."
+        "tip": "Constructor → Economía → Puerto espacial, mejor pegado al depósito de metal. Necesita 20 de metal: el constructor lo traerá del depósito él mismo."
       },
       "sale": {
         "title": "Vende metal",
-        "tip": "Selecciona el puerto espacial → Vender → metal. La nave se va con la carga y llegan los créditos: es tu ingreso principal."
+        "tip": "Selecciona el puerto espacial → Venta → metal. El metal se llevará al puerto, la nave despegará con él y llegarán los créditos: es tu ingreso principal."
       }
     }
   },
@@ -813,7 +815,7 @@
     "bombing": "Bombardero: arrasa edificios y columnas desde el aire",
     "shields": "Generador de escudo: su cúpula detiene el fuego lejano",
     "levels3": "Tercer nivel de edificios",
-    "rods": "Planta de barras de combustible: uranio para el reactor y las ojivas",
+    "rods": "Planta de barras: barras de combustible de uranio para el reactor y las ojivas",
     "arcs": "Tesla y torreta de descarga: contra multitudes",
     "siege": "Artillería y portador",
     "atom": "Reactor: seis centrales en un solo lugar, quema barras",

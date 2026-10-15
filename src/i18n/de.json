@@ -77,15 +77,15 @@
     "silo": "Baut aus 20 Brennstäben und 10 Teilen einen Atomsprengkopf und startet ihn auf jeden Punkt der Karte. Vom Start erfahren alle im Chat, die Rakete im Flug sehen alle, Spielern mit Radar wird der Startort markiert. Die Explosion mit Radius 12 trifft alle ohne Unterschied, Schilde halten sie nicht auf. Wird es mit Sprengkopf zerstört, explodiert es",
     "interceptor": "Baut selbst Abfangraketen, eine nach der anderen für je 600 Credits, 4 Teile und 10 Treibstoff aus dem Netz, und hält bis zu 4 bereit. Jede schießt eine feindliche Atomrakete ab, die in den Kreis mit Radius 80 zielt, sobald sie ihn erreicht. Ohne Energie baut sie langsamer, ausgeschaltet baut und feuert sie nicht",
     "matter": "Bringt von selbst Credits, frisst aber Energie. Jeder weitere in der Zone verlangt mehr Energie",
-    "mine": "Wird auf ein Vorkommen gesetzt und fördert Erz in ihr Lager; Lastwagen bringen es zur Verarbeitung. Beginnt selbst eine kleine Zone",
+    "mine": "Wird auf ein Vorkommen gesetzt und fördert Erz in ihr Lager. Verarbeitung und Labor in ihrem Netz nehmen das Erz selbst — stell sie direkt daneben oder leg ein Rohr; in andere Netze bringen es Lastwagen. Beginnt selbst eine kleine Zone",
     "smelter": "Schmilzt Metallerz zu Metall",
     "siliconWorks": "Verarbeitet Siliziumerz zu Silizium",
     "distillery": "Destilliert Erdöl zu Treibstoff",
     "enricher": "Reichert Kharit-Erz zu Kharit an — dem wertvollsten Rohstoff",
     "evaporator": "Verdampft Lithiumerz zu Lithium. Lithium liegt vor allem in den Salzebenen",
     "uraniumMill": "Verarbeitet Uranerz zu Uran. Uran liegt vor allem in den roten Ödländern; aus dem Orbit ist es nicht zu kaufen",
-    "blockPlant": "Fertigt Baublöcke aus Metall: Sie werden für den Bau von Gebäuden gebraucht",
-    "ammoPlant": "Stellt Munition für Geschütztürme her",
+    "blockPlant": "Fertigt Baublöcke aus Metall und Silizium: aus ihnen entstehen Fabriken und Militärgebäude",
+    "ammoPlant": "Stellt Munition aus Metall her: für Geschütztürme und die Magazine der Armee",
     "partsPlant": "Fertigt Teile für fortgeschrittene Fahrzeuge",
     "rodPlant": "Fertigt Brennstäbe aus Uran und Metall",
     "metalYard": "Lagert das Metall der Zone",
@@ -99,13 +99,13 @@
     "partsLocker": "Lagert die Teile der Zone",
     "rodRack": "Lagert die Brennstäbe der Zone",
     "requestStation": "Hält die Fracht vor, die du bestellst: Laster und Rohre bringen, was fehlt, und fahren Überschuss ins Lager. Ihr Vorrat dient dem eigenen Netz — Bau, Geschützen, Armee",
-    "spaceport": "Verkauft Rohstoffe aus den Lagern der Zone und kauft fehlende für Credits",
+    "spaceport": "Verkauft Rohstoffe aus den Lagern des Netzes und kauft fehlende für Credits",
     "radar": "Sieht die Umgebung und erkundet ferne Stellen in Blitzen; findet Vorkommen",
     "windtrap": "Fängt Feuchtigkeit aus dem Wind",
-    "barracks": "Bildet Infanterie aus: Schützen, Raketenschützen und Flammenwerfer",
+    "barracks": "Bildet Infanterie aus: Infanteristen, Raketenschützen und Flammenwerfer",
     "factory": "Baut Bodenfahrzeuge und MCVs für neue Basen",
     "airfield": "Baut Fluggeräte: Fluglaster, Drohnen, Kampfhubschrauber und Bomber. Darüber füllen Fluggeräte Munition aus den Lagern seines Netzes auf",
-    "lab": "Forscht: Forschung schaltet Verarbeitung, Werke, Armee und Gebäudestufen frei. Mehrere Labore erforschen ein Thema gemeinsam schneller",
+    "lab": "Forscht: Forschung schaltet Verarbeitung, Fabriken, Armee und Gebäudestufen frei. Mehrere Labore erforschen ein Thema gemeinsam schneller",
     "repairStation": "Repariert Fahrzeuge und Gebäude in der Nähe gegen Credits, aber nicht unter Beschuss; Infanterie in der Nähe heilt schneller. Braucht Energie",
     "supplyDepot": "Hält Munition für Versorgungsfahrzeuge bereit und belädt sie mit seinem Strahl viermal schneller als Lager. Lastwagen und Rohre halten es voll; an andere Anforderungen gibt es nichts ab",
     "wall": "Ein billiges, stabiles Hindernis: versperrt den Weg und schützt vor Beschuss. Kann auch außerhalb der Zone stehen",
@@ -341,7 +341,7 @@
       "storage": "Lager für Rohstoffe und Erzeugnisse",
       "industry": "Erz zu Rohstoffen verarbeiten",
       "production": "Fabriken für Erzeugnisse: Baublöcke, Munition, Teile und Brennstäbe",
-      "military": "Kaserne, Fahrzeugwerk, Flugplatz, Reparaturstation und Raketensilo",
+      "military": "Kaserne, Fahrzeugfabrik, Flugplatz, Reparaturstation, Versorgungsdepot und Raketensilo",
       "defense": "Mauern, Geschütztürme, Schild, Abfangstellung gegen Atomraketen und Radar",
       "paving": "Fundament, Straßen und Brücken",
       "logistics": "Rohre und Schächte: Sie verbinden auseinanderstehende Gebäude; Gebäude Wand an Wand sind ohnehin verbunden"
@@ -684,51 +684,53 @@
     "foldTip": "Liste einklappen",
     "unfoldTip": "Liste ausklappen",
     "closeTip": "Ausblenden: zurück im Menü unter „Oberfläche“",
+    "show": "Zeigen",
+    "showTip": "Kamera dorthin, wo dieser Schritt gemacht wird; auf der Karte ist es umrandet",
     "finished": "Erste Schritte geschafft! Weiter geht es mit mehr Abbau und Verarbeitung, neuer Forschung und Verteidigung.",
     "items": {
       "deploy": {
-        "title": "MCV aufbauen",
-        "tip": "Wähle das MCV, drücke „Aufbauen“ und klicke, wo das Hauptgebäude stehen soll: Es gibt Bauzone und Einkommen."
+        "title": "Fahre das MCV aus",
+        "tip": "Wähle das MCV, drücke „Ausfahren“ und klicke auf freien Fels: das MCV fährt hin und wird zur Kommandozentrale. Sie gibt die Bauzone vor, bringt Einkommen und baut Baufahrzeuge."
       },
       "builder": {
-        "title": "Bauarbeiter bestellen",
-        "tip": "Wähle das Hauptgebäude und bestelle einen Bauarbeiter: Nur sie errichten Gebäude."
+        "title": "Bestelle ein Baufahrzeug",
+        "tip": "Wähle die Kommandozentrale und drücke „Baufahrzeug“ im Raster rechts. Baufahrzeuge errichten alle Gebäude und bringen ihnen das Material selbst."
       },
       "generator": {
         "title": "Baue ein Kraftwerk",
-        "tip": "Wähle einen Bauarbeiter → „Wirtschaft“ → „Kraftwerk“. Ohne Energie arbeiten Gebäude langsamer oder gar nicht."
+        "tip": "Wähle ein Baufahrzeug → „Wirtschaft“ → „Kraftwerk“ und klicke in der Bauzone neben die Kommandozentrale. Ohne Energie arbeiten andere Gebäude langsamer oder stehen."
       },
       "matter": {
         "title": "Baue einen Materiegenerator",
-        "tip": "Er bringt selbst Credits — das erste Einkommen der Basis. Er braucht Energie."
+        "tip": "Baufahrzeug → „Wirtschaft“ → „Materiegenerator“. Er bringt selbst Credits — das erste Einkommen der Basis — und nimmt Energie vom Kraftwerk."
       },
       "mine": {
-        "title": "Setze eine Mine auf ein Vorkommen",
-        "tip": "Die Mine wird frei, sobald ein Vorkommen in Sicht ist — erkunde mit Buggys. Sie kommt direkt auf das Erzfeld."
+        "title": "Setze eine Mine auf Metallerz",
+        "tip": "Drücke „Zeigen“: die Kamera zeigt das nächste gefundene Metallvorkommen, auf der Karte umrandet. Baufahrzeug → „Wirtschaft“ → „Mine“ — klicke direkt darauf. Noch keins gefunden — erkunde die Umgebung mit Buggys."
       },
       "lab": {
-        "title": "Baue ein Labor",
-        "tip": "Fast alles wird durch Forschung freigeschaltet. Das Labor forscht und verbraucht Credits und Rohstoffe seines Netzes."
+        "title": "Baue ein Labor an der Mine",
+        "tip": "Baufahrzeug → „Wirtschaft“ → „Labor“ — direkt an die Mine: Gebäude Wand an Wand bilden ein Netz, und das Labor nimmt das Erz selbst aus der Mine. Forschung schaltet fast alles frei."
       },
       "metalOre": {
         "title": "Erforsche „Metallschmelze“",
-        "tip": "Öffne „Forschung“ und wähle „Metallschmelze“. Das Labor braucht Metallerz aus der Mine: stell das Labor direkt an die Mine — Gebäude Wand an Wand bilden ein Netz — sonst bringt ein Lkw das Erz."
+        "tip": "Drücke „Forschung“ oben und wähle „Metallschmelze“. Das Labor erforscht sie an Metallerz aus der Mine."
       },
       "smelter": {
-        "title": "Baue eine Schmelze",
-        "tip": "Die Schmelze macht aus Erz Metall — deine erste Ware zum Verkauf."
+        "title": "Baue eine Schmelze an der Mine",
+        "tip": "Baufahrzeug → „Verarbeitung“ → „Schmelze“ — an die Mine oder an das Labor daneben: das Erz fließt von selbst in die Schmelze, heraus kommt Metall."
       },
       "metalYard": {
-        "title": "Baue ein Metalllager",
-        "tip": "Die Schmelze gibt fertiges Metall ans Lager ab; ohne Lager läuft sie voll und steht still. Von hier holen auch Baustellen und Verkauf das Metall."
+        "title": "Baue ein Metalllager an der Schmelze",
+        "tip": "Baufahrzeug → „Lager“ → „Metalllager“ — direkt an die Schmelze. Ohne Lager läuft sie mit Metall voll und steht; auch Bau und Verkauf nehmen das Metall von hier."
       },
       "spaceport": {
         "title": "Baue einen Raumhafen",
-        "tip": "Er wird frei, sobald die erste fertige Ressource da ist. Darüber wird ge- und verkauft."
+        "tip": "Baufahrzeug → „Wirtschaft“ → „Raumhafen“, am besten direkt am Metalllager. Er braucht 20 Metall — das Baufahrzeug holt es selbst aus dem Lager."
       },
       "sale": {
         "title": "Verkaufe Metall",
-        "tip": "Wähle den Raumhafen → „Verkaufen“ → Metall. Das Schiff fliegt mit der Ladung ab, die Credits kommen — das ist dein Haupteinkommen."
+        "tip": "Wähle den Raumhafen → „Verkauf“ → Metall. Das Metall wird zum Raumhafen gebracht, das Schiff fliegt damit ab, und Credits kommen aufs Konto — das ist dein Haupteinkommen."
       }
     }
   },
@@ -797,12 +799,12 @@
     "infantry": "Kaserne und Infanterie — die erste Armee. Nur Credits",
     "khariteOre": "Wie man Kharit anreichert. Erforscht mit Kharit-Erz",
     "lithiumOre": "Wie man Lithium aus Sole verdampft. Erforscht mit Lithiumerz",
-    "blocks": "Baublockwerk: aus Baublöcken entstehen Werke und Militärgebäude",
-    "ammo": "Munitionswerk und Maschinengewehrturm",
+    "blocks": "Blockfabrik: aus Baublöcken entstehen Fabriken und Militärgebäude",
+    "ammo": "Munitionsfabrik und Maschinengewehrturm",
     "rockets": "Raketenschützen und Raketenturm — gegen Panzerung",
     "flamer": "Flammenwerfer — gegen Infanterie und Gebäude",
     "uraniumOre": "Wie man Uran aus Erz gewinnt. Erforscht mit Uranerz",
-    "parts": "Teilewerk: Teile enthalten Kharit, und alle Spitzentechnik hängt an ihnen",
+    "parts": "Teilefabrik: Teile enthalten Kharit, und alle Spitzentechnik hängt an ihnen",
     "vehicles": "Fahrzeugwerk, Buggy und Flak",
     "aviation": "Flugplatz, Lufttransporter und Drohne",
     "levels2": "Zweite Gebäudestufe: Minen, Verarbeitung, Lager, Raumhafen und Kraftwerke",
@@ -813,7 +815,7 @@
     "bombing": "Bomber: zerstört Gebäude und Kolonnen aus der Luft",
     "shields": "Schildgenerator: seine Kuppel hält Fernbeschuss ab",
     "levels3": "Dritte Gebäudestufe",
-    "rods": "Brennstabwerk: Uran für Reaktor und Sprengköpfe",
+    "rods": "Brennstabfabrik: Brennstäbe aus Uran für Reaktor und Sprengköpfe",
     "arcs": "Tesla und Entladungsturm — gegen Massen",
     "siege": "Artillerie und Träger",
     "atom": "Reaktor: sechs Kraftwerke an einem Ort, verbrennt Brennstäbe",

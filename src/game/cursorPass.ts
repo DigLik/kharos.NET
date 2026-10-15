@@ -5,6 +5,8 @@ import type { Entity } from '../ecs'
 import { BUILDINGS, Building, CONTROL_RADIUS, EXPAND_RADIUS, Silo, Hauler, Owner, Position, Tactics, allZones, buildingSpec, gridOf, wellPartners, type BuildingSpec, type BuildingType, type Zone } from '../sim'
 import { paveStrokeOf, placementOf } from './placing'
 import type { Scene } from './scene'
+import { currentStep, stepTarget, stepsDone, type StepTarget } from './firstSteps'
+import { prefs } from './prefs'
 
 /** Толщина рамки в тайлах: один пиксель пиксель-арта. */
 const BORDER = 1 / 16
@@ -30,6 +32,12 @@ const ROUTE_STEP = 0.5
 /** Круг, который защищает перехватчик: пунктир шагом GUARD_STEP тайлов. */
 const GUARD: Color = [0.55, 1, 0.85]
 const GUARD_STEP = 1.5
+/** Цель текущего первого шага: золотые уголки вокруг, пульсируют; пересчитывается раз в STEP_EVERY секунд. */
+const STEP: Color = [1, 0.82, 0.3]
+const STEP_EVERY = 0.5
+/** Длина стороны уголка и отступ рамки от цели, в тайлах. */
+const STEP_CORNER = 0.9
+const STEP_MARGIN = 0.3
 
 /** Маршрут на карте: остановки прямоугольниками основания; closed — замкнут по кругу, а не ещё набирается. */
 interface DrawnRoute {
@@ -200,8 +208,18 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
     return list
   }
 
+  /** Цель текущего первого шага, пока список шагов не скрыт; null — показывать нечего. */
+  let step: { target: StepTarget | null; at: number; sim: unknown } = { target: null, at: -Infinity, sim: null }
+  const stepOf = (time: number) => {
+    if (step.sim !== scene.sim || Math.abs(time - step.at) >= STEP_EVERY) {
+      const current = prefs().steps === 'off' ? undefined : currentStep(stepsDone(scene.sim, scene.player))
+      step = { target: (current && stepTarget(scene.sim, scene.player, current.key)) ?? null, at: time, sim: scene.sim }
+    }
+    return step.target
+  }
+
   return {
-    draw({ camera, view, width, height }) {
+    draw({ camera, view, width, height, time }) {
       const placement = scene.camera.pointerTile ? placementOf(scene) : null
       const stroke = scene.camera.pointerTile ? paveStrokeOf(scene) : null
       const routes = routesOf(scene)
@@ -211,7 +229,8 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
       // Все зоны — пока ставят, тянут, держат Alt или смотрят кнопку здания; иначе — только сеть выбранного.
       const zones = !!placement || !!stroke || scene.zonesHeld || scene.zonesHover
       const grids = zones ? [] : selectedGrids()
-      if (!zones && !grids.length && !routes.length && !aim && !guards.length) return
+      const target = stepOf(time)
+      if (!zones && !grids.length && !routes.length && !aim && !guards.length && !target) return
 
       /** Прямоугольник в тайлах от камеры. */
       const rect = (x: number, y: number, width: number, height: number, [r, g, b]: Color, alpha: number) =>
@@ -371,6 +390,20 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
           }
         }
         area(cx - 0.5, cy - 0.5, 1, 1, FORBIDDEN)
+      }
+
+      if (target) {
+        // Уголки рамки вокруг цели: дышат, чтобы цель находилась глазом, но не мешала смотреть, что под ней.
+        const alpha = 0.75 + 0.25 * Math.sin(time * 4)
+        const left = target.x - STEP_MARGIN - camera.x
+        const top = target.y - STEP_MARGIN - camera.y
+        const right = target.x + target.width + STEP_MARGIN - camera.x
+        const bottom = target.y + target.height + STEP_MARGIN - camera.y
+        const thick = Math.max(BORDER * 3, 3 / camera.zoom)
+        for (const [x, y, dx, dy] of [[left, top, 1, 1], [right, top, -1, 1], [left, bottom, 1, -1], [right, bottom, -1, -1]] as const) {
+          rect(dx > 0 ? x : x - STEP_CORNER, dy > 0 ? y : y - thick, STEP_CORNER, thick, STEP, alpha)
+          rect(dx > 0 ? x : x - thick, dy > 0 ? y : y - STEP_CORNER, thick, STEP_CORNER, STEP, alpha)
+        }
       }
 
       setBlend(gl, 'alpha')

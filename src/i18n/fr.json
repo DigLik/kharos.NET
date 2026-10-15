@@ -77,15 +77,15 @@
     "silo": "Assemble une ogive nucléaire avec 20 barres et 10 composants et la lance sur n’importe quel point de la carte. Tout le monde apprend le lancement par le chat et voit le missile en vol, le site de lancement est marqué pour les joueurs dotés d’un radar. L’explosion de rayon 12 frappe tout le monde sans distinction, les boucliers ne l’arrêtent pas. Détruit avec une ogive à l’intérieur, il explose",
     "interceptor": "Assemble seul des missiles intercepteurs, un à la fois pour 600 crédits, 4 composants et 10 de carburant du réseau, et en garde jusqu’à 4. Chacun abat un missile nucléaire ennemi visant l’intérieur de son rayon de 80 dès qu’il y entre. Sans énergie, il assemble plus lentement ; éteint, il n’assemble ni ne tire",
     "matter": "Rapporte des crédits tout seul, mais consomme de l'énergie. Chaque générateur de plus dans la zone en demande davantage",
-    "mine": "Se place sur un gisement et extrait le minerai dans son stock ; les camions l'emportent au raffinage. Crée sa propre petite zone",
+    "mine": "Se place sur un gisement et extrait le minerai dans son stock. Le raffinage et les laboratoires de son réseau le prennent eux-mêmes — accole-les ou pose un tuyau ; vers d’autres réseaux, ce sont les camions. Crée sa propre petite zone",
     "smelter": "Fond le minerai de métal en métal",
     "siliconWorks": "Raffine le minerai de silicium en silicium",
     "distillery": "Distille le pétrole en carburant",
     "enricher": "Enrichit le minerai de kharite en kharite, la ressource la plus précieuse",
     "evaporator": "Évapore le minerai de lithium en lithium. Le lithium se trouve surtout dans les salines",
     "uraniumMill": "Traite le minerai d’uranium en uranium. L’uranium se trouve surtout dans les terres rouges ; on ne peut pas l’acheter en orbite",
-    "blockPlant": "Fabrique des blocs de construction à partir de métal : ils servent à bâtir",
-    "ammoPlant": "Fabrique des munitions pour les tourelles",
+    "blockPlant": "Fabrique des blocs de construction à partir de métal et de silicium : ils servent aux usines et aux bâtiments militaires",
+    "ammoPlant": "Fabrique des munitions à partir de métal : pour les tourelles et les chargeurs de l’armée",
     "partsPlant": "Fabrique des composants pour les véhicules avancés",
     "rodPlant": "Fabrique des barres de combustible à partir d'uranium et de métal",
     "metalYard": "Stocke le métal de la zone",
@@ -99,7 +99,7 @@
     "partsLocker": "Stocke les composants de la zone",
     "rodRack": "Stocke les barres de combustible de la zone",
     "requestStation": "Garde la cargaison que vous commandez : camions et tuyaux apportent ce qui manque et ramènent le surplus aux entrepôts. Son stock sert son propre réseau — chantiers, tourelles, armée",
-    "spaceport": "Vend les ressources des entrepôts de la zone et achète celles qui manquent contre des crédits",
+    "spaceport": "Vend les ressources des entrepôts du réseau et achète celles qui manquent contre des crédits",
     "radar": "Voit les alentours et explore au loin par éclairs ; trouve des gisements",
     "windtrap": "Capte l'humidité du vent",
     "barracks": "Forme l'infanterie : fusiliers, lance-roquettes et lance-flammes",
@@ -341,7 +341,7 @@
       "storage": "Entrepôts de ressources et de produits",
       "industry": "Raffinage du minerai en ressources",
       "production": "Usines de produits : blocs, munitions, composants et barres",
-      "military": "Caserne, usine de véhicules, aérodrome, station de réparation et silo à missiles",
+      "military": "Caserne, usine de véhicules, aérodrome, station de réparation, dépôt de ravitaillement et silo à missiles",
       "defense": "Murs, tourelles, bouclier, intercepteur de missiles nucléaires et radar",
       "paving": "Fondations, routes et ponts",
       "logistics": "Tuyaux et puits : ils relient les bâtiments éloignés ; des bâtiments accolés sont déjà reliés"
@@ -684,51 +684,53 @@
     "foldTip": "Replier la liste",
     "unfoldTip": "Déplier la liste",
     "closeTip": "Masquer : à réactiver dans le menu, Interface",
+    "show": "Montrer",
+    "showTip": "La caméra va là où se fait cette étape ; c’est entouré sur la carte",
     "finished": "Premiers pas terminés ! Ensuite : plus d’extraction et de raffinage, de nouvelles recherches et la défense de la base.",
     "items": {
       "deploy": {
         "title": "Déploie le MCV",
-        "tip": "Sélectionne le MCV, appuie sur Déployer et clique où placer le bâtiment principal : il donne une zone de construction et un revenu."
+        "tip": "Sélectionne le MCV, appuie sur Déployer puis clique sur de la roche libre : le MCV s’y rend et devient le Centre de commandement. Il fixe la zone de construction, rapporte des crédits et produit des constructeurs."
       },
       "builder": {
-        "title": "Commande un ouvrier",
-        "tip": "Sélectionne le bâtiment principal et commande un ouvrier : seuls eux construisent."
+        "title": "Commande un constructeur",
+        "tip": "Sélectionne le Centre de commandement et appuie sur Constructeur dans la grille à droite. Les constructeurs bâtissent tout et apportent eux-mêmes les matériaux."
       },
       "generator": {
-        "title": "Construis une centrale",
-        "tip": "Sélectionne un ouvrier → Économie → Centrale. Sans énergie, les autres bâtiments ralentissent ou s’arrêtent."
+        "title": "Construis une centrale électrique",
+        "tip": "Sélectionne un constructeur → Économie → Centrale électrique et clique dans la zone de construction près du Centre de commandement. Sans énergie, les autres bâtiments ralentissent ou s’arrêtent."
       },
       "matter": {
         "title": "Construis un générateur de matière",
-        "tip": "Il rapporte des crédits tout seul — le premier revenu de la base. Il lui faut de l’énergie."
+        "tip": "Constructeur → Économie → Générateur de matière. Il rapporte des crédits tout seul — le premier revenu de la base — et prend l’énergie de la centrale."
       },
       "mine": {
-        "title": "Pose une mine sur un gisement",
-        "tip": "La mine se débloque dès qu’un gisement est en vue — explore avec les buggys. Elle se pose sur la tache de minerai."
+        "title": "Pose une mine sur du minerai de métal",
+        "tip": "Appuie sur Montrer : la caméra va au gisement de métal trouvé le plus proche, entouré sur la carte. Constructeur → Économie → Mine — clique juste dessus. Aucun trouvé — explore les environs en buggy."
       },
       "lab": {
-        "title": "Construis un laboratoire",
-        "tip": "Presque tout se débloque par la recherche. Le laboratoire la mène en dépensant crédits et ressources de son réseau."
+        "title": "Construis un laboratoire près de la mine",
+        "tip": "Constructeur → Économie → Laboratoire — accolé à la mine : des bâtiments accolés forment un seul réseau, et le laboratoire prend le minerai de la mine tout seul. La recherche débloque presque tout."
       },
       "metalOre": {
         "title": "Recherche Fonte du métal",
-        "tip": "Ouvre Recherche et choisis Fonte du métal. Le laboratoire a besoin du minerai de métal de la mine : accole-le à la mine — des bâtiments accolés partagent un réseau — ou un camion apportera le minerai."
+        "tip": "Appuie sur Recherche dans la barre du haut et choisis Fonte du métal. Le laboratoire l’étudie sur le minerai de métal de la mine."
       },
       "smelter": {
-        "title": "Construis une fonderie",
-        "tip": "La fonderie transforme le minerai en métal — ta première marchandise à vendre."
+        "title": "Construis une fonderie près de la mine",
+        "tip": "Constructeur → Raffinage → Fonderie — accolée à la mine ou au laboratoire voisin : le minerai y entre tout seul, et il en sort du métal."
       },
       "metalYard": {
-        "title": "Construis un entrepôt de métal",
-        "tip": "La fonderie envoie le métal à l’entrepôt ; sans lui elle se remplit et s’arrête. Les chantiers et la vente y prennent aussi le métal."
+        "title": "Construis un dépôt de métal près de la fonderie",
+        "tip": "Constructeur → Stockage → Dépôt de métal — accolé à la fonderie. Sans dépôt, elle se remplit de métal et s’arrête ; les chantiers et la vente y prennent aussi le métal."
       },
       "spaceport": {
-        "title": "Construis un astroport",
-        "tip": "Il se débloque dès la première ressource raffinée. On y vend et on y achète."
+        "title": "Construis un spatioport",
+        "tip": "Constructeur → Économie → Spatioport, de préférence accolé au dépôt de métal. Il lui faut 20 métal — le constructeur l’apportera lui-même du dépôt."
       },
       "sale": {
         "title": "Vends du métal",
-        "tip": "Sélectionne l’astroport → Vendre → métal. Le vaisseau part avec la cargaison et les crédits arrivent — c’est ton revenu principal."
+        "tip": "Sélectionne le spatioport → Vente → métal. Le métal est apporté au spatioport, le vaisseau part avec et les crédits arrivent — c’est ton revenu principal."
       }
     }
   },
@@ -813,7 +815,7 @@
     "bombing": "Bombardier : rase bâtiments et colonnes depuis le ciel",
     "shields": "Générateur de bouclier : son dôme arrête les tirs lointains",
     "levels3": "Troisième niveau des bâtiments",
-    "rods": "Usine de barres de combustible : l’uranium du réacteur et des ogives",
+    "rods": "Usine de barres : barres de combustible à l’uranium pour le réacteur et les ogives",
     "arcs": "Tesla et tourelle à arc : contre les foules",
     "siege": "Artillerie et porteur",
     "atom": "Réacteur : six centrales en un seul endroit, brûle des barres",

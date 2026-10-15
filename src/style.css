@@ -2573,6 +2573,13 @@ body {
   text-align: right;
 }
 
+.hud .steps .steps__show {
+  display: block;
+  min-height: 28px;
+  margin-top: 4px;
+  padding: 0 10px;
+}
+
 .steps__done {
   margin: 6px 2px 0;
   color: var(--good);
