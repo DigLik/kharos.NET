@@ -31,7 +31,7 @@ import { createPavingPass } from './pavingPass'
 import { createDropsPass } from './dropsPass'
 import { createFlowPass } from './flowPass'
 import { startFrames } from './frames'
-import { drawHud, topHeight } from '../gui/hud'
+import { createHud, topHeight } from '../gui/hud'
 import { createGuiPass } from '../gui/pass'
 import { createGui } from '../gui/ui'
 import { readHud, type HudState } from './hud'
@@ -281,6 +281,10 @@ export function createGame(
   const scene = createScene(session.sim, session.player, settings, camera)
   // Интерфейс на холсте (src/gui): в витрине его нет. Его проход — последний в кадре, поверх мира и курсора.
   const gui = showcase ? null : createGui(canvas)
+  // Интерфейс игрока: его клавиши должны идти раньше клавиш управления (Esc закрывает окна, а не открывает меню).
+  // Игру он получает лениво: она собирается ниже.
+  let api: Game | null = null
+  const hud = gui && !editor ? createHud(() => api!, gui) : null
   let guiChanged = false
   let sinceGui = GUI_INTERVAL
   const overlay = gui && {
@@ -469,7 +473,7 @@ export function createGame(
     sinceGui += seconds
     if (gui && (gui.touched || sinceGui >= GUI_INTERVAL)) {
       sinceGui = 0
-      if (gui.frame(width, height, canvas.width / width, (ui) => drawHud(ui, readHud(scene)))) guiChanged = true
+      if (hud && gui.frame(width, height, canvas.width / width, (ui) => hud.draw(ui, readHud(scene)))) guiChanged = true
     }
     landWindow.update(sim.land, camera, width, height)
     const { time } = sim
@@ -482,7 +486,7 @@ export function createGame(
   // Последний шанс сохраниться: вкладку закрывают или уводят в фон.
   window.addEventListener('pagehide', saveCamera)
 
-  return {
+  api = {
     scene,
     restart,
     hud: () => readHud(scene),
@@ -579,6 +583,7 @@ export function createGame(
       window.removeEventListener('pagehide', saveCamera)
       saveCamera()
       controls?.destroy()
+      hud?.destroy()
       gui?.destroy()
       interfaceSounds?.destroy()
       motors?.destroy()
@@ -588,4 +593,5 @@ export function createGame(
       landWindow.destroy()
     },
   }
+  return api
 }

@@ -6,7 +6,6 @@ import type { HudState } from '../game/hud'
 import type { MapSettings } from '../map/settings'
 import { EditorPanel } from './EditorPanel'
 import type { Replica } from '../net/replica'
-import { Hud } from './Hud'
 import { Settings } from './Menu'
 import { PasswordRequired } from '../net/connect'
 import { startSession, type PlayLaunch } from './launch'
@@ -106,34 +105,7 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
   return (
     <main class="game">
       <Stage name="game__canvas" />
-      {hud && error === null && gameRef.current && (
-        <Hud
-          state={hud}
-          send={(command) => gameRef.current?.send(command)}
-          place={(building) => gameRef.current?.place(building)}
-          pave={(tool) => gameRef.current?.pave(tool)}
-          zones={(shown) => gameRef.current?.zones(shown)}
-          route={(start) => gameRef.current?.route(start)}
-          serve={(start) => gameRef.current?.serve(start)}
-          carry={(pick) => gameRef.current?.carry(pick)}
-          truckMenu={(building) => gameRef.current?.truckMenu(building)}
-          patrol={(start) => gameRef.current?.patrol(start)}
-          aim={(silo) => gameRef.current?.aim(silo)}
-          deploy={(mcv) => gameRef.current?.deploy(mcv)}
-          minimap={gameRef.current.minimap}
-          lookAt={(x, y) => gameRef.current?.lookAt(x, y)}
-          flyTo={(x, y) => gameRef.current?.flyTo(x, y)}
-          lookAtSelection={() => gameRef.current?.lookAtSelection()}
-          selectGroup={(digit, add) => gameRef.current?.selectGroup(digit, add)}
-          assignGroup={(digit) => gameRef.current?.assignGroup(digit)}
-          clearGroup={(digit) => gameRef.current?.clearGroup(digit)}
-          cancelMode={() => gameRef.current?.cancelMode()}
-          finishMode={() => gameRef.current?.finishMode()}
-          narrow={(type, remove) => gameRef.current?.narrow(type, remove)}
-          moveSelected={(x, y) => gameRef.current?.moveSelected(x, y)}
-          say={(text) => gameRef.current?.say(text)}
-        />
-      )}
+      {/* Интерфейс игрока — на холсте: src/gui/hud.ts. */}
       {hud?.editor && error === null && gameRef.current && <PlayerViews game={gameRef.current} />}
       {hud?.editor && error === null && gameRef.current && (
         <EditorPanel

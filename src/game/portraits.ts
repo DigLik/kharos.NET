@@ -23,11 +23,11 @@ function drawMounts(image: Pixmap, mounts: MountSpec[] | undefined, angle: numbe
 }
 
 /**
- * Пиксмап в адрес картинки для <img>. Прозрачные поля обрезаются; с box картинка вписывается в квадрат box×box:
+ * Пиксмап в холст картинки. Прозрачные поля обрезаются; с box картинка вписывается в квадрат box×box:
  * мелкий спрайт увеличивается в целое число раз — пиксели остаются ровными, — а крупный уменьшается сглаженно.
  * Такой квадрат показывается 1:1, без растяжения стилями.
  */
-function toUrl(image: Pixmap, box = 0) {
+function toCanvas(image: Pixmap, box = 0) {
   const { width, height, data } = image
   let left = width
   let top = height
@@ -62,33 +62,44 @@ function toUrl(image: Pixmap, box = 0) {
   const dw = Math.round(w * scale)
   const dh = Math.round(h * scale)
   context.drawImage(source, left, top, w, h, Math.floor((canvas.width - dw) / 2), Math.floor((canvas.height - dh) / 2), dw, dh)
-  return canvas.toDataURL()
+  return canvas
 }
 
-const cache = new Map<string, string>()
+const cache = new Map<string, HTMLCanvasElement>()
+const urls = new WeakMap<HTMLCanvasElement, string>()
+
+/** Адрес картинки холста для <img>: считается один раз на холст. */
+function urlOf(canvas: HTMLCanvasElement) {
+  let url = urls.get(canvas)
+  if (!url) urls.set(canvas, (url = canvas.toDataURL()))
+  return url
+}
 
 /**
  * Портрет юнита для панели выбранного: тот же спрайт, что на карте, в цветах стороны, вписанный в квадрат box
- * (см. toUrl). Рисуется один раз на размер.
+ * (см. toCanvas). Рисуется один раз на размер.
  */
-export function unitPortrait(type: UnitType, box = 0, team: Team = 'own') {
+export function unitCanvas(type: UnitType, box = 0, team: Team = 'own') {
   const key = `unit:${team}:${type}:${box}`
-  let url = cache.get(key)
-  if (!url) {
+  let canvas = cache.get(key)
+  if (!canvas) {
     const image = new Pixmap(UNIT_FRAME, UNIT_FRAME)
     image.originX = image.originY = UNIT_FRAME / 2
     UNIT_ART[type](image, ANGLE, TEAMS[team], 0)
     drawMounts(image, unitSpec(type).mounts, ANGLE, team)
-    cache.set(key, (url = toUrl(image, box)))
+    cache.set(key, (canvas = toCanvas(image, box)))
   }
-  return url
+  return canvas
 }
 
+/** То же — адресом картинки для <img> (страница). */
+export const unitPortrait = (type: UnitType, box = 0, team: Team = 'own') => urlOf(unitCanvas(type, box, team))
+
 /** Портрет здания: первый кадр его анимации, вписанный в квадрат box. */
-export function buildingPortrait(type: BuildingType, box = 0) {
+export function buildingCanvas(type: BuildingType, box = 0) {
   const key = `building:${type}:${box}`
-  let url = cache.get(key)
-  if (!url) {
+  let canvas = cache.get(key)
+  if (!canvas) {
     const art = BUILDING_ART[type]
     const image = new Pixmap(art.width * ART_TILE + PAD * 2, art.height * ART_TILE + PAD * 2)
     image.originX = image.originY = PAD
@@ -99,10 +110,13 @@ export function buildingPortrait(type: BuildingType, box = 0) {
       image.originY += (art.height * ART_TILE) / 2
       drawMounts(image, mounts, ANGLE)
     }
-    cache.set(key, (url = toUrl(image, box)))
+    cache.set(key, (canvas = toCanvas(image, box)))
   }
-  return url
+  return canvas
 }
+
+/** То же — адресом картинки для <img> (страница). */
+export const buildingPortrait = (type: BuildingType, box = 0) => urlOf(buildingCanvas(type, box))
 
 /**
  * Значок покрытия: как оно выглядит на карте. Снятие — фундамент с красным крестом. Землеройные работы — гора
@@ -155,10 +169,10 @@ function drawCliffIcon(image: Pixmap) {
 }
 
 /** Значок покрытия для сетки команд, вписанный в квадрат box. Рисуется один раз на размер. */
-export function pavePortrait(icon: PaveIcon, box = 0) {
+export function paveCanvas(icon: PaveIcon, box = 0) {
   const key = `pave:${icon}:${box}`
-  let url = cache.get(key)
-  if (!url) {
+  let canvas = cache.get(key)
+  if (!canvas) {
     const rows = PAVE_TILES[icon]
     const image = new Pixmap(32, 32)
     // Полоса дороги — посередине по высоте.
@@ -184,19 +198,22 @@ export function pavePortrait(icon: PaveIcon, box = 0) {
       image.line(7, 7, 25, 25, 2, 0xe0402c)
       image.line(25, 7, 7, 25, 2, 0xe0402c)
     }
-    cache.set(key, (url = toUrl(image, box)))
+    cache.set(key, (canvas = toCanvas(image, box)))
   }
-  return url
+  return canvas
 }
+
+/** То же — адресом картинки для <img> (страница). */
+export const pavePortrait = (icon: PaveIcon, box = 0) => urlOf(paveCanvas(icon, box))
 
 /**
  * Значок модернизации — исследования уровня зданий: корпус здания и над ним шевроны цвета команды, по одному на уровень,
  * до которого исследование поднимает. Рисуется один раз на размер.
  */
-export function levelPortrait(level: number, box = 0) {
+export function levelCanvas(level: number, box = 0) {
   const key = `level:${level}:${box}`
-  let url = cache.get(key)
-  if (!url) {
+  let canvas = cache.get(key)
+  if (!canvas) {
     const INK = 0x0b111b
     const image = new Pixmap(32, 32)
     // Корпус с окнами.
@@ -215,7 +232,10 @@ export function levelPortrait(level: number, box = 0) {
       image.line(9, y + 4, 16, y - 2, 2, color)
       image.line(16, y - 2, 23, y + 4, 2, color)
     }
-    cache.set(key, (url = toUrl(image, box)))
+    cache.set(key, (canvas = toCanvas(image, box)))
   }
-  return url
+  return canvas
 }
+
+/** То же — адресом картинки для <img> (страница). */
+export const levelPortrait = (level: number, box = 0) => urlOf(levelCanvas(level, box))

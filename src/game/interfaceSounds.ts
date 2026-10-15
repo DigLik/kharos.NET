@@ -2,6 +2,7 @@ import type { Audio } from '../audio/audio'
 import type { SoundName } from '../audio/sounds'
 import type { Entity } from '../ecs'
 import { Unit, resolveOrder, type Command, type Sim } from '../sim'
+import { GUI_PRESS, type GuiPress } from '../gui/ui'
 
 /** Громкость звуков интерфейса: тише боя, но слышна поверх него. */
 const VOLUME = 0.35
@@ -68,7 +69,14 @@ export function createInterfaceSounds(sim: Sim, audio: Audio) {
   }
   document.addEventListener('pointerdown', down, true)
   document.addEventListener('pointerover', over)
+  // Кнопки интерфейса на холсте (src/gui): DOM-событий у них нет, звук приходит событием окна.
+  const gui = (event: Event) => {
+    const { disabled, group, hover } = (event as CustomEvent<GuiPress>).detail
+    if (hover) play('hover', HOVER_VOLUME)
+    else play(disabled ? 'deny' : group ? 'open' : 'click')
+  }
   window.addEventListener(GRID_PRESS, key)
+  window.addEventListener(GUI_PRESS, gui)
   window.addEventListener(DENIED, denied)
 
   // Приказ звучит, когда уходит хосту: так одинаково для мыши, горячих клавиш и мини-карты.
@@ -99,6 +107,7 @@ export function createInterfaceSounds(sim: Sim, audio: Audio) {
       document.removeEventListener('pointerdown', down, true)
       document.removeEventListener('pointerover', over)
       window.removeEventListener(GRID_PRESS, key)
+      window.removeEventListener(GUI_PRESS, gui)
       window.removeEventListener(DENIED, denied)
       sim.send = send
     },

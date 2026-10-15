@@ -87,6 +87,21 @@ export function textWidth(name: FontName, text: string): number {
   return width
 }
 
+/** Строка, разбитая по словам на строки не шире width; слово длиннее строки идёт отдельной строкой как есть. */
+export function wrapText(name: FontName, text: string, width: number): string[] {
+  const lines: string[] = []
+  let line = ''
+  for (const word of text.split(' ')) {
+    const next = line ? `${line} ${word}` : word
+    if (line && textWidth(name, next) > width) {
+      lines.push(line)
+      line = word
+    } else line = next
+  }
+  lines.push(line)
+  return lines
+}
+
 /**
  * Картинка строки цветом color для холста плотностью density (пикселей холста на пиксель CSS): высотой в строку
  * шрифта, буквы — по порогу альфы. Пустая строка — null.
