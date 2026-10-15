@@ -1,10 +1,10 @@
 import type { Entity, Time, WorldSnapshot } from '../ecs'
 import { BUILDING_TYPES, RESEARCH_FOR, buildingSpec, isReady } from './buildings'
-import { Building, Inventory, Off, Owner, Player, Research, Site } from './components'
-import { DEPOSIT_CELL, depositsIn } from './deposits'
+import { Building, Inventory, Off, Owner, Player, Position, Research, Site } from './components'
+import { DEPOSIT_CELL, depositAt, depositsIn } from './deposits'
 import { amountOf, take } from './inventory'
 import { spend } from './economy'
-import { overloadOf, powerSupply, zoneEconomies } from './income'
+import { powerSupply } from './income'
 import { networkOf } from './zones'
 import { RESOURCES, entriesOf, type Amounts, type Good } from './resources'
 import type { Sim } from './sim'
@@ -125,6 +125,17 @@ function depositsSeen(sim: Sim, player: number) {
   return kinds
 }
 
+/** Виды месторождений под шахтами игрока, в том числе недостроенными: на чём шахта, то найдено. */
+function depositsMined(sim: Sim, player: number) {
+  const kinds = new Set<string>()
+  for (const [, position, building, owner] of sim.world.query(Position, Building, Owner)) {
+    if (owner.player !== player || !buildingSpec(building.type).extract) continue
+    const kind = depositAt(sim, position.x, position.y)?.kind
+    if (kind) kinds.add(kind)
+  }
+  return kinds
+}
+
 /** Есть ли у игрока достроенная лаборатория. */
 function hasLab(sim: Sim, player: number) {
   for (const [entity] of sim.world.query(Building)) if (isLab(sim, player, entity)) return true
@@ -143,7 +154,8 @@ function hasRefined(sim: Sim, player: number) {
 
 /**
  * Раз в секунду: темы-открытия, у которых случилось условие, открываются сами — игрок достроил лабораторию, нашёл
- * месторождение, впервые переработал руду, остался без энергии. Проверяются только у тех, у кого они ещё не открыты.
+ * месторождение (увидел его или поставил на него шахту), впервые переработал руду. Проверяются только у тех, у кого
+ * они ещё не открыты.
  */
 export function triggers(sim: Sim, time: Time) {
   if (time.tick % Math.max(1, Math.round(1 / time.step))) return
@@ -151,14 +163,13 @@ export function triggers(sim: Sim, time: Time) {
   for (const [entity, player] of sim.world.query(Player)) {
     const open = waiting.filter((topic) => !player.research.includes(topic))
     if (!open.length || !player.id) continue
-    let seen: Set<string> | undefined
+    let found: Set<string> | undefined
     for (const topic of open) {
       const trigger = topicSpec(topic).trigger!
       const happened =
         trigger === 'lab' ? hasLab(sim, player.id)
         : trigger === 'refined' ? hasRefined(sim, player.id)
-        : trigger === 'brownout' ? zoneEconomies(sim, player.id).some((economy) => economy.demand > economy.produced + 1e-9 || overloadOf(economy) > 0)
-        : (seen ??= depositsSeen(sim, player.id)).size > 0 && (trigger === 'deposit' || seen.has(trigger))
+        : (found ??= new Set([...depositsSeen(sim, player.id), ...depositsMined(sim, player.id)])).size > 0 && (trigger === 'deposit' || found.has(trigger))
       if (happened) learn(sim, entity, topic)
     }
   }

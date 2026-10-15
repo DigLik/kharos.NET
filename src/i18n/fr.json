@@ -707,8 +707,8 @@
         "tip": "Presque tout se débloque par la recherche. Le laboratoire la mène en dépensant crédits et ressources de son réseau."
       },
       "metalOre": {
-        "title": "Recherche Minerai métallique",
-        "tip": "Ouvre Recherche et choisis le sujet. Il faut du minerai de la mine : mine et laboratoire doivent partager un réseau — relie-les par tuyaux (sujet Tuyaux) ou transporte le minerai en camion."
+        "title": "Recherche Fonte du métal",
+        "tip": "Ouvre Recherche et choisis Fonte du métal. Le laboratoire a besoin du minerai de métal de la mine : un camion l’apportera."
       },
       "smelter": {
         "title": "Construis une fonderie",
@@ -731,6 +731,9 @@
   "research": {
     "science": "Méthode scientifique",
     "prospecting": "Prospection",
+    "metalFound": "Métal trouvé",
+    "siliconFound": "Silicium trouvé",
+    "fuelFound": "Pétrole trouvé",
     "khariteFound": "Kharite trouvée",
     "lithiumFound": "Lithium trouvé",
     "uraniumFound": "Uranium trouvé",
@@ -776,6 +779,9 @@
   "researchInfo": {
     "science": "Le premier laboratoire : toute recherche commence par lui",
     "prospecting": "Mine : extrait le minerai d’un gisement trouvé",
+    "metalFound": "Un gisement de minerai de métal est trouvé : la fonte du métal peut être étudiée",
+    "siliconFound": "Un gisement de minerai de silicium est trouvé : son traitement peut être étudié",
+    "fuelFound": "Un gisement de pétrole est trouvé : son raffinage peut être étudié",
     "khariteFound": "Un gisement de kharite est trouvé : son enrichissement peut être étudié",
     "lithiumFound": "Un gisement de lithium est trouvé : son évaporation peut être étudiée",
     "uraniumFound": "Un gisement d’uranium est trouvé : son traitement peut être étudié",
@@ -837,6 +843,7 @@
     "queueEmpty": "vide — clique sur un sujet ci-dessous",
     "dequeueTip": "Retirer de la file avec les sujets qui en ont besoin",
     "researched": "Recherché",
+    "later": "Pas encore ouvert",
     "triggerTopic": "Découverte : elle arrive d’elle-même, sans recherche",
     "time": "durée {time}",
     "before": "Nécessite :",
@@ -850,11 +857,13 @@
     "triggers": {
       "lab": "Construire un laboratoire",
       "deposit": "Trouver un gisement",
+      "metal": "Trouver un gisement de minerai de métal ou y poser une mine",
+      "silicon": "Trouver un gisement de minerai de silicium ou y poser une mine",
+      "fuel": "Trouver un gisement de pétrole ou y poser une mine",
       "kharite": "Trouver un gisement de kharite",
       "lithium": "Trouver un gisement de lithium",
       "uranium": "Trouver un gisement d’uranium",
-      "refined": "Obtenir la première ressource raffinée",
-      "brownout": "Manquer d’énergie"
+      "refined": "Obtenir la première ressource raffinée"
     }
   },
   "levelGains": {

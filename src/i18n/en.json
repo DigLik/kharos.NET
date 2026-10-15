@@ -707,8 +707,8 @@
         "tip": "Almost everything is unlocked by research. The lab runs it, spending credits and resources of its network."
       },
       "metalOre": {
-        "title": "Research Metal Ore",
-        "tip": "Open Research and pick the topic. It needs ore from the mine: the mine and the lab must share a network — link them with pipes (Pipes topic) or haul ore by truck."
+        "title": "Research Metal Smelting",
+        "tip": "Open Research and pick Metal Smelting. The lab needs metal ore from the mine: a truck will bring it."
       },
       "smelter": {
         "title": "Build a smelter",
@@ -731,6 +731,9 @@
   "research": {
     "science": "Scientific Method",
     "prospecting": "Prospecting",
+    "metalFound": "Metal Found",
+    "siliconFound": "Silicon Found",
+    "fuelFound": "Oil Found",
     "khariteFound": "Kharite Found",
     "lithiumFound": "Lithium Found",
     "uraniumFound": "Uranium Found",
@@ -776,6 +779,9 @@
   "researchInfo": {
     "science": "The first laboratory: all research starts with it",
     "prospecting": "Mine: extracts ore from a found deposit",
+    "metalFound": "A metal ore deposit is found: metal smelting can be researched",
+    "siliconFound": "A silicon ore deposit is found: silicon processing can be researched",
+    "fuelFound": "An oil deposit is found: oil refining can be researched",
     "khariteFound": "A kharite deposit is found: its enrichment can be researched",
     "lithiumFound": "A lithium deposit is found: its evaporation can be researched",
     "uraniumFound": "A uranium deposit is found: its milling can be researched",
@@ -837,6 +843,7 @@
     "queueEmpty": "empty — click a topic below",
     "dequeueTip": "Remove from the queue together with topics that need it",
     "researched": "Researched",
+    "later": "Not open yet",
     "triggerTopic": "Discovery: it happens by itself, no research needed",
     "time": "takes {time}",
     "before": "Requires:",
@@ -850,11 +857,13 @@
     "triggers": {
       "lab": "Build a laboratory",
       "deposit": "Find any deposit",
+      "metal": "Find a metal ore deposit or put a mine on it",
+      "silicon": "Find a silicon ore deposit or put a mine on it",
+      "fuel": "Find an oil deposit or put a mine on it",
       "kharite": "Find a kharite deposit",
       "lithium": "Find a lithium deposit",
       "uranium": "Find a uranium deposit",
-      "refined": "Get the first refined resource",
-      "brownout": "Run out of power"
+      "refined": "Get the first refined resource"
     }
   },
   "levelGains": {

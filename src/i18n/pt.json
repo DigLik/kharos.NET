@@ -707,8 +707,8 @@
         "tip": "Quase tudo é liberado por pesquisa. O laboratório pesquisa gastando créditos e recursos da sua rede."
       },
       "metalOre": {
-        "title": "Pesquise Minério metálico",
-        "tip": "Abra Pesquisa e escolha o tema. Ele precisa de minério da mina: mina e laboratório devem estar na mesma rede — ligue-os com canos (tema Canos) ou leve minério de caminhão."
+        "title": "Pesquise Fundição de metal",
+        "tip": "Abra Pesquisa e escolha Fundição de metal. O laboratório precisa de minério de metal da mina: um caminhão o trará."
       },
       "smelter": {
         "title": "Construa uma fundição",
@@ -731,6 +731,9 @@
   "research": {
     "science": "Método científico",
     "prospecting": "Prospecção",
+    "metalFound": "Metal encontrado",
+    "siliconFound": "Silício encontrado",
+    "fuelFound": "Petróleo encontrado",
     "khariteFound": "Kharita encontrada",
     "lithiumFound": "Lítio encontrado",
     "uraniumFound": "Urânio encontrado",
@@ -776,6 +779,9 @@
   "researchInfo": {
     "science": "O primeiro laboratório: com ele começa toda a pesquisa",
     "prospecting": "Mina: extrai minério de uma jazida encontrada",
+    "metalFound": "Uma jazida de minério de metal foi encontrada: a fundição pode ser pesquisada",
+    "siliconFound": "Uma jazida de minério de silício foi encontrada: seu processamento pode ser pesquisado",
+    "fuelFound": "Uma jazida de petróleo foi encontrada: seu refino pode ser pesquisado",
     "khariteFound": "Uma jazida de kharita foi encontrada: seu enriquecimento pode ser pesquisado",
     "lithiumFound": "Uma jazida de lítio foi encontrada: sua evaporação pode ser pesquisada",
     "uraniumFound": "Uma jazida de urânio foi encontrada: seu beneficiamento pode ser pesquisado",
@@ -837,6 +843,7 @@
     "queueEmpty": "vazia — clique em um tema abaixo",
     "dequeueTip": "Remover da fila junto com os temas que precisam dele",
     "researched": "Pesquisado",
+    "later": "Ainda fechado",
     "triggerTopic": "Descoberta: acontece sozinha, não precisa pesquisar",
     "time": "leva {time}",
     "before": "Requer:",
@@ -850,11 +857,13 @@
     "triggers": {
       "lab": "Construir um laboratório",
       "deposit": "Encontrar qualquer jazida",
+      "metal": "Encontrar uma jazida de minério de metal ou pôr uma mina nela",
+      "silicon": "Encontrar uma jazida de minério de silício ou pôr uma mina nela",
+      "fuel": "Encontrar uma jazida de petróleo ou pôr uma mina nela",
       "kharite": "Encontrar uma jazida de kharita",
       "lithium": "Encontrar uma jazida de lítio",
       "uranium": "Encontrar uma jazida de urânio",
-      "refined": "Obter o primeiro recurso refinado",
-      "brownout": "Ficar sem energia"
+      "refined": "Obter o primeiro recurso refinado"
     }
   },
   "levelGains": {

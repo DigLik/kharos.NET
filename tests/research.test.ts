@@ -10,7 +10,8 @@ import { STORES, placeBuilding, storeFor } from '../src/sim/buildings'
 import { PRODUCTS, RESOURCE_SPECS, isOre, resourceOf, type Amounts, type Good, type Ware } from '../src/sim/resources'
 import { addCredits } from '../src/sim/economy'
 import { UNIT_TYPES, unitSpec } from '../src/sim/units'
-import { adoptLabs, grantResearch } from '../src/sim/research'
+import { adoptLabs, grantResearch, topicsUnder } from '../src/sim/research'
+import { isTrigger } from '../src/sim/topics'
 import { spawnUnit } from '../src/sim/units'
 import { requestsOf } from '../src/sim/logistics'
 import { throughJson } from './throughJson'
@@ -124,13 +125,14 @@ test('плавильню открывает исследование руды м
   expect(isUnlocked(sim, 1, 'smelter')).toBe(false)
   expect(isUnlocked(sim, 1, 'lab')).toBe(true)
 
-  // Плавку не поставить в план, пока не случились открытия: научный метод — достроенная лаборатория, разведка —
-  // месторождение в обзоре (здесь его видит шахта). Их не исследуют, они открываются сами, проверка раз в секунду.
+  // Плавку не поставить в план, пока не случились открытия: научный метод — достроенная лаборатория, металл найден —
+  // его месторождение в обзоре (здесь на нём стоит шахта). Их не исследуют, они открываются сами, проверка раз в секунду.
   plan(sim, 'metalOre')
   expect(planOf(sim, 1)).toEqual([])
   seconds(sim, 1)
   expect(hasResearch(sim, 1, 'science')).toBe(true)
   expect(hasResearch(sim, 1, 'prospecting')).toBe(true)
+  expect(hasResearch(sim, 1, 'metalFound')).toBe(true)
   plan(sim, 'metalOre')
   expect(planOf(sim, 1)).toEqual(['metalOre'])
   // Шахта ещё не накопала руды: лаборатория стоит и ничего не тратит.
@@ -173,7 +175,7 @@ test('руду в лабораторию без труб до шахты вез�
   const { mine, lab, x, y } = found
   addCredits(sim, 1, 1000)
   spawnUnit(sim, 'truck', 1, x, y)
-  grantResearch(sim, 1, ['science', 'prospecting'])
+  grantResearch(sim, 1, ['science', 'prospecting', 'metalFound'])
   plan(sim, 'metalOre')
   // Лаборатория заказала руду из шахты: грузовик её везёт.
   sim.advance(TICK)
@@ -202,7 +204,7 @@ test('руду из шахты грузовики везут во все лаб�
   addCredits(sim, 1, 1000)
   spawnUnit(sim, 'truck', 1, x, y)
   spawnUnit(sim, 'truck', 1, x, y + 1)
-  grantResearch(sim, 1, ['science', 'prospecting'])
+  grantResearch(sim, 1, ['science', 'prospecting', 'metalFound'])
   plan(sim, 'metalOre')
   // Обе лаборатории в работе хоть раз: каждой привезли её долю руды.
   const worked = new Set<Entity>()
@@ -280,7 +282,7 @@ test('несколько лабораторий складывают скоро�
 test('очередь ведёт тему вместе с предшественниками; брошенная тема помнит прогресс; без энергии лаборатория стоит', () => {
   const { sim, plants, buildings: [lab], stash } = base(['lab'])
   stash({ metal: 200, silicon: 200 })
-  learn(sim, 'science', 'prospecting')
+  learn(sim, 'science', 'prospecting', 'metalFound', 'siliconFound')
   plan(sim, 'vehicles')
   expect(planOf(sim, 1)).toEqual(['metalOre', 'siliconOre', 'blocks', 'vehicles'])
   // Руды в сети нет: лаборатория ждёт её на первой теме.
@@ -381,18 +383,40 @@ test('без сырья у всех тем плана лаборатории ж�
   expect(progressOf(sim, 1, 'ammo')).toBe(0)
 })
 
-test('открытия случаются сами: перегруз сети открывает накопитель, переработанная руда — космопорт', () => {
-  const { sim, stash } = base(['lab', 'smelter', 'lab', 'lab', 'lab', 'lab', 'lab', 'lab'])
-  expect(isUnlocked(sim, 1, 'accumulator')).toBe(false)
+test('открытия случаются сами: шахта на месторождении — его руда найдена, переработанная руда — космопорт', () => {
+  const { sim, stash } = base(['lab', 'smelter'])
   expect(isUnlocked(sim, 1, 'spaceport')).toBe(false)
-  // Две электростанции дают 20, семь лабораторий и плавильня просят 24: энергии не хватает.
+  let spot: { x: number; y: number } | undefined
+  for (let cellY = -6; cellY < 6 && !spot; cellY++) {
+    for (let cellX = -6; cellX < 6 && !spot; cellX++) {
+      const found = depositIn(sim, cellX, cellY)
+      if (found?.kind === 'silicon' && canPlace(sim, 'mine', found.x, found.y)) spot = found
+    }
+  }
+  if (!spot) throw new Error('Не нашлось месторождения кремния')
   seconds(sim, 1.1)
-  expect(hasResearch(sim, 1, 'accumulators')).toBe(true)
-  expect(isUnlocked(sim, 1, 'accumulator')).toBe(true)
+  expect(hasResearch(sim, 1, 'siliconFound')).toBe(false)
+  // Переработку кремния не поставить в план, пока его руда не найдена.
+  plan(sim, 'siliconOre')
+  expect(planOf(sim, 1)).toEqual([])
+  placeBuilding(sim.world, 'mine', spot.x, spot.y, 1)
+  seconds(sim, 1.1)
+  expect(hasResearch(sim, 1, 'siliconFound')).toBe(true)
+  plan(sim, 'siliconOre')
+  expect(planOf(sim, 1)).toEqual(['siliconOre'])
   expect(hasResearch(sim, 1, 'trade')).toBe(false)
   stash({ metal: 5 })
   seconds(sim, 1.1)
   expect(isUnlocked(sim, 1, 'spaceport')).toBe(true)
+})
+
+test('темы не зовут раньше, чем от них толк: трубы — после металла, пехота — после патронов, накопитель — после лития', () => {
+  expect([...topicsUnder('pipes')]).toContain('metalOre')
+  expect([...topicsUnder('infantry')]).toContain('ammo')
+  expect([...topicsUnder('accumulators')]).toContain('lithiumOre')
+  for (const ore of ['metalOre', 'siliconOre', 'fuelOre', 'khariteOre', 'lithiumOre', 'uraniumOre'] as const) {
+    expect([...topicsUnder(ore)].some((before) => isTrigger(before) && before !== 'science')).toBe(true)
+  }
 })
 
 test('кончились кредиты — лаборатория встаёт, не уходя в долг', () => {

@@ -707,8 +707,8 @@
         "tip": "Fast alles wird durch Forschung freigeschaltet. Das Labor forscht und verbraucht Credits und Rohstoffe seines Netzes."
       },
       "metalOre": {
-        "title": "Erforsche „Metallerz“",
-        "tip": "Öffne „Forschung“ und wähle das Thema. Es braucht Erz aus der Mine: Mine und Labor müssen im selben Netz sein — verbinde sie mit Rohren (Thema „Rohre“) oder fahre Erz per Lkw."
+        "title": "Erforsche „Metallschmelze“",
+        "tip": "Öffne „Forschung“ und wähle „Metallschmelze“. Das Labor braucht Metallerz aus der Mine: ein Lkw bringt es."
       },
       "smelter": {
         "title": "Baue eine Schmelze",
@@ -731,6 +731,9 @@
   "research": {
     "science": "Wissenschaftliche Methode",
     "prospecting": "Prospektion",
+    "metalFound": "Metall gefunden",
+    "siliconFound": "Silizium gefunden",
+    "fuelFound": "Erdöl gefunden",
     "khariteFound": "Kharit gefunden",
     "lithiumFound": "Lithium gefunden",
     "uraniumFound": "Uran gefunden",
@@ -776,6 +779,9 @@
   "researchInfo": {
     "science": "Das erste Labor: mit ihm beginnt alle Forschung",
     "prospecting": "Mine: fördert Erz aus einem gefundenen Vorkommen",
+    "metalFound": "Ein Metallerz-Vorkommen ist gefunden: die Metallschmelze kann erforscht werden",
+    "siliconFound": "Ein Siliziumerz-Vorkommen ist gefunden: die Siliziumverarbeitung kann erforscht werden",
+    "fuelFound": "Ein Erdöl-Vorkommen ist gefunden: die Ölraffination kann erforscht werden",
     "khariteFound": "Ein Kharit-Vorkommen ist gefunden: seine Anreicherung kann erforscht werden",
     "lithiumFound": "Ein Lithium-Vorkommen ist gefunden: seine Verdampfung kann erforscht werden",
     "uraniumFound": "Ein Uran-Vorkommen ist gefunden: seine Aufbereitung kann erforscht werden",
@@ -837,6 +843,7 @@
     "queueEmpty": "leer — klicke unten auf ein Thema",
     "dequeueTip": "Aus der Warteschlange entfernen, samt Themen, die es brauchen",
     "researched": "Erforscht",
+    "later": "Noch gesperrt",
     "triggerTopic": "Entdeckung: geschieht von selbst, keine Forschung nötig",
     "time": "Dauer {time}",
     "before": "Benötigt:",
@@ -850,11 +857,13 @@
     "triggers": {
       "lab": "Ein Labor bauen",
       "deposit": "Ein Vorkommen finden",
+      "metal": "Ein Metallerz-Vorkommen finden oder eine Mine darauf setzen",
+      "silicon": "Ein Siliziumerz-Vorkommen finden oder eine Mine darauf setzen",
+      "fuel": "Ein Erdöl-Vorkommen finden oder eine Mine darauf setzen",
       "kharite": "Ein Kharit-Vorkommen finden",
       "lithium": "Ein Lithium-Vorkommen finden",
       "uranium": "Ein Uran-Vorkommen finden",
-      "refined": "Den ersten verarbeiteten Rohstoff gewinnen",
-      "brownout": "Ohne Energie dastehen"
+      "refined": "Den ersten verarbeiteten Rohstoff gewinnen"
     }
   },
   "levelGains": {

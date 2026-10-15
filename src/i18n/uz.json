@@ -707,8 +707,8 @@
         "tip": "Deyarli hammasi tadqiqot bilan ochiladi. Laboratoriya o‘z tarmog‘ining kredit va xomashyosini sarflab tadqiqot olib boradi."
       },
       "metalOre": {
-        "title": "«Metall rudasi»ni tadqiq qil",
-        "tip": "«Tadqiqotlar»ni oching va mavzuni tanlang. Unga shaxtadan ruda kerak: shaxta va laboratoriya bitta tarmoqda bo‘lishi lozim — ularni quvur bilan ulang («Quvurlar» mavzusi) yoki rudani yuk mashinasida tashing."
+        "title": "«Metall eritish»ni tadqiq qil",
+        "tip": "«Tadqiqotlar»ni oching va «Metall eritish»ni tanlang. Laboratoriyaga shaxtadan metall rudasi kerak: uni yuk mashinasi olib keladi."
       },
       "smelter": {
         "title": "Eritish zavodini qur",
@@ -731,6 +731,9 @@
   "research": {
     "science": "Ilmiy usul",
     "prospecting": "Yer osti razvedkasi",
+    "metalFound": "Metall topildi",
+    "siliconFound": "Kremniy topildi",
+    "fuelFound": "Neft topildi",
     "khariteFound": "Xarit topildi",
     "lithiumFound": "Litiy topildi",
     "uraniumFound": "Uran topildi",
@@ -776,6 +779,9 @@
   "researchInfo": {
     "science": "Birinchi laboratoriya: barcha tadqiqotlar undan boshlanadi",
     "prospecting": "Shaxta: topilgan konidan ruda qazib oladi",
+    "metalFound": "Metall rudasi koni topildi: metall eritishni o‘rganish mumkin",
+    "siliconFound": "Kremniy rudasi koni topildi: kremniyni qayta ishlashni o‘rganish mumkin",
+    "fuelFound": "Neft koni topildi: neftni haydashni o‘rganish mumkin",
     "khariteFound": "Xarit koni topildi: uni boyitishni o‘rganish mumkin",
     "lithiumFound": "Litiy koni topildi: uni bug‘latishni o‘rganish mumkin",
     "uraniumFound": "Uran koni topildi: uni qayta ishlashni o‘rganish mumkin",
@@ -837,6 +843,7 @@
     "queueEmpty": "bo‘sh — pastdagi mavzuni bosing",
     "dequeueTip": "Navbatdan unga muhtoj mavzular bilan birga olib tashlash",
     "researched": "O‘rganilgan",
+    "later": "Hozircha yopiq",
     "triggerTopic": "Kashfiyot: o‘zi sodir bo‘ladi, o‘rganish shart emas",
     "time": "davomiyligi {time}",
     "before": "Avval kerak:",
@@ -850,11 +857,13 @@
     "triggers": {
       "lab": "Laboratoriya qurish",
       "deposit": "Istalgan konni topish",
+      "metal": "Metall rudasi konini topish yoki unga shaxta qo‘yish",
+      "silicon": "Kremniy rudasi konini topish yoki unga shaxta qo‘yish",
+      "fuel": "Neft konini topish yoki unga shaxta qo‘yish",
       "kharite": "Xarit konini topish",
       "lithium": "Litiy konini topish",
       "uranium": "Uran konini topish",
-      "refined": "Birinchi tayyor resursni olish",
-      "brownout": "Energiyasiz qolish"
+      "refined": "Birinchi tayyor resursni olish"
     }
   },
   "levelGains": {

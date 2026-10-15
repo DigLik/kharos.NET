@@ -13,14 +13,18 @@ import type { Sim } from './sim'
  * Rules.researchGrowth (см. topicPrice).
  *
  * Темы-открытия (trigger) лаборатории не ведут: они открываются сами, когда с игроком что-то случилось, — нашёл
- * месторождение, впервые переработал руду, остался без энергии (см. triggers в research.ts). Ярус они не добавляют.
+ * месторождение, впервые переработал руду (см. triggers в research.ts). Ярус они не добавляют.
+ *
+ * Тема не предлагается раньше, чем от неё будет толк: переработку руды не изучить, пока её месторождение не найдено,
+ * трубы — пока нет металла, пехоту — пока нет патронов, накопитель — пока нет лития. Иначе зелёная плитка в начале
+ * игры зовёт тратить кредиты на то, чем ещё нельзя пользоваться.
  */
 
 /**
- * Что открывает тему-открытие: у игрока достроена лаборатория (lab), он видит месторождение (любое — deposit, или своего вида), в его хранилище или
- * переработке появился готовый ресурс (refined), в его сети не хватило энергии (brownout).
+ * Что открывает тему-открытие: у игрока достроена лаборатория (lab), он видит месторождение (любое — deposit, или своего
+ * вида) или поставил на него шахту, в его хранилище или переработке появился готовый ресурс (refined).
  */
-export type Trigger = 'lab' | 'deposit' | 'kharite' | 'lithium' | 'uranium' | 'refined' | 'brownout'
+export type Trigger = 'lab' | 'deposit' | 'metal' | 'silicon' | 'fuel' | 'kharite' | 'lithium' | 'uranium' | 'refined'
 export interface TopicSpec {
   /** Темы, без которых эту не начать. Строки, а не Topic: темы ссылаются друг на друга; имена сверяет тест. */
   after?: readonly string[]
@@ -31,36 +35,40 @@ export interface TopicSpec {
 }
 
 export const RESEARCH = {
-  // Открытия: научный метод — когда достроена лаборатория, шахта — когда найдено месторождение, редкие руды — когда найдено их месторождение, космопорт — когда
-  // есть что продать, накопитель — когда энергии впервые не хватило.
-  // Научный метод — когда достроена первая лаборатория: без него не начать ни одну тему.
+  // Открытия: научный метод — когда достроена первая лаборатория (без него не начать ни одну тему), шахта — когда
+  // найдено любое месторождение, руда — когда найдено её месторождение, космопорт — когда есть что продать.
   science: { trigger: 'lab' },
   prospecting: { trigger: 'deposit' },
+  metalFound: { trigger: 'metal' },
+  siliconFound: { trigger: 'silicon' },
+  fuelFound: { trigger: 'fuel' },
   khariteFound: { trigger: 'kharite' },
   lithiumFound: { trigger: 'lithium' },
   uraniumFound: { trigger: 'uranium' },
   trade: { trigger: 'refined' },
-  accumulators: { trigger: 'brownout' },
-  // Ярус 1: трубы, стены, радар и дороги — за одни кредиты: с них начинается база. Трубы нужны раньше всего:
-  // без сети лаборатория не получит руду из шахты.
-  pipes: { after: ['science'] },
+  // Ярус 1: стены, радар и дороги — за одни кредиты: с них начинается база. Здания вплотную и так одна сеть, а трубы
+  // из металла — после плавки.
   walls: { after: ['science'] },
   radar: { after: ['science'] },
   roads: { after: ['science'] },
-  // Ярус 1: переработка трёх обычных руд и казармы. Каждая переработка — исследование своей руды из шахты.
-  metalOre: { after: ['science', 'prospecting'], uses: { metalOre: 10 } },
-  siliconOre: { after: ['science', 'prospecting'], uses: { siliconOre: 10 } },
-  fuelOre: { after: ['science', 'prospecting'], uses: { fuelOre: 10 } },
-  infantry: { after: ['science'] },
-  // Ярус 2: редкие руды, первые цеха и пехота с ракетами и огнём.
+  // Ярус 1: переработка трёх обычных руд — каждая открывается, когда найдено её месторождение, и изучается на руде из шахты.
+  metalOre: { after: ['science', 'metalFound'], uses: { metalOre: 10 } },
+  siliconOre: { after: ['science', 'siliconFound'], uses: { siliconOre: 10 } },
+  fuelOre: { after: ['science', 'fuelFound'], uses: { fuelOre: 10 } },
+  // Ярус 2: трубы, редкие руды, первые цеха, оборона.
+  pipes: { after: ['metalOre'], uses: { metal: 4 } },
   khariteOre: { after: ['siliconOre', 'khariteFound'], uses: { khariteOre: 6 } },
   lithiumOre: { after: ['metalOre', 'lithiumFound'], uses: { lithiumOre: 6 } },
   blocks: { after: ['metalOre', 'siliconOre'], uses: { metal: 6, silicon: 3 } },
   ammo: { after: ['metalOre'], uses: { metal: 8 } },
-  rockets: { after: ['infantry', 'fuelOre'], uses: { fuel: 6 } },
   gates: { after: ['walls', 'metalOre'], uses: { metal: 6 } },
-  wells: { after: ['pipes', 'metalOre'], uses: { metal: 6 } },
   bridges: { after: ['roads', 'metalOre'], uses: { metal: 8 } },
+  // Ярус 3: пехота — когда есть патроны: без них её магазины не пополнить; колодцы — после труб, накопитель — на литии.
+  infantry: { after: ['ammo'] },
+  wells: { after: ['pipes'], uses: { metal: 6 } },
+  accumulators: { after: ['lithiumOre'], uses: { lithium: 6 } },
+  // Ярус 4: ракеты и огонь пехоте.
+  rockets: { after: ['infantry', 'fuelOre'], uses: { fuel: 6 } },
   flamer: { after: ['infantry', 'fuelOre'], uses: { fuel: 8 } },
   // Ярус 3: уран, компоненты, машинный завод, аэродром и ремонт, второй уровень зданий.
   uraniumOre: { after: ['khariteOre', 'uraniumFound'], uses: { uraniumOre: 6 } },

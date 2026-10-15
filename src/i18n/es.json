@@ -707,8 +707,8 @@
         "tip": "Casi todo se desbloquea investigando. El laboratorio investiga gastando créditos y recursos de su red."
       },
       "metalOre": {
-        "title": "Investiga Mineral metálico",
-        "tip": "Abre Investigación y elige el tema. Necesita mineral de la mina: mina y laboratorio deben compartir red; únelos con tuberías (tema Tuberías) o lleva el mineral en camión."
+        "title": "Investiga Fundición de metal",
+        "tip": "Abre Investigación y elige Fundición de metal. El laboratorio necesita mineral de metal de la mina: lo traerá un camión."
       },
       "smelter": {
         "title": "Construye una fundición",
@@ -731,6 +731,9 @@
   "research": {
     "science": "Método científico",
     "prospecting": "Prospección",
+    "metalFound": "Metal hallado",
+    "siliconFound": "Silicio hallado",
+    "fuelFound": "Petróleo hallado",
     "khariteFound": "Kharita hallada",
     "lithiumFound": "Litio hallado",
     "uraniumFound": "Uranio hallado",
@@ -776,6 +779,9 @@
   "researchInfo": {
     "science": "El primer laboratorio: con él empieza toda la investigación",
     "prospecting": "Mina: extrae mineral de un yacimiento hallado",
+    "metalFound": "Se halló un yacimiento de mineral de metal: ya se puede investigar la fundición",
+    "siliconFound": "Se halló un yacimiento de mineral de silicio: ya se puede investigar su procesado",
+    "fuelFound": "Se halló un yacimiento de petróleo: ya se puede investigar su refinado",
     "khariteFound": "Se halló un yacimiento de kharita: ya se puede investigar su enriquecimiento",
     "lithiumFound": "Se halló un yacimiento de litio: ya se puede investigar su evaporación",
     "uraniumFound": "Se halló un yacimiento de uranio: ya se puede investigar su molienda",
@@ -837,6 +843,7 @@
     "queueEmpty": "vacía: haz clic en un tema de abajo",
     "dequeueTip": "Quitar de la cola junto con los temas que lo necesitan",
     "researched": "Investigado",
+    "later": "Aún cerrado",
     "triggerTopic": "Descubrimiento: ocurre solo, no hay que investigarlo",
     "time": "dura {time}",
     "before": "Requiere:",
@@ -850,11 +857,13 @@
     "triggers": {
       "lab": "Construir un laboratorio",
       "deposit": "Hallar cualquier yacimiento",
+      "metal": "Hallar un yacimiento de mineral de metal o poner una mina en él",
+      "silicon": "Hallar un yacimiento de mineral de silicio o poner una mina en él",
+      "fuel": "Hallar un yacimiento de petróleo o poner una mina en él",
       "kharite": "Hallar un yacimiento de kharita",
       "lithium": "Hallar un yacimiento de litio",
       "uranium": "Hallar un yacimiento de uranio",
-      "refined": "Obtener el primer recurso refinado",
-      "brownout": "Quedarse sin energía"
+      "refined": "Obtener el primer recurso refinado"
     }
   },
   "levelGains": {
