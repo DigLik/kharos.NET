@@ -864,9 +864,9 @@
     "triggers": {
       "lab": "Construir un laboratorio",
       "deposit": "Hallar cualquier yacimiento",
-      "metal": "Hallar un yacimiento de mineral de metal o poner una mina en él",
-      "silicon": "Hallar un yacimiento de mineral de silicio o poner una mina en él",
-      "fuel": "Hallar un yacimiento de petróleo o poner una mina en él",
+      "metal": "Hallar un yacimiento de metal",
+      "silicon": "Hallar un yacimiento de silicio",
+      "fuel": "Hallar un yacimiento de petróleo",
       "kharite": "Hallar un yacimiento de kharita",
       "lithium": "Hallar un yacimiento de litio",
       "uranium": "Hallar un yacimiento de uranio",

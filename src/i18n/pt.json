@@ -864,9 +864,9 @@
     "triggers": {
       "lab": "Construir um laboratório",
       "deposit": "Encontrar qualquer jazida",
-      "metal": "Encontrar uma jazida de minério de metal ou pôr uma mina nela",
-      "silicon": "Encontrar uma jazida de minério de silício ou pôr uma mina nela",
-      "fuel": "Encontrar uma jazida de petróleo ou pôr uma mina nela",
+      "metal": "Encontrar uma jazida de metal",
+      "silicon": "Encontrar uma jazida de silício",
+      "fuel": "Encontrar uma jazida de petróleo",
       "kharite": "Encontrar uma jazida de kharita",
       "lithium": "Encontrar uma jazida de lítio",
       "uranium": "Encontrar uma jazida de urânio",

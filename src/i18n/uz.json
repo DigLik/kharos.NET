@@ -864,9 +864,9 @@
     "triggers": {
       "lab": "Laboratoriya qurish",
       "deposit": "Istalgan konni topish",
-      "metal": "Metall rudasi konini topish yoki unga shaxta qo‘yish",
-      "silicon": "Kremniy rudasi konini topish yoki unga shaxta qo‘yish",
-      "fuel": "Neft konini topish yoki unga shaxta qo‘yish",
+      "metal": "Metall konini topish",
+      "silicon": "Kremniy konini topish",
+      "fuel": "Neft konini topish",
       "kharite": "Xarit konini topish",
       "lithium": "Litiy konini topish",
       "uranium": "Uran konini topish",

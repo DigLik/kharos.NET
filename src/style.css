@@ -1083,8 +1083,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  width: min(1180px, calc(100vw - 32px));
-  max-height: calc(100vh - var(--top-height) - 8px - var(--bar-height));
+  /* Почти во весь экран, поверх нижней панели: на узком экране она высокая, и окно под ней было крошечным. */
+  width: min(1180px, calc(100vw - 16px));
+  height: calc(100dvh - var(--top-height) - 16px);
   padding: 12px 16px;
   transform: translateX(-50%);
 }
@@ -1173,6 +1174,7 @@ body {
 }
 
 .tech__list {
+  flex: 1;
   min-height: 0;
   padding: 2px;
   overflow: auto;

@@ -864,9 +864,9 @@
     "triggers": {
       "lab": "Build a laboratory",
       "deposit": "Find any deposit",
-      "metal": "Find a metal ore deposit or put a mine on it",
-      "silicon": "Find a silicon ore deposit or put a mine on it",
-      "fuel": "Find an oil deposit or put a mine on it",
+      "metal": "Find a metal deposit",
+      "silicon": "Find a silicon deposit",
+      "fuel": "Find an oil deposit",
       "kharite": "Find a kharite deposit",
       "lithium": "Find a lithium deposit",
       "uranium": "Find a uranium deposit",

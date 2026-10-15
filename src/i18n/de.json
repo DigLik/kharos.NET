@@ -864,9 +864,9 @@
     "triggers": {
       "lab": "Ein Labor bauen",
       "deposit": "Ein Vorkommen finden",
-      "metal": "Ein Metallerz-Vorkommen finden oder eine Mine darauf setzen",
-      "silicon": "Ein Siliziumerz-Vorkommen finden oder eine Mine darauf setzen",
-      "fuel": "Ein Erdöl-Vorkommen finden oder eine Mine darauf setzen",
+      "metal": "Ein Metall-Vorkommen finden",
+      "silicon": "Ein Silizium-Vorkommen finden",
+      "fuel": "Ein Erdöl-Vorkommen finden",
       "kharite": "Ein Kharit-Vorkommen finden",
       "lithium": "Ein Lithium-Vorkommen finden",
       "uranium": "Ein Uran-Vorkommen finden",

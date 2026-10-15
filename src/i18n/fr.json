@@ -864,9 +864,9 @@
     "triggers": {
       "lab": "Construire un laboratoire",
       "deposit": "Trouver un gisement",
-      "metal": "Trouver un gisement de minerai de métal ou y poser une mine",
-      "silicon": "Trouver un gisement de minerai de silicium ou y poser une mine",
-      "fuel": "Trouver un gisement de pétrole ou y poser une mine",
+      "metal": "Trouver un gisement de métal",
+      "silicon": "Trouver un gisement de silicium",
+      "fuel": "Trouver un gisement de pétrole",
       "kharite": "Trouver un gisement de kharite",
       "lithium": "Trouver un gisement de lithium",
       "uranium": "Trouver un gisement d’uranium",
