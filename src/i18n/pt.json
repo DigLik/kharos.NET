@@ -635,7 +635,7 @@
     "labSpeed": "Velocidade dos laboratórios selecionados: ×{speed}",
     "army": "Exército: {used} de {limit}",
     "groups": "Grupos",
-    "groupTip": "Grupo {digit}: selecionar, de novo para levar a câmera, com Shift para somar à seleção. Clique direito ou toque longo põe a seleção aqui; sem seleção, esvazia. Tecla {digit}",
+    "groupTip": "Grupo {digit}: selecionar, de novo para levar a câmera, com Shift para somar à seleção. Clique direito ou toque longo põe a seleção aqui; com este grupo selecionado, esvazia a casa. Tecla {digit}",
     "groupPutTip": "Casa {digit}: clique para pôr a seleção aqui. Igual a Ctrl+{digit}",
     "groupEmptyTip": "Casa {digit} vazia: selecione unidades e clique nela ou use Ctrl+{digit}"
   },

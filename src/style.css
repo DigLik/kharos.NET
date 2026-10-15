@@ -1749,9 +1749,10 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 16px));
   padding: 4px 8px;
   font-size: 12px;
-  white-space: nowrap;
   z-index: 30;
   pointer-events: none;
 }

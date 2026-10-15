@@ -8,7 +8,7 @@ import { STEPS } from '../game/firstSteps'
 import type { PaveTool } from '../game/scene'
 import { buildingPortrait, pavePortrait, unitPortrait } from '../game/portraits'
 import { goodIcon } from '../game/goodIcons'
-import { useEffect, useRef, useState } from 'preact/hooks'
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { RELIEF_BELOW, RELIEF_INCOME, REWARDS, resourceOf, type UnitType, type BuildingType, type Command, type Good, type Reward } from '../sim'
 import { markSeen } from './seen'
 import { GRID_KEYS, commandsOf, dealOf, keyLabel, type Deal, type FerryDraft, type Page, type Slot } from './commands'
@@ -47,6 +47,8 @@ interface HudProps {
   selectGroup: (digit: string, add: boolean) => void
   /** Запомнить своих выделенных группой digit; никого не выбрано — очистить её. */
   assignGroup: (digit: string) => void
+  /** Очистить группу digit. */
+  clearGroup: (digit: string) => void
   /** Выйти из режима наведения, ничего не отдавая. */
   cancelMode: () => void
   /** Завершить режим наведения: набранное отдаётся грузовикам. */
@@ -135,6 +137,9 @@ const Progress = ({ value, children }: { value: number; children: ComponentChild
   </div>
 )
 
+/** Ближе скольких пикселей к краю экрана подсказка не встаёт. */
+const TIP_EDGE = 8
+
 /**
  * Подсказка для всего, у чего есть data-tip: появляется сразу у курсора, а не через секунду, как системная,
  * и не обрезается краями ячеек и прокручиваемых блоков.
@@ -156,6 +161,20 @@ function Tip() {
       window.removeEventListener('pointerdown', onDown)
     }
   }, [])
+  const box = useRef<HTMLDivElement>(null)
+  // Обычная подсказка мерит себя после отрисовки и встаёт над курсором правее него, а не влезает — левее и под ним;
+  // в любом случае не дальше TIP_EDGE от краёв экрана. Длинная переносится по ширине, см. .tip в style.css.
+  useLayoutEffect(() => {
+    const element = box.current
+    if (!element || !tip) return
+    const { width, height } = element.getBoundingClientRect()
+    let x = tip.x + 14
+    if (x + width > window.innerWidth - TIP_EDGE) x = tip.x - 14 - width
+    let y = tip.y - height - 12
+    if (y < TIP_EDGE) y = tip.y + 20
+    element.style.left = `${Math.max(TIP_EDGE, Math.min(x, window.innerWidth - TIP_EDGE - width))}px`
+    element.style.top = `${Math.max(TIP_EDGE, Math.min(y, window.innerHeight - TIP_EDGE - height))}px`
+  })
   if (!tip) return null
   // Карточка берётся из CARDS при каждой отрисовке: цена и доступность в ней свежие, пока курсор стоит на месте.
   const card = tip.card !== null ? CARDS.get(tip.card) : undefined
@@ -170,18 +189,8 @@ function Tip() {
       </div>
     )
   }
-  // Над курсором, а у верхнего края — под ним; у правого края — левее курсора.
-  const below = tip.y < 60
-  const left = tip.x > window.innerWidth - 260
   return (
-    <div
-      class={tip.text.includes('\n') ? 'hud tip tip--wrap' : 'hud tip'}
-      style={{
-        left: left ? undefined : `${tip.x + 14}px`,
-        right: left ? `${window.innerWidth - tip.x + 14}px` : undefined,
-        top: `${below ? tip.y + 20 : tip.y - 36}px`,
-      }}
-    >
+    <div ref={box} class={tip.text.includes('\n') ? 'hud tip tip--wrap' : 'hud tip'} style={{ left: `${tip.x + 14}px`, top: `${tip.y - 36}px` }}>
       {tip.text}
     </div>
   )
@@ -265,15 +274,16 @@ interface GroupsProps {
   groupable: boolean
   select: (digit: string, add: boolean) => void
   assign: (digit: string) => void
+  clear: (digit: string) => void
 }
 
 /**
  * Панель групп над нижней панелью, как инвентарь в песочницах: десять ячеек по цифрам 1–9 и 0, пустые тоже. В занятой —
  * портрет того, кого в группе больше всех, и сколько в ней. Нажатие на занятую выбирает группу (повторное — ещё и камера
  * к ней, с Shift — добавить к выделенным), на пустую — кладёт туда выделенных. ПКМ или долгое нажатие кладёт выделенных
- * и в занятую, а без выделения очищает её. Ctrl+цифра кладёт в ту же ячейку.
+ * и в занятую, а по выбранной сейчас группе или без выделения — очищает ячейку. Ctrl+цифра кладёт в ту же ячейку.
  */
-function Groups({ groups, groupable, select, assign }: GroupsProps) {
+function Groups({ groups, groupable, select, assign, clear }: GroupsProps) {
   const hold = useRef<{ timer: number; done: boolean } | null>(null)
   const release = () => {
     if (hold.current) clearTimeout(hold.current.timer)
@@ -282,6 +292,8 @@ function Groups({ groups, groupable, select, assign }: GroupsProps) {
     <nav class="hud groups" aria-label={t('hud.groups')}>
       {GROUP_DIGITS.map((digit) => {
         const group = groups.find((one) => one.digit === digit)
+        /** ПКМ и долгое нажатие: выбрана сама эта группа — ячейка очищается, иначе в неё кладутся выделенные. */
+        const put = () => (group?.selected ? clear(digit) : assign(digit))
         const tip = group ? t('hud.groupTip', { digit }) : groupable ? t('hud.groupPutTip', { digit }) : t('hud.groupEmptyTip', { digit })
         return (
           <button
@@ -294,7 +306,7 @@ function Groups({ groups, groupable, select, assign }: GroupsProps) {
               const state = { done: false, timer: 0 }
               state.timer = window.setTimeout(() => {
                 state.done = true
-                assign(digit)
+                put()
               }, GROUP_HOLD)
               hold.current = state
             }}
@@ -305,7 +317,7 @@ function Groups({ groups, groupable, select, assign }: GroupsProps) {
               event.preventDefault()
               // Долгое нажатие на сенсорном экране тоже зовёт меню: его ячейка уже обработала.
               if (hold.current?.done) return
-              assign(digit)
+              put()
             }}
             onClick={(event) => {
               if (hold.current?.done) {
@@ -1077,7 +1089,7 @@ function ModeBar({ mode, cancel, finish }: { mode: NonNullable<ModeState>; cance
 }
 
 /** Интерфейс игрока: верхняя полоса со счётом и нижняя панель — мини-карта, выбранное, сетка команд. */
-export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim, deploy, minimap, lookAt, flyTo, lookAtSelection, selectGroup, assignGroup, cancelMode, finishMode, narrow, moveSelected, say, menu }: HudProps) {
+export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim, deploy, minimap, lookAt, flyTo, lookAtSelection, selectGroup, assignGroup, clearGroup, cancelMode, finishMode, narrow, moveSelected, say, menu }: HudProps) {
   const selected = state.units.length > 0 || state.building !== null
   const fresh = useNewRewards(state.rewards, state.loaded)
   const learned = useNewTopics(state.tech.topics, state.loaded)
@@ -1350,7 +1362,7 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
         })}
       </div>
 
-      {!state.editor && <Groups groups={state.groups} groupable={state.groupable} select={selectGroup} assign={assignGroup} />}
+      {!state.editor && <Groups groups={state.groups} groupable={state.groupable} select={selectGroup} assign={assignGroup} clear={clearGroup} />}
 
       {/* В редакторе справа его панель: от нижней остаётся только мини-карта. */}
       <section class={`hud bar${state.editor ? ' is-editor' : ''}`}>

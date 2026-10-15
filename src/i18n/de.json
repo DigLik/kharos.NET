@@ -635,7 +635,7 @@
     "labSpeed": "Tempo der ausgewählten Labore: ×{speed}",
     "army": "Armee: {used} von {limit}",
     "groups": "Gruppen",
-    "groupTip": "Gruppe {digit}: auswählen, erneut — Kamera dorthin, mit Shift — zur Auswahl hinzufügen. Rechtsklick oder langes Drücken legt die Auswahl hier ab, ohne Auswahl wird geleert. Taste {digit}",
+    "groupTip": "Gruppe {digit}: auswählen, erneut — Kamera dorthin, mit Shift — zur Auswahl hinzufügen. Rechtsklick oder langes Drücken legt die Auswahl hier ab; ist diese Gruppe ausgewählt, wird der Platz geleert. Taste {digit}",
     "groupPutTip": "Platz {digit}: klicken, um die Auswahl hier abzulegen. Wie Strg+{digit}",
     "groupEmptyTip": "Platz {digit} ist leer: Einheiten auswählen und anklicken oder Strg+{digit}"
   },

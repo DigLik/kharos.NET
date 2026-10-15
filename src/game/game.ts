@@ -121,6 +121,8 @@ export interface Game {
   selectGroup(digit: string, add: boolean): void
   /** Запоминает своих выделенных группой digit; никого не выбрано — распускает её. */
   assignGroup(digit: string): void
+  /** Очищает группу digit. */
+  clearGroup(digit: string): void
   /** Выходит из режима наведения, ничего не отдавая: «Отмена» полосы режима. */
   cancelMode(): void
   /** Завершает режим наведения: набранный маршрут и обслуживание отдаются грузовикам. «Готово» полосы режима. */
@@ -506,6 +508,7 @@ export function createGame(
     lookAtSelection: () => controls?.lookAtSelection(),
     selectGroup: (digit, add) => controls?.selectGroup(digit, add),
     assignGroup: (digit) => controls?.assignGroup(digit),
+    clearGroup: (digit) => void scene.groups.delete(digit),
     cancelMode: () => controls?.cancelMode(),
     finishMode: () => controls?.finishMode(),
     narrow: (type, remove) => controls?.narrow(type, remove),

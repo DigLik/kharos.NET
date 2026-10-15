@@ -121,6 +121,7 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
           lookAtSelection={() => gameRef.current?.lookAtSelection()}
           selectGroup={(digit, add) => gameRef.current?.selectGroup(digit, add)}
           assignGroup={(digit) => gameRef.current?.assignGroup(digit)}
+          clearGroup={(digit) => gameRef.current?.clearGroup(digit)}
           cancelMode={() => gameRef.current?.cancelMode()}
           finishMode={() => gameRef.current?.finishMode()}
           narrow={(type, remove) => gameRef.current?.narrow(type, remove)}

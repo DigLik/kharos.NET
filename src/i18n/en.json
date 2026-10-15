@@ -635,7 +635,7 @@
     "labSpeed": "Speed of the selected laboratories: ×{speed}",
     "army": "Army: {used} of {limit}",
     "groups": "Groups",
-    "groupTip": "Group {digit}: select, again to move the camera to it, Shift to add to selection. Right-click or long press puts the selection here, with nothing selected clears it. Key {digit}",
+    "groupTip": "Group {digit}: select, again to move the camera to it, Shift to add to selection. Right-click or long press puts the selection here; with this group selected, it clears the slot. Key {digit}",
     "groupPutTip": "Slot {digit}: click to put the selection here. Same as Ctrl+{digit}",
     "groupEmptyTip": "Slot {digit} is empty: select units and click it or press Ctrl+{digit}"
   },
