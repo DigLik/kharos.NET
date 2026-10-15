@@ -292,6 +292,11 @@ function Groups({ groups, groupable, select, assign, clear }: GroupsProps) {
   const release = () => {
     if (hold.current) clearTimeout(hold.current.timer)
   }
+  // Окно потеряло фокус — долгое нажатие бросается: отпускание придёт не нам, а ячейка сработала бы сама.
+  useEffect(() => {
+    window.addEventListener('blur', release)
+    return () => window.removeEventListener('blur', release)
+  }, [])
   return (
     <nav class="hud groups" aria-label={t('hud.groups')}>
       {GROUP_DIGITS.map((digit) => {
@@ -1271,40 +1276,70 @@ export function Hud({ state, send, place, pave, zones, route, serve, carry, truc
     }
   }, [])
 
-  // Окно исследований: открывается кнопкой на верхней полосе, клавишей R и из лаборатории, закрывается ими же и Esc.
+  // Окно исследований: открывается кнопкой на верхней полосе, клавишей R и из лаборатории, закрывается ими же,
+  // а Esc — общим закрытием окон интерфейса, см. ниже: он же прячет список игроков.
   const [tech, setTech] = useState(false)
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.altKey || event.ctrlKey || event.metaKey || event.repeat) return
       if (event.code === 'KeyR') setTech((open) => !open)
-      else if (event.code === 'Escape') setTech(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   // Список игроков сервера — пока зажат Tab. Отпустив Tab, он остаётся, пока мышь на нём: так видно,
-  // что кнопки союза не исчезают из-под руки.
+  // что кнопки союза не исчезают из-под руки. Брошенным он не остаётся: уход мыши с него, потеря фокуса
+  // окном, скрытая вкладка и Esc его прячут.
   const [roster, setRoster] = useState(false)
   const overRoster = useRef(false)
+  /** Зажат ли Tab: отпускание приходит не всегда (фокус ушёл в поле ввода, окно потеряло фокус) — по нему решают,
+   * оставлять ли список под мышью. */
+  const tabHeld = useRef(false)
   useEffect(() => {
-    const toggle = (shown: boolean) => (event: KeyboardEvent) => {
+    const show = (event: KeyboardEvent) => {
       if (event.code !== 'Tab' || event.target instanceof HTMLInputElement) return
       event.preventDefault()
-      setRoster(shown || overRoster.current)
+      tabHeld.current = true
+      setRoster(true)
     }
-    const down = toggle(true)
-    const up = toggle(false)
-    const hide = () => setRoster(false)
-    window.addEventListener('keydown', down)
-    window.addEventListener('keyup', up)
-    window.addEventListener('blur', hide)
+    // Отпускание ловится и над полем ввода: тогда Tab жали не для списка, а прятать всё равно нечего.
+    const hide = (event: KeyboardEvent) => {
+      if (event.code !== 'Tab') return
+      tabHeld.current = false
+      setRoster(overRoster.current)
+    }
+    const clear = () => {
+      tabHeld.current = false
+      setRoster(false)
+    }
+    const onHidden = () => document.hidden && clear()
+    window.addEventListener('keydown', show)
+    window.addEventListener('keyup', hide)
+    window.addEventListener('blur', clear)
+    document.addEventListener('visibilitychange', onHidden)
     return () => {
-      window.removeEventListener('keydown', down)
-      window.removeEventListener('keyup', up)
-      window.removeEventListener('blur', hide)
+      window.removeEventListener('keydown', show)
+      window.removeEventListener('keyup', hide)
+      window.removeEventListener('blur', clear)
+      document.removeEventListener('visibilitychange', onHidden)
     }
   }, [])
+  // Esc закрывает окна интерфейса, которые он же и открывал: список игроков и исследования. Дальше нажатие
+  // не идёт — иначе игра за тем же Esc открыла бы меню поверх закрытого окна.
+  useEffect(() => {
+    if (!roster && !tech) return
+    const onEsc = (event: KeyboardEvent) => {
+      if (event.code !== 'Escape' || event.target instanceof HTMLInputElement) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      setRoster(false)
+      setTech(false)
+      tabHeld.current = false
+    }
+    window.addEventListener('keydown', onEsc, true)
+    return () => window.removeEventListener('keydown', onEsc, true)
+  }, [roster, tech])
 
   return (
     <>
@@ -1313,7 +1348,11 @@ export function Hud({ state, send, place, pave, zones, route, serve, carry, truc
           class="hud roster"
           aria-label={t('hud.players')}
           onMouseEnter={() => (overRoster.current = true)}
-          onMouseLeave={() => (overRoster.current = false)}
+          onMouseLeave={() => {
+            overRoster.current = false
+            // Tab уже отпущен — список держался только под мышью: ушла мышь, уходит и он.
+            if (!tabHeld.current) setRoster(false)
+          }}
         >
           <h2>{t('hud.roster', { online: state.players.filter(({ online }) => online).length })}</h2>
           <ul>

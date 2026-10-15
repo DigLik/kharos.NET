@@ -33,7 +33,9 @@ const RIGHT = 2
  * Колесо — масштаб, WASD, стрелки и указатель у края экрана — камера, с Shift — втрое быстрее; камера разгоняется
  * и тормозит, а брошенная мышью катится дальше (см. cameraMotion.ts). T Y U I / G H J K / B N M , — сетка команд
  * нижней панели (её ведёт интерфейс). Ctrl+цифра (и на цифровом блоке) — запомнить выделенных группой, цифра — выбрать
- * группу, с Shift — добавить её к выделенным, повторно — ещё и навести на неё камеру. Esc — отменить выбор места, затем снять выделение.
+ * группу, с Shift — добавить её к выделенным, повторно — ещё и навести на неё камеру. Esc — бросить начатую
+ * протяжку, затем отменить выбор места, затем снять выделение. Уход со страницы (потеря фокуса окном, скрытая
+ * вкладка) бросает и зажатые клавиши, и начатое мышью: камера не едет за отпущенной мышью и первый щелчок не пропадает.
  * Alt+G — сетка тайлов.
  */
 export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: CameraMotion) {
@@ -322,12 +324,7 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
       scene.sim.send(scene.player, { type: 'order', units: [...scene.selection], x: point.x, y: point.y, queue: event.shiftKey })
     }
   }
-  const onPointerCancel = () => {
-    pressed = null
-    anchor = null
-    motion.release()
-    scene.selectionBox = null
-  }
+  const onPointerCancel = () => cancelDrag()
   const onPointerLeave = () => {
     camera.pointer = null
   }
@@ -369,7 +366,8 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
       }
     }
     if (event.code === 'Escape') {
-      // Сначала отменяется режим, и только следующим нажатием — выделение.
+      // Сначала брошенная протяжка, потом режим, и только следующим нажатием — выделение.
+      if (cancelDrag()) return
       if (cancelMode()) return
       if (scene.selection.size) scene.selection.clear()
       // Отменять нечего — Escape открывает меню игры.
@@ -399,6 +397,21 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
     } else if (scene.placing) scene.placing = null
     else return false
     return true
+  }
+  /**
+   * Бросает начатое мышью: протяжку камеры, рамку выделения, уложенное покрытие и тянутое в редакторе.
+   * Зовётся, когда мышь дальше не наша: окно потеряло фокус, вкладка скрылась, протяжку прервал браузер
+   * (pointercancel) или нажат Esc. true — бросать было что.
+   */
+  const cancelDrag = () => {
+    const dragged = pressed !== null || scene.selectionBox !== null || scene.paveFrom !== null
+    pressed = null
+    anchor = null
+    scene.selectionBox = null
+    scene.paveFrom = null
+    motion.release()
+    scene.edit?.cancel()
+    return dragged
   }
   /** Отдаёт набранный маршрут выбранным грузовикам; меньше двух остановок — набор просто кончается. */
   const finishRoute = () => {
@@ -466,6 +479,13 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
     keys.clear()
     scene.zonesHeld = false
     screenPointer = null
+    // Зажатую мышь вместе с окном отпускает не мышь, а браузер: без этого камера ехала бы за указателем,
+    // как будто кнопка всё ещё нажата, а первый щелчок по возвращении пропадал бы.
+    cancelDrag()
+  }
+  /** Вкладка скрыта: клавиши и мышь дальше не наши — то же, что потеря фокуса (на телефоне blur приходит не всегда). */
+  const onHidden = () => {
+    if (document.hidden) onBlur()
   }
 
   canvas.addEventListener('pointerdown', onPointerDown)
@@ -478,6 +498,7 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
   window.addEventListener('blur', onBlur)
+  document.addEventListener('visibilitychange', onHidden)
   window.addEventListener('pointermove', onWindowPointer)
   document.documentElement.addEventListener('pointerleave', onWindowLeave)
 
@@ -586,6 +607,7 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
       window.removeEventListener('blur', onBlur)
+      document.removeEventListener('visibilitychange', onHidden)
       window.removeEventListener('pointermove', onWindowPointer)
       document.documentElement.removeEventListener('pointerleave', onWindowLeave)
     },

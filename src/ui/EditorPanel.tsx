@@ -316,6 +316,13 @@ export function EditorPanel({ sim, game, apply, remote = false, title, subtitle,
           if (phase === 'up') dragging = null
         }
       },
+      cancel() {
+        // Протяжку бросили (уход со страницы, Esc): рамка никого не выделяет, тянутое не сдвигается дальше,
+        // краска не мажет с прежнего тайла.
+        dragging = null
+        last = ''
+        scene.selectionBox = null
+      },
       secondary(point) {
         // Правый щелчок сносит: по выбранному — всё выбранное, иначе — то, что под указателем.
         const target = entityAt(sim, point.x, point.y)

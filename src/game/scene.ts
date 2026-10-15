@@ -85,6 +85,8 @@ export interface Scene {
 /** Инструмент редактора на холсте: нажатие, протяжка и отпускание левой кнопки, указатель — каждый кадр. Точки — в тайлах. */
 export interface SceneEdit {
   press(point: { x: number; y: number }, phase: 'down' | 'drag' | 'up', shift: boolean): void
+  /** Протяжку бросили, ничего не отдав: окно потеряло фокус, вкладка скрылась, протяжку прервал браузер или нажат Esc. */
+  cancel(): void
   /** Щелчок правой кнопкой без протяжки. */
   secondary(point: { x: number; y: number }): void
   hover(tile: { x: number; y: number } | null): void
