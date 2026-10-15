@@ -14,7 +14,9 @@ glow = "0.18"
 glutin = "0.32"
 glutin-winit = "0.5"
 raw-window-handle = "0.6"
+rustybuzz = "0.20.1"
 serde = { version = "1", features = ["derive"] }
+tiny-skia = "0.11"
 tokio = { version = "1", features = ["rt", "time"] }
 winit = "0.30"
 

@@ -637,112 +637,357 @@
     blur() {}
   }
 
+  /** Режимы наложения по порядку — тот же порядок у Rust (см. `blend` в `src/canvas/sheet.rs`). */
+  const COMPOSITE = [
+    'source-over', 'source-in', 'source-out', 'source-atop', 'destination-over', 'destination-in', 'destination-out',
+    'destination-atop', 'lighter', 'copy', 'xor', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge',
+    'color-burn', 'hard-light', 'soft-light', 'difference', 'exclusion', 'hue', 'saturation', 'color', 'luminosity',
+  ]
+  const CAPS = ['butt', 'round', 'square']
+  const JOINS = ['miter', 'round', 'bevel']
+  const ALIGN = { start: 0, left: 0, center: 1, end: 2, right: 2 }
+  const BASELINE = { alphabetic: 0, top: 1, hanging: 2, middle: 3, ideographic: 4, bottom: 5 }
+
   /**
-   * Контекст двумерного холста: то, чем игра рисует. Состояние (цвета, толщина линии, прозрачность) ведёт эта
-   * обёртка, как и в браузере, а рисование уходит в Rust — там сами пиксели. Путь копится здесь и уходит одной
-   * посылкой; дуги дробятся здесь же: растеризатору довольно отрезков, как и пиксельной графике.
+   * Путь командами (см. `path` в `src/canvas/sheet.rs`): 0 начало, 1 линия, 2 и 3 — кривые, 4 замыкание. Дуги и
+   * эллипсы дробятся здесь на отрезки по полпикселя: растеризатору довольно линий, а края выходят ровными.
+   */
+  class Path2D {
+    constructor(from) {
+      this._commands = from instanceof Path2D ? [...from._commands] : []
+      this._open = false
+      this._x = 0
+      this._y = 0
+    }
+    _point(command, ...numbers) {
+      this._commands.push(command, ...numbers)
+      this._x = numbers[numbers.length - 2]
+      this._y = numbers[numbers.length - 1]
+    }
+    moveTo(x, y) {
+      this._point(0, x, y)
+      this._open = true
+    }
+    lineTo(x, y) {
+      this._point(this._open ? 1 : 0, x, y)
+      this._open = true
+    }
+    quadraticCurveTo(x1, y1, x, y) {
+      if (!this._open) this.moveTo(x1, y1)
+      this._point(2, x1, y1, x, y)
+    }
+    bezierCurveTo(x1, y1, x2, y2, x, y) {
+      if (!this._open) this.moveTo(x1, y1)
+      this._point(3, x1, y1, x2, y2, x, y)
+    }
+    closePath() {
+      if (this._open) this._commands.push(4)
+    }
+    rect(x, y, width, height) {
+      this.moveTo(x, y)
+      this.lineTo(x + width, y)
+      this.lineTo(x + width, y + height)
+      this.lineTo(x, y + height)
+      this.closePath()
+      this.moveTo(x, y)
+    }
+    roundRect(x, y, width, height, radii = 0) {
+      const radius = Math.min(Math.abs(Array.isArray(radii) ? radii[0] ?? 0 : radii), Math.abs(width) / 2, Math.abs(height) / 2)
+      if (!radius) return this.rect(x, y, width, height)
+      this.moveTo(x + radius, y)
+      this.arcTo(x + width, y, x + width, y + height, radius)
+      this.arcTo(x + width, y + height, x, y + height, radius)
+      this.arcTo(x, y + height, x, y, radius)
+      this.arcTo(x, y, x + width, y, radius)
+      this.closePath()
+    }
+    ellipse(x, y, radiusX, radiusY, rotation, from, to, counter = false) {
+      // Сколько пройти и куда: полный оборот, если просят оборот и больше, иначе — остаток в нужную сторону.
+      const turn = Math.PI * 2
+      const mod = (value) => ((value % turn) + turn) % turn
+      const sweep = !counter ? (to - from >= turn ? turn : mod(to - from)) : from - to >= turn ? -turn : -mod(from - to)
+      const steps = Math.max(8, Math.ceil((Math.abs(sweep) * Math.max(radiusX, radiusY)) / 0.5))
+      const cos = Math.cos(rotation)
+      const sin = Math.sin(rotation)
+      for (let step = 0; step <= steps; step++) {
+        const angle = from + (sweep * step) / steps
+        const px = Math.cos(angle) * radiusX
+        const py = Math.sin(angle) * radiusY
+        this.lineTo(x + px * cos - py * sin, y + px * sin + py * cos)
+      }
+    }
+    arc(x, y, radius, from = 0, to = Math.PI * 2, counter = false) {
+      this.ellipse(x, y, radius, radius, 0, from, to, counter)
+    }
+    /** Скругление угла между текущей точкой, (x1, y1) и (x2, y2) — дугой радиуса radius, касающейся обеих сторон. */
+    arcTo(x1, y1, x2, y2, radius) {
+      if (!this._open) this.moveTo(x1, y1)
+      const ax = this._x - x1, ay = this._y - y1, bx = x2 - x1, by = y2 - y1
+      const la = Math.hypot(ax, ay), lb = Math.hypot(bx, by)
+      if (!radius || !la || !lb) return this.lineTo(x1, y1)
+      const ua = [ax / la, ay / la], ub = [bx / lb, by / lb]
+      const angle = Math.acos(Math.max(-1, Math.min(1, ua[0] * ub[0] + ua[1] * ub[1])))
+      // Стороны на одной прямой — скруглять нечего.
+      if (angle < 1e-6 || Math.PI - angle < 1e-6) return this.lineTo(x1, y1)
+      const along = radius / Math.tan(angle / 2)
+      const start = [x1 + ua[0] * along, y1 + ua[1] * along]
+      const end = [x1 + ub[0] * along, y1 + ub[1] * along]
+      // Центр — на биссектрисе угла, на расстоянии radius / sin(угол / 2) от вершины.
+      const bisector = [ua[0] + ub[0], ua[1] + ub[1]]
+      const length = Math.hypot(...bisector)
+      const distance = radius / Math.sin(angle / 2)
+      const center = [x1 + (bisector[0] / length) * distance, y1 + (bisector[1] / length) * distance]
+      const from = Math.atan2(start[1] - center[1], start[0] - center[0])
+      const to = Math.atan2(end[1] - center[1], end[0] - center[0])
+      // Дуга — короткая: её направление — по знаку кратчайшего поворота от начала к концу.
+      const delta = Math.atan2(Math.sin(to - from), Math.cos(to - from))
+      this.lineTo(...start)
+      this.arc(center[0], center[1], radius, from, to, delta < 0)
+    }
+    _bytes() {
+      return bytes(Float32Array.from(this._commands))
+    }
+  }
+  globalThis.Path2D = Path2D
+
+  /**
+   * Контекст двумерного холста — Canvas 2D API. Состояние (цвета, линия, прозрачность, преобразование, обрезка) и его
+   * стек ведёт эта обёртка, как и браузер, а рисование уходит в Rust (`src/canvas`) — там сами пиксели. Путь хранится
+   * в координатах пользователя и рисуется с преобразованием на момент `fill`/`stroke`: так у страницы, если между
+   * построением пути и рисованием преобразование не менялось, — а иначе интерфейс и не делает.
    */
   class CanvasRenderingContext2D {
     constructor(canvas) {
       this.canvas = canvas
+      this._path = new Path2D()
+      this._stack = []
+      this._values = new Float64Array(14)
+      this._reset()
+    }
+
+    _reset() {
       this.fillStyle = '#000000'
       this.strokeStyle = '#000000'
       this.lineWidth = 1
+      this.lineCap = 'butt'
+      this.lineJoin = 'miter'
+      this.miterLimit = 10
       this.globalAlpha = 1
+      this.globalCompositeOperation = 'source-over'
       this.imageSmoothingEnabled = true
       this.imageSmoothingQuality = 'low'
-      /** Путь тройками: вид точки (0 — начало подпути, 1 — продолжение), x, y. */
-      this._path = []
+      this.font = '10px sans-serif'
+      this.textAlign = 'start'
+      this.textBaseline = 'alphabetic'
+      this.direction = 'ltr'
+      this._matrix = [1, 0, 0, 1, 0, 0]
+      this._mask = 0
+      this._dash = []
     }
 
     set fillStyle(value) {
       this._fill = String(value)
       this._fillColor = colorOf(value)
     }
-
     get fillStyle() {
       return this._fill
     }
-
     set strokeStyle(value) {
       this._stroke = String(value)
       this._strokeColor = colorOf(value)
     }
-
     get strokeStyle() {
       return this._stroke
     }
 
-    fillRect(x, y, width, height) {
-      core.ops.op_canvas_fill_rect(this.canvas.id, x, y, width, height, this._fillColor, this.globalAlpha)
+    /** Состояние одним массивом — порядок тот же, что у `State::read` в `src/canvas/sheet.rs`. */
+    _state() {
+      const values = this._values
+      values.set(this._matrix, 0)
+      values[6] = this.globalAlpha
+      values[7] = this._mask
+      values[8] = !this.imageSmoothingEnabled ? 0 : this.imageSmoothingQuality === 'low' ? 1 : 2
+      values[9] = Math.max(0, COMPOSITE.indexOf(this.globalCompositeOperation))
+      values[10] = this.lineWidth
+      values[11] = Math.max(0, CAPS.indexOf(this.lineCap))
+      values[12] = Math.max(0, JOINS.indexOf(this.lineJoin))
+      values[13] = this.miterLimit
+      return bytes(values)
     }
 
-    strokeRect(x, y, width, height) {
-      core.ops.op_canvas_stroke_rect(this.canvas.id, x, y, width, height, this.lineWidth, this._strokeColor, this.globalAlpha)
+    // Стек состояний: обрезка — маской в Rust; маска, заведённая на снятом уровне, отпускается.
+    save() {
+      const { _matrix, _mask, _dash } = this
+      const copy = {}
+      for (const key of ['_fill', '_fillColor', '_stroke', '_strokeColor', 'lineWidth', 'lineCap', 'lineJoin', 'miterLimit', 'globalAlpha', 'globalCompositeOperation', 'imageSmoothingEnabled', 'imageSmoothingQuality', 'font', 'textAlign', 'textBaseline', 'direction']) copy[key] = this[key]
+      this._stack.push({ copy, matrix: [..._matrix], mask: _mask, dash: [..._dash] })
+    }
+    restore() {
+      const saved = this._stack.pop()
+      if (!saved) return
+      if (this._mask && this._mask !== saved.mask) core.ops.op_canvas_unclip(this._mask)
+      Object.assign(this, saved.copy)
+      this._matrix = saved.matrix
+      this._mask = saved.mask
+      this._dash = saved.dash
+    }
+    reset() {
+      while (this._stack.length) this.restore()
+      if (this._mask) core.ops.op_canvas_unclip(this._mask)
+      this._reset()
+      this._path = new Path2D()
+      this.canvas.resize(this.canvas.width, this.canvas.height)
     }
 
+    // Преобразование: матрица a, b, c, d, e, f — как у страницы.
+    setTransform(a = 1, b = 0, c = 0, d = 1, e = 0, f = 0) {
+      if (typeof a === 'object') ({ a = 1, b = 0, c = 0, d = 1, e = 0, f = 0 } = a)
+      this._matrix = [a, b, c, d, e, f]
+    }
+    getTransform() {
+      const [a, b, c, d, e, f] = this._matrix
+      return { a, b, c, d, e, f, is2D: true, isIdentity: a === 1 && b === 0 && c === 0 && d === 1 && e === 0 && f === 0 }
+    }
+    resetTransform() {
+      this._matrix = [1, 0, 0, 1, 0, 0]
+    }
+    transform(a, b, c, d, e, f) {
+      const [A, B, C, D, E, F] = this._matrix
+      this._matrix = [A * a + C * b, B * a + D * b, A * c + C * d, B * c + D * d, A * e + C * f + E, B * e + D * f + F]
+    }
+    translate(x, y) {
+      this.transform(1, 0, 0, 1, x, y)
+    }
+    scale(x, y) {
+      this.transform(x, 0, 0, y, 0, 0)
+    }
+    rotate(angle) {
+      const cos = Math.cos(angle)
+      const sin = Math.sin(angle)
+      this.transform(cos, sin, -sin, cos, 0, 0)
+    }
+
+    // Пути.
     beginPath() {
-      this._path = []
+      this._path = new Path2D()
     }
-
     moveTo(x, y) {
-      this._path.push(0, x, y)
+      this._path.moveTo(x, y)
     }
-
     lineTo(x, y) {
-      this._path.push(1, x, y)
+      this._path.lineTo(x, y)
+    }
+    quadraticCurveTo(...args) {
+      this._path.quadraticCurveTo(...args)
+    }
+    bezierCurveTo(...args) {
+      this._path.bezierCurveTo(...args)
+    }
+    arc(...args) {
+      this._path.arc(...args)
+    }
+    arcTo(...args) {
+      this._path.arcTo(...args)
+    }
+    ellipse(...args) {
+      this._path.ellipse(...args)
+    }
+    rect(...args) {
+      this._path.rect(...args)
+    }
+    roundRect(...args) {
+      this._path.roundRect(...args)
+    }
+    closePath() {
+      this._path.closePath()
+    }
+    /** Путь и правило заливки из аргументов: `fill()`, `fill('evenodd')`, `fill(path)`, `fill(path, 'evenodd')`. */
+    _target(first, second) {
+      return first instanceof Path2D ? [first, second === 'evenodd'] : [this._path, first === 'evenodd']
+    }
+    fill(first, second) {
+      const [path, evenodd] = this._target(first, second)
+      core.ops.op_canvas_fill(this.canvas.id, path._bytes(), this._state(), this._fillColor, evenodd)
+    }
+    stroke(path = this._path) {
+      core.ops.op_canvas_stroke(this.canvas.id, path._bytes(), this._state(), this._strokeColor)
+    }
+    clip(first, second) {
+      const [path, evenodd] = this._target(first, second)
+      const previous = this._mask
+      this._mask = core.ops.op_canvas_clip(this.canvas.id, path._bytes(), this._state(), evenodd)
+      // Маска этого же уровня стека больше не нужна: новая уже включает её.
+      if (previous && !this._stack.some((saved) => saved.mask === previous)) core.ops.op_canvas_unclip(previous)
+    }
+    setLineDash(dash) {
+      this._dash = [...dash]
+    }
+    getLineDash() {
+      return [...this._dash]
     }
 
-    /**
-     * Дуга: дробится на отрезки по половине пикселя дуги — так кольцо сигнала выходит ровным. Полный оборот от нуля
-     * до двух «пи» даёт круг (см. `minimap.ts`). Начало подпути дуга открывает сама, если до неё пути не было.
-     */
-    arc(x, y, radius, from = 0, to = Math.PI * 2) {
-      const steps = Math.max(8, Math.ceil((Math.abs(to - from) * radius) / 0.5))
-      const opening = this._path.length === 0
-      for (let step = 0; step <= steps; step++) {
-        const angle = from + ((to - from) * step) / steps
-        this._path.push(step === 0 && opening ? 0 : 1, x + Math.cos(angle) * radius, y + Math.sin(angle) * radius)
+    // Прямоугольники.
+    fillRect(x, y, width, height) {
+      const path = new Path2D()
+      path.rect(x, y, width, height)
+      this.fill(path)
+    }
+    strokeRect(x, y, width, height) {
+      const path = new Path2D()
+      path.rect(x, y, width, height)
+      this.stroke(path)
+    }
+    clearRect(x, y, width, height) {
+      core.ops.op_canvas_clear(this.canvas.id, x, y, width, height, this._state())
+    }
+
+    // Текст: шрифты те же, что у страницы (см. `src/canvas/text.rs`).
+    _text(text, x, y, stroke) {
+      core.ops.op_canvas_text(this.canvas.id, String(text), this.font, x, y, ALIGN[this.textAlign] ?? 0, BASELINE[this.textBaseline] ?? 0, this._state(), stroke ? this._strokeColor : this._fillColor, stroke)
+    }
+    fillText(text, x, y) {
+      this._text(text, x, y, false)
+    }
+    strokeText(text, x, y) {
+      this._text(text, x, y, true)
+    }
+    measureText(text) {
+      const [width, ascent, descent] = new Float32Array(core.ops.op_canvas_measure(this.font, String(text)).buffer)
+      return {
+        width,
+        actualBoundingBoxLeft: 0,
+        actualBoundingBoxRight: width,
+        actualBoundingBoxAscent: ascent,
+        actualBoundingBoxDescent: descent,
+        fontBoundingBoxAscent: ascent,
+        fontBoundingBoxDescent: descent,
       }
     }
 
-    stroke() {
-      core.ops.op_canvas_path(this.canvas.id, bytes(Float32Array.from(this._path)), this._strokeColor, this.lineWidth, this.globalAlpha, false)
-    }
-
-    fill() {
-      core.ops.op_canvas_path(this.canvas.id, bytes(Float32Array.from(this._path)), this._fillColor, this.lineWidth, this.globalAlpha, true)
-    }
-
+    // Пиксели.
     putImageData(image, x, y) {
       const pixels = image.data instanceof Uint8ClampedArray ? image.data : new Uint8ClampedArray(image.data)
       core.ops.op_canvas_put_image_data(this.canvas.id, Math.round(x), Math.round(y), image.width, image.height, bytes(pixels))
     }
-
     getImageData(x, y, width, height) {
       const pixels = core.ops.op_canvas_get_image_data(this.canvas.id, Math.round(x), Math.round(y), width, height)
       return new ImageData(new Uint8ClampedArray(pixels), width, height)
     }
-
     createImageData(width, height) {
-      return new ImageData(width, height)
+      return typeof width === 'object' ? new ImageData(width.width, width.height) : new ImageData(width, height)
     }
 
     /**
      * Перенос картинки с другого холста. Три вида вызова, как у браузера: целиком, по месту и по месту с размером —
-     * ими игра и увеличивает портреты (см. `portraits.ts`), и кладёт мини-карту (см. `minimap.ts`).
+     * ими игра увеличивает портреты (`portraits.ts`) и кладёт мини-карту (`minimap.ts`).
      */
     drawImage(source, ...rest) {
       const id = source?.id ?? -1
-      const [sx, sy, sw, sh, dx, dy, dw, dh] = rest
-      const smoothing = this.imageSmoothingEnabled
-      if (rest.length === 2) {
-        core.ops.op_canvas_draw_image(this.canvas.id, id, 0, 0, source.width, source.height, sx, sy, source.width, source.height, smoothing, this.globalAlpha)
-      } else if (rest.length === 4) {
-        core.ops.op_canvas_draw_image(this.canvas.id, id, 0, 0, source.width, source.height, sx, sy, sw, sh, smoothing, this.globalAlpha)
-      } else {
-        core.ops.op_canvas_draw_image(this.canvas.id, id, sx, sy, sw, sh, dx, dy, dw, dh, smoothing, this.globalAlpha)
-      }
+      const width = source?.width ?? 0
+      const height = source?.height ?? 0
+      const [a, b, c, d, e, f, g, h] = rest
+      const place = rest.length === 2 ? [0, 0, width, height, a, b, width, height] : rest.length === 4 ? [0, 0, width, height, a, b, c, d] : [a, b, c, d, e, f, g, h]
+      core.ops.op_canvas_draw_image(this.canvas.id, id, ...place, this._state())
     }
   }
 

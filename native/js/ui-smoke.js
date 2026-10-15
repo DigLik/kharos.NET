@@ -162,4 +162,108 @@ offscreen.context.fillRect(0, 0, 3, 3)
 check('вычислитель рисует и читается', at(offscreen.context.getImageData(0, 0, 3, 3), 2, 2), [200, 200, 200, 255])
 check('у вычислителя видны размеры', [offscreen.width, offscreen.height], [3, 3])
 
+// 10. Текст — им интерфейс пишет всё (пункт 10.4 плана). Ark Pixel в родном кегле ложится на сетку: края без
+// полутонов, а шаг букв — целые пиксели. Ширину «Kharos Игрок» страница меряет в 72 пикселя.
+const FONT = '12px "Ark Pixel 12", "Kharos Unifont 12"'
+const words = sheet(120, 20)
+words.context.font = FONT
+words.context.fillStyle = '#ffffff'
+words.context.fillText('Kharos Игрок', 2, 14)
+const letters = words.context.getImageData(0, 0, 120, 20)
+const alphas = new Set()
+let inked = 0
+for (let i = 3; i < letters.data.length; i += 4) {
+  alphas.add(letters.data[i])
+  if (letters.data[i]) inked++
+}
+check('текст: края без полутонов', [...alphas].sort((a, b) => a - b), [0, 255])
+check('текст: буквы нарисованы', inked > 150, true)
+check('текст: ширина как у страницы', words.context.measureText('Kharos Игрок').width, 72)
+check('текст: верх и низ строки', [words.context.measureText('x').fontBoundingBoxAscent, words.context.measureText('x').fontBoundingBoxDescent], [13, 3])
+
+// Чего нет в Ark Pixel (сербская Ђ, молния), рисует Unifont — в своих родных 16 точках, тоже без полутонов.
+const spare = sheet(40, 24)
+spare.context.font = FONT
+spare.context.fillStyle = '#ffffff'
+spare.context.fillText('Ђ⚡', 2, 18)
+const spared = spare.context.getImageData(0, 0, 40, 24)
+let spareInk = 0
+const spareAlphas = new Set()
+for (let i = 3; i < spared.data.length; i += 4) {
+  spareAlphas.add(spared.data[i])
+  if (spared.data[i]) spareInk++
+}
+check('запасной шрифт: глифы есть', spareInk > 30, true)
+check('запасной шрифт: без полутонов', [...spareAlphas].sort((a, b) => a - b), [0, 255])
+check('запасной шрифт: шаг — 16 точек Unifont', spare.context.measureText('Ђ').width, 8)
+
+// Выравнивание: по середине строка встаёт вокруг точки письма, по верху — опускается на высоту над базовой линией.
+const centered = sheet(100, 30)
+centered.context.font = FONT
+centered.context.fillStyle = '#ffffff'
+centered.context.textAlign = 'center'
+centered.context.textBaseline = 'top'
+centered.context.fillText('ИИ', 50, 0)
+const middleRow = centered.context.getImageData(0, 0, 100, 30)
+let left = 100
+let right = -1
+let top = 30
+for (let y = 0; y < 30; y++) {
+  for (let x = 0; x < 100; x++) {
+    if (!at(middleRow, x, y)[3]) continue
+    left = Math.min(left, x)
+    right = Math.max(right, x)
+    top = Math.min(top, y)
+  }
+}
+check('текст по середине: поровну слева и справа', Math.abs(50 - left - (right + 1 - 50)) <= 1, true)
+check('текст по верху: буквы ниже точки', top >= 1 && top <= 6, true)
+
+// 11. Преобразование и стек: сдвиг с увеличением двигает заливку, а restore возвращает прежнее.
+const moved = sheet(16)
+moved.context.save()
+moved.context.translate(4, 4)
+moved.context.scale(2, 2)
+moved.context.fillStyle = '#00ff00'
+moved.context.fillRect(0, 0, 2, 2)
+moved.context.restore()
+moved.context.fillStyle = '#0000ff'
+moved.context.fillRect(0, 0, 2, 2)
+const movedPixels = moved.context.getImageData(0, 0, 16, 16)
+check('преобразование: заливка сдвинута и увеличена', [at(movedPixels, 4, 4), at(movedPixels, 7, 7), at(movedPixels, 8, 8)], [[0, 255, 0, 255], [0, 255, 0, 255], [0, 0, 0, 0]])
+check('restore вернул прежнее преобразование', at(movedPixels, 1, 1), [0, 0, 255, 255])
+
+// 12. Обрезка: заливка всего холста видна только внутри прямоугольника обрезки — так панели обрезают списки.
+const clipped = sheet(10)
+clipped.context.save()
+clipped.context.beginPath()
+clipped.context.rect(2, 2, 3, 3)
+clipped.context.clip()
+clipped.context.fillStyle = '#ffffff'
+clipped.context.fillRect(0, 0, 10, 10)
+clipped.context.restore()
+clipped.context.fillStyle = '#ff0000'
+clipped.context.fillRect(8, 8, 2, 2)
+const clippedPixels = clipped.context.getImageData(0, 0, 10, 10)
+check('обрезка: внутри залито, снаружи пусто', [at(clippedPixels, 3, 3)[3], at(clippedPixels, 6, 6)[3]], [255, 0])
+check('после restore обрезки нет', at(clippedPixels, 9, 9), [255, 0, 0, 255])
+
+// 13. Наложение: «destination-out» вырезает — так стирается туман и гаснут подсказки.
+const cut = sheet(4)
+cut.context.fillStyle = '#ffffff'
+cut.context.fillRect(0, 0, 4, 4)
+cut.context.globalCompositeOperation = 'destination-out'
+cut.context.fillRect(0, 0, 2, 4)
+const cutPixels = cut.context.getImageData(0, 0, 4, 4)
+check('вырезание: слева пусто, справа осталось', [at(cutPixels, 0, 0)[3], at(cutPixels, 3, 0)[3]], [0, 255])
+
+// 14. Скруглённая рамка и дуга касания: углы срезаны, середина стороны на месте.
+const rounded = sheet(20)
+rounded.context.fillStyle = '#ffffff'
+rounded.context.beginPath()
+rounded.context.roundRect(0, 0, 20, 20, 6)
+rounded.context.fill()
+const roundedPixels = rounded.context.getImageData(0, 0, 20, 20)
+check('скругление: угол пуст, середина стороны залита', [at(roundedPixels, 0, 0)[3], at(roundedPixels, 10, 0)[3], at(roundedPixels, 10, 10)[3]], [0, 255, 255])
+
 console.log(`проверка холста: ${good} из ${total} сходятся`)
