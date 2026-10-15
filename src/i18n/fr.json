@@ -633,7 +633,11 @@
     "labNoCredits": "Manque de crédits : le laboratoire est à l’arrêt",
     "labLacks": "Manque dans le réseau du laboratoire : {name}",
     "labSpeed": "Vitesse des laboratoires sélectionnés : ×{speed}",
-    "army": "Armée : {used} sur {limit}"
+    "army": "Armée : {used} sur {limit}",
+    "groups": "Groupes",
+    "groupTip": "Groupe {digit} : sélectionner, encore pour y amener la caméra, avec Maj pour ajouter à la sélection. Clic droit ou appui long y place la sélection ; sans sélection, le vide. Touche {digit}",
+    "groupPutTip": "Case {digit} : cliquez pour y placer la sélection. Comme Ctrl+{digit}",
+    "groupEmptyTip": "Case {digit} vide : sélectionnez des unités puis cliquez-la ou faites Ctrl+{digit}"
   },
   "mode": {
     "placing": "Construction : {name}",

@@ -633,7 +633,11 @@
     "labNoCredits": "Kredit yetishmaydi: laboratoriya to‘xtagan",
     "labLacks": "Laboratoriya tarmog‘ida yo‘q: {name}",
     "labSpeed": "Tanlangan laboratoriyalar tezligi: ×{speed}",
-    "army": "Qo‘shin: {used}/{limit}"
+    "army": "Qo‘shin: {used}/{limit}",
+    "groups": "Guruhlar",
+    "groupTip": "{digit}-guruh: tanlash, yana bir bor — kamera unga, Shift bilan — tanlanganlarga qo‘shish. O‘ng tugma yoki uzoq bosish tanlanganlarni shu yerga qo‘yadi, tanlov bo‘lmasa — tozalaydi. {digit} tugmasi",
+    "groupPutTip": "{digit}-katak: tanlanganlarni shu yerga qo‘yish uchun bosing. Ctrl+{digit} bilan bir xil",
+    "groupEmptyTip": "{digit}-katak bo‘sh: birliklarni tanlab, uni bosing yoki Ctrl+{digit}"
   },
   "mode": {
     "placing": "Qurilish: {name}",

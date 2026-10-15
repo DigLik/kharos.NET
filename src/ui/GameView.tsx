@@ -119,6 +119,8 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
           lookAt={(x, y) => gameRef.current?.lookAt(x, y)}
           flyTo={(x, y) => gameRef.current?.flyTo(x, y)}
           lookAtSelection={() => gameRef.current?.lookAtSelection()}
+          selectGroup={(digit, add) => gameRef.current?.selectGroup(digit, add)}
+          assignGroup={(digit) => gameRef.current?.assignGroup(digit)}
           cancelMode={() => gameRef.current?.cancelMode()}
           finishMode={() => gameRef.current?.finishMode()}
           narrow={(type, remove) => gameRef.current?.narrow(type, remove)}

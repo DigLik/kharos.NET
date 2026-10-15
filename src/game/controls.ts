@@ -32,8 +32,8 @@ const RIGHT = 2
  * Так же с покрытием: левую кнопку тянут от тайла к тайлу.
  * Колесо — масштаб, WASD, стрелки и указатель у края экрана — камера, с Shift — втрое быстрее; камера разгоняется
  * и тормозит, а брошенная мышью катится дальше (см. cameraMotion.ts). T Y U I / G H J K / B N M , — сетка команд
- * нижней панели (её ведёт интерфейс). Ctrl+цифра — запомнить выделенных группой, цифра — выбрать группу,
- * повторно — ещё и навести на неё камеру. Esc — отменить выбор места, затем снять выделение.
+ * нижней панели (её ведёт интерфейс). Ctrl+цифра (и на цифровом блоке) — запомнить выделенных группой, цифра — выбрать
+ * группу, с Shift — добавить её к выделенным, повторно — ещё и навести на неё камеру. Esc — отменить выбор места, затем снять выделение.
  * Alt+G — сетка тайлов.
  */
 export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: CameraMotion) {
@@ -43,8 +43,7 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
   let pressed: { button: number; x: number; y: number; dragged: boolean } | null = null
   /** Угол рамки выделения на карте, в тайлах: камера может уехать, пока рамку тянут, а угол остаётся на месте. */
   let anchor: { x: number; y: number } | null = null
-  /** Группы по цифрам 1–9 и 0. */
-  const groups = new Map<string, Entity[]>()
+  /** Прошлый выбор группы: повторный за DOUBLE_TAP наводит на неё камеру. */
   let lastGroup: { digit: string; at: number } | null = null
   /** Где указатель в окне, даже над панелями интерфейса: для прокрутки краем экрана. null — вне окна. */
   let screenPointer: { x: number; y: number } | null = null
@@ -335,19 +334,12 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
       event.preventDefault()
       return
     }
-    const digit = /^Digit(\d)$/.exec(event.code)?.[1]
+    // Цифры и над буквами, и на цифровом блоке.
+    const digit = /^(?:Digit|Numpad)(\d)$/.exec(event.code)?.[1]
     if (digit !== undefined) {
       event.preventDefault()
-      if (event.ctrlKey || event.metaKey) {
-        groups.set(digit, [...scene.selection])
-        return
-      }
-      const group = (groups.get(digit) ?? []).filter((entity) => scene.sim.world.alive(entity))
-      if (!group.length) return
-      select(group, event.shiftKey)
-      const now = performance.now()
-      if (lastGroup?.digit === digit && now - lastGroup.at < DOUBLE_TAP) lookAtSelection()
-      lastGroup = { digit, at: now }
+      if (event.ctrlKey || event.metaKey) assignGroup(digit)
+      else selectGroup(digit, event.shiftKey)
     }
     if ((event.code === 'Enter' || event.code === 'NumpadEnter') && scene.routing) finishRoute()
     if ((event.code === 'Enter' || event.code === 'NumpadEnter') && scene.serving) finishServe()
@@ -394,6 +386,29 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
     scene.serving = null
     if (buildings.length) scene.sim.send(scene.player, { type: 'serve', units: [...scene.selection], buildings })
   }
+  /** Живые свои юниты и здания группы; погибших и чужих (их номер мог достаться новой сущности) группа забывает. */
+  const groupOf = (digit: string) => {
+    const group = (scene.groups.get(digit) ?? []).filter((entity) => isOwn(scene.sim, scene.player, entity) && (scene.sim.world.has(entity, Unit) || !!typeOf(entity)))
+    if (group.length) scene.groups.set(digit, group)
+    else scene.groups.delete(digit)
+    return group
+  }
+  /** Выбирает группу; add — добавить к выделенным. Повторный выбор той же группы подряд наводит на неё камеру. */
+  const selectGroup = (digit: string, add: boolean) => {
+    const group = groupOf(digit)
+    if (!group.length) return
+    select(group, add)
+    const now = performance.now()
+    if (lastGroup?.digit === digit && now - lastGroup.at < DOUBLE_TAP) lookAtSelection()
+    lastGroup = { digit, at: now }
+  }
+  /** Запоминает своих выделенных группой digit вместо прежней; никого своего не выбрано — группа распускается. */
+  const assignGroup = (digit: string) => {
+    const own = [...scene.selection].filter((entity) => isOwn(scene.sim, scene.player, entity))
+    if (own.length) scene.groups.set(digit, own)
+    else scene.groups.delete(digit)
+  }
+
   /** Камера летит к середине выделенного. */
   const lookAtSelection = () => {
     let x = 0
@@ -504,6 +519,8 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
   return {
     update,
     lookAtSelection,
+    selectGroup,
+    assignGroup,
     cancelMode,
     /** «Готово» полосы режима: набранный маршрут и список обслуживания отдаются грузовикам, остальные режимы просто кончаются. */
     finishMode() {

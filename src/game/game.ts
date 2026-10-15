@@ -117,6 +117,10 @@ export interface Game {
   narrow(type: UnitType, remove: boolean): void
   /** Наводит камеру на выделенное. */
   lookAtSelection(): void
+  /** Выбирает группу цифры digit; add — добавляет к выделенным. Повторно подряд — ещё и камера на неё. */
+  selectGroup(digit: string, add: boolean): void
+  /** Запоминает своих выделенных группой digit; никого не выбрано — распускает её. */
+  assignGroup(digit: string): void
   /** Выходит из режима наведения, ничего не отдавая: «Отмена» полосы режима. */
   cancelMode(): void
   /** Завершает режим наведения: набранный маршрут и обслуживание отдаются грузовикам. «Готово» полосы режима. */
@@ -145,6 +149,7 @@ export function createScene(sim: Sim, player: number, settings: MapSettings, cam
     camera,
     settings,
     selection: new Set(),
+    groups: new Map(),
     selectionBox: null,
     placing: null,
     paving: null,
@@ -366,6 +371,7 @@ export function createGame(
     if (session.sim.generation !== generation) {
       generation = session.sim.generation
       scene.selection.clear()
+      scene.groups.clear()
       scene.placing = null
       scene.deploying = null
       scene.paving = null
@@ -498,6 +504,8 @@ export function createGame(
     lookAt: (x, y) => motion.jump(x, y),
     flyTo: (x, y) => motion.flyTo(x, y),
     lookAtSelection: () => controls?.lookAtSelection(),
+    selectGroup: (digit, add) => controls?.selectGroup(digit, add),
+    assignGroup: (digit) => controls?.assignGroup(digit),
     cancelMode: () => controls?.cancelMode(),
     finishMode: () => controls?.finishMode(),
     narrow: (type, remove) => controls?.narrow(type, remove),

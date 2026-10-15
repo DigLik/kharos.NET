@@ -633,7 +633,11 @@
     "labNoCredits": "Faltan créditos: el laboratorio se ha detenido",
     "labLacks": "Falta en la red del laboratorio: {name}",
     "labSpeed": "Velocidad de los laboratorios seleccionados: ×{speed}",
-    "army": "Ejército: {used} de {limit}"
+    "army": "Ejército: {used} de {limit}",
+    "groups": "Grupos",
+    "groupTip": "Grupo {digit}: seleccionar, otra vez para llevar la cámara, con Shift para añadir a la selección. Clic derecho o pulsación larga pone aquí la selección; sin selección, lo vacía. Tecla {digit}",
+    "groupPutTip": "Casilla {digit}: pulsa para poner aquí la selección. Igual que Ctrl+{digit}",
+    "groupEmptyTip": "Casilla {digit} vacía: selecciona unidades y púlsala o usa Ctrl+{digit}"
   },
   "mode": {
     "placing": "Construcción: {name}",

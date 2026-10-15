@@ -698,6 +698,80 @@ body {
 }
 
 /*
+ * Панель групп: над нижней панелью посередине, десять квадратных ячеек 1–9 и 0, как инвентарь в песочницах. Цифра —
+ * в левом верхнем углу, сколько в группе — в правом нижнем. Пустая ячейка бледная; пока выбрано своё, пустые
+ * подсвечены — туда можно положить выделенных. Выбранная сейчас целиком группа нажата.
+ */
+.groups {
+  --slot: 44px;
+  bottom: calc(var(--bar-height) + 8px);
+  left: 50%;
+  display: flex;
+  gap: 2px;
+  transform: translateX(-50%);
+}
+
+.hud .groups__slot {
+  position: relative;
+  flex: none;
+  width: var(--slot);
+  height: var(--slot);
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.groups__slot img {
+  display: block;
+  width: 32px;
+  height: 32px;
+  margin: auto;
+  image-rendering: pixelated;
+}
+
+.groups__slot kbd,
+.groups__slot b {
+  position: absolute;
+  font: inherit;
+  line-height: 1;
+  text-shadow: 1px 0 0 var(--ink), -1px 0 0 var(--ink), 0 1px 0 var(--ink), 0 -1px 0 var(--ink);
+}
+
+.groups__slot kbd {
+  top: 1px;
+  left: 2px;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.groups__slot b {
+  right: 2px;
+  bottom: 1px;
+  color: var(--text-bright);
+  font-weight: 400;
+}
+
+.hud .groups__slot.is-empty {
+  opacity: 0.5;
+}
+
+.hud .groups__slot.is-open {
+  opacity: 0.85;
+  border-image-source: var(--skin-button-hover);
+}
+
+/* Узкий экран: десять ячеек делят ширину поровну, портрет уменьшается вместе с ними. */
+@media (max-width: 520px) {
+  .groups {
+    --slot: calc((100vw - 24px - 18px) / 10);
+  }
+
+  .groups__slot img {
+    width: 60%;
+    height: 60%;
+  }
+}
+
+/*
  * Нижняя панель: мини-карта | выбранное | сетка команд. Высота — одна на всех (--bar-inner): мини-карта, портрет и
  * три ряда сетки ложатся в неё без остатка; над панелью от неё же отступают чат и союзники.
  */

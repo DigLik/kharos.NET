@@ -47,6 +47,27 @@ const BAR_BUILDING: Color = [0.45, 0.9, 0.55]
 /** Рамка своей площадки, к которой строитель ещё не приступил: ночью чертёж на земле почти не виден. */
 const PLANNED: Color = [0.3, 0.6, 1]
 
+/** Цифры групп пиксельным шрифтом 3×5: строка на ряд, # — закрашенная клетка. */
+const DIGIT_GLYPHS: Record<string, readonly string[]> = {
+  '0': ['###', '#.#', '#.#', '#.#', '###'],
+  '1': ['.#.', '##.', '.#.', '.#.', '###'],
+  '2': ['##.', '..#', '.#.', '#..', '###'],
+  '3': ['##.', '..#', '.#.', '..#', '##.'],
+  '4': ['#.#', '#.#', '###', '..#', '..#'],
+  '5': ['###', '#..', '##.', '..#', '##.'],
+  '6': ['.##', '#..', '###', '#.#', '###'],
+  '7': ['###', '..#', '.#.', '.#.', '.#.'],
+  '8': ['###', '#.#', '###', '#.#', '###'],
+  '9': ['###', '#.#', '###', '..#', '##.'],
+}
+/** Клетка шрифта цифр группы в пикселях экрана. */
+const DIGIT_CELL = 2
+/** Порядок цифр групп: у юнита из нескольких групп видна первая по нему. */
+const GROUP_ORDER = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
+/** Цифра группы у невыбранного юнита — бледнее: подсказка, а не выделение. */
+const GROUP_ALPHA = 0.75
+const GROUP_TEXT: Color = [0.95, 0.85, 0.45]
+
 /** Кольцо выделения и белый квадрат для рамок и полосок. */
 export function selectionSprites(): Sprite[] {
   const ring = new Pixmap(RING_SIZE, RING_SIZE)
@@ -266,6 +287,28 @@ export function createSelectionPass(gl: WebGL2RenderingContext, scene: Scene, ar
       for (const entity of scene.selection) mark(entity, 1)
       // Кого выберет рамка, если отпустить её сейчас, — бледнее выбранных.
       for (const entity of scene.selectionBox?.hits ?? []) if (!scene.selection.has(entity)) mark(entity, HIT_ALPHA)
+
+      // Цифра группы у своих юнитов, на экране: в тёмной плашке у правого нижнего края кольца.
+      if (scene.groups.size) {
+        const digitOf = new Map<Entity, string>()
+        for (const digit of GROUP_ORDER) for (const entity of scene.groups.get(digit) ?? []) if (!digitOf.has(entity)) digitOf.set(entity, digit)
+        const cell = DIGIT_CELL * pixel
+        const { from, to } = scene.camera.visible
+        for (const [entity, digit] of digitOf) {
+          const position = world.get(entity, Position)
+          if (!position || !world.has(entity, Unit) || world.get(entity, Owner)?.player !== scene.player) continue
+          if (position.x < from.x - 1 || position.x > to.x + 1 || position.y < from.y - 1 || position.y > to.y + 1) continue
+          const bounds = boundsOf(entity)
+          if (!bounds) continue
+          const left = bounds.x + bounds.width - cell * 3
+          const top = bounds.y + bounds.height - cell * 5
+          const alpha = scene.selection.has(entity) ? 1 : GROUP_ALPHA
+          rect(left - cell, top - cell, cell * 5, cell * 7, BAR_BACK, 0.85 * alpha)
+          DIGIT_GLYPHS[digit].forEach((row, y) => {
+            for (let x = 0; x < row.length; x++) if (row[x] === '#') rect(left + x * cell, top + y * cell, cell, cell, GROUP_TEXT, alpha)
+          })
+        }
+      }
 
       /** Полоска прогресса над сущностью: value от 0 до 1. */
       const bar = (entity: Entity, value: number, color: Color) => {

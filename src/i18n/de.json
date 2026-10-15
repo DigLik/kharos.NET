@@ -633,7 +633,11 @@
     "labNoCredits": "Zu wenig Credits: das Labor steht",
     "labLacks": "Fehlt im Netz des Labors: {name}",
     "labSpeed": "Tempo der ausgewählten Labore: ×{speed}",
-    "army": "Armee: {used} von {limit}"
+    "army": "Armee: {used} von {limit}",
+    "groups": "Gruppen",
+    "groupTip": "Gruppe {digit}: auswählen, erneut — Kamera dorthin, mit Shift — zur Auswahl hinzufügen. Rechtsklick oder langes Drücken legt die Auswahl hier ab, ohne Auswahl wird geleert. Taste {digit}",
+    "groupPutTip": "Platz {digit}: klicken, um die Auswahl hier abzulegen. Wie Strg+{digit}",
+    "groupEmptyTip": "Platz {digit} ist leer: Einheiten auswählen und anklicken oder Strg+{digit}"
   },
   "mode": {
     "placing": "Bau: {name}",

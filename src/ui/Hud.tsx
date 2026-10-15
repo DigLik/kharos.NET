@@ -1,6 +1,6 @@
 import { complete, quoteName } from '../net/chatCommands'
 import type { ComponentChildren } from 'preact'
-import type { GridState, HudState, ModeState, Stack, TopicView } from '../game/hud'
+import { GROUP_DIGITS, type GridState, type HudState, type ModeState, type Stack, type TopicView } from '../game/hud'
 import { GRID_PRESS, type GridPress } from '../game/interfaceSounds'
 import type { Minimap } from '../game/minimap'
 import { prefs, setPrefs } from '../game/prefs'
@@ -43,6 +43,10 @@ interface HudProps {
   flyTo: (x: number, y: number) => void
   /** Камера на выделенное. */
   lookAtSelection: () => void
+  /** Выбрать группу цифры digit; add — добавить к выделенным. Повторно подряд — камера на неё. */
+  selectGroup: (digit: string, add: boolean) => void
+  /** Запомнить своих выделенных группой digit; никого не выбрано — очистить её. */
+  assignGroup: (digit: string) => void
   /** Выйти из режима наведения, ничего не отдавая. */
   cancelMode: () => void
   /** Завершить режим наведения: набранное отдаётся грузовикам. */
@@ -251,6 +255,76 @@ const CHAT_RECENT = 8
  */
 /** Сколько подсказок дополнения видно над строкой чата. */
 const CHAT_SUGGESTIONS = 6
+
+/** Сколько миллисекунд держать палец на ячейке группы, чтобы положить в неё выделенных: долгое нажатие вместо ПКМ. */
+const GROUP_HOLD = 500
+
+interface GroupsProps {
+  groups: HudState['groups']
+  /** Выбрано своё: его можно положить в ячейку. */
+  groupable: boolean
+  select: (digit: string, add: boolean) => void
+  assign: (digit: string) => void
+}
+
+/**
+ * Панель групп над нижней панелью, как инвентарь в песочницах: десять ячеек по цифрам 1–9 и 0, пустые тоже. В занятой —
+ * портрет того, кого в группе больше всех, и сколько в ней. Нажатие на занятую выбирает группу (повторное — ещё и камера
+ * к ней, с Shift — добавить к выделенным), на пустую — кладёт туда выделенных. ПКМ или долгое нажатие кладёт выделенных
+ * и в занятую, а без выделения очищает её. Ctrl+цифра кладёт в ту же ячейку.
+ */
+function Groups({ groups, groupable, select, assign }: GroupsProps) {
+  const hold = useRef<{ timer: number; done: boolean } | null>(null)
+  const release = () => {
+    if (hold.current) clearTimeout(hold.current.timer)
+  }
+  return (
+    <nav class="hud groups" aria-label={t('hud.groups')}>
+      {GROUP_DIGITS.map((digit) => {
+        const group = groups.find((one) => one.digit === digit)
+        const tip = group ? t('hud.groupTip', { digit }) : groupable ? t('hud.groupPutTip', { digit }) : t('hud.groupEmptyTip', { digit })
+        return (
+          <button
+            key={digit}
+            class={`groups__slot${group ? '' : ' is-empty'}${group?.selected ? ' is-active' : ''}${!group && groupable ? ' is-open' : ''}`}
+            data-tip={tip}
+            onPointerDown={(event) => {
+              release()
+              if (event.pointerType === 'mouse') return
+              const state = { done: false, timer: 0 }
+              state.timer = window.setTimeout(() => {
+                state.done = true
+                assign(digit)
+              }, GROUP_HOLD)
+              hold.current = state
+            }}
+            onPointerUp={release}
+            onPointerLeave={release}
+            onPointerCancel={release}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              // Долгое нажатие на сенсорном экране тоже зовёт меню: его ячейка уже обработала.
+              if (hold.current?.done) return
+              assign(digit)
+            }}
+            onClick={(event) => {
+              if (hold.current?.done) {
+                hold.current = null
+                return
+              }
+              if (group) select(digit, event.shiftKey)
+              else if (groupable) assign(digit)
+            }}
+          >
+            <kbd>{digit}</kbd>
+            {group?.unit ? <img src={unitPortrait(group.unit, TILE)} alt="" /> : group?.building ? <img src={buildingPortrait(group.building, TILE)} alt="" /> : null}
+            {group && <b>{group.count}</b>}
+          </button>
+        )
+      })}
+    </nav>
+  )
+}
 
 interface ChatProps {
   lines: NonNullable<HudState['chat']>
@@ -1003,7 +1077,7 @@ function ModeBar({ mode, cancel, finish }: { mode: NonNullable<ModeState>; cance
 }
 
 /** Интерфейс игрока: верхняя полоса со счётом и нижняя панель — мини-карта, выбранное, сетка команд. */
-export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim, deploy, minimap, lookAt, flyTo, lookAtSelection, cancelMode, finishMode, narrow, moveSelected, say, menu }: HudProps) {
+export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim, deploy, minimap, lookAt, flyTo, lookAtSelection, selectGroup, assignGroup, cancelMode, finishMode, narrow, moveSelected, say, menu }: HudProps) {
   const selected = state.units.length > 0 || state.building !== null
   const fresh = useNewRewards(state.rewards, state.loaded)
   const learned = useNewTopics(state.tech.topics, state.loaded)
@@ -1275,6 +1349,8 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
           )
         })}
       </div>
+
+      {!state.editor && <Groups groups={state.groups} groupable={state.groupable} select={selectGroup} assign={assignGroup} />}
 
       {/* В редакторе справа его панель: от нижней остаётся только мини-карта. */}
       <section class={`hud bar${state.editor ? ' is-editor' : ''}`}>

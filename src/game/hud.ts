@@ -129,6 +129,13 @@ export interface HudState {
   /** Выбранные юниты по видам. */
   units: { type: UnitType; count: number }[]
   /**
+   * Непустые группы игрока по цифрам, по порядку клавиш 1–9 и 0: сколько в группе живых своих, кого больше всех (вид
+   * юнита, а без юнитов — здания) и выбрана ли она сейчас целиком. Панель групп рисует ячейки и для пустых цифр.
+   */
+  groups: { digit: string; count: number; unit: UnitType | null; building: BuildingType | null; selected: boolean }[]
+  /** Выбрано что-то своё: его можно положить в ячейку панели групп. */
+  groupable: boolean
+  /**
    * Свои юниты среди выбранных, которых можно отдать союзнику или уничтожить: их номера — для команд gift и scuttle,
    * см. gift.ts и defeat.ts. null — таких нет: выбран не свой юнит, турель на носителе или обречённый.
    */
@@ -494,6 +501,37 @@ function protectionOf({ sim, player }: Scene) {
 }
 
 /** Собирает состояние интерфейса из симуляции и выделения. */
+/** Цифры групп в порядке клавиш. */
+export const GROUP_DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as const
+
+/** Группы игрока для панели: живые свои в каждой и кого в ней больше всех. */
+function groupsOf(scene: Scene): HudState['groups'] {
+  const { sim, player, selection } = scene
+  const { world } = sim
+  const groups: HudState['groups'] = []
+  for (const digit of GROUP_DIGITS) {
+    const members = (scene.groups.get(digit) ?? []).filter((entity) => isOwn(sim, player, entity) && (world.has(entity, Unit) || world.has(entity, Building) || world.has(entity, Site)))
+    if (!members.length) continue
+    const units = new Map<UnitType, number>()
+    const buildings = new Map<BuildingType, number>()
+    for (const entity of members) {
+      const unit = world.get(entity, Unit)?.type
+      const building = world.get(entity, Building)?.type ?? world.get(entity, Site)?.type
+      if (unit) units.set(unit, (units.get(unit) ?? 0) + 1)
+      else if (building) buildings.set(building, (buildings.get(building) ?? 0) + 1)
+    }
+    const most = <T,>(counts: Map<T, number>) => [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+    groups.push({
+      digit,
+      count: members.length,
+      unit: most(units),
+      building: units.size ? null : most(buildings),
+      selected: members.length === selection.size && members.every((entity) => selection.has(entity)),
+    })
+  }
+  return groups
+}
+
 export function readHud(scene: Scene): HudState {
   const { sim, player, selection } = scene
   const { world } = sim
@@ -851,6 +889,8 @@ export function readHud(scene: Scene): HudState {
     unreachable: blocked,
     trapped: walled,
     units: UNIT_TYPES.filter((type) => counts.has(type)).map((type) => ({ type, count: counts.get(type)! })),
+    groups: groupsOf(scene),
+    groupable: [...scene.selection].some((entity) => isOwn(sim, player, entity)),
     gift: gift.length ? gift : null,
     army: unitCount ? { armed, health: round(unitHealth / unitCount), ammo: magazines ? round(filled / magazines) : null, empty } : null,
     building,
