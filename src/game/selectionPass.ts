@@ -25,14 +25,17 @@ const NETWORK_ALPHA = 0.35
 const BAR_HEIGHT = 4
 const BAR_GAP = 0.3
 
-/** Путь выбранного юнита — пунктир: точки такого размера в пикселях экрана через столько тайлов. */
-const PATH_DOT = 4
-const PATH_STEP = 0.4
-const PATH_ALPHA = 1
+/**
+ * Путь выбранного юнита — пунктир: точки такого размера через столько пикселей экрана. Шаг — в пикселях, а не в тайлах:
+ * при любом масштабе пунктир одной густоты, издалека точки не сливаются в сплошную линию.
+ */
+const PATH_DOT = 3
+const PATH_GAP = 14
+const PATH_ALPHA = 0.55
 /** Сторона метки в конце пути, в тайлах. */
 const PATH_GOAL = 0.4
 /** Очередь приказов выбранного юнита — пунктир бледнее пути, с метками точек. */
-const QUEUE_ALPHA = 0.55
+const QUEUE_ALPHA = 0.35
 
 type Color = readonly [number, number, number]
 /** Зелёный выделения — приглушённый: чистый резал глаз на тёмной земле. Яркость колец и рамок — в настройках, см. prefs.ts. */
@@ -128,6 +131,7 @@ export function createSelectionPass(gl: WebGL2RenderingContext, scene: Scene, ar
       // Пути выбранных юнитов — под кольцами. Точки отсчитываются от конца пути, поэтому стоят на земле
       // неподвижно, а не ползут вместе с юнитом.
       const dot = PATH_DOT * pixel
+      const step = PATH_GAP * pixel
       for (const entity of scene.selection) {
         const path = world.get(entity, Path)
         const unit = world.get(entity, Unit)
@@ -141,7 +145,7 @@ export function createSelectionPass(gl: WebGL2RenderingContext, scene: Scene, ar
           const dy = points[i - 1] - points[i + 1]
           const length = Math.hypot(dx, dy)
           let along = carry
-          for (; along < length; along += PATH_STEP) {
+          for (; along < length; along += step) {
             const x = points[i] + (dx / length) * along
             const y = points[i + 1] + (dy / length) * along
             rect(x - camera.x - dot / 2, y - camera.y - dot / 2, dot, dot, SELECTED, PATH_ALPHA)
@@ -166,7 +170,7 @@ export function createSelectionPass(gl: WebGL2RenderingContext, scene: Scene, ar
       /** Пунктир от (fromX, fromY) к (toX, toY) в тайлах мира. */
       const dashes = (fromX: number, fromY: number, toX: number, toY: number, alpha: number, color = SELECTED) => {
         const length = Math.hypot(toX - fromX, toY - fromY)
-        for (let along = 0; along < length; along += PATH_STEP) {
+        for (let along = 0; along < length; along += step) {
           const x = toX + ((fromX - toX) / length) * along
           const y = toY + ((fromY - toY) / length) * along
           rect(x - camera.x - dot / 2, y - camera.y - dot / 2, dot, dot, color, alpha)
@@ -245,7 +249,7 @@ export function createSelectionPass(gl: WebGL2RenderingContext, scene: Scene, ar
         const supplies = unit && unitSpec(unit.type).supplies
         if (!supplies || !position) continue
         const center = drawnPosition(position, unit, time.alpha)
-        const count = Math.ceil((Math.PI * 2 * supplies.radius) / PATH_STEP)
+        const count = Math.ceil((Math.PI * 2 * supplies.radius) / step)
         for (let i = 0; i < count; i++) {
           const angle = (i / count) * Math.PI * 2
           const x = center.x + Math.cos(angle) * supplies.radius - camera.x - dot / 2

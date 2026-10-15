@@ -28,7 +28,10 @@ const SERVE: Color = [0.45, 0.85, 1]
 const ROUTE_DOT = 3
 /** Подземный отрезок колодца, с которым свяжется ставящийся. */
 const LINK: Color = [0.4, 0.75, 1]
-const ROUTE_STEP = 0.5
+/** Шаг пунктира в пикселях экрана: при любом масштабе одна густота. */
+const ROUTE_GAP = 14
+/** Пунктир маршрута бледнее рамок: он на виду, пока выбран грузовик, и не должен резать глаз. */
+const ROUTE_ALPHA = 0.55
 /** Круг, который защищает перехватчик: пунктир шагом GUARD_STEP тайлов. */
 const GUARD: Color = [0.55, 1, 0.85]
 const GUARD_STEP = 1.5
@@ -257,6 +260,7 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
       }
 
       rects.clear()
+      const gap = ROUTE_GAP / camera.zoom
       // Маршруты грузовиков: остановки в рамке, между ними — пунктир по кругу.
       for (const { stops, closed, marks } of routes) {
         const size = ROUTE_DOT / camera.zoom
@@ -267,9 +271,9 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
           const from = centers[i]
           const to = centers[(i + 1) % centers.length]
           const length = Math.hypot(to.x - from.x, to.y - from.y)
-          for (let along = 0; along < length; along += ROUTE_STEP) {
+          for (let along = 0; along < length; along += gap) {
             const t = along / length
-            rect(from.x + (to.x - from.x) * t - camera.x - size / 2, from.y + (to.y - from.y) * t - camera.y - size / 2, size, size, ROUTE, BORDER_ALPHA)
+            rect(from.x + (to.x - from.x) * t - camera.x - size / 2, from.y + (to.y - from.y) * t - camera.y - size / 2, size, size, ROUTE, ROUTE_ALPHA)
           }
         }
       }
@@ -308,7 +312,7 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
             for (const partner of partners) {
               frame(partner.x, partner.y, 1, 1, LINK)
               const length = Math.hypot(partner.x - x, partner.y - y)
-              for (let along = 0.75; along < length - 0.5; along += ROUTE_STEP) {
+              for (let along = 0.75; along < length - 0.5; along += gap) {
                 const t = along / length
                 rect(x + 0.5 + (partner.x - x) * t - camera.x - dot / 2, y + 0.5 + (partner.y - y) * t - camera.y - dot / 2, dot, dot, LINK, partner.ready ? BORDER_ALPHA : FILL_ALPHA * 2)
               }
@@ -355,7 +359,7 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
             const dot = ROUTE_DOT / camera.zoom
             const length = Math.hypot(bx - ax, by - ay)
             const color = stroke.allowed[0] && stroke.allowed[1] ? LINK : FORBIDDEN
-            for (let along = 0.75; along < length - 0.5; along += ROUTE_STEP) {
+            for (let along = 0.75; along < length - 0.5; along += gap) {
               const t = along / length
               rect(ax + 0.5 + (bx - ax) * t - camera.x - dot / 2, ay + 0.5 + (by - ay) * t - camera.y - dot / 2, dot, dot, color, BORDER_ALPHA)
             }
@@ -383,7 +387,7 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
         const cy = Math.floor(aim.y) + 0.5
         const { radius, core } = BUILDINGS.silo.warhead.blast
         for (const r of [radius, core]) {
-          const dots = Math.ceil((Math.PI * 2 * r) / ROUTE_STEP)
+          const dots = Math.ceil((Math.PI * 2 * r) / gap)
           for (let i = 0; i < dots; i++) {
             const a = (i / dots) * Math.PI * 2
             rect(cx + Math.cos(a) * r - camera.x - size / 2, cy + Math.sin(a) * r - camera.y - size / 2, size, size, FORBIDDEN, BORDER_ALPHA)
