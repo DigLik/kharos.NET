@@ -31,6 +31,9 @@ import { createPavingPass } from './pavingPass'
 import { createDropsPass } from './dropsPass'
 import { createFlowPass } from './flowPass'
 import { startFrames } from './frames'
+import { drawHud, topHeight } from '../gui/hud'
+import { createGuiPass } from '../gui/pass'
+import { createGui } from '../gui/ui'
 import { readHud, type HudState } from './hud'
 import { createMinimap, type Minimap } from './minimap'
 import type { CarryPick, PaveTool, Scene } from './scene'
@@ -66,6 +69,8 @@ const SHOWCASE_MENU = 400
  * показывает камеры игроков.
  */
 const VIEW_GAP = 0.15
+/** Как часто строится кадр интерфейса на холсте без ввода, в секундах: так же часто страница опрашивает HUD. */
+const GUI_INTERVAL = 0.1
 
 export type GameSession = Omit<Session, 'sim'> & { sim: Sim & { readonly generation?: number; readonly kept?: boolean; respawn?(): void; say?(text: string): void; edit?(edit: EditOp): void; view?(box: ViewBox): void } }
 
@@ -274,6 +279,18 @@ export function createGame(
     camera.zoomTo(view.zoom)
   }
   const scene = createScene(session.sim, session.player, settings, camera)
+  // Интерфейс на холсте (src/gui): в витрине его нет. Его проход — последний в кадре, поверх мира и курсора.
+  const gui = showcase ? null : createGui(canvas)
+  let guiChanged = false
+  let sinceGui = GUI_INTERVAL
+  const overlay = gui && {
+    surface: gui.surface,
+    takeChanged() {
+      const changed = guiChanged
+      guiChanged = false
+      return changed
+    },
+  }
 
   // Всё, что живёт на видеокарте, создаётся здесь: после потери контекста рендер вызовет это заново. Атласы и
   // шейдеры уже на видеокарте — их по частям готовит экран загрузки (см. warmUp.ts), — здесь только то, что у игры своё.
@@ -284,7 +301,7 @@ export function createGame(
     (gl) => {
       const built = finish(stagePasses(gl, scene, art, showcase))
       landWindow = built.landWindow
-      return built.passes
+      return overlay ? [...built.passes, createGuiPass(gl, overlay)] : built.passes
     },
     onError,
   )
@@ -294,7 +311,8 @@ export function createGame(
    */
   const measureInset = () => {
     const frame = canvas.getBoundingClientRect()
-    const top = document.querySelector('.hud--top')?.getBoundingClientRect()
+    // Верхняя полоса нарисована на холсте (src/gui/hud.ts): её высота известна и так; в витрине её нет.
+    const top = gui ? { bottom: frame.top + topHeight(frame.width) } : null
     const bottom = document.querySelector('.hud.bar')?.getBoundingClientRect()
     camera.inset.top = top ? Math.max(0, Math.min(frame.height, top.bottom - frame.top)) : 0
     camera.inset.bottom = bottom ? Math.max(0, Math.min(frame.height, frame.bottom - bottom.top)) : 0
@@ -304,7 +322,7 @@ export function createGame(
   }
   const motion = new CameraMotion(camera)
   motion.simple = editor
-  const controls = showcase ? null : createControls(canvas, scene, motion)
+  const controls = showcase ? null : createControls(canvas, scene, motion, gui ? (x, y) => gui.covers(x, y) : undefined)
   // В редакторе мир стоит, и гул машин и зданий ни к чему: звука нет вовсе.
   const audio = showcase || editor ? null : createAudio()
   const shake = createShake()
@@ -447,6 +465,12 @@ export function createGame(
     const { x: shakeX, y: shakeY } = shake.offset(camera.zoom)
     camera.x += shakeX
     camera.y += shakeY
+    // Кадр интерфейса — по вводу или раз в GUI_INTERVAL: панели берут состояние игры опросом, как и страница.
+    sinceGui += seconds
+    if (gui && (gui.touched || sinceGui >= GUI_INTERVAL)) {
+      sinceGui = 0
+      if (gui.frame(width, height, canvas.width / width, (ui) => drawHud(ui, readHud(scene)))) guiChanged = true
+    }
     landWindow.update(sim.land, camera, width, height)
     const { time } = sim
     scene.weather = weatherAt(sim.options, time.elapsed + time.alpha * time.step)
@@ -555,6 +579,7 @@ export function createGame(
       window.removeEventListener('pagehide', saveCamera)
       saveCamera()
       controls?.destroy()
+      gui?.destroy()
       interfaceSounds?.destroy()
       motors?.destroy()
       audio?.destroy()

@@ -38,7 +38,11 @@ const RIGHT = 2
  * вкладка) бросает и зажатые клавиши, и начатое мышью: камера не едет за отпущенной мышью и первый щелчок не пропадает.
  * Alt+G — сетка тайлов.
  */
-export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: CameraMotion) {
+/**
+ * covered — лежит ли в точке холста панель интерфейса, нарисованного на холсте (src/gui): нажатия и колесо там
+ * достаются ей, а не миру, — как у панелей страницы, которые лежат поверх холста.
+ */
+export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: CameraMotion, covered: (x: number, y: number) => boolean = () => false) {
   const { camera } = scene
   const keys = new Set<string>()
   /** Какая кнопка сейчас зажата на холсте и где её нажали, в пикселях экрана. */
@@ -134,7 +138,7 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
   }
 
   const onPointerDown = (event: PointerEvent) => {
-    if (pressed) return
+    if (pressed || covered(event.offsetX, event.offsetY)) return
     pressed = { button: event.button, x: event.offsetX, y: event.offsetY, dragged: false }
     anchor = event.button === LEFT ? camera.screenToTile(event.offsetX, event.offsetY) : null
     // В редакторе левая кнопка — инструмент редактора, см. Scene.edit.
@@ -159,7 +163,8 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
     canvas.setPointerCapture(event.pointerId)
   }
   const onPointerMove = (event: PointerEvent) => {
-    camera.pointer = { x: event.offsetX, y: event.offsetY }
+    // Над панелью карта указателя не видит: ни подсветки под ним, ни места постройки.
+    camera.pointer = !pressed && covered(event.offsetX, event.offsetY) ? null : { x: event.offsetX, y: event.offsetY }
     if (!pressed) return
     if (Math.hypot(event.offsetX - pressed.x, event.offsetY - pressed.y) > CLICK_SLOP) pressed.dragged = true
     if (pressed.button === LEFT) {
@@ -330,6 +335,7 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
   }
   const onWheel = (event: WheelEvent) => {
     event.preventDefault()
+    if (covered(event.offsetX, event.offsetY)) return
     // Точка под курсором остаётся на месте.
     motion.zoomBy(Math.exp(-event.deltaY * 0.0015), event.offsetX, event.offsetY)
   }

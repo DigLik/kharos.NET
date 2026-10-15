@@ -43,6 +43,7 @@
     TEXTURE0: 0x84C0,
     SYNC_GPU_COMMANDS_COMPLETE: 0x9117, ALREADY_SIGNALED: 0x9112,
     TIMEOUT_EXPIRED: 0x9111, CONDITION_SATISFIED: 0x911A, WAIT_FAILED: 0x911D,
+    UNPACK_FLIP_Y_WEBGL: 0x9240, UNPACK_PREMULTIPLY_ALPHA_WEBGL: 0x9241,
   }
 
   /** Очередь кадров: как в браузере, колбэк получает время в миллисекундах. */
@@ -1063,8 +1064,11 @@
       call(ops.viewport, x, y, width, height)
     }
 
+    /** Флаги заливки картинок WebGL (переворот и умножение на альфу) ведёт обёртка: у OpenGL их нет. */
     pixelStorei(name, value) {
-      call(ops.pixelStorei, name, value)
+      if (name === 0x9240) this._flip = !!value
+      else if (name === 0x9241) this._premultiply = !!value
+      else call(ops.pixelStorei, name, value)
     }
 
     flush() {
@@ -1213,7 +1217,24 @@
       core.ops.op_gl_buffer_sub_data(target, this.boundArrayBuffer, offset, view)
     }
 
-    texImage2D(target, level, internal, width, height, border, format, type, pixels) {
+    /**
+     * Два вида вызова, как у WebGL: с размерами и массивом пикселей — или с источником-картинкой (`format, type,
+     * source`): холстом (так в кадр ложится холст интерфейса) или `ImageData`.
+     */
+    texImage2D(target, level, internal, ...rest) {
+      if (rest.length === 3) {
+        const [format, type, source] = rest
+        if (source instanceof CanvasElement) {
+          core.ops.op_gl_tex_image_canvas(target, level, internal, format, type, source.id, !!this._premultiply, !!this._flip)
+          return
+        }
+        if (source?.data) {
+          core.ops.op_gl_tex_image_2d(target, level, internal, source.width, source.height, 0, format, type, bytes(source.data))
+          return
+        }
+        throw new TypeError('texImage2D: источник — только холст или ImageData')
+      }
+      const [width, height, border, format, type, pixels] = rest
       core.ops.op_gl_tex_image_2d(target, level, internal, width, height, border, format, type, pixels ? bytes(pixels) : new Uint8Array(0))
     }
 

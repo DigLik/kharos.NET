@@ -368,11 +368,6 @@ body {
   line-height: 1.7;
 }
 
-.hud--credits small {
-  color: var(--good);
-  font-weight: 400;
-}
-
 .hud__power {
   color: var(--power);
 }
@@ -380,45 +375,6 @@ body {
 /* Верхняя полоса: кредиты, запас, меню. От её высоты отступают окна под ней. */
 :root {
   --top-height: 38px;
-}
-
-.hud--top {
-  top: 0;
-  right: 0;
-  left: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: var(--top-height);
-  padding: 0 8px;
-  font-variant-numeric: tabular-nums;
-}
-
-.hud--credits {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--gold);
-  font-family: var(--font-title);
-  font-size: 20px;
-  white-space: nowrap;
-  text-shadow: 2px 2px 0 var(--ink);
-}
-
-.hud--credits small {
-  font-family: inherit;
-  font-size: 12px;
-}
-
-.hud__menu {
-  display: flex;
-  gap: 6px;
-}
-
-.hud__clock {
-  margin-left: auto;
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
 }
 
 /* Список игроков сервера по Tab: поверх карты, по центру сверху. Мышь панель держит сама — иначе
@@ -529,17 +485,8 @@ body {
   opacity: 0.45;
 }
 
-.hud__shelter {
-  color: var(--good);
-}
-
 .roster .is-away {
   opacity: 0.45;
-}
-
-.hud .hud__menu button {
-  padding: 0 10px;
-  white-space: nowrap;
 }
 
 .hud--alerts {
@@ -1050,18 +997,6 @@ body {
   white-space: pre-line;
 }
 
-/* Кнопка окна исследований на верхней полосе: готовность нынешней темы рядом. */
-.hud__tech {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 10px;
-}
-
-.hud__tech small {
-  color: var(--team-light);
-}
-
 /*
  * Окно исследований, как в Factorio: очередь сверху, ниже темы плитками по порядку зависимостей. Поверх карты, мышь
  * держит само, как список игроков: промах мимо темы не уходит приказом по карте. Список прокручивается.
@@ -1565,13 +1500,6 @@ body {
   50% { outline-color: rgb(90 169 255 / 1); }
 }
 
-/* Кнопка исследований, когда первый шаг — исследовать тему. */
-.hud .hud__tech.is-hint {
-  outline: 3px solid var(--team-light);
-  outline-offset: -3px;
-  animation: cell-hint 1s ease-in-out infinite;
-}
-
 /* Цены сейчас нет на счету: стройка встанет, пока кредитов не прибавится. */
 .bar__price b.is-short {
   color: var(--warn);
@@ -1579,13 +1507,6 @@ body {
 
 .bar__price .hud__res {
   margin: 0;
-}
-
-.hud__stock {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 2px 8px;
-  margin-left: 6px;
 }
 
 /* Значок ресурса: ромбик его цвета и количество. */
@@ -1603,31 +1524,11 @@ body {
   image-rendering: pixelated;
 }
 
-/* На верхней полосе иконки вдвое: пиксель маски — ровно два пикселя экрана. */
-.hud__stock .hud__res img {
-  width: 20px;
-  height: 20px;
-}
-
 .hud__hint.is-short {
   color: var(--warn);
 }
 
 .hud__power.is-short {
-  color: var(--bad);
-}
-
-/* Энергия сети на верхней полосе: жёлтая, когда запас на исходе, красная при перегрузе. */
-.hud__grid {
-  color: var(--power);
-  white-space: nowrap;
-}
-
-.hud__grid.is-tight {
-  color: var(--warn);
-}
-
-.hud__grid.is-short {
   color: var(--bad);
 }
 
@@ -1708,7 +1609,6 @@ body {
 .hud button small.hud__power {
   color: var(--power);
 }
-
 
 .hud__progress {
   position: relative;
@@ -2610,41 +2510,6 @@ body {
     flex: 1 0 100%;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     height: var(--bar-grid);
-  }
-
-  /*
-   * Верхняя полоса — в два ряда: сверху кредиты и кнопки, ниже энергия, запас и часы. Разрыв ряда — пустой
-   * элемент ::after на всю ширину между ними; запас — в одну строку, лишнее прокручивается.
-   */
-  .hud--top {
-    flex-wrap: wrap;
-    align-content: center;
-    gap: 0 10px;
-  }
-
-  .hud--top::after {
-    flex-basis: 100%;
-    order: 1;
-    content: "";
-  }
-
-  .hud__grid,
-  .hud__stock,
-  .hud__clock {
-    order: 2;
-  }
-
-  .hud__stock {
-    flex: 1;
-    flex-wrap: nowrap;
-    min-width: 0;
-    margin-left: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .hud__tech {
-    margin-left: auto;
   }
 
   /* Отряд: плитки видов — строкой над подробностями, а не столбцом рядом: иначе подробностям не остаётся ширины. */

@@ -14,6 +14,7 @@ import { stage } from '../../src/game/stage'
 import { DEFAULT_SETTINGS, type MapSettings } from '../../src/map/settings'
 import { LOCAL_PLAYER, type GameMode } from '../../src/net/local'
 import { SCENES, createSim, type Scene, type SceneName } from '../../src/sim'
+import { loadLang, preferredLang } from '../../src/i18n'
 import { startLocal } from './local'
 
 /** Что окно сказало до начала игры (см. `game_options` в `src/main.rs`): сценка, час суток и ровные ли часы. */
@@ -160,6 +161,8 @@ async function play(mode: GameMode) {
 
 /** Начало: графика рисуется один раз, а дальше идёт игра. Ход рисования виден в журнале — это несколько секунд. */
 async function main() {
+  // Словарь — как у страницы: язык из окружения окна (navigator.languages берёт его из LANG, см. game_options).
+  await loadLang(preferredLang())
   let told = -10
   await loadArt((share) => {
     const percent = Math.round(share * 100)

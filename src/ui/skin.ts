@@ -10,13 +10,13 @@ const SIZE = 12
 export const CORNER = 4
 
 /** Те же тона, что у построек: чернила, сталь от тёмной к светлой, огни команды, золото кредитов. */
-const INK = '#0b111b'
-const STEEL = ['#1c2b3e', '#2d4560', '#41617f', '#6184a3', '#9bb9d1'] as const
-const DEEP = '#0e1825'
-const WELL = '#070d15'
-const TEAM = ['#10358f', '#1f63d8', '#5aa9ff', '#e4f4ff'] as const
-const GOLD = ['#5a3d0c', '#c9962b', '#f0c95a', '#fff1b8'] as const
-const RED = ['#4a1410', '#a8382a', '#ff6b5a'] as const
+export const INK = '#0b111b'
+export const STEEL = ['#1c2b3e', '#2d4560', '#41617f', '#6184a3', '#9bb9d1'] as const
+export const DEEP = '#0e1825'
+export const WELL = '#070d15'
+export const TEAM = ['#10358f', '#1f63d8', '#5aa9ff', '#e4f4ff'] as const
+export const GOLD = ['#5a3d0c', '#c9962b', '#f0c95a', '#fff1b8'] as const
+export const RED = ['#4a1410', '#a8382a', '#ff6b5a'] as const
 
 type Paint = (x: number, y: number, width: number, height: number, color: string) => void
 
@@ -29,7 +29,7 @@ function image(width: number, height: number, draw: (paint: Paint) => void) {
     context.fillStyle = color
     context.fillRect(x, y, w, h)
   })
-  return `url(${canvas.toDataURL()})`
+  return canvas
 }
 
 /**
@@ -73,9 +73,20 @@ const coin = () =>
     paint(2, 3, 1, 1, GOLD[3])
   })
 
-/** Рисует скин и выставляет его переменными на корневом элементе. Вызывать один раз до первого кадра интерфейса. */
-export function installSkin() {
-  const skins: Record<string, string> = {
+/** Пиксель скина на экране: столько пикселей CSS занимает один его пиксель (border-image … / 8px при CORNER = 4). */
+export const SKIN_SCALE = 2
+
+let drawn: Record<SkinName, HTMLCanvasElement> | null = null
+
+/** Картинки скина холстами: их рисует интерфейс на холсте (src/gui) — девятью частями, как border-image. */
+export function skins(): Record<SkinName, HTMLCanvasElement> {
+  return (drawn ??= paintSkins())
+}
+
+export type SkinName = keyof ReturnType<typeof paintSkins>
+
+function paintSkins() {
+  return {
     // Панели: тёмная сталь с заклёпками.
     panel: frame({ fill: DEEP, light: STEEL[2], dark: INK, rivets: STEEL[3] }),
     // Утопленное окно: мини-карта, портрет, сведения, полоски.
@@ -93,6 +104,10 @@ export function installSkin() {
     danger: frame({ fill: RED[0], light: RED[2], dark: INK, rivets: RED[2] }),
     coin: coin(),
   }
+}
+
+/** Рисует скин и выставляет его переменными на корневом элементе. Вызывать один раз до первого кадра интерфейса. */
+export function installSkin() {
   const root = document.documentElement.style
-  for (const [name, url] of Object.entries(skins)) root.setProperty(`--skin-${name}`, url)
+  for (const [name, canvas] of Object.entries(skins())) root.setProperty(`--skin-${name}`, `url(${canvas.toDataURL()})`)
 }

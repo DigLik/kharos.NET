@@ -1,6 +1,6 @@
 import { complete, quoteName } from '../net/chatCommands'
 import type { ComponentChildren } from 'preact'
-import { GROUP_DIGITS, type GridState, type HudState, type ModeState, type Stack, type TopicView, type TruckJob } from '../game/hud'
+import { GROUP_DIGITS, type HudState, type ModeState, type Stack, type TopicView, type TruckJob } from '../game/hud'
 import { GRID_PRESS, type GridPress } from '../game/interfaceSounds'
 import type { Minimap } from '../game/minimap'
 import { prefs, setPrefs } from '../game/prefs'
@@ -11,6 +11,8 @@ import { goodIcon } from '../game/goodIcons'
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { RELIEF_BELOW, RELIEF_INCOME, REWARDS, WARES, resourceOf, type UnitType, type BuildingType, type Command, type Good, type Reward } from '../sim'
 import { markSeen } from './seen'
+import { links } from '../gui/links'
+import { gridText } from '../gui/hud'
 import { GRID_KEYS, commandsOf, dealOf, keyLabel, type Deal, type FerryDraft, type Page, type Slot } from './commands'
 import { rich, t, type Key } from '../i18n'
 import { TechTree } from './TechTree'
@@ -63,26 +65,9 @@ interface HudProps {
   moveSelected: (x: number, y: number) => void
   /** Написать в чат сетевой игры. */
   say: (text: string) => void
-  /** Кнопки меню справа на верхней полосе. */
-  menu: ComponentChildren
 }
 
 const percent = (value: number) => `${Math.round(value * 100)}%`
-
-/**
- * С какой доли выработки энергия на верхней полосе желтеет — по полной нагрузке, когда все потребители в работе:
- * запас кончается, следующий потребитель — уже перегруз.
- */
-const GRID_TIGHT = 0.8
-
-/** Энергия сети словами: сколько просят сейчас и при полной нагрузке, сколько из накопителей, перегружены ли станции. */
-const gridText = (grid: GridState) =>
-  [
-    t('hud.zonePower', { demand: grid.demand, produced: grid.produced }),
-    grid.stored > 0 ? t('hud.zoneStored', { stored: grid.stored }) : '',
-    grid.peak > grid.demand ? t('hud.zonePeak', { peak: grid.peak }) : '',
-    grid.overload ? t('hud.overloaded') : '',
-  ].join('')
 
 /** Стороны квадратов под картинки, в пикселях экрана: портреты рисуются ровно под них, см. portraits.ts. */
 const PORTRAIT = 96
@@ -1210,7 +1195,7 @@ function ModeBar({ mode, cancel, finish }: { mode: NonNullable<ModeState>; cance
 }
 
 /** Интерфейс игрока: верхняя полоса со счётом и нижняя панель — мини-карта, выбранное, сетка команд. */
-export function Hud({ state, send, place, pave, zones, route, serve, carry, truckMenu, patrol, aim, deploy, minimap, lookAt, flyTo, lookAtSelection, selectGroup, assignGroup, clearGroup, cancelMode, finishMode, narrow, moveSelected, say, menu }: HudProps) {
+export function Hud({ state, send, place, pave, zones, route, serve, carry, truckMenu, patrol, aim, deploy, minimap, lookAt, flyTo, lookAtSelection, selectGroup, assignGroup, clearGroup, cancelMode, finishMode, narrow, moveSelected, say }: HudProps) {
   const selected = state.units.length > 0 || state.building !== null
   const fresh = useNewRewards(state.rewards, state.loaded)
   const learned = useNewTopics(state.tech.topics, state.loaded)
@@ -1279,6 +1264,12 @@ export function Hud({ state, send, place, pave, zones, route, serve, carry, truc
   // Окно исследований: открывается кнопкой на верхней полосе, клавишей R и из лаборатории, закрывается ими же,
   // а Esc — общим закрытием окон интерфейса, см. ниже: он же прячет список игроков.
   const [tech, setTech] = useState(false)
+  // Кнопка исследований — на верхней полосе холста (src/gui/hud.ts): окно же пока здесь.
+  useEffect(() => {
+    links.toggleTech = () => setTech((open) => !open)
+    return () => void (links.toggleTech = () => {})
+  }, [])
+  useEffect(() => void (links.techOpen = tech), [tech])
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.altKey || event.ctrlKey || event.metaKey || event.repeat) return
@@ -1382,48 +1373,7 @@ export function Hud({ state, send, place, pave, zones, route, serve, carry, truc
           </ul>
         </section>
       )}
-      <header class="hud hud--top">
-        <span class="hud--credits" data-tip={t('common.credits')}>
-          <span class="hud__coin" />
-          {state.credits}
-          {state.income > 0 && <small>{t('hud.perSecond', { amount: state.income })}</small>}
-        </span>
-        {state.grid && (
-          <span
-            class={state.grid.demand > state.grid.produced || state.grid.overload ? 'hud__grid is-short' : state.grid.peak > state.grid.produced * GRID_TIGHT ? 'hud__grid is-tight' : 'hud__grid'}
-            data-tip={`${gridText(state.grid)}\n${t('hud.gridTip')}`}
-          >
-            ⚡ {state.grid.demand} / {state.grid.produced}
-          </span>
-        )}
-        {state.protection && (
-          <span class="hud__shelter" data-tip={t('hud.protectionTip')}>
-            {t('hud.protection', { left: state.protection })}
-          </span>
-        )}
-        {state.stock && (
-          <span class="hud__stock" data-tip={t('hud.stockTip', { capacity: state.stock.capacity })}>
-            <Stacks items={state.stock.items} />
-            {state.stock.items.length === 0 && <span class="hud__res">{t('hud.storesEmpty')}</span>}
-          </span>
-        )}
-        <span class="hud__clock" data-tip={state.storm ? t('hud.clockStorm') : t('hud.clock')}>
-          {state.clock}
-          {state.storm && t('hud.storm')}
-        </span>
-        {/* Исследования — слева от меню. */}
-        {!state.editor && (
-          <button
-            class={['hud__tech', tech && 'is-active', state.steps && STEPS[state.steps.indexOf(false)]?.research && 'is-hint'].filter(Boolean).join(' ')}
-            data-tip={t('tech.openTip')}
-            onClick={() => setTech(!tech)}
-          >
-            {t('tech.button')}
-            {state.tech.current && <small>{Math.round((state.tech.topics.find(({ topic }) => topic === state.tech.current)?.progress ?? 0) * 100)}%</small>}
-          </button>
-        )}
-        <span class="hud__menu">{menu}</span>
-      </header>
+      {/* Верхняя полоса — на холсте: src/gui/hud.ts. */}
 
       {allies.length > 0 && (
         <section class="hud hud--allies" aria-label={t('hud.friends')}>

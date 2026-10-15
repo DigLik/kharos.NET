@@ -44,6 +44,19 @@ fn with<R>(id: u32, state: &State, f: impl FnOnce(&mut Sheet, Option<&Mask>) -> 
   })
 }
 
+/// Пиксели холста для текстуры (`texImage2D` с холстом в роли источника, см. `gl::op_gl_tex_image_canvas`):
+/// premultiplied — с цветом, умноженным на альфу (так их и держит холст), иначе — как в `ImageData`.
+pub fn with_pixels<R>(id: u32, premultiplied: bool, f: impl FnOnce(u32, u32, &[u8]) -> R) -> Option<R> {
+  SHEETS.with(|sheets| {
+    let sheets = sheets.borrow();
+    let sheet = sheets.get(&id)?;
+    match (&sheet.pixmap, premultiplied) {
+      (Some(pixmap), true) => Some(f(sheet.width, sheet.height, pixmap.data())),
+      _ => Some(f(sheet.width, sheet.height, &sheet.pixels())),
+    }
+  })
+}
+
 /// Числа из байтов массива обёртки (`Float32Array` пути, `Float64Array` состояния).
 fn floats32(bytes: &[u8]) -> Vec<f32> {
   bytes.chunks_exact(4).map(|chunk| f32::from_le_bytes(chunk.try_into().unwrap())).collect()

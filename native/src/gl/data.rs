@@ -185,6 +185,29 @@ pub fn op_gl_tex_image_2d(
   with(|gl| unsafe { gl.tex_image_2d(target, level, internal, width, height, border, format, kind, pixels) });
 }
 
+/// Текстура из двумерного холста — `texImage2D(target, level, internal, format, type, canvas)`: так в кадр ложится
+/// холст интерфейса (пункт 10.4 плана). Пиксели берутся прямо у холста, без копии через JS. premultiply и flip — флаги
+/// `UNPACK_PREMULTIPLY_ALPHA_WEBGL` и `UNPACK_FLIP_Y_WEBGL`, как их выставила игра.
+#[op2(fast)]
+#[allow(clippy::too_many_arguments)]
+pub fn op_gl_tex_image_canvas(target: u32, level: i32, internal: i32, format: u32, kind: u32, canvas: u32, premultiply: bool, flip: bool) {
+  crate::canvas::with_pixels(canvas, premultiply, |width, height, pixels| {
+    let flipped;
+    let pixels = if flip {
+      let row = width as usize * 4;
+      flipped = pixels.chunks_exact(row.max(1)).rev().flatten().copied().collect::<Vec<u8>>();
+      &flipped[..]
+    } else {
+      pixels
+    };
+    let data = if pixels.is_empty() { None } else { Some(pixels) };
+    with(|gl| unsafe {
+      gl.pixel_store_i32(glow::UNPACK_ALIGNMENT, 1);
+      gl.tex_image_2d(target, level, internal, width as i32, height as i32, 0, format, kind, glow::PixelUnpackData::Slice(data));
+    });
+  });
+}
+
 /// Записывает пиксели в прямоугольник текстуры: так атласы заливаются полосами при запуске игры.
 #[op2(fast)]
 pub fn op_gl_tex_sub_image_2d(

@@ -11,6 +11,7 @@ import { Settings } from './Menu'
 import { PasswordRequired } from '../net/connect'
 import { startSession, type PlayLaunch } from './launch'
 import { t } from '../i18n'
+import { links } from '../gui/links'
 
 /** Как часто интерфейс сверяется с игрой, в миллисекундах. */
 const HUD_INTERVAL = 100
@@ -66,6 +67,8 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
       if (closed) return session.sim.destroy()
       gameRef.current = createGame(stage(), settings, setError, session, { slot: launch.kind === 'save' ? launch.slot.id : undefined })
       gameRef.current.onMenu = () => setPaused(true)
+      // Кнопка меню — на верхней полосе холста (src/gui/hud.ts).
+      links.openMenu = () => setPaused(true)
     }
     const attempt = (password?: string) =>
       start(password).catch((error: unknown) => {
@@ -129,11 +132,6 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
           narrow={(type, remove) => gameRef.current?.narrow(type, remove)}
           moveSelected={(x, y) => gameRef.current?.moveSelected(x, y)}
           say={(text) => gameRef.current?.say(text)}
-          menu={
-            <button data-tip={t('game.menuTip')} onClick={() => setPaused(true)}>
-              {t('game.menu')}
-            </button>
-          }
         />
       )}
       {hud?.editor && error === null && gameRef.current && <PlayerViews game={gameRef.current} />}

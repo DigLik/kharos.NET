@@ -187,17 +187,25 @@ export function paintGood(good: Good, put: (x: number, y: number, color: readonl
   })
 }
 
+const canvases = new Map<Good, HTMLCanvasElement>()
 const cache = new Map<Good, string>()
+
+/** Мини-иконка груза холстом: её рисует интерфейс на холсте (src/gui). Рисуется один раз. */
+export function goodCanvas(good: Good) {
+  let canvas = canvases.get(good)
+  if (canvas) return canvas
+  const image = new ImageData(SIZE, SIZE)
+  paintGood(good, (x, y, tone) => image.data.set([...tone, 255], (y * SIZE + x) * 4))
+  canvas = document.createElement('canvas')
+  canvas.width = canvas.height = SIZE
+  canvas.getContext('2d')!.putImageData(image, 0, 0)
+  canvases.set(good, canvas)
+  return canvas
+}
 
 /** Адрес картинки мини-иконки груза. Рисуется один раз. */
 export function goodIcon(good: Good) {
   let url = cache.get(good)
-  if (url) return url
-  const image = new ImageData(SIZE, SIZE)
-  paintGood(good, (x, y, tone) => image.data.set([...tone, 255], (y * SIZE + x) * 4))
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = SIZE
-  canvas.getContext('2d')!.putImageData(image, 0, 0)
-  cache.set(good, (url = canvas.toDataURL()))
+  if (!url) cache.set(good, (url = goodCanvas(good).toDataURL()))
   return url
 }
