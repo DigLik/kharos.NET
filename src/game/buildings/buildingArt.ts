@@ -1,5 +1,6 @@
 import type { Pixmap } from '../../render/pixmap'
 import { BUILDINGS, type BuildingType } from '../../sim/buildings'
+import { ORES } from '../../sim/resources'
 import { GOOD_COLORS } from '../resourceColors'
 
 
@@ -864,30 +865,49 @@ const barracks: BuildingArt = {
   },
 }
 
-/** Шахта: ствол под копром с крутящимся шкивом и бункер, куда лента поднимает руду. */
+/**
+ * Шахта: ствол под копром со шкивом и бункер, куда лента поднимает руду. Руда — цвета своего месторождения: вариант —
+ * номер руды в ORES плюс один, 0 — руда неизвестна. В работе шкив крутится, по тросу ходит бадья, по ленте бежит руда,
+ * над стволом клубится пыль и мигают огни; стоящая — шкив замер, бадья наверху, лента пуста, огни едва тлеют.
+ */
 const mine: BuildingArt = {
   ...BUILDINGS.mine,
-  draw(g, t, light) {
+  variants: ORES.length + 1,
+  working: true,
+  draw(g, t, light, variant = 0, working = false) {
+    const ore = variant ? accent(GOOD_COLORS[ORES[variant - 1]]) : RUST
     slab(g, 0, 1, 32, 31, 3, STEEL)
 
-    // Ствол шахты и лента от него к бункеру: по ней идёт порция руды.
+    // Ствол шахты и лента от него к бункеру: в работе по ней идёт руда.
     g.rect(4, 12, 14, 14, INK)
     g.rect(5, 13, 12, 12, DARK)
     g.rect(5, 13, 12, 1, IRON[1])
     g.rect(17, 19, 7, 5, INK)
     g.rect(17, 20, 7, 3, IRON[0])
     const step = Math.floor(t * ART_FRAMES) % 8
-    if (step < 6) {
-      g.rect(17 + step, 20, 2, 2, RUST[1])
-      g.rect(17 + step, 20, 1, 1, RUST[2])
+    if (working) {
+      for (const at of [step, (step + 4) % 8]) {
+        if (at >= 6) continue
+        g.rect(17 + at, 20, 2, 2, ore[1])
+        g.rect(17 + at, 20, 1, 1, ore[2])
+      }
     }
 
     // Бункер с рудой.
     slab(g, 21, 10, 10, 18, 4, IRON)
     g.rect(23, 12, 6, 9, DARK)
     for (const [x, y] of [[23, 17], [26, 16], [24, 19], [27, 19], [25, 13]]) {
-      g.rect(x, y, 2, 2, RUST[1])
-      g.rect(x, y, 1, 1, RUST[2])
+      g.rect(x, y, 2, 2, ore[1])
+      g.rect(x, y, 1, 1, ore[2])
+    }
+
+    // Пыль над стволом: в работе — клубы, поднимающиеся от устья.
+    if (working) {
+      for (let i = 0; i < 3; i++) {
+        const rise = (Math.floor(t * ART_FRAMES) + i * 5) % 8
+        if (rise > 5) continue
+        g.rect(6 + i * 4 + (rise % 2), 14 - rise, 2, 1, rise < 3 ? IRON[4] : IRON[3])
+      }
     }
 
     // Копёр: две ноги сходятся к шкиву над стволом.
@@ -898,17 +918,28 @@ const mine: BuildingArt = {
     g.rect(6, 10, 10, 1, IRON[2])
     g.circle(11, -2, 5, INK)
     g.circle(11, -2, 4, IRON[1])
-    // У шкива четыре спицы: четверть оборота замыкает цикл.
-    const angle = t * TURN * 0.25
+    // У шкива четыре спицы: четверть оборота замыкает цикл. Стоящая шахта шкив не крутит.
+    const angle = working ? t * TURN * 0.25 : TURN / 8
     for (const turn of [angle, angle + TURN / 4]) {
       const dx = Math.cos(turn) * 3.5
       const dy = Math.sin(turn) * 3.5
       g.line(11 - dx, -2 - dy, 11 + dx, -2 + dy, 1.2, IRON[4])
     }
-    // Трос ходит в ствол.
-    g.rect(11, 3, 1, 12, IRON[2])
-    bulb(g, light, 2, 6, pulse(t))
-    bulb(g, light, 27, 7, pulse(t, 0.5))
+    // Бадья на тросе — поверх копра: в работе ходит по стволу вниз и вверх, поднимая руду, стоящая — поднята.
+    const swing = (t * 2) % 1
+    const depth = working ? Math.round((swing < 0.5 ? swing * 2 : 2 - swing * 2) * 9) : 0
+    g.rect(11, 3, 1, 7 + depth, IRON[2])
+    g.rect(8, 9 + depth, 7, 5, INK)
+    g.rect(9, 10 + depth, 5, 3, IRON[2])
+    g.rect(9, 10 + depth, 5, 1, IRON[3])
+    if (working && swing >= 0.5) g.rect(10, 10 + depth, 3, 1, ore[2])
+
+    // Маячок на бункере: в работе мигает жёлтым, стоящая шахта его гасит.
+    const beacon = working ? chase(t * 2, 0) : 0
+    light(26, 9, 2, beacon * 0.8)
+    g.rect(24, 7, 5, 3, INK)
+    g.rect(25, 8, 3, 2, beacon > 0.3 ? GOLD[2] : beacon > 0 ? GOLD[1] : GOLD[0] & 0x5f5f5f)
+    bulb(g, light, 2, 6, working ? pulse(t) : 0.08)
   },
 }
 

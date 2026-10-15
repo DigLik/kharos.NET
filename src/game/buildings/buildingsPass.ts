@@ -4,7 +4,7 @@ import { uploadAtlas, type AtlasFrame, type PackedAtlas, type Sprite } from '../
 import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'
 import type { Entity } from '../../ecs'
-import { Assembly, BUILDINGS, BUILDING_TYPES, Building, CORE, Converting, Deploys, Interceptor, Unit, deploySite, Inventory, Owner, Position, Reactor, Research, Silo, Site, amountOf, buildingSpec, isBurning, isOpenGate, isPipe, loadedPlants, shutDown, siteTicks, type BuildingType } from '../../sim'
+import { Assembly, BUILDINGS, BUILDING_TYPES, Building, CORE, Converting, Deploys, Interceptor, Unit, deploySite, Inventory, Owner, Position, Reactor, Research, Silo, Site, amountOf, buildingSpec, depositAt, loadOf, ORES, ORE_OF, isBurning, isOpenGate, isPipe, loadedPlants, shutDown, siteTicks, type BuildingType } from '../../sim'
 import { placementOf } from '../placing'
 import type { Scene } from '../scene'
 import { ART_FRAMES, ART_TILE, BUILDING_ART, GATE_OPEN_VARIANT, SILO_DOOR_STEPS, SILO_RISE_STEPS, WALL_CONNECTION, type BuildingArt } from './buildingArt'
@@ -123,13 +123,19 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene, ar
   }))
 
   /**
-   * Работает ли здание: переработка — пока убывает её руда, цех — пока движется сборка. Для каждого здания
-   * помнится прошлое значение и до какой секунды экранных часов оно считается работающим.
+   * Работает ли здание: переработка — пока убывает её руда, шахта — пока прибывает добытое, цех — пока движется сборка.
+   * Для каждого здания помнится прошлое значение и до какой секунды экранных часов оно считается работающим.
    */
   const activity = new Map<Entity, { value: number; until: number }>()
   const workOf = (entity: Entity, type: BuildingType) => {
     const { world } = scene.sim
-    const ore = buildingSpec(type).refines
+    const spec = buildingSpec(type)
+    if (spec.extract) {
+      // Склад чужой шахты хост не шлёт: работает ли она, не видно.
+      const inventory = world.get(entity, Inventory)
+      return inventory ? loadOf(inventory) : undefined
+    }
+    const ore = spec.refines
     if (ore) {
       // Склад чужого здания хост не шлёт: работает ли оно, не видно.
       const inventory = world.get(entity, Inventory)
@@ -191,6 +197,11 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene, ar
       }
       const wallVariant = (position: { x: number; y: number }, type: BuildingType, entity?: Entity) => {
         if (type === 'silo') return entity === undefined ? 0 : siloVariant(entity)
+        // Шахта — цвета руды под ней: номер руды в ORES плюс один.
+        if (buildingSpec(type).extract) {
+          const kind = depositAt(scene.sim, position.x, position.y)?.kind
+          return kind ? ORES.indexOf(ORE_OF[kind]) + 1 : 0
+        }
         // Перехватчик: сколько труб пакета заряжено. Чужой — всегда пустым: это знает хозяин.
         if (type === 'interceptor') return entity === undefined ? 0 : (world.get(entity, Interceptor)?.missiles ?? 0)
 
