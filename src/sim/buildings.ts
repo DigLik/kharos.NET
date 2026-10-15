@@ -76,6 +76,11 @@ export interface BuildingSpec {
    * у зоны сама, как турель патроны; по общим заявкам не отдаёт — это запас армии. См. supply.ts.
    */
   depot?: boolean
+  /**
+   * Аэродром: над ним авиация пополняет магазины из хранилищ его сети. В кругах сети, но не над аэродромом, ей
+   * не пополниться — пустая летит сюда или к машине снабжения. См. supply.ts.
+   */
+  rearms?: boolean
   /** Через это здание продают ресурсы: грузовики свозят их сюда из хранилищ его зоны, см. trade.ts. */
   trades?: boolean
   /** Каких юнитов здание производит, когда достроено. Потребитель энергии при её нехватке производит медленнее. */
@@ -233,7 +238,7 @@ export const BUILDINGS = {
   // не заказать.
   supplyDepot: { width: 3, height: 2, cost: 350, materials: { blocks: 6 }, inventory: 300, accepts: ['ammo'], depot: true, beam: { radius: 3, rate: 40, give: true } },
   // Аэродром выпускает летающих: им нужно топливо, бомбардировщику ещё и техцентр.
-  airfield: { width: 4, height: 3, cost: 500, power: -4, materials: { metal: 15, blocks: 5 }, produces: ['airTruck', 'drone', 'gunship', 'bomber'] },
+  airfield: { width: 4, height: 3, cost: 500, power: -4, materials: { metal: 15, blocks: 5 }, produces: ['airTruck', 'drone', 'gunship', 'bomber'], rearms: true },
   // Электростанция.
   generator: { width: 2, height: 2, cost: 300, power: 10 },
   // Накопитель держит минуту работы электростанции: база переживает снесённую станцию или перегруз, пока его хватает.

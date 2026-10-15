@@ -6,9 +6,9 @@ import { flowsOf, givenBy, offerIndex } from './logistics'
 import type { Sim } from './sim'
 import { leaveHome, stanceOf } from './tactics'
 import { TURRETS } from './turrets'
-import { orderMove, unitSpec, type UnitType } from './units'
+import { flies, orderMove, unitSpec, type UnitType } from './units'
 import { WEAPONS, type WeaponSpec, type WeaponType } from './weapons'
-import { inCircles, zonesOf, type Zone } from './zones'
+import { inCircles, linkGap, networkOf, zonesOf, type Zone } from './zones'
 
 /**
  * Снабжение войск: у юнита магазин (Magazine), выстрел тратит из него свою долю, пустой юнит молчит. В своей сети —
@@ -19,6 +19,9 @@ import { inCircles, zonesOf, type Zone } from './zones'
  * Вне сети магазины пополняет машина снабжения (UnitSpec.supplies): всем своим в её радиусе — со своего склада. Пустые
  * идут и к ней, если она ближе хранилища. Склад машины наполняют грузовики по её заявке (см. requestsOf), хранилища
  * сети, в кругах которой она стоит, и станция поставки (BuildingSpec.depot) — своим лучом, вчетверо быстрее хранилищ.
+ *
+ * Авиация в кругах сети не пополняется: только над своим аэродромом (BuildingSpec.rearms) — из хранилищ его сети — или
+ * у машины снабжения. Пустая летит к ближайшему из них и возвращается, как наземные.
  */
 
 /** На сколько секунд непрерывного огня всеми стволами хватает полного магазина. */
@@ -37,6 +40,8 @@ const RESEEK_PASSES = 10
 const SEEK_NEAR = 2
 /** Насколько ближе края раздачи встаёт пустой, идущий к машине снабжения: она тоже может отъехать. */
 const SUPPLIER_MARGIN = 1.5
+/** На сколько тайлов от края аэродрома авиация ещё над ним. */
+const AIRFIELD_REACH = 1
 /** Сколько боеприпасов в секунду машина снабжения грузит из хранилищ своей сети. Станция поставки грузит своим лучом. */
 export const SUPPLIER_LOAD = 10
 const EPSILON = 1e-9
@@ -173,6 +178,37 @@ function loadAtDepots(sim: Sim, suppliers: readonly Supplier[]) {
 /** Дальше скольких тайлов от машины снабжения станцию не ищут: луч станции короче. */
 const DEPOT_REACH = 4
 
+/** Готовый аэродром в мире: где стоит, чей и в какой сети. */
+interface Airfield {
+  entity: Entity
+  player: number
+  x: number
+  y: number
+  width: number
+  height: number
+  zone: Zone
+}
+
+/** Готовые аэродромы всех игроков. */
+function airfieldsOf(sim: Sim) {
+  const found: Airfield[] = []
+  for (const [entity, building, owner, position] of sim.world.query(Building, Owner, Position)) {
+    const spec = buildingSpec(building.type)
+    if (!spec.rearms || !isReady(sim, owner.player, entity)) continue
+    const zone = networkOf(sim, entity)
+    if (zone) found.push({ entity, player: owner.player, x: position.x, y: position.y, width: spec.width, height: spec.height, zone })
+  }
+  return found
+}
+
+/** Сеть аэродрома игрока, над которым точка; undefined — ни над каким. */
+function airfieldAt(airfields: readonly Airfield[], player: number, x: number, y: number) {
+  for (const airfield of airfields) {
+    if (airfield.player === player && linkGap(x, y, airfield.x, airfield.y, airfield.width, airfield.height) <= AIRFIELD_REACH) return airfield.zone
+  }
+  return undefined
+}
+
 /** Ближайшая к точке машина снабжения игрока с боеприпасами, в радиусе раздачи которой точка лежит; except — не она. */
 function supplierAt(suppliers: readonly Supplier[], player: number, x: number, y: number, except?: Entity) {
   let best: Supplier | undefined
@@ -216,6 +252,7 @@ export function supply(sim: Sim) {
     }
     return amount
   }
+  let airfields: Airfield[] | undefined
   const stocked = (zone: Zone) => offers(zone, 'ammo').some((source) => leftIn(source) > EPSILON)
   /** Берёт из хранилищ сети до amount боеприпасов; возвращает, сколько взято. */
   const takeFrom = (zone: Zone, amount: number) => {
@@ -248,7 +285,12 @@ export function supply(sim: Sim) {
     }
     const tactics = world.get(entity, Tactics)
     const lacking = magazine.ammo < capacity - EPSILON
-    const zone = lacking ? zonesOf(sim, owner.player).find((one) => inCircles(one.circles, position.x, position.y)) : undefined
+    // Авиацию кормит сеть только над аэродромом.
+    const zone = !lacking
+      ? undefined
+      : flies(unit.type)
+        ? airfieldAt((airfields ??= airfieldsOf(sim)), owner.player, position.x, position.y)
+        : zonesOf(sim, owner.player).find((one) => inCircles(one.circles, position.x, position.y))
     // Вне сети магазин пополняет машина снабжения, в радиусе которой юнит стоит.
     const supplier = lacking && !zone ? supplierAt(suppliers, owner.player, position.x, position.y) : undefined
     if (zone) magazine.ammo += takeFrom(zone, Math.min(capacity - magazine.ammo, REFILL_RATE * seconds))
@@ -268,8 +310,8 @@ export function supply(sim: Sim) {
     seekers.push(entity)
   }
 
-  // Пустые — к ближайшему хранилищу своей сети, где есть боеприпасы, или к машине снабжения с ними. Нет таких — ждут,
-  // где стоят.
+  // Пустые — к ближайшему хранилищу своей сети, где есть боеприпасы, или к машине снабжения с ними; авиация — к аэродрому,
+  // в сети которого они есть, или к машине. Нет таких — ждут, где стоят.
   for (const entity of seekers) {
     const player = world.get(entity, Owner)!.player
     const { x, y } = world.get(entity, Position)!
@@ -284,16 +326,28 @@ export function supply(sim: Sim) {
       near = Math.max(0, supplier.radius - SUPPLIER_MARGIN)
       bestDistance = distance
     }
-    for (const zone of zonesOf(sim, player)) {
-      if (!stocked(zone)) continue
-      for (const source of offers(zone, 'ammo')) {
-        if (leftIn(source) <= EPSILON) continue
-        const center = centerOf(sim, source)
+    if (flies(world.get(entity, Unit)!.type)) {
+      for (const airfield of (airfields ??= airfieldsOf(sim))) {
+        if (airfield.player !== player || !stocked(airfield.zone)) continue
+        const center = { x: airfield.x + airfield.width / 2, y: airfield.y + airfield.height / 2 }
         const distance = Math.hypot(center.x - x, center.y - y)
-        if (distance < bestDistance) {
-          bestDistance = distance
-          best = center
-          near = center.size / 2 + SEEK_NEAR
+        if (distance >= bestDistance) continue
+        bestDistance = distance
+        best = { ...center, size: 0 }
+        near = Math.min(airfield.width, airfield.height) / 2
+      }
+    } else {
+      for (const zone of zonesOf(sim, player)) {
+        if (!stocked(zone)) continue
+        for (const source of offers(zone, 'ammo')) {
+          if (leftIn(source) <= EPSILON) continue
+          const center = centerOf(sim, source)
+          const distance = Math.hypot(center.x - x, center.y - y)
+          if (distance < bestDistance) {
+            bestDistance = distance
+            best = center
+            near = center.size / 2 + SEEK_NEAR
+          }
         }
       }
     }

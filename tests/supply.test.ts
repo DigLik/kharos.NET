@@ -202,3 +202,50 @@ test('в своей сети машина снабжения грузится и
   seconds(depotBase.sim, 5)
   expect(cargo(depotBase.sim, rig)).toBeCloseTo(150)
 })
+
+/** Аэродром в сети базы: ближайшее к главному зданию место, подключённое трубами. */
+function airfieldNear(sim: Sim, x: number, y: number) {
+  for (let r = 6; r < 20; r++) {
+    for (let oy = -r; oy <= r; oy++) {
+      for (let ox = -r; ox <= r; ox++) {
+        if (Math.max(Math.abs(ox), Math.abs(oy)) !== r || !canPlace(sim, 'airfield', x + ox, y + oy)) continue
+        const airfield = placeBuilding(sim.world, 'airfield', x + ox, y + oy, 1)
+        connectAll(sim, 1)
+        return airfield
+      }
+    }
+  }
+  throw new Error('Не нашлось места для аэродрома')
+}
+
+test('авиация в кругах сети не пополняется, а летит к аэродрому и возвращается', () => {
+  const { sim, bunker, x, y } = base()
+  const drone = spawnAt(sim, 'drone', 1, x + 4, y + 4)
+  sim.world.get(drone, Magazine)!.ammo = 0
+  // Без аэродрома ей лететь некуда: в сети она не пополнится и ждёт.
+  seconds(sim, 5)
+  expect(ammo(sim, drone)).toBe(0)
+  expect(sim.world.get(drone, Tactics)?.resupply ?? false).toBe(false)
+
+  airfieldNear(sim, x, y)
+  const away = spawnAt(sim, 'drone', 1, x + 30, y + 4)
+  const home = { ...sim.world.get(away, Position)! }
+  sim.world.get(away, Magazine)!.ammo = 0
+  until(sim, () => ammo(sim, drone) >= magazineOf('drone') - 1e-6 && ammo(sim, away) >= magazineOf('drone') - 1e-6)
+  expect(stock(sim, bunker)).toBeCloseTo(200 - 2 * magazineOf('drone'))
+  until(sim, () => Math.hypot(sim.world.get(away, Position)!.x - home.x, sim.world.get(away, Position)!.y - home.y) < 2)
+  expect(sim.world.get(away, Tactics)!.resupply).toBe(false)
+})
+
+test('пустая авиация летит к машине снабжения, если та ближе аэродрома', () => {
+  const { sim, bunker, x, y } = base()
+  airfieldNear(sim, x, y)
+  const supplier = spawnAt(sim, 'supplier', 1, x + 40, y + 4)
+  sim.send(1, { type: 'stance', units: [supplier], stance: 'hold' })
+  sim.world.get(supplier, Inventory)!.items.ammo = 100
+  const drone = spawnAt(sim, 'drone', 1, x + 52, y + 4)
+  sim.world.get(drone, Magazine)!.ammo = 0
+  until(sim, () => ammo(sim, drone) >= magazineOf('drone') - 1e-6)
+  expect(stock(sim, bunker)).toBe(200)
+  expect(cargo(sim, supplier)).toBeCloseTo(100 - magazineOf('drone'))
+})
