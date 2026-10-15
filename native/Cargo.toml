@@ -1,0 +1,21 @@
+[package]
+name = "kharos-native"
+version = "0.1.0"
+edition = "2021"
+license = "MPL-2.0"
+description = "Нативная оболочка Kharos: окно, OpenGL и JS-рантайм вместо браузера"
+
+[dependencies]
+anyhow = "1"
+deno_core = "0.412"
+deno_error = "=0.7.1"
+glow = "0.18"
+glutin = "0.32"
+glutin-winit = "0.5"
+raw-window-handle = "0.6"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["rt", "time"] }
+winit = "0.30"
+
+[profile.dev]
+opt-level = 1

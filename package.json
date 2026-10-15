@@ -8,6 +8,7 @@
     "dev": "vite",
     "server": "bun server/main.ts",
     "build": "tsc && tsc -p tsconfig.sim.json && tsc -p tsconfig.server.json && vite build",
+    "bundle:native": "tsc -p native/tsconfig.json && vite build --config native/vite.config.ts",
     "preview": "vite preview",
     "test": "bun test",
     "balance": "bun tools/balance.ts",

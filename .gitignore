@@ -6,3 +6,8 @@ save.json*
 save.kharos*
 settings.json
 tls/
+native/target
+native/js/*.bundle.js
+native/js/chunk-*.js
+native/js/assets
+
