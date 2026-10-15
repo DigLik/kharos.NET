@@ -552,6 +552,8 @@
     "batteryCharging": "Charge : {charge} sur {capacity}, stocke {flow} ⚡",
     "health": "Solidité : {percent}. La réparation coûte {repair} : sélectionnez des constructeurs et faites un clic droit sur le bâtiment",
     "armyHealth": "Solidité : {percent}. Les constructeurs réparent les véhicules, l'infanterie se rétablit seule",
+    "armyAmmo": "Munitions : {percent}. Les chargeurs se remplissent dans votre réseau depuis ses entrepôts",
+    "armyEmpty": "Sans munitions : {count}. Ceux qui tiennent la position attendent le ravitaillement, les autres rejoignent seuls votre réseau",
     "armed": "Tirent d'eux-mêmes sur les ennemis à portée. Clic droit sur un ennemi — attaquer",
     "stock": "Stock",
     "storage": "Entrepôt",

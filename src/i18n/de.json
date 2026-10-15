@@ -552,6 +552,8 @@
     "batteryCharging": "Ladung: {charge} von {capacity}, speichert {flow} ⚡",
     "health": "Zustand: {percent}. Die Reparatur kostet {repair}: Baufahrzeuge auswählen und das Gebäude mit rechts anklicken",
     "armyHealth": "Zustand: {percent}. Fahrzeuge reparieren die Baufahrzeuge, Infanterie erholt sich von selbst",
+    "armyAmmo": "Munition: {percent}. Magazine füllen sich im eigenen Netz aus den Lagern auf",
+    "armyEmpty": "Ohne Munition: {count}. Wer die Stellung hält, wartet auf Nachschub, die übrigen fahren selbst ins eigene Netz",
     "armed": "Schießen von selbst auf Feinde in Reichweite. Rechtsklick auf einen Feind — angreifen",
     "stock": "Lager",
     "storage": "Speicher",

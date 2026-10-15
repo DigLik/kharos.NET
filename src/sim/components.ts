@@ -279,9 +279,16 @@ export const Drop = component('Drop')
 /**
  * Тактика юнита — как он ведёт себя без приказа (см. tactics.ts). stance — стойка; patrol — точки патруля x, y
  * подряд, leg — к какой он идёт; пусто — не патрулирует. away — юнит ушёл в погоню с места (homeX, homeY) и вернётся
- * туда, когда бой кончится. Без компонента юнит в обороне.
+ * туда, когда бой кончится. resupply — расстрелял магазин и сам идёт к своей сети за боеприпасами, см. supply.ts:
+ * в погоню не уходит и на место вернётся полным. Без компонента юнит в обороне.
  */
-export const Tactics = component('Tactics', () => ({ stance: 'defensive' as Stance, patrol: [] as number[], leg: 0, away: false, homeX: 0, homeY: 0 }))
+export const Tactics = component('Tactics', () => ({ stance: 'defensive' as Stance, patrol: [] as number[], leg: 0, away: false, homeX: 0, homeY: 0, resupply: false }))
+
+/**
+ * Магазин юнита: сколько боеприпасов при нём. Полный — UnitSpec.ammo, выстрел тратит свою долю, пустой юнит молчит;
+ * пополняется в своей сети, см. supply.ts. У юнита без компонента магазин полный.
+ */
+export const Magazine = component('Magazine', { ammo: 0 })
 
 /**
  * Выключено игроком: потребитель энергии не просит её у зоны и не работает — не производит, не стреляет,
@@ -429,4 +436,4 @@ export const Dig = component('Dig', { kind: 'peak' as 'peak' | 'cliff', cost: 0,
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Deploys, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Busy, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare, Dig, Unreachable]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Deploys, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Busy, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare, Dig, Unreachable, Magazine]

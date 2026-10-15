@@ -51,7 +51,8 @@ export interface LocalPort {
 
 /** Новый мир по режиму: стартовый набор у начала мира, две случайные армии или готовая база. */
 export function createWorld(options: SimOptions, mode: GameMode, battle: BattleConfig): Sim {
-  const sim = createSim(options)
+  // В бою армий сетей нет, и пополнить магазины негде: юниты стреляют бесплатно, см. Rules.unitAmmo.
+  const sim = createSim(mode === 'battle' ? { ...options, rules: { ...options.rules, unitAmmo: false } } : options)
   // Если месторождения рядом не нашлось, тестовая карта начинается как обычная игра.
   if (mode === 'sandbox' && spawnSandbox(sim, LOCAL_PLAYER)) return sim
   if (mode === 'battle') {

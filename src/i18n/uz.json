@@ -552,6 +552,8 @@
     "batteryCharging": "Zaryad: {capacity} dan {charge}, {flow} ⚡ to‘plamoqda",
     "health": "Mustahkamlik: {percent}. Tuzatish qiymati {repair}: quruvchilarni tanlang va binoga o‘ng tugmani bosing",
     "armyHealth": "Mustahkamlik: {percent}. Texnikani quruvchilar tuzatadi, piyodalar o‘zlari tuzaladi",
+    "armyAmmo": "O‘q-dorilar: {percent}. Magazinlar o‘z tarmog‘ingizda omborlardan to‘ldiriladi",
+    "armyEmpty": "O‘q-dorisizlar: {count}. Joyini ushlab turganlar yetkazib berishni kutadi, qolganlari o‘zlari tarmog‘ingizga boradi",
     "armed": "O‘q yetadigan masofadagi dushmanlarga o‘zlari otadi. Hujum qilish uchun dushmanga o‘ng tugmani bosing",
     "stock": "Ombor",
     "storage": "Saqlash ombori",

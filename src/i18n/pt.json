@@ -552,6 +552,8 @@
     "batteryCharging": "Carga: {charge} de {capacity}, acumula {flow} ⚡",
     "health": "Integridade: {percent}. O conserto custa {repair}: selecione construtores e clique no edifício com o botão direito",
     "armyHealth": "Integridade: {percent}. Construtores consertam os veículos; a infantaria se recupera sozinha",
+    "armyAmmo": "Munição: {percent}. Os carregadores se reabastecem na sua rede a partir dos depósitos",
+    "armyEmpty": "Sem munição: {count}. Quem mantém a posição espera o suprimento; os demais vão sozinhos para a sua rede",
     "armed": "Atiram sozinhas nos inimigos ao alcance. Clique direito em um inimigo — atacar",
     "stock": "Estoque",
     "storage": "Armazém",

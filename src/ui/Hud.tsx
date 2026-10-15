@@ -651,6 +651,8 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
           </div>
         )}
         {state.army && state.army.health < 1 && <div class="hud__hint">{t('hud.armyHealth', { percent: percent(state.army.health) })}</div>}
+        {state.army && state.army.ammo !== null && state.army.ammo < 1 && <div class="hud__hint">{t('hud.armyAmmo', { percent: percent(state.army.ammo) })}</div>}
+        {state.army && state.army.empty > 0 && <div class="hud__hint">{t('hud.armyEmpty', { count: state.army.empty })}</div>}
         {state.army && state.army.armed > 0 && !construction && (
           <div class="hud__hint">{t('hud.armed')}</div>
         )}

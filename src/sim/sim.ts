@@ -39,6 +39,7 @@ import { createTraces, type Traces } from './traces'
 import { createVision, type Vision } from './vision'
 import { followOrders } from './orders'
 import { patrol } from './tactics'
+import { supply } from './supply'
 
 /** Границы карты в тайлах. Правая и нижняя — не включая. */
 export interface Bounds {
@@ -103,6 +104,11 @@ export interface Rules {
    * лимита не принимается; ноль — лимита нет. Держит и хост: тысячи юнитов на игрока он не разошлёт.
    */
   armyLimit: number
+  /**
+   * Юниты тратят боеприпасы из магазина и пополняют его в своей сети, см. supply.ts. Выключено — стреляют бесплатно:
+   * так в бою армий и сценках меню, где сетей нет.
+   */
+  unitAmmo: boolean
 }
 
 export const DEFAULT_RULES: Rules = {
@@ -128,6 +134,7 @@ export const DEFAULT_RULES: Rules = {
   upgradeScale: 1,
   depositRenewal: 15,
   armyLimit: 600,
+  unitAmmo: true,
 }
 
 export interface SimOptions {
@@ -286,6 +293,8 @@ export function createSim(source: SimOptions | SimSave): Sim {
       () => fight(sim),
       // После боя: вставшие без цели продолжают патруль или возвращаются на место.
       () => patrol(sim),
+      // После боя: потратившие магазин пополняют его в своей сети, пустые идут за боеприпасами.
+      () => supply(sim),
       // После всех дел тика: освободившиеся берут следующий приказ из очереди.
       () => followOrders(sim),
       // После работ и боя: кому не досталось ни того, ни другого, — те турели разворачиваются по корпусу.

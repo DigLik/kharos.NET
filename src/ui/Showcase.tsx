@@ -52,7 +52,9 @@ export function Showcase({ settings }: { settings: MapSettings }) {
       generator: { ...settings.generator, seed: Math.floor(Math.random() * 2 ** 31) },
       world: { ...settings.world, size: SHOWCASE_SIZE },
     }
-    const sim = createSim({ ...simOptions(local), fog: false, weather: randomWeather() })
+    const options = simOptions(local)
+    // В сценках нет сетей, где пополнить магазины: юниты стреляют бесплатно, см. Rules.unitAmmo.
+    const sim = createSim({ ...options, rules: { ...options.rules, unitAmmo: false }, fog: false, weather: randomWeather() })
     const scene = SCENES[slide.scene]()
     let game: Game | null = null
     if (!scene.create(sim, LOCAL_PLAYER)) {

@@ -10,7 +10,7 @@ import {
   Research, TOPICS, PAVE_RESEARCH, DIG_KINDS, DIG_RESEARCH, type DigKind, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, pickTopic, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   type Economy, Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
-  Accumulator, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
+  Accumulator, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, ammoOf, isEmpty, magazineOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
 import { stepsDone } from './firstSteps'
 import { paveStrokeOf } from './placing'
@@ -136,7 +136,11 @@ export interface HudState {
    */
   gift: number[] | null
   /** Бой: сколько среди выбранных юнитов вооружённых и средняя прочность выбранных юнитов от 0 до 1. */
-  army: { armed: number; health: number } | null
+  /**
+   * Выбранные юниты: сколько вооружённых, средняя прочность. ammo — средняя доля магазина у своих с магазином (null —
+   * таких нет), empty — сколько из них расстреляли его, см. supply.ts.
+   */
+  army: { armed: number; health: number; ammo: number | null; empty: number } | null
   /**
    * Тактика выбранных бойцов: кому слать стойку и патруль; stance — общая стойка или null, если у них разные;
    * patrolling — сколько из них в патруле; picking — игрок выбирает точку патруля.
@@ -537,12 +541,21 @@ export function readHud(scene: Scene): HudState {
   let armed = 0
   let unitHealth = 0
   let unitCount = 0
+  let magazines = 0
+  let filled = 0
+  let empty = 0
   for (const entity of selection) {
     const unit = world.get(entity, Unit)
     if (unit) {
       counts.set(unit.type, (counts.get(unit.type) ?? 0) + 1)
       unitHealth += world.get(entity, Health)?.value ?? 1
       unitCount++
+      const capacity = magazineOf(unit.type)
+      if (capacity && sim.rules.unitAmmo && isOwn(sim, player, entity)) {
+        magazines++
+        filled += Math.min(1, ammoOf(sim, entity) / capacity)
+        if (isEmpty(sim, entity)) empty++
+      }
       if (canFight(sim, entity)) {
         armed++
         const stance = stanceOf(sim, entity)
@@ -830,7 +843,7 @@ export function readHud(scene: Scene): HudState {
     trapped: walled,
     units: UNIT_TYPES.filter((type) => counts.has(type)).map((type) => ({ type, count: counts.get(type)! })),
     gift: gift.length ? gift : null,
-    army: unitCount ? { armed, health: round(unitHealth / unitCount) } : null,
+    army: unitCount ? { armed, health: round(unitHealth / unitCount), ammo: magazines ? round(filled / magazines) : null, empty } : null,
     building,
     deposit,
     stock: stock.capacity ? { items: stacksOf(stock.items), capacity: stock.capacity } : null,

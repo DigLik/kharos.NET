@@ -552,6 +552,8 @@
     "batteryCharging": "Charge: {charge} of {capacity}, storing {flow} ⚡",
     "health": "Health: {percent}. Repair costs {repair}: select builders and right-click the building",
     "armyHealth": "Health: {percent}. Builders repair vehicles; infantry heals on its own",
+    "armyAmmo": "Ammo: {percent}. Magazines refill inside your network from its storage",
+    "armyEmpty": "Out of ammo: {count}. Units holding position wait for supply; the rest head to your network on their own",
     "armed": "They fire at enemies in range on their own. Right-click an enemy to attack",
     "stock": "Store",
     "storage": "Storage",

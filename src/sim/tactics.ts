@@ -95,6 +95,7 @@ export function clearTactics(sim: Sim, entity: Entity) {
   tactics.patrol = []
   tactics.leg = 0
   tactics.away = false
+  tactics.resupply = false
 }
 
 /**
@@ -134,7 +135,8 @@ export function patrol(sim: Sim) {
   const { world, time } = sim
   const moves: { entity: Entity; x: number; y: number; leg?: boolean }[] = []
   for (const [entity, tactics, position] of world.query(Tactics, Position)) {
-    if (world.has(entity, Path) || !onTurn(time, entity, RESUME_TICKS) || fighting(sim, entity)) continue
+    // Идущего за боеприпасами ведёт снабжение: на место он вернётся, когда наполнит магазин.
+    if (tactics.resupply || world.has(entity, Path) || !onTurn(time, entity, RESUME_TICKS) || fighting(sim, entity)) continue
     if (tactics.patrol.length) {
       const count = tactics.patrol.length / 2
       const goalX = tactics.patrol[tactics.leg * 2]

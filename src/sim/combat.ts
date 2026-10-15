@@ -12,6 +12,7 @@ import { repairStations } from './construction'
 import { absorb, domes, stopShot, stopper } from './shields'
 import { amountOf, take } from './inventory'
 import { searchCut, searchedTiles, withSearchQuota } from './path'
+import { isEmpty, resupplying, spendAmmo, unitHasAmmo } from './supply'
 import { meltdown } from './reactors'
 import { protectedPlayers, protectionLeft, unprotect } from './shelter'
 import type { Sim } from './sim'
@@ -340,10 +341,12 @@ export function recover(sim: Sim) {
 }
 
 /**
- * Хватит ли носителю боеприпасов на выстрел этим оружием. Стреляют боеприпасами только турели зданий с
- * BuildingSpec.ammo; юнитам и прочим зданиям хватает всегда.
+ * Хватит ли носителю боеприпасов на выстрел этим оружием. Турели зданий с BuildingSpec.ammo стреляют со склада,
+ * юниты — из магазина (см. supply.ts); прочим зданиям хватает всегда.
  */
 export function hasAmmo(sim: Sim, carrier: Entity, weapon: WeaponSpec) {
+  const unit = sim.world.get(carrier, Unit)
+  if (unit) return unitHasAmmo(sim, carrier, unit.type, weapon)
   const type = sim.world.get(carrier, Building)?.type
   if (type === undefined || !buildingSpec(type).ammo || !weapon.ammo) return true
   const store = sim.world.get(carrier, Inventory)
@@ -528,9 +531,14 @@ export function fight(sim: Sim) {
     }
   }
 
-  /** Списывает боеприпасы на выстрел со склада носителя. Юниты стреляют бесплатно; false — стрелять нечем. */
+  /** Списывает боеприпасы на выстрел: со склада турели или из магазина юнита. false — стрелять нечем. */
   const spend = (carrier: Entity, weapon: WeaponSpec) => {
     if (!hasAmmo(sim, carrier, weapon)) return false
+    const unit = world.get(carrier, Unit)
+    if (unit) {
+      spendAmmo(sim, carrier, unit.type, weapon)
+      return true
+    }
     const store = world.get(carrier, Inventory)
     if (store && weapon.ammo) take(store, 'ammo', weapon.ammo)
     return true
@@ -671,7 +679,15 @@ export function fight(sim: Sim) {
     const mover = carrier
     const moving = world.has(mover, Path)
     const unitCarrier = world.get(carrier, Unit)
-    const stance = unitCarrier ? stanceOf(sim, carrier) : 'defensive'
+    // Расстрелявший магазин молчит: цель бросает и новой не ищет, пока не пополнится, см. supply.ts.
+    if (unitCarrier && isEmpty(sim, carrier)) {
+      // Путь погони — боя, а не игрока: гнаться больше не за чем.
+      if (armed.chase) world.remove(mover, Path)
+      Object.assign(armed, { target: NONE, chase: false, ordered: false })
+      continue
+    }
+    // Идущий за боеприпасами в погоню не уходит: бьёт, до кого достаёт, как держащий позицию.
+    const stance = unitCarrier ? (resupplying(sim, carrier) ? 'hold' : stanceOf(sim, carrier)) : 'defensive'
     // Агрессивный в походе — идёт, куда послали, или возвращается после погони — высматривает врага, как патрульный:
     // бьёт всё, что увидел по дороге, и идёт дальше. Приказ атаковать цель — не поход: с ним юнит на других не смотрит.
     const tactics = world.get(carrier, Tactics)

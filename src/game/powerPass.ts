@@ -4,7 +4,7 @@ import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atl
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Building, GOODS, Hauler, Owner, Position, Site, powerStates, shutDown, unlinked, unreachable, type Good, type PowerState } from '../sim'
+import { BUILDINGS, Building, GOODS, Hauler, Magazine, Owner, Position, Site, UNITS, Unit, isEmpty, powerStates, shutDown, unlinked, unreachable, type Good, type PowerState } from '../sim'
 import { GOOD_ICON, paintGood } from './goodIcons'
 import { lacksOf, type Lack } from './lacks'
 import { STATUS_BAR, STATUS_GAP, STATUS_STACK, statusBarsOf, statusLift } from './statusBars'
@@ -141,6 +141,8 @@ function drawBlocked() {
 
 /** Насколько значок запертого грузовика выше его середины, в тайлах. */
 const TRUCK_ICON_RISE = 0.9
+/** Насколько значок над юнитом выше его края, в тайлах. */
+const UNIT_ICON_GAP = 0.45
 
 type Color = readonly [number, number, number]
 const BAR_BACK: Color = [0.03, 0.05, 0.08]
@@ -267,6 +269,15 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
           if (x < -halfWidth || x > halfWidth || y < -halfHeight || y > halfHeight) continue
           const frame = blockedFrame
           sprites.push(x - ICON_TILES / 2, y - TRUCK_ICON_RISE - ICON_TILES / 2, ICON_TILES, ICON_TILES, frame.u, frame.v, frame.width, frame.height, 1, 1, 1, 1)
+        }
+        // Свои юниты с пустым магазином — значок боеприпасов, как над турелью без них. Магазин видит только хозяин.
+        const frame = lackFrames.get('ammo')!
+        for (const [entity, , unit, position, owner] of world.query(Magazine, Unit, Position, Owner)) {
+          if (owner.player !== scene.player || !isEmpty(sim, entity)) continue
+          const x = position.x - camera.x
+          const y = position.y - camera.y - UNITS[unit.type].radius - UNIT_ICON_GAP
+          if (x < -halfWidth || x > halfWidth || y < -halfHeight || y > halfHeight) continue
+          sprites.push(x - ICON_TILES / 2, y - ICON_TILES / 2, ICON_TILES, ICON_TILES, frame.u, frame.v, frame.width, frame.height, 1, 1, 1, 1)
         }
       }
 
