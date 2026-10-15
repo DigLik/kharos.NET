@@ -681,7 +681,9 @@ export function materialShare(sim: Sim, site: Entity) {
 export function awaitsMaterials(sim: Sim, site: Entity) {
   const work = sim.world.get(site, Site)
   if (!work || work.demolish) return false
-  return work.progress >= siteTicks(work.type, sim.time.step) * materialShare(sim, site) - 1e-9
+  // Всё привезено — ждать нечего, даже если до конца осталась крошка счёта: иначе к такой стройке не пошёл бы никто.
+  const share = materialShare(sim, site)
+  return share < 1 && work.progress >= siteTicks(work.type, sim.time.step) * share - 1e-9
 }
 
 /**
@@ -851,7 +853,9 @@ export function construct(sim: Sim) {
     const reached = Math.min(site.progress + count * speed, total * materialShare(sim, entity))
     if (reached > site.progress && spend(sim, player, ((reached - site.progress) / total) * BUILDINGS[site.type].cost)) site.progress = reached
     health.value = Math.max(health.value, health.max * Math.max(SITE_FLOOR, site.progress / total))
-    if (site.progress < total) continue
+    // Доли работы складываются с погрешностью: 399,99999999999966 из 400 — уже готово.
+    if (site.progress < total - 1e-9) continue
+    site.progress = total
     health.value = health.max
     world.remove(entity, Site)
     // Материалы ушли в здание; склад у готового здания свой.

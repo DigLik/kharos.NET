@@ -7,7 +7,7 @@ import {
   Health, canBuild, canPlace, createSim, creditsOf, freeCredits, grantResearch, isWalkable, rewardsOf, siteAt, spawnStartingUnits, type Sim,
 } from '../src/sim'
 import { BUILD_RATE, isUnlocked, placeBuilding } from '../src/sim/buildings'
-import { WORK_RADIUS, siteTicks, wallStroke } from '../src/sim/construction'
+import { WORK_RADIUS, awaitsMaterials, siteTicks, wallStroke } from '../src/sim/construction'
 import { addCredits } from '../src/sim/economy'
 import { spawnUnit } from '../src/sim/units'
 import { throughJson } from './throughJson'
@@ -366,6 +366,21 @@ test('стройка, которой не хватает лишь погрешн
   sim.world.get(building, Inventory)!.items.metal = BUILDINGS.spaceport.materials!.metal! - 5e-7
   seconds(sim, 120)
   expect(sim.world.has(building, Site)).toBe(false)
+})
+
+test('стройка, которой до конца осталась лишь крошка счёта, не ждёт материалов и достраивается', () => {
+  const { sim, builders, site } = start()
+  sim.send(1, { type: 'build', building: 'generator', x: site.x, y: site.y, builders: [builders[0]] })
+  seconds(sim, 8)
+  const entity = siteAt(sim, site.x + 1, site.y + 1)!
+  expect(sim.world.has(entity, Building) && sim.world.has(entity, Site)).toBe(true)
+  // Доли работы сложились в 399,99999999999966 из 400, а строители как раз ушли.
+  sim.world.get(entity, Site)!.progress = siteTicks('generator', TICK) - 3e-13
+  sim.world.get(entity, Health)!.value = sim.world.get(entity, Health)!.max
+  for (const builder of builders) sim.world.remove(builder, Builds)
+  expect(awaitsMaterials(sim, entity)).toBe(false)
+  seconds(sim, 10)
+  expect(sim.world.has(entity, Site)).toBe(false)
 })
 
 test('стена протяжкой: закладывается по тайлам, занятое пропускается, без кредитов — тоже', () => {
