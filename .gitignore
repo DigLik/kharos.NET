@@ -11,3 +11,5 @@ native/js/*.bundle.js
 native/js/chunk-*.js
 native/js/assets
 
+.cache/
+native/fonts

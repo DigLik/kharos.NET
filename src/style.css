@@ -1,13 +1,16 @@
+@import './fonts.css';
+
 :root {
   color-scheme: dark;
   /*
    * Рамки, кнопки и монета рисуются кодом (src/ui/skin.ts) в переменные --skin-*. Шрифты — Ark Pixel (OFL,
-   * public/fonts, урезаны до латиницы и кириллицы): 12-пиксельный — весь текст, 10-пиксельный вдвое крупнее —
-   * заголовки (--font-title). Пиксель шрифта ложится на пиксели экрана, только когда размер кратен его сетке:
-   * текст — 12px, заголовки — 20px.
+   * public/fonts, кусками по unicode-range — см. fonts.css): 12-пиксельный — весь текст, 10-пиксельный вдвое
+   * крупнее — заголовки (--font-title). Пиксель шрифта ложится на пиксели экрана, только когда размер кратен его
+   * сетке: текст — 12px, заголовки — 20px. Чего в Ark Pixel нет (ники пишут чем угодно), рисует GNU Unifont —
+   * тоже пиксельный, увеличенный так, чтобы в том же кегле выходили его родные 16 точек.
    */
-  font-family: "Ark Pixel 12", monospace;
-  --font-title: "Ark Pixel 10", "Ark Pixel 12", monospace;
+  font-family: "Ark Pixel 12", "Kharos Unifont 12", monospace;
+  --font-title: "Ark Pixel 10", "Kharos Unifont 10", "Ark Pixel 12", monospace;
   /* Тона — те же, что у скина (src/ui/skin.ts) и построек. Других оттенков в стилях нет. */
   --ink: #0b111b;
   --night: #08111c;
@@ -222,18 +225,6 @@ input[type='checkbox']:hover:not(:checked) {
   border-image: var(--skin-well) 4 fill / 8px;
   border-radius: 0;
   background: none;
-}
-
-@font-face {
-  font-family: "Ark Pixel 12";
-  src: url("/fonts/ark-pixel-12px.woff2") format("woff2");
-  font-display: block;
-}
-
-@font-face {
-  font-family: "Ark Pixel 10";
-  src: url("/fonts/ark-pixel-10px.woff2") format("woff2");
-  font-display: block;
 }
 
 * {
