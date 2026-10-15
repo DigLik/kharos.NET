@@ -3,7 +3,7 @@ import { BUILDINGS, buildingSpec } from './buildings'
 import { NONE } from './common'
 import { Assembly, Batch, Building, Inventory, Owner, Position, Site } from './components'
 import { amountOf, put, roomFor, take } from './inventory'
-import { flowsOf, givenBy, offerIndex, offersOf, requestsOf, spareOf } from './logistics'
+import { barred, flowsOf, givenBy, offerIndex, offersOf, requestsOf, spareOf, surplusOf } from './logistics'
 import { isProduct, type Good } from './resources'
 import type { Sim } from './sim'
 import { isStore } from './trade'
@@ -205,7 +205,7 @@ export function pipeFlow(sim: Sim) {
       let bestAmount = 0
       for (const source of offeringIn(zone, request.resource)) {
         const length = routes.dist.get(source)
-        if (source === request.to || length === undefined || length >= bestLength) continue
+        if (source === request.to || length === undefined || length >= bestLength || barred(sim, request.to, source)) continue
         const available = givenBy(sim, source, request.resource, request.sale)
         if (available < Math.min(request.amount, MIN_BATCH) - EPSILON) continue
         best = source
@@ -232,14 +232,15 @@ function pushOutlets(sim: Sim, player: number, zone: Zone, busy: Set<string>, in
   for (const source of zone.buildings) {
     const type = world.get(source, Building)!.type
     const spec = buildingSpec(type)
-    if (!spec.refines && !spec.assembles && !spec.trades && !spec.researches) continue
+    if (!spec.refines && !spec.assembles && !spec.trades && !spec.researches && !spec.requester) continue
     const inventory = world.get(source, Inventory)
     if (!inventory) continue
     for (const resource of offersOf(sim, source)) {
       const key = `>${source}:${resource}`
       if (busy.has(key)) continue
-      const available = spareOf(sim, source, resource)
-      const leftover = !!spec.trades || !!spec.researches || (world.has(source, Assembly) && !isProduct(resource)) || (!!spec.refines && amountOf(inventory, spec.refines) <= EPSILON)
+      // Станция запроса отдаёт в хранилища только лишнее сверх заказа.
+      const available = spec.requester ? surplusOf(sim, source, resource) : spareOf(sim, source, resource)
+      const leftover = !!spec.requester || !!spec.trades || !!spec.researches || (world.has(source, Assembly) && !isProduct(resource)) || (!!spec.refines && amountOf(inventory, spec.refines) <= EPSILON)
       if (available < (leftover ? EPSILON : OUTLET_MIN)) continue
       const routes = routesFrom(zone, source)
       let best = NONE as Entity

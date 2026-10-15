@@ -8,7 +8,7 @@ import { Builds, Building, Converting, Deploys, Producer, Unit } from './compone
 import { assignBuilders, cancelBuild, demolish, orderBuild, orderWalls, workIn } from './construction'
 import { DEPLOY_SECONDS, PACK_SECONDS, canDeploy, canPack, cancelDeploy, orderDeploy, startConverting } from './conversion'
 import { assignHaulers, assignPickup, assignSupply, releaseHauler } from './hauling'
-import { setReserve } from './logistics'
+import { setReserve, setWanted } from './logistics'
 import { clearOrders, isBusyBuilder, queueOrder, unitsOf } from './orders'
 import { orderPave, removePave, type PaveKind } from './paving'
 import { orderDigs, type DigKind } from './earthworks'
@@ -128,6 +128,8 @@ export type Command = (
   | { type: 'filter'; units: number[]; goods: Good[] }
   /** Резерв своих хранилищ: столько груза они не выдают никому, кроме продажи; ноль — снять. */
   | { type: 'reserve'; buildings: number[]; amount: number }
+  /** Заказ своих станций запроса: сколько груза resource держать; ноль — не заказывать. */
+  | { type: 'want'; buildings: number[]; resource: Good; amount: number }
   /** Сдаться: проиграть сразу — все свои юниты и здания исчезают. */
   | { type: 'surrender' }
   /** Стойка своих вооружённых юнитов: как они воюют без приказа. */
@@ -319,6 +321,8 @@ function run(sim: Sim, player: number, command: Command): boolean {
       return Array.isArray(command.units) && Array.isArray(command.goods) && setFilter(sim, player, command.units as Entity[], command.goods)
     case 'reserve':
       return Array.isArray(command.buildings) && setReserve(sim, player, command.buildings as Entity[], command.amount)
+    case 'want':
+      return Array.isArray(command.buildings) && setWanted(sim, player, command.buildings as Entity[], command.resource, Number(command.amount))
     case 'demolish': {
       const builders = Array.isArray(command.builders) ? (command.builders as Entity[]) : []
       return demolish(sim, player, command.building as Entity, builders)

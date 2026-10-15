@@ -324,6 +324,12 @@ export const Shield = component('Shield', { charge: 0, hit: -1, down: 0 })
 export const Accumulator = component('Accumulator', { charge: 0, flow: 0 })
 
 /**
+ * Заказ станции запроса: сколько какого готового груза она держит у себя. Грузовики и трубы довозят недостающее,
+ * лишнее увозят в хранилища. См. BuildingSpec.requester и setWanted в logistics.ts.
+ */
+export const Wanted = component('Wanted', () => ({ items: {} as Amounts }))
+
+/**
  * Реактор: left — сколько тиков ещё горит стержень в работе; ноль — стержня нет, и реактор не вырабатывает.
  * См. reactors.ts.
  */
@@ -436,4 +442,4 @@ export const Dig = component('Dig', { kind: 'peak' as 'peak' | 'cliff', cost: 0,
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Deploys, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Busy, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare, Dig, Unreachable, Magazine]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Deploys, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Busy, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare, Dig, Unreachable, Magazine, Wanted]

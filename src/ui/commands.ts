@@ -1,7 +1,7 @@
 import type { HudState, Stack } from '../game/hud'
 import type { PaveIcon } from '../game/portraits'
 import type { PaveTool } from '../game/scene'
-import { BRIDGE_COST, CLIFF_COST, PEAK_COST, BUILDINGS, SUPPLY, UNDERGROUND_REACH, BUILDING_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, TRANSFER_CAPACITY, WARES, type Amounts, type Stance, type BuildingType, type Command, type Good, type Resource } from '../sim'
+import { BRIDGE_COST, CLIFF_COST, PEAK_COST, BUILDINGS, SUPPLY, UNDERGROUND_REACH, BUILDING_TYPES, REQUIRES, FOUNDATION_COST, LEASH, ORES, ROAD_COST, TRANSFER_CAPACITY, WARES, type Amounts, type Stance, type BuildingType, type Command, type Good, type Ware } from '../sim'
 import { t } from '../i18n'
 import { isSeen, markSeen } from './seen'
 import { currentStep } from '../game/firstSteps'
@@ -32,11 +32,11 @@ const FERRY = 0
 const LIST = 8
 
 /** Страница сетки строителя: корень с разделами или сами здания раздела. */
-export type Page = 'root' | 'economy' | 'storage' | 'industry' | 'production' | 'military' | 'defense' | 'paving' | 'logistics' | 'filter' | 'reserve' | 'sell' | 'buy' | 'ally' | 'ferryGoods' | 'ferryMore' | 'gift' | 'scuttle'
+export type Page = 'root' | 'economy' | 'storage' | 'industry' | 'production' | 'military' | 'defense' | 'paving' | 'logistics' | 'filter' | 'reserve' | 'request' | 'sell' | 'buy' | 'ally' | 'ferryGoods' | 'ferryMore' | 'gift' | 'scuttle'
 
 /** Разделы строителя: в какой странице какое здание. Остальное — хозяйство: энергия, добыча, торговля. */
 const SECTIONS: Partial<Record<Page, BuildingType[]>> = {
-  storage: ['metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack'],
+  storage: ['metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack', 'requestStation'],
   industry: ['smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill'],
   production: ['blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant'],
   military: ['barracks', 'factory', 'airfield', 'repairStation', 'supplyDepot', 'silo'],
@@ -131,9 +131,9 @@ const PIPE_TOOLS: { tool: GridTool; cost: number }[] = [
   { tool: 'well', cost: BUILDINGS.well.cost },
 ]
 
-/** Сделка, которую игрок набирает у космопорта: что продать или купить и сколько. */
+/** Сделка, которую игрок набирает у космопорта: что продать или купить и сколько. У станции запроса — груз, чей заказ правят. */
 export interface Deal {
-  resource: Resource
+  resource: Ware
   amount: number
 }
 /** Шаги количества в сделке и с какого числа она начинается. */
@@ -171,11 +171,12 @@ export const ferryDraftFor = (to: number, name: string): FerryDraft => ({ to, na
 export function dealOf(trade: NonNullable<HudState['trade']>, credits: number, buying: boolean, deal: Deal) {
   const purchase = trade.purchases.find(({ resource }) => resource === deal.resource)
   const offer = trade.offers.find(({ resource }) => resource === deal.resource)
-  const price = (buying ? purchase : offer)?.price
-  if (price === undefined) return null
+  const item = buying ? purchase : offer
+  if (!item) return null
+  const { resource, price } = item
   const room = purchase?.room ?? 0
   const max = buying ? Math.max(0, Math.min(room, Math.floor(credits / price))) : offer!.available
-  return { resource: deal.resource, amount: Math.max(0, Math.min(max, Math.floor(deal.amount) || 0)), price, max, room }
+  return { resource, amount: Math.max(0, Math.min(max, Math.floor(deal.amount) || 0)), price, max, room }
 }
 
 /**
@@ -448,6 +449,49 @@ export function commandsOf(
       slots[2] = { label: t('grid.reserveAll'), active: amount >= capacity, title: t('grid.reserveAllTip'), run: () => set(capacity) }
       slots[CANCEL] = { label: t('grid.reserveNone'), active: amount <= 0, title: t('grid.reserveNoneTip'), run: () => set(0) }
       slots[BACK] = { label: t('common.back'), run: () => open('root') }
+    }
+  }
+
+  const { request } = state
+  if (request && !construction && !haul) {
+    const { buildings, wanted, capacity } = request
+    if (page === 'root') {
+      const count = Object.keys(wanted).length
+      slots[0] = {
+        label: count ? t('grid.requestCount', { count }) : t('grid.request'),
+        active: count > 0,
+        title: t('grid.requestTip'),
+        run: () => open('request'),
+      }
+    } else if (page === 'request' && !deal) {
+      // Сначала — какой груз: ячейка на каждый, с заказанным количеством. Количество — на следующем шаге.
+      WARES.forEach((ware, i) => {
+        const amount = wanted[ware] ?? 0
+        slots[i] = {
+          label: amount ? `${t(`goods.${ware}`)} ×${amount}` : t(`goods.${ware}`),
+          good: ware,
+          active: amount > 0,
+          title: t('grid.requestGoodTip'),
+          run: () => pick({ resource: ware, amount }),
+        }
+      })
+      slots[BACK] = { label: t('common.back'), run: () => open('root') }
+    } else if (page === 'request' && deal) {
+      // Верхний ряд — прибавить, второй — убавить; «Всё» — сколько осталось места на складе за вычетом других заказов.
+      const { resource } = deal
+      const amount = wanted[resource] ?? 0
+      let others = 0
+      for (const ware of WARES) if (ware !== resource) others += wanted[ware] ?? 0
+      const max = Math.max(0, capacity - others)
+      const set = (next: number) => send({ type: 'want', buildings, resource, amount: Math.max(0, Math.min(max, next)) })
+      const title = t('grid.requestAmount', { good: t(`goods.${resource}`), amount })
+      ;[10, 50].forEach((step, i) => {
+        slots[i] = { label: `+${step}`, good: resource, disabled: amount >= max, title, run: () => set(amount + step) }
+        slots[i + 4] = { label: `−${step}`, good: resource, disabled: amount <= 0, title, run: () => set(amount - step) }
+      })
+      slots[2] = { label: t('grid.all'), active: amount >= max, title: `×${max}`, run: () => set(max) }
+      slots[CANCEL] = { label: t('grid.requestNone'), active: amount <= 0, title: t('grid.requestNoneTip'), run: () => set(0) }
+      slots[BACK] = { label: t('common.back'), run: () => pick(null) }
     }
   }
 

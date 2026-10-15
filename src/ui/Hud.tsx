@@ -9,7 +9,7 @@ import type { PaveTool } from '../game/scene'
 import { buildingPortrait, pavePortrait, unitPortrait } from '../game/portraits'
 import { goodIcon } from '../game/goodIcons'
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
-import { RELIEF_BELOW, RELIEF_INCOME, REWARDS, resourceOf, type UnitType, type BuildingType, type Command, type Good, type Reward } from '../sim'
+import { RELIEF_BELOW, RELIEF_INCOME, REWARDS, WARES, resourceOf, type UnitType, type BuildingType, type Command, type Good, type Reward } from '../sim'
 import { markSeen } from './seen'
 import { GRID_KEYS, commandsOf, dealOf, keyLabel, type Deal, type FerryDraft, type Page, type Slot } from './commands'
 import { rich, t, type Key } from '../i18n'
@@ -756,6 +756,15 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
             {state.stored.items.length === 0 && t('common.empty')}
             {!state.stored.buffer && t('hud.holds', { capacity: state.stored.capacity })}
             {state.reserve && state.reserve.amount > 0 && t('hud.reserve', { amount: state.reserve.amount })}
+          </div>
+        )}
+        {state.request && (
+          <div class="hud__hint">
+            {t('hud.request')}:{' '}
+            {WARES.filter((ware) => state.request!.wanted[ware]).map((ware) => (
+              <Res key={ware} resource={ware} amount={state.request!.have[ware] ?? 0} of={state.request!.wanted[ware]} />
+            ))}
+            {Object.keys(state.request.wanted).length === 0 && t('hud.requestNone')}
           </div>
         )}
         {state.refinery && (

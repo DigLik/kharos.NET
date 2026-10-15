@@ -1,5 +1,5 @@
 import type { Component, Entity, World } from '../ecs'
-import { Accumulator, Armed, Assembly, Attached, Blast, Builds, Burst, Converting, Deploys, Chaser, Drop, Hauler, Health, Interceptor, Inventory, Magazine, Mark, Missile, Owner, Path, Position, Producer, Reactor, Repair, Scan, Shot, Silo, SAVED, Tactics, Trade, Turret, Unit, Unreachable } from '../sim/components'
+import { Accumulator, Armed, Assembly, Attached, Blast, Builds, Burst, Converting, Deploys, Chaser, Drop, Hauler, Health, Interceptor, Inventory, Magazine, Mark, Missile, Owner, Path, Position, Producer, Reactor, Repair, Scan, Shot, Silo, SAVED, Tactics, Trade, Turret, Unit, Unreachable, Wanted } from '../sim/components'
 import { quantize, type Motion } from './codec'
 
 /** До скольких знаков после запятой округляются дробные числа в сети: тысячная тайла глазу не видна. */
@@ -63,7 +63,7 @@ export interface Wired {
  * Что о своём знает только хозяин: склад, очередь производства, работа грузовиков, копателей и строителей, куда едет разворачиваться MCV, сборка,
  * торговля, тактика, куда смотрит радар, заряжен ли перехватчик, куда его грузовикам не подъехать, сколько боеприпасов в магазинах. Чужому это незачем рисовать, а знать — нечестно.
  */
-const PRIVATE = new Set([Inventory, Producer, Hauler, Assembly, Trade, Tactics, Builds, Deploys, Repair, Scan, Accumulator, Reactor, Interceptor, Unreachable, Magazine].map((component) => component.key))
+const PRIVATE = new Set([Inventory, Producer, Hauler, Assembly, Trade, Tactics, Builds, Deploys, Repair, Scan, Accumulator, Reactor, Interceptor, Unreachable, Magazine, Wanted].map((component) => component.key))
 
 /**
  * Сущность глазами игрока viewer: своё и ничьё — целиком, чужое — без PRIVATE и без цели стрелка; у чужой шахты —

@@ -2,10 +2,10 @@ import type { Entity } from '../ecs'
 import { inputsOf } from './assembly'
 import { BUILDINGS, buildingSpec, feedOf, isReady, type BuildingSpec } from './buildings'
 import { NONE, isOwn } from './common'
-import { Assembly, Batch, Building, Converting, Drop, Hauler, Inventory, Off, Owner, Path, Position, Producer, Site, Trade, Unit, Unreachable } from './components'
+import { Assembly, Batch, Building, Converting, Drop, Hauler, Inventory, Off, Owner, Path, Position, Producer, Site, Trade, Unit, Unreachable, Wanted } from './components'
 import { depositAt } from './deposits'
 import { POCKET, amountOf, loadOf, roomFor } from './inventory'
-import { entriesOf, GOODS, isOre, isProduct, ORE_OF, WARES, stockedFor, type Amounts, type Good, type Ore, type Resource } from './resources'
+import { entriesOf, GOODS, isOre, isProduct, ORE_OF, WARES, stockedFor, type Amounts, type Good, type Ore, type Resource, type Ware } from './resources'
 import type { Sim } from './sim'
 import { researchNeeds } from './topics'
 import { deliveredTo, isStore } from './trade'
@@ -16,7 +16,8 @@ import { inCircles, networkOf, zonesOf, type Zone } from './zones'
  * Зональные заявки. Всё, что потребляет груз, само заказывает его у своей зоны строительства: стройка — материалы
  * на здание, производитель — материалы на первый заказ очереди, космопорт — товар по заявке на продажу, переработка
  * — руду из шахт (её берут где угодно: месторождение решает, где шахта, а не зона), цех — сырьё своего рецепта,
- * турель и станция поставки — патроны, машина снабжения — патроны туда, где она стоит. Свободные грузовики игрока берут самую важную заявку и везут груз из хранилищ, переработки
+ * турель и станция поставки — патроны, машина снабжения — патроны туда, где она стоит, станция запроса — то, что
+ * заказал игрок. Свободные грузовики игрока берут самую важную заявку и везут груз из хранилищ, переработки
  * и цехов той же зоны. Когда заявок нет, они развозят готовое по хранилищам. Руду без переработки никто не возит:
  * она копится в шахте, пока завод не построят.
  * Игроку не нужно указывать каждому грузовику, что и куда везти.
@@ -133,6 +134,45 @@ export function setReserve(sim: Sim, player: number, buildings: Entity[], amount
   return count > 0
 }
 
+/** Станция ли это запроса: она держит заказанное игроком, см. BuildingSpec.requester. */
+export const isRequester = (sim: Sim, entity: Entity) => {
+  const type = sim.world.get(entity, Building)?.type
+  return type !== undefined && !!buildingSpec(type).requester
+}
+
+/** Сколько этого груза станция запроса держит по заказу игрока; у остальных — ноль. */
+export const wantedOf = (sim: Sim, entity: Entity, resource: Good) => sim.world.get(entity, Wanted)?.items[resource] ?? 0
+
+/** Сколько у станции запроса лишнего сверх заказа: его увозят в хранилища. */
+export const surplusOf = (sim: Sim, entity: Entity, resource: Good) => Math.max(0, spareOf(sim, entity, resource) - wantedOf(sim, entity, resource))
+
+/**
+ * Не берёт ли заказчик to груз у source: станция запроса не берёт у другой станции. Иначе две станции, заказавшие одно
+ * и то же, возили бы его друг у друга по кругу.
+ */
+export const barred = (sim: Sim, to: Entity, source: Entity) => isRequester(sim, to) && isRequester(sim, source)
+
+/**
+ * Заказ своих готовых станций запроса: сколько груза resource держать; ноль — не заказывать. Заказ всех грузов вместе
+ * не больше склада станции. Руду не заказывают. Не станции, стройки и чужое из списка выбрасываются.
+ */
+export function setWanted(sim: Sim, player: number, buildings: Entity[], resource: Good, amount: number) {
+  if (!Number.isFinite(amount) || !WARES.includes(resource as Ware)) return false
+  let count = 0
+  for (const building of new Set(buildings)) {
+    const wanted = sim.world.get(building, Wanted)
+    const inventory = sim.world.get(building, Inventory)
+    if (!wanted || !inventory || !isReady(sim, player, building)) continue
+    let others = 0
+    for (const [good, held] of entriesOf(wanted.items)) if (good !== resource) others += held
+    const next = Math.max(0, Math.min(inventory.capacity - others, Math.round(amount)))
+    if (next > 0) wanted.items[resource] = next
+    else delete wanted.items[resource]
+    count++
+  }
+  return count > 0
+}
+
 /**
  * Материалы, которых ждёт сущность: стройка — на здание, производитель — на первый заказ очереди, пока тот не начат.
  * undefined — ничего не ждёт.
@@ -187,8 +227,8 @@ const NOTHING_OFFERED: Good[] = []
  * availableIn; шахту это не касается, её руду берут только заявкой.
  */
 export function offersOf(sim: Sim, entity: Entity): readonly Good[] {
-  // Дроп отдаёт всё, что на нём лежит.
-  if (sim.world.has(entity, Drop)) {
+  // Дроп отдаёт всё, что на нём лежит, станция запроса — всё, что держит.
+  if (sim.world.has(entity, Drop) || isRequester(sim, entity)) {
     const inventory = sim.world.get(entity, Inventory)
     return inventory ? GOODS.filter((good) => amountOf(inventory, good) > 1e-9) : NOTHING_OFFERED
   }
@@ -321,6 +361,11 @@ export function requestsOf(sim: Sim, player: number, flows = flowsOf(sim)): Requ
     if (zone && (offering ??= offerIndex(sim))(zone, 'ammo').some((source) => givenBy(sim, source, 'ammo') >= MIN_JOB)) continue
     need(entity, 'ammo', room, PRIORITY.ammo, 'zone', true)
   }
+  // Станции запроса: недостающее до заказа игрока.
+  for (const [entity, wanted, inventory] of world.query(Wanted, Inventory)) {
+    if (!isReady(sim, player, entity)) continue
+    for (const [resource, amount] of entriesOf(wanted.items)) need(entity, resource, amount - amountOf(inventory, resource), PRIORITY.production)
+  }
   // Продажа: товар заявки.
   for (const [entity, order] of world.query(Trade, Inventory)) {
     if (order.total > 0 || !isReady(sim, player, entity)) continue
@@ -425,6 +470,8 @@ export function acceptsDelivery(sim: Sim, player: number, to: Entity, resource: 
   if (unit) return !!unitSpec(unit.type).supplies
   if (!isReady(sim, player, to) || world.has(to, Converting)) return false
   if (isStore(sim, to)) return true
+  // Станция запроса — только заказанное и не сверх заказа.
+  if (isRequester(sim, to)) return amountOf(inventory, resource) < wantedOf(sim, to, resource) - 1e-9
   const order = world.get(to, Trade)
   if (order) return order.total <= 0 && order.resource === resource
   if (materialsFor(sim, to)?.[resource]) return true
@@ -522,7 +569,7 @@ export function dispatch(sim: Sim) {
     for (const [entity, building] of world.query(Building, Inventory)) {
       if (!isReady(sim, player, entity) || world.has(entity, Converting)) continue
       const spec = buildingSpec(building.type)
-      if (spec.refines || spec.assembles || spec.trades) outlets.push(entity)
+      if (spec.refines || spec.assembles || spec.trades || spec.requester) outlets.push(entity)
       else if (spec.extract) mines.push(entity)
     }
     // Дропы ничьи: их подбирает любой, но сам — только в своих зонах. За дропом на другом краю карты грузовик
@@ -548,9 +595,9 @@ export function dispatch(sim: Sim) {
     let needs: Request[] | undefined
     const anyZone = () => (everywhere ??= [...new Set([...zonesOf(sim, player).flatMap((zone) => zone.buildings), ...drops])])
 
-    /** Есть ли в сети поставщик груза — тогда его везут трубы. */
-    const hasLocal = (network: Zone, resource: Good, least: number, sale: boolean) =>
-      offeringIn(network, resource).some((source) => givenBy(sim, source, resource, sale) >= least)
+    /** Есть ли в сети поставщик груза для заказчика to — тогда его везут трубы. */
+    const hasLocal = (network: Zone, to: Entity, resource: Good, least: number, sale: boolean) =>
+      offeringIn(network, resource).some((source) => !barred(sim, to, source) && givenBy(sim, source, resource, sale) >= least)
     /** Есть ли в сети хранилище, куда этот груз ещё помещается. */
     const hasStore = (network: Zone, resource: Good) => storesIn(network).some((store) => spaceFor(sim, NONE as Entity, store, resource, flows) > 1e-9)
 
@@ -570,12 +617,12 @@ export function dispatch(sim: Sim) {
         if ((serving && !serving.has(request.to)) || unreachable(sim, request.to)) continue
         // Внутри сети груз идёт по трубам: сам грузовик везёт только то, чего в сети заказчика нет, — из других сетей.
         const network = serving ? undefined : networkOf(sim, request.to)
-        if (network && hasLocal(network, request.resource, Math.min(request.amount, MIN_JOB), request.sale)) continue
+        if (network && hasLocal(network, request.to, request.resource, Math.min(request.amount, MIN_JOB), request.sale)) continue
         let found = false
         const look = (sources: readonly Entity[]) => {
           for (const source of sources) {
             if (source === request.to || !offersOf(sim, source).includes(request.resource) || unreachable(sim, source)) continue
-            if (network && networkOf(sim, source) === network) continue
+            if ((network && networkOf(sim, source) === network) || barred(sim, request.to, source)) continue
             // Руду шахты, у которой уже есть привязанный грузовик, свободные не возят.
             if (request.source === 'mines' && bound.has(source)) continue
             const available = availableIn(sim, flows, source, request.resource, request.sale)
@@ -601,7 +648,9 @@ export function dispatch(sim: Sim) {
             // Есть куда отправить по трубам своей сети — грузовик не нужен.
             const network = networkOf(sim, source)
             if (network && hasStore(network, resource)) continue
-            const available = availableIn(sim, flows, source, resource)
+            // Станция запроса отдаёт в хранилища только лишнее сверх заказа.
+            const requester = isRequester(sim, source)
+            const available = requester ? Math.min(availableIn(sim, flows, source, resource), surplusOf(sim, source, resource)) : availableIn(sim, flows, source, resource)
             const inventory = world.get(source, Inventory)!
             const holds = Math.min(inventory.limits[resource] ?? inventory.capacity, inventory.capacity)
             // Остаток сырья прежнего рецепта цеху не нужен: его увозят весь, сколько бы его ни было.
@@ -614,7 +663,7 @@ export function dispatch(sim: Sim) {
             // остаток меньше порога иначе лежал бы в ней вечно.
             const stopped = !!spec.refines && amountOf(inventory, spec.refines) <= 1e-9 && !(flows.incoming.get(source)?.[spec.refines] ?? 0)
             // С дропа увозят всё до крошки.
-            const leftover = (world.has(source, Assembly) && !isProduct(resource)) || !!spec.trades || !!spec.researches || stopped || world.has(source, Drop)
+            const leftover = (world.has(source, Assembly) && !isProduct(resource)) || !!spec.trades || !!spec.researches || stopped || world.has(source, Drop) || requester
             if (available < (leftover ? 1e-9 : Math.min(PUSH_MIN, room, holds * PUSH_SHARE))) continue
             const score = -distance(sim, truck, source)
             if (best && score <= best.score) continue

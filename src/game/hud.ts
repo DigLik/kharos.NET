@@ -10,7 +10,7 @@ import {
   Research, TOPICS, PAVE_RESEARCH, DIG_KINDS, DIG_RESEARCH, type DigKind, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, pickTopic, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   type Economy, Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
-  Accumulator, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, ammoOf, isEmpty, magazineOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
+  Accumulator, Wanted, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, ammoOf, isEmpty, magazineOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
 import { stepsDone } from './firstSteps'
 import { paveStrokeOf } from './placing'
@@ -220,6 +220,11 @@ export interface HudState {
    * (наименьшее из всех).
    */
   reserve: { buildings: number[]; amount: number; capacity: number } | null
+  /**
+   * Заказ выбранных своих станций запроса: кому слать, заказ первой из них и сколько заказанного у неё есть, сколько
+   * они вмещают (наименьшее из всех).
+   */
+  request: { buildings: number[]; wanted: Amounts; have: Amounts; capacity: number } | null
   /** Груз выбранных грузовиков вместе; bound — сколько из них привязано к шахте, busy — сколько заняты работой. */
   cargo: { items: Stack[]; capacity: number; bound: number; busy: number } | null
   /**
@@ -552,6 +557,7 @@ export function readHud(scene: Scene): HudState {
   let deposit: HudState['deposit'] = null
   let stored: HudState['stored'] = null
   let reserve: HudState['reserve'] = null
+  let request: HudState['request'] = null
   let refinery: HudState['refinery'] = null
   let assembly: HudState['assembly'] = null
   let switchable: HudState['switchable'] = null
@@ -664,6 +670,13 @@ export function readHud(scene: Scene): HudState {
       reserve ??= { buildings: [], amount: inventory.reserve, capacity: inventory.capacity }
       reserve.buildings.push(entity)
       reserve.capacity = Math.min(reserve.capacity, inventory.capacity)
+    }
+    const order = world.get(entity, Wanted)
+    if (ready && inventory && order && isOwn(sim, player, entity)) {
+      request ??= { buildings: [], wanted: { ...order.items }, have: {}, capacity: inventory.capacity }
+      if (request.buildings.length === 0) for (const [good] of entriesOf(order.items)) request.have[good] = Math.floor(amountOf(inventory, good))
+      request.buildings.push(entity)
+      request.capacity = Math.min(request.capacity, inventory.capacity)
     }
     if (ready && spec!.refines) refinery = { ore: spec!.refines, intake: REFINE_RATE * levelFactor(built.level) }
     const gain = ready && isOwn(sim, player, entity) ? levelGain(built.type) : undefined
@@ -898,6 +911,7 @@ export function readHud(scene: Scene): HudState {
     stock: stock.capacity ? { items: stacksOf(stock.items), capacity: stock.capacity } : null,
     stored,
     reserve,
+    request,
     refinery,
     assembly,
     switchable,

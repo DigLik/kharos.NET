@@ -1147,6 +1147,44 @@ const supplyDepot: BuildingArt = {
   },
 }
 
+/**
+ * Станция запроса, 2×2: приёмная площадка с разметкой, на ней ящики разного груза, рядом мачта с антенной — по ней
+ * станция зовёт грузовики; огонёк заявки мигает, а табло бегущими огнями показывает приём.
+ */
+const requestStation: BuildingArt = {
+  ...BUILDINGS.requestStation,
+  draw(g, t, light) {
+    slab(g, 0, 1, 32, 31, 2, IRON)
+    // Приёмная площадка: жёлто-чёрная рамка, внутри — бетон.
+    g.rect(2, 10, 20, 18, INK)
+    g.rect(3, 11, 18, 16, IRON[2])
+    for (let i = 0; i < 18; i += 4) {
+      g.rect(3 + i, 11, 2, 1, HAZARD[1])
+      g.rect(3 + i, 26, 2, 1, HAZARD[1])
+    }
+    // Ящики разного груза: металл, стройблоки, патроны, кремний.
+    const crates = [[5, 14, GOOD_COLORS.metal], [12, 14, GOOD_COLORS.blocks], [5, 20, GOOD_COLORS.ammo], [12, 20, GOOD_COLORS.silicon]] as const
+    for (const [x, y, color] of crates) {
+      const tint = accent(color)
+      g.rect(x, y, 6, 5, INK)
+      g.rect(x + 1, y + 1, 4, 3, tint[1])
+      g.rect(x + 1, y + 1, 4, 1, tint[2])
+    }
+    // Табло приёма над площадкой: огни бегут слева направо.
+    g.rect(3, 4, 18, 5, INK)
+    g.rect(4, 5, 16, 3, IRON[1])
+    for (let i = 0; i < 4; i++) bulb(g, light, 5 + i * 4, 5, chase(t, i / 4))
+    // Мачта с антенной справа: огонёк заявки на верхушке мигает.
+    tower(g, 26, 26, 3, 16, STEEL)
+    g.line(26, 8, 30, 3, 1, STEEL[2])
+    g.line(26, 8, 22, 3, 1, STEEL[2])
+    const level = pulse(t * 1.5)
+    g.circle(26, 4, 1.6, INK)
+    g.circle(26, 4, 1, level > 0.5 ? 0x5ff2d0 : 0x1d5a4c)
+    light(26, 4, 2, level * 0.5)
+  },
+}
+
 /** Шкаф компонентов, 1×1: закрытая стойка с ящичками, на каждом — огонёк учёта. */
 const partsLocker: BuildingArt = {
   ...BUILDINGS.partsLocker,
@@ -1853,6 +1891,7 @@ export const BUILDING_ART = {
   accumulator,
   repairStation,
   supplyDepot,
+  requestStation,
   shieldGenerator,
   lab,
   airfield,

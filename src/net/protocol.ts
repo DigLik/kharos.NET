@@ -11,7 +11,7 @@ import type { Text } from '../i18n'
  * из тех же компонентов и правил, что у сервера. Поднимай её при каждом изменении протокола, компонентов из SAVED
  * или симуляции, которое меняет то, что видит клиент.
  */
-export const PROTOCOL_VERSION = 49
+export const PROTOCOL_VERSION = 50
 
 /** Порт сервера по умолчанию. */
 export const DEFAULT_PORT = 8787

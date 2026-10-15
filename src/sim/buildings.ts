@@ -1,7 +1,7 @@
 import type { Entity, World } from '../ecs'
 import { Terrain, isBuildable, isCliffFoot, terrainAt, tileKey } from '../map/terrain'
 import { isOwn } from './common'
-import { Accumulator, Assembly, Building, Gate, Health, Interceptor, Inventory, Reactor, Repair, Owner, Position, Producer, Shield, Silo, Site } from './components'
+import { Accumulator, Assembly, Building, Gate, Health, Interceptor, Inventory, Reactor, Repair, Owner, Position, Producer, Shield, Silo, Site, Wanted } from './components'
 import { equipStorage, type BeamSpec } from './inventory'
 import { ORE_SPECS, PRODUCT_SPECS, WARES, stockedFor, type Amounts, type Good, type Ore, type Product } from './resources'
 import type { Sim } from './sim'
@@ -81,6 +81,11 @@ export interface BuildingSpec {
    * не пополниться — пустая летит сюда или к машине снабжения. См. supply.ts.
    */
   rearms?: boolean
+  /**
+   * Станция запроса: держит у себя то, что заказал игрок (Wanted), — грузовики и трубы довозят недостающее, лишнее
+   * увозят в хранилища. Отдаёт запас нуждам своей сети, как хранилище, но не другим станциям. См. logistics.ts.
+   */
+  requester?: boolean
   /** Через это здание продают ресурсы: грузовики свозят их сюда из хранилищ его зоны, см. trade.ts. */
   trades?: boolean
   /** Каких юнитов здание производит, когда достроено. Потребитель энергии при её нехватке производит медленнее. */
@@ -287,6 +292,8 @@ export const BUILDINGS = {
   ammoBunker: store(['ammo'], 2, 1, 200, 300),
   partsLocker: store(['parts'], 1, 1, 200, 60),
   rodRack: store(['rods'], 1, 1, 300, 40),
+  // Станция запроса: держит заказанный игроком груз там, где он нужен, — у дальней стройки, у турелей, у армии.
+  requestStation: { width: 2, height: 2, cost: 250, materials: { blocks: 4 }, inventory: 100, requester: true },
   // Космопорт торгует: энергию просит всегда.
   // Товар на продажу грузовики сгружают в трюм корабля. Строится из металла, а не из стройблоков: с него
   // начинаются деньги, и первой продаже хватает одной линии металла — без цеха и кремния.
@@ -324,7 +331,7 @@ export const BUILDING_TYPES = Object.keys(BUILDINGS) as BuildingType[]
 /** Что возводят строители. Остальные здания появятся вместе с тем, для чего они нужны. */
 export const BUILDABLE: BuildingType[] = [
   'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill', 'blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant',
-  'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack', 'accumulator', 'reactor', 'silo', 'spaceport', 'barracks', 'factory', 'airfield', 'lab',
+  'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack', 'requestStation', 'accumulator', 'reactor', 'silo', 'spaceport', 'barracks', 'factory', 'airfield', 'lab',
   'repairStation', 'supplyDepot', 'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator', 'interceptor',
 ]
 
@@ -438,6 +445,7 @@ export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = 
   ammoBunker: ['ammoPlant'],
   partsLocker: ['partsPlant'],
   rodRack: ['rodPlant'],
+  requestStation: ['blockPlant'],
   barracks: ['radar'],
   factory: ['radar'],
   airfield: ['radar'],
@@ -640,6 +648,7 @@ export function equip(world: World, entity: Entity, type: BuildingType) {
   if (spec.repair) world.add(entity, Repair({ radius: spec.repair }))
   if (spec.shield) world.add(entity, Shield())
   if (spec.battery) world.add(entity, Accumulator())
+  if (spec.requester) world.add(entity, Wanted())
   if (spec.burns) world.add(entity, Reactor())
   if (spec.warhead) world.add(entity, Silo())
   if (spec.intercept) world.add(entity, Interceptor())

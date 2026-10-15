@@ -254,6 +254,16 @@ export function supply(sim: Sim) {
   }
   let airfields: Airfield[] | undefined
   const stocked = (zone: Zone) => offers(zone, 'ammo').some((source) => leftIn(source) > EPSILON)
+  /** Сеть игрока, в кругах которой точка: из тех, где круги перекрываются, — с боеприпасами. */
+  const zoneAt = (player: number, x: number, y: number) => {
+    let found: Zone | undefined
+    for (const zone of zonesOf(sim, player)) {
+      if (!inCircles(zone.circles, x, y)) continue
+      if (stocked(zone)) return zone
+      found ??= zone
+    }
+    return found
+  }
   /** Берёт из хранилищ сети до amount боеприпасов; возвращает, сколько взято. */
   const takeFrom = (zone: Zone, amount: number) => {
     let taken = 0
@@ -270,7 +280,7 @@ export function supply(sim: Sim) {
   for (const supplier of suppliers) {
     const room = roomFor(supplier.stock, 'ammo')
     if (room <= EPSILON) continue
-    const zone = zonesOf(sim, supplier.player).find((one) => inCircles(one.circles, supplier.x, supplier.y))
+    const zone = zoneAt(supplier.player, supplier.x, supplier.y)
     if (zone) put(supplier.stock, 'ammo', takeFrom(zone, Math.min(room, SUPPLIER_LOAD * seconds)))
   }
 
@@ -290,7 +300,7 @@ export function supply(sim: Sim) {
       ? undefined
       : flies(unit.type)
         ? airfieldAt((airfields ??= airfieldsOf(sim)), owner.player, position.x, position.y)
-        : zonesOf(sim, owner.player).find((one) => inCircles(one.circles, position.x, position.y))
+        : zoneAt(owner.player, position.x, position.y)
     // Вне сети магазин пополняет машина снабжения, в радиусе которой юнит стоит.
     const supplier = lacking && !zone ? supplierAt(suppliers, owner.player, position.x, position.y) : undefined
     if (zone) magazine.ammo += takeFrom(zone, Math.min(capacity - magazine.ammo, REFILL_RATE * seconds))
