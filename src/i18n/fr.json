@@ -110,7 +110,7 @@
     "supplyDepot": "Garde des munitions pour les véhicules de ravitaillement et les charge avec son rayon quatre fois plus vite que les entrepôts. Camions et tuyaux le gardent plein ; il ne sert pas les autres demandes",
     "wall": "Un obstacle solide et bon marché : il barre le passage et protège des tirs. Peut être placé hors zone",
     "gate": "Plaques qui sortent du sol : abaissées tant qu'aucun étranger n'est proche, relevées en mur à l'approche de l'ennemi. Se tracent en ligne de toute largeur. Se placent aussi hors zone",
-    "pipe": "Relie les bâtiments en réseau : les tuyaux transportent marchandises et énergie et étendent la zone. Bon marché et fragile, il barre le passage. Peut être placé hors zone",
+    "pipe": "Relie en réseau les bâtiments éloignés : les tuyaux transportent marchandises et énergie et étendent la zone. Des bâtiments accolés sont reliés sans tuyau. Bon marché et fragile, il barre le passage. Peut être placé hors zone",
     "well": "L'entrée d'un tuyau souterrain : il se relie à son jumeau en ligne droite jusqu'à 10 cases. On roule et on construit au-dessus. Peut être placé hors zone",
     "turret": "Mitrailleuse contre l'infanterie et les véhicules légers ; tire aussi sur les aéronefs. Utilise les munitions de son propre stock",
     "rocketTurret": "Roquettes contre les véhicules et l'aviation. Utilise les munitions de son propre stock",
@@ -344,7 +344,7 @@
       "military": "Caserne, usine de véhicules, aérodrome, station de réparation et silo à missiles",
       "defense": "Murs, tourelles, bouclier, intercepteur de missiles nucléaires et radar",
       "paving": "Fondations, routes et ponts",
-      "logistics": "Tuyaux et puits : ils relient les bâtiments en réseau"
+      "logistics": "Tuyaux et puits : ils relient les bâtiments éloignés ; des bâtiments accolés sont déjà reliés"
     },
     "stances": {
       "aggressive": "Agressif",
@@ -370,7 +370,7 @@
     "toolTips": {
       "foundation": "Les bâtiments s'y construisent deux fois plus vite et elles permettent de bâtir sur le sable. On les pose aussi sous vos bâtiments et à la place de votre route. Les explosions les brisent. Tracez un rectangle à la souris",
       "road": "Les unités terrestres roulent plus vite ; sur un marais, c'est un pont à {bridge} par case. On ne bâtit pas sur une route ; elle peut remplacer vos fondations. Tracez une ligne à la souris",
-      "pipe": "Relie les bâtiments en réseau : les tuyaux transportent marchandises et énergie et étendent la zone. Barre le passage : sous un passage, utilisez des puits. Pas besoin de zone. Tracez une ligne à la souris",
+      "pipe": "Relie les bâtiments éloignés (accolés, ils sont reliés sans tuyau) : les tuyaux transportent marchandises et énergie et étendent la zone. Barre le passage : sous un passage, utilisez des puits. Pas besoin de zone. Tracez une ligne à la souris",
       "well": "Les puits sont les extrémités d'un tuyau souterrain : un clic en pose un (il se relie à un puits en ligne droite), un tracé en pose deux, jusqu'à {reach} cases. On roule et on construit au-dessus ; seuls les puits sont vulnérables. Pas besoin de zone",
       "peak": "Les constructeurs rasent toute la montagne, la roche reste à sa place. {cost} par case de montagne. Tracez un rectangle sur la montagne",
       "cliff": "Les constructeurs adoucissent le bord de la falaise : le pied en dessous devient praticable pour les véhicules. {cost} par case de bord. Tracez un rectangle le long de la falaise"
@@ -708,7 +708,7 @@
       },
       "metalOre": {
         "title": "Recherche Fonte du métal",
-        "tip": "Ouvre Recherche et choisis Fonte du métal. Le laboratoire a besoin du minerai de métal de la mine : un camion l’apportera."
+        "tip": "Ouvre Recherche et choisis Fonte du métal. Le laboratoire a besoin du minerai de métal de la mine : accole-le à la mine — des bâtiments accolés partagent un réseau — ou un camion apportera le minerai."
       },
       "smelter": {
         "title": "Construis une fonderie",
@@ -814,7 +814,7 @@
     "siege": "Artillerie et porteur",
     "atom": "Réacteur : six centrales en un seul endroit, brûle des barres",
     "warheads": "Silo à missiles : une frappe nucléaire n’importe où sur la carte",
-    "pipes": "Les tuyaux relient les bâtiments en réseau : marchandises et énergie y circulent. Sans réseau, le laboratoire ne reçoit pas le minerai de la mine",
+    "pipes": "Les tuyaux relient en réseau les bâtiments éloignés : marchandises et énergie y circulent. Des bâtiments accolés sont reliés sans tuyaux",
     "walls": "Barrière solide et bon marché : bloque le passage et protège des tirs",
     "radar": "Le radar voit loin et explore par impulsions ; l’armée et les tourelles viennent après",
     "roads": "Les routes accélèrent les unités",

@@ -110,7 +110,7 @@
     "supplyDepot": "Hält Munition für Versorgungsfahrzeuge bereit und belädt sie mit seinem Strahl viermal schneller als Lager. Lastwagen und Rohre halten es voll; an andere Anforderungen gibt es nichts ab",
     "wall": "Ein billiges, stabiles Hindernis: versperrt den Weg und schützt vor Beschuss. Kann auch außerhalb der Zone stehen",
     "gate": "Platten, die aus dem Boden fahren: abgesenkt, solange keine Fremden in der Nähe sind, und als Mauer ausgefahren, wenn ein Feind naht. In beliebiger Breite als Linie ziehbar. Auch außerhalb der Zone baubar",
-    "pipe": "Verbindet Gebäude zu einem Netz: Rohre leiten Fracht und Energie und erweitern die Zone. Billig und zerbrechlich, versperrt die Durchfahrt. Kann auch außerhalb der Zone stehen",
+    "pipe": "Verbindet auseinanderstehende Gebäude zu einem Netz: Rohre leiten Fracht und Energie und erweitern die Zone. Gebäude Wand an Wand sind auch ohne Rohr verbunden. Billig und zerbrechlich, versperrt die Durchfahrt. Kann auch außerhalb der Zone stehen",
     "well": "Der Eingang eines unterirdischen Rohrs: verbindet sich in gerader Linie mit seinem Gegenstück, bis zu 10 Felder weit. Über der Strecke wird gefahren und gebaut. Kann auch außerhalb der Zone stehen",
     "turret": "Ein Maschinengewehr gegen Infanterie und leichte Fahrzeuge; trifft auch Fluggeräte. Verschießt Munition aus dem eigenen Lager",
     "rocketTurret": "Raketen gegen Fahrzeuge und Fluggeräte. Verschießt Munition aus dem eigenen Lager",
@@ -344,7 +344,7 @@
       "military": "Kaserne, Fahrzeugwerk, Flugplatz, Reparaturstation und Raketensilo",
       "defense": "Mauern, Geschütztürme, Schild, Abfangstellung gegen Atomraketen und Radar",
       "paving": "Fundament, Straßen und Brücken",
-      "logistics": "Rohre und Schächte: Sie verbinden Gebäude zu einem Netz"
+      "logistics": "Rohre und Schächte: Sie verbinden auseinanderstehende Gebäude; Gebäude Wand an Wand sind ohnehin verbunden"
     },
     "stances": {
       "aggressive": "Aggressiv",
@@ -370,7 +370,7 @@
     "toolTips": {
       "foundation": "Gebäude darauf entstehen doppelt so schnell, und auf Sand erlaubt es das Bauen. Lässt sich auch unter eigene Gebäude und anstelle der eigenen Straße legen. Explosionen zerstören es. Mit der Maus ein Rechteck ziehen",
       "road": "Bodeneinheiten fahren schneller; über Sumpf wird es eine Brücke für {bridge} pro Feld. Auf Straßen wird nicht gebaut; sie ersetzt auch das eigene Fundament. Mit der Maus eine Linie ziehen",
-      "pipe": "Verbindet Gebäude zu einem Netz: Rohre leiten Fracht und Energie und erweitern die Zone. Versperrt die Durchfahrt — unter einer Durchfahrt Schächte verwenden. Braucht keine eigene Zone. Mit der Maus eine Linie ziehen",
+      "pipe": "Verbindet auseinanderstehende Gebäude (Wand an Wand sind sie auch ohne Rohr verbunden): Rohre leiten Fracht und Energie und erweitern die Zone. Versperrt die Durchfahrt — unter einer Durchfahrt Schächte verwenden. Braucht keine eigene Zone. Mit der Maus eine Linie ziehen",
       "well": "Schächte sind die Enden eines unterirdischen Rohrs: Ein Klick setzt einen (er verbindet sich in gerader Linie mit einem Schacht), Ziehen ein Paar, bis zu {reach} Felder weit. Darüber wird gefahren und gebaut; verwundbar sind nur die Schächte. Braucht keine eigene Zone",
       "peak": "Bauer tragen den ganzen Berg ab, an seiner Stelle bleibt Fels. {cost} pro Bergfeld. Mit der Maus ein Rechteck über den Berg ziehen",
       "cliff": "Bauer glätten die Kante des Steilhangs: der Fuß darunter wird für Fahrzeuge befahrbar. {cost} pro Kantenfeld. Mit der Maus ein Rechteck entlang des Hangs ziehen"
@@ -708,7 +708,7 @@
       },
       "metalOre": {
         "title": "Erforsche „Metallschmelze“",
-        "tip": "Öffne „Forschung“ und wähle „Metallschmelze“. Das Labor braucht Metallerz aus der Mine: ein Lkw bringt es."
+        "tip": "Öffne „Forschung“ und wähle „Metallschmelze“. Das Labor braucht Metallerz aus der Mine: stell das Labor direkt an die Mine — Gebäude Wand an Wand bilden ein Netz — sonst bringt ein Lkw das Erz."
       },
       "smelter": {
         "title": "Baue eine Schmelze",
@@ -814,7 +814,7 @@
     "siege": "Artillerie und Träger",
     "atom": "Reaktor: sechs Kraftwerke an einem Ort, verbrennt Brennstäbe",
     "warheads": "Raketensilo: ein Atomschlag an jeden Punkt der Karte",
-    "pipes": "Rohre verbinden Gebäude zu einem Netz für Güter und Energie. Ohne Netz bekommt das Labor kein Erz aus der Mine",
+    "pipes": "Rohre verbinden auseinanderstehende Gebäude zu einem Netz für Güter und Energie. Gebäude Wand an Wand sind auch ohne Rohre verbunden",
     "walls": "Billige, robuste Sperre: versperrt den Weg und schützt vor Beschuss",
     "radar": "Das Radar sieht weit und erkundet mit Impulsen; danach kommen Armee und Türme",
     "roads": "Straßen beschleunigen Einheiten",

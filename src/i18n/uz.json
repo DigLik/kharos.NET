@@ -110,7 +110,7 @@
     "supplyDepot": "Taʼminot mashinalari uchun o‘q-dori zaxirasini saqlaydi va ularni o‘z nuri bilan omborlardan to‘rt barobar tezroq yuklaydi. Yuk mashinalari va quvurlar uni to‘la tutadi; umumiy buyurtmalarga bermaydi",
     "wall": "Arzon va mustahkam to‘siq: yo‘lni to‘sadi va o‘qlardan himoya qiladi. Zonadan tashqarida ham quriladi",
     "gate": "Yerdan chiqadigan plitalar: yaqinida begonalar bo‘lmasa — tushirilgan turadi, dushman yaqinlashganda esa devor bo‘lib ko‘tariladi. Istalgan kenglikdagi chiziq bo‘lib tortiladi. Zonadan tashqarida ham quriladi",
-    "pipe": "Binolarni tarmoqqa ulaydi: quvurlar orqali yuk va energiya o‘tadi hamda zonani kengaytiradi. Arzon va nozik, yo‘lni to‘sadi. Zonadan tashqarida ham quriladi",
+    "pipe": "Bir-biridan uzoq binolarni tarmoqqa ulaydi: quvurlar orqali yuk va energiya o‘tadi hamda zonani kengaytiradi. Yonma-yon turgan binolar quvursiz ham ulangan. Arzon va nozik, yo‘lni to‘sadi. Zonadan tashqarida ham quriladi",
     "well": "Yerosti quvurining kirish joyi: 10 katakkacha to‘g‘ri chiziq bo‘ylab o‘z juft qudug‘iga ulanadi. Oralig‘ida harakatlanish va qurish mumkin. Zonadan tashqarida ham quriladi",
     "turret": "Piyodalar va yengil texnikaga qarshi pulemyot, havoga ham zarba beradi. O‘z omboridagi o‘q-dorilar bilan otadi",
     "rocketTurret": "Texnika va aviatsiyaga qarshi raketalar. O‘z omboridagi o‘q-dorilar bilan otadi",
@@ -344,7 +344,7 @@
       "military": "Kazarma, texnika zavodi, aerodrom, ta’mirlash stansiyasi va raketa shaxtasi",
       "defense": "Devorlar, minoralar, qalqon, yadro raketalarini tutib oluvchi va radar",
       "paving": "Poydevor, yo‘llar va ko‘priklar",
-      "logistics": "Quvurlar va quduqlar: binolarni tarmoqqa birlashtiradi"
+      "logistics": "Quvurlar va quduqlar: bir-biridan uzoq binolarni tarmoqqa birlashtiradi; yonma-yon binolar baribir ulangan"
     },
     "stances": {
       "aggressive": "Agressiv",
@@ -370,7 +370,7 @@
     "toolTips": {
       "foundation": "Uning ustidagi binolar ikki baravar tezroq quriladi va qum ustida qurishga imkon beradi. O‘z binolaringiz ostiga va o‘z yo‘lingiz o‘rniga ham yotqiziladi. Portlashlar uni buzadi. Sichqoncha bilan to‘rtburchak torting",
       "road": "Quruqlik bo‘linmalari tezroq harakatlanadi; botqoqlik ustida har bir katak uchun {bridge} narxida ko‘prik bo‘ladi. Yo‘l ustida qurilish qilinmaydi; u o‘z poydevoringiz o‘rnini ham egallaydi. Sichqoncha bilan chiziq torting",
-      "pipe": "Binolarni tarmoqqa ulaydi: quvurlar orqali yuk va energiya o‘tadi hamda zonani kengaytiradi. Yo‘lni to‘sadi — yo‘l ostidan quduqlar orqali o‘tkazing. O‘z zonasi shart emas. Sichqoncha bilan chiziq torting",
+      "pipe": "Bir-biridan uzoq binolarni ulaydi (yonma-yon turganlari quvursiz ham ulangan): quvurlar orqali yuk va energiya o‘tadi hamda zonani kengaytiradi. Yo‘lni to‘sadi — yo‘l ostidan quduqlar orqali o‘tkazing. O‘z zonasi shart emas. Sichqoncha bilan chiziq torting",
       "well": "Quduqlar — yerosti quvurining uchlari: bir marta bosish bitta qo‘yadi (to‘g‘ri chiziqdagi quduq bilan ulanadi), tortish esa {reach} katakkacha masofada bir juft qo‘yadi. Ustida yurish va qurish mumkin, faqat quduqlarning o‘zi zaif. O‘z zonasi shart emas",
       "peak": "Quruvchilar tog‘ni butunlay tekislaydi, uning o‘rnida qoya qoladi. Tog‘ning har bir katagi uchun {cost}. Sichqoncha bilan tog‘ ustida to‘rtburchak torting",
       "cliff": "Quruvchilar jarlik chetini silliqlaydi: uning ostidagi etak texnika uchun o‘tish joyiga aylanadi. Chetning har bir katagi uchun {cost}. Sichqoncha bilan jarlik bo‘ylab to‘rtburchak torting"
@@ -708,7 +708,7 @@
       },
       "metalOre": {
         "title": "«Metall eritish»ni tadqiq qil",
-        "tip": "«Tadqiqotlar»ni oching va «Metall eritish»ni tanlang. Laboratoriyaga shaxtadan metall rudasi kerak: uni yuk mashinasi olib keladi."
+        "tip": "«Tadqiqotlar»ni oching va «Metall eritish»ni tanlang. Laboratoriyaga shaxtadan metall rudasi kerak: laboratoriyani shaxtaga yonma-yon qo‘ying — yonma-yon binolar bitta tarmoq — yoki rudani yuk mashinasi olib keladi."
       },
       "smelter": {
         "title": "Eritish zavodini qur",
@@ -814,7 +814,7 @@
     "siege": "Artilleriya va tashuvchi",
     "atom": "Reaktor: bir joyda olti elektr stansiyasi, sterjen yoqadi",
     "warheads": "Raketa shaxtasi: xaritaning istalgan nuqtasiga yadroviy zarba",
-    "pipes": "Quvurlar binolarni tarmoqqa bog‘laydi: undan yuk va energiya o‘tadi. Tarmoqsiz laboratoriya shaxtadan ruda ololmaydi",
+    "pipes": "Quvurlar bir-biridan uzoq binolarni tarmoqqa bog‘laydi: undan yuk va energiya o‘tadi. Yonma-yon binolar quvursiz ham ulangan",
     "walls": "Arzon va mustahkam to‘siq: yo‘lni to‘sadi va o‘qdan pana qiladi",
     "radar": "Radar uzoqni ko‘radi va chaqnoqlar bilan razvedka qiladi; undan keyin armiya va minoralar",
     "roads": "Yo‘llar birliklarni tezlashtiradi",

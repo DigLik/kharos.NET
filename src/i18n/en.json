@@ -110,7 +110,7 @@
     "supplyDepot": "Holds ammo for supply rigs and loads them with its beam four times faster than storage. Trucks and pipes keep it full; it does not give ammo to other requests",
     "wall": "A cheap, sturdy barrier: blocks the way and shields from fire. Can be placed outside a zone",
     "gate": "Plates that rise from the ground: lowered while no strangers are near, raised into a wall when an enemy approaches. Drag a line of any width. Can be placed outside the zone",
-    "pipe": "Links buildings into a network: pipes carry goods and power and extend the zone. Cheap and fragile, blocks passage. Can be placed outside a zone",
+    "pipe": "Links buildings that stand apart into a network: pipes carry goods and power and extend the zone. Buildings side by side are linked without a pipe. Cheap and fragile, blocks passage. Can be placed outside a zone",
     "well": "The entrance of an underground pipe: links with its pair in a straight line up to 10 tiles away. Units drive and build over the stretch. Can be placed outside a zone",
     "turret": "A machine gun against infantry and light vehicles; hits aircraft too. Fires ammo from its own store",
     "rocketTurret": "Rockets against vehicles and aircraft. Fires ammo from its own store",
@@ -344,7 +344,7 @@
       "military": "Barracks, vehicle factory, airfield, repair station and missile silo",
       "defense": "Walls, turrets, shield, nuclear missile interceptor and radar",
       "paving": "Foundation, roads and bridges",
-      "logistics": "Pipes and wells: they link buildings into a network"
+      "logistics": "Pipes and wells: they link buildings that stand apart; buildings side by side are linked anyway"
     },
     "stances": {
       "aggressive": "Aggressive",
@@ -370,7 +370,7 @@
     "toolTips": {
       "foundation": "Buildings on it go up twice as fast, and it allows building on sand. Can be laid under your own buildings and in place of your road. Explosions break it. Drag a rectangle with the mouse",
       "road": "Ground units drive faster; over swamp it becomes a bridge at {bridge} per tile. Nothing can be built on a road; it can replace your foundation. Drag a line with the mouse",
-      "pipe": "Links buildings into a network: pipes carry goods and power and extend the zone. Blocks passage — run wells under a crossing. Needs no zone of its own. Drag a line with the mouse",
+      "pipe": "Links buildings that stand apart (side by side they are linked without a pipe): pipes carry goods and power and extend the zone. Blocks passage — run wells under a crossing. Needs no zone of its own. Drag a line with the mouse",
       "well": "Wells are the ends of an underground pipe: a click places one (it links with a well in a straight line), a drag places a pair, up to {reach} tiles apart. Units drive and build above it; only the wells are vulnerable. Needs no zone of its own",
       "peak": "Builders level the whole mountain, leaving rock in its place. {cost} per mountain tile. Drag a rectangle over the mountain",
       "cliff": "Builders smooth the cliff edge: the foot below it becomes passable for vehicles. {cost} per edge tile. Drag a rectangle along the cliff"
@@ -708,7 +708,7 @@
       },
       "metalOre": {
         "title": "Research Metal Smelting",
-        "tip": "Open Research and pick Metal Smelting. The lab needs metal ore from the mine: a truck will bring it."
+        "tip": "Open Research and pick Metal Smelting. The lab needs metal ore from the mine: put the lab right next to the mine — buildings side by side share a network — or a truck will bring the ore."
       },
       "smelter": {
         "title": "Build a smelter",
@@ -814,7 +814,7 @@
     "siege": "Artillery and carrier",
     "atom": "Reactor: six power plants in one place, burns rods",
     "warheads": "Missile silo: a nuclear strike anywhere on the map",
-    "pipes": "Pipes link buildings into a network that carries goods and power. Without one a laboratory gets no ore from the mine",
+    "pipes": "Pipes link buildings that stand apart into a network carrying goods and power. Buildings side by side are linked without pipes",
     "walls": "A cheap, sturdy barrier: blocks the way and shields from fire",
     "radar": "The radar sees far and scouts with pulses; the army and turrets come after it",
     "roads": "Roads speed units up",

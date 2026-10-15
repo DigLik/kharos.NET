@@ -110,7 +110,7 @@
     "supplyDepot": "Guarda munição para os veículos de suprimento e os carrega com seu raio quatro vezes mais rápido que os armazéns. Caminhões e canos o mantêm cheio; não entrega munição a outros pedidos",
     "wall": "Uma barreira barata e resistente: bloqueia a passagem e protege dos tiros. Pode ser colocada fora da zona",
     "gate": "Placas que saem do chão: abaixadas enquanto não há estranhos por perto, erguem-se como muro quando o inimigo se aproxima. Arraste uma linha de qualquer largura. Também fora da zona",
-    "pipe": "Liga os edifícios em uma rede: os canos levam carga e energia e ampliam a zona. Barato e frágil, bloqueia a passagem. Pode ser colocado fora da zona",
+    "pipe": "Liga em rede os edifícios afastados: os canos levam carga e energia e ampliam a zona. Edifícios encostados já se ligam sem cano. Barato e frágil, bloqueia a passagem. Pode ser colocado fora da zona",
     "well": "A entrada de um cano subterrâneo: liga-se ao seu par em linha reta a até 10 casas. Sobre o trecho se anda e se constrói. Pode ser colocado fora da zona",
     "turret": "Metralhadora contra infantaria e veículos leves; atinge também o ar. Usa munição do próprio estoque",
     "rocketTurret": "Foguetes contra veículos e aviação. Usa munição do próprio estoque",
@@ -344,7 +344,7 @@
       "military": "Quartel, fábrica de veículos, aeródromo, estação de reparo e silo de mísseis",
       "defense": "Muros, torres, escudo, interceptador de mísseis nucleares e radar",
       "paving": "Fundação, estradas e pontes",
-      "logistics": "Canos e poços: ligam os edifícios em uma rede"
+      "logistics": "Canos e poços: ligam os edifícios afastados; edifícios encostados já estão ligados"
     },
     "stances": {
       "aggressive": "Agressivo",
@@ -370,7 +370,7 @@
     "toolTips": {
       "foundation": "Edifícios sobre ela são erguidos duas vezes mais rápido, e ela permite construir na areia. Pode ir também sob seus edifícios e no lugar da sua estrada. Explosões a quebram. Arraste um retângulo com o mouse",
       "road": "Unidades terrestres andam mais rápido; sobre pântano vira ponte por {bridge} a casa. Não se constrói na estrada; ela pode substituir sua fundação. Arraste uma linha com o mouse",
-      "pipe": "Liga os edifícios em uma rede: os canos levam carga e energia e ampliam a zona. Bloqueia a passagem: sob uma passagem use poços. Não precisa de zona própria. Arraste uma linha com o mouse",
+      "pipe": "Liga os edifícios afastados (encostados, já se ligam sem cano): os canos levam carga e energia e ampliam a zona. Bloqueia a passagem: sob uma passagem use poços. Não precisa de zona própria. Arraste uma linha com o mouse",
       "well": "Poços são as pontas de um cano subterrâneo: um clique coloca um (ele se liga a um poço em linha reta), arrastar coloca um par, a até {reach} casas. Sobre ele se anda e se constrói; só os poços são vulneráveis. Não precisa de zona própria",
       "peak": "Construtores derrubam a montanha inteira e fica rocha no lugar. {cost} por casa de montanha. Arraste um retângulo sobre a montanha",
       "cliff": "Construtores suavizam a borda do penhasco: o pé abaixo dela vira passagem para veículos. {cost} por casa de borda. Arraste um retângulo ao longo do penhasco"
@@ -708,7 +708,7 @@
       },
       "metalOre": {
         "title": "Pesquise Fundição de metal",
-        "tip": "Abra Pesquisa e escolha Fundição de metal. O laboratório precisa de minério de metal da mina: um caminhão o trará."
+        "tip": "Abra Pesquisa e escolha Fundição de metal. O laboratório precisa de minério de metal da mina: coloque-o encostado à mina — edifícios encostados dividem a rede — ou um caminhão trará o minério."
       },
       "smelter": {
         "title": "Construa uma fundição",
@@ -814,7 +814,7 @@
     "siege": "Artilharia e porta-foguetes",
     "atom": "Reator: seis usinas em um só lugar, queima barras",
     "warheads": "Silo de mísseis: um ataque nuclear em qualquer ponto do mapa",
-    "pipes": "Tubos ligam os edifícios numa rede que leva carga e energia. Sem ela o laboratório não recebe minério da mina",
+    "pipes": "Tubos ligam os edifícios afastados numa rede que leva carga e energia. Edifícios encostados já se ligam sem canos",
     "walls": "Barreira barata e resistente: bloqueia a passagem e protege do fogo",
     "radar": "O radar vê longe e explora com pulsos; depois dele vêm o exército e as torres",
     "roads": "Estradas aceleram as unidades",
