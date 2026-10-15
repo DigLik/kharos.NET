@@ -79,7 +79,8 @@ export const UNITS = {
     // Пушка будущего главного здания едет на крыше: поворачивается, но не стреляет.
     mounts: [{ turret: 'mcv', along: -0.19, across: 0 }],
   },
-  builder: { speed: 4, turn: 5, radius: 0.45, cost: 120, buildTime: 5, kind: 'vehicle', hp: 100, repair: 5, sight: 6 },
+  // Строитель сам подвозит материалы на свою стройку, если их никто не везёт: кузов на 10 и луч, как у грузовика.
+  builder: { speed: 4, turn: 5, radius: 0.45, cost: 120, buildTime: 5, kind: 'vehicle', hp: 100, repair: 5, sight: 6, inventory: 10, beam: { radius: 2, rate: 10, give: true, take: true } },
   infantry: { speed: 3, turn: 10, radius: 0.3, cost: 60, buildTime: 3, kind: 'infantry', hp: 50, weapon: 'rifle', ammo: 10 },
   // Грузовик возит добытое из шахты в хранилище и заказанное по зонам: см. hauling.ts. Своим лучом он и забирает груз,
   // и сгружает его: зданиям лучи не нужны.

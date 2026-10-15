@@ -112,6 +112,13 @@ export const Site = component('Site', { type: 'generator' as BuildingType, progr
 export const Builds = component('Builds', { site: 0, ordered: true, misses: 0 })
 
 /**
+ * Строитель сам везёт материал: забрать до amount груза resource со склада from и сгрузить на склад to — свою стройку
+ * или, если везёт остаток назад, хранилище. from = -1 — груз уже в кузове. full — набрал и едет к to. misses — сколько
+ * раз подряд не нашёл, как подъехать: после нескольких бросает поручение. См. fetching.ts.
+ */
+export const Fetch = component('Fetch', () => ({ from: -1, to: -1, resource: 'metal' as Good, amount: 0, full: false, misses: 0 }))
+
+/**
  * Месторождение, из которого уже добывали: mined — сколько из него забрано; spent — выработано, и на смену ему уже
  * ждут новое, см. renewal.ts. Место — левый верхний тайл месторождения. Сами месторождения — слой карты, см. DepositLayer.
  */
@@ -442,4 +449,4 @@ export const Dig = component('Dig', { kind: 'peak' as 'peak' | 'cliff', cost: 0,
  */
 export const Ghost = component('Ghost', { blocked: false })
 
-export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Deploys, Site, Builds, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Busy, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare, Dig, Unreachable, Magazine, Wanted]
+export const SAVED = [Position, Building, Health, Repair, Turret, Attached, Carrier, Owner, Unit, Path, Player, Producer, Converting, Deploys, Site, Builds, Fetch, Deposit, Hauler, Inventory, Beam, Assembly, Trade, Transfer, Armed, Shot, Blast, Pave, Drop, Tactics, Doomed, Orders, Off, Busy, Batch, Upgrade, Research, Scan, Gate, Shield, Accumulator, Reactor, Burst, Silo, Missile, Interceptor, Chaser, Mark, Glare, Dig, Unreachable, Magazine, Wanted]

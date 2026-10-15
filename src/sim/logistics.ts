@@ -2,7 +2,7 @@ import type { Entity } from '../ecs'
 import { inputsOf } from './assembly'
 import { BUILDINGS, buildingSpec, feedOf, isReady, type BuildingSpec } from './buildings'
 import { NONE, isOwn } from './common'
-import { Assembly, Batch, Building, Converting, Drop, Hauler, Inventory, Off, Owner, Path, Position, Producer, Site, Trade, Unit, Unreachable, Wanted } from './components'
+import { Assembly, Batch, Building, Converting, Drop, Fetch, Hauler, Inventory, Off, Owner, Path, Position, Producer, Site, Trade, Unit, Unreachable, Wanted } from './components'
 import { depositAt } from './deposits'
 import { POCKET, amountOf, loadOf, roomFor } from './inventory'
 import { entriesOf, GOODS, isOre, isProduct, ORE_OF, WARES, stockedFor, type Amounts, type Good, type Ore, type Resource, type Ware } from './resources'
@@ -62,7 +62,7 @@ const LAB_STOCK = 10
 const MIN_JOB = 0.5
 
 /** Груз грузовиков: сколько каждого ресурса едет на склады и сколько ещё заберут со складов. */
-interface Flows {
+export interface Flows {
   incoming: Map<Entity, Amounts>
   outgoing: Map<Entity, Amounts>
 }
@@ -75,8 +75,8 @@ const add = (map: Map<Entity, Amounts>, entity: Entity, resource: Good, amount: 
 }
 
 /**
- * Что сейчас везут грузовики и трубы. Набравший груз везёт то, что в кузове; ещё не набравший обещал привезти и забрать
- * столько, сколько в его работе.
+ * Что сейчас везут грузовики, трубы и строители. Набравший груз везёт то, что в кузове; ещё не набравший обещал привезти
+ * и забрать столько, сколько в его работе.
  */
 export function flowsOf(sim: Sim, except = NONE as Entity): Flows {
   const flows: Flows = { incoming: new Map(), outgoing: new Map() }
@@ -89,6 +89,13 @@ export function flowsOf(sim: Sim, except = NONE as Entity): Flows {
     const carried = amountOf(cargo, hauler.resource)
     if (hauler.to !== NONE) add(flows.incoming, hauler.to as Entity, hauler.resource, hauler.full ? carried : Math.max(carried, hauler.amount))
     if (hauler.from !== NONE && !hauler.full) add(flows.outgoing, hauler.from as Entity, hauler.resource, hauler.amount - carried)
+  }
+  // Строители, которые сами везут материал на стройку, см. fetching.ts.
+  for (const [builder, fetch, cargo] of sim.world.query(Fetch, Inventory)) {
+    if (builder === except) continue
+    const carried = amountOf(cargo, fetch.resource)
+    add(flows.incoming, fetch.to as Entity, fetch.resource, fetch.full ? carried : Math.max(carried, fetch.amount))
+    if (fetch.from !== NONE && !fetch.full) add(flows.outgoing, fetch.from as Entity, fetch.resource, fetch.amount - carried)
   }
   return flows
 }

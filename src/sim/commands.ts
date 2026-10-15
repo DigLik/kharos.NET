@@ -4,7 +4,7 @@ import { ping } from './pings'
 import { BUILDINGS, type BuildingType } from './buildings'
 import { orderAttack, stopAttack } from './combat'
 import { isOwn } from './common'
-import { Builds, Building, Converting, Deploys, Producer, Unit } from './components'
+import { Builds, Building, Converting, Deploys, Fetch, Producer, Unit } from './components'
 import { assignBuilders, cancelBuild, demolish, orderBuild, orderWalls, workIn } from './construction'
 import { DEPLOY_SECONDS, PACK_SECONDS, canDeploy, canPack, cancelDeploy, orderDeploy, startConverting } from './conversion'
 import { assignHaulers, assignPickup, assignSupply, releaseHauler } from './hauling'
@@ -250,6 +250,7 @@ function run(sim: Sim, player: number, command: Command): boolean {
       // Приказ идти снимает строителя со стройки, грузовик — с маршрута, бойца — с цели.
       for (const entity of units) {
         sim.world.remove(entity, Builds)
+        sim.world.remove(entity, Fetch)
         releaseHauler(sim, entity)
         stopAttack(sim, entity)
         clearTactics(sim, entity)

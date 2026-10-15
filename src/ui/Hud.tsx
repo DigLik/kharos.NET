@@ -843,6 +843,15 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
                 : t('hud.free')}
           </div>
         )}
+        {state.carry && (
+          <div class="hud__hint">
+            {rich<ComponentChildren>('hud.cargo', {
+              items: state.carry.items.length ? <Stacks items={state.carry.items} /> : t('common.empty'),
+              capacity: state.carry.capacity,
+            })}
+            {state.carry.going > 0 ? t('hud.fetchGoing') : state.carry.toSite > 0 ? t('hud.fetchToSite') : state.carry.toStore > 0 ? t('hud.fetchToStore') : t('hud.fetchHolds')}
+          </div>
+        )}
         {trade &&
           (trade.order ? (
             <Progress value={trade.order.flight ?? trade.order.delivered / trade.order.wanted}>

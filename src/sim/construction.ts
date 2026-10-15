@@ -2,7 +2,8 @@ import type { Entity } from '../ecs'
 import { tileKey } from '../map/terrain'
 import { BUILDINGS, BUILD_RATE, CORE, applyLevel, buildingSpec, canPlace, durabilityOf, equip, isUnlocked, newBuilding, siteAt, upgradeCost, upgradeSpent, type BuildingSpec, type BuildingType } from './buildings'
 import { NONE, isOwn, onTurn, ownerOf, rectDistance, turnToward, wrap } from './common'
-import { Building, Builds, Converting, Dig, Health, Inventory, Owner, Path, Pave, Position, Producer, Repair, Site, Trade, Unit, Upgrade } from './components'
+import { Building, Builds, Converting, Dig, Fetch, Health, Inventory, Owner, Path, Pave, Position, Producer, Repair, Site, Trade, Unit, Upgrade } from './components'
+import { willFetch } from './fetching'
 import { digArea, digAt, finishDig } from './earthworks'
 import { reserveLeft } from './deposits'
 import { amountOf } from './inventory'
@@ -265,6 +266,8 @@ export function assignBuilders(sim: Sim, player: number, site: Entity, units: En
   })
   const claimed = new Set<number>()
   for (const builder of builders) {
+    // Новая работа снимает и поручение везти материал на прежнюю: груз остаётся в кузове.
+    world.remove(builder, Fetch)
     world.add(builder, Builds({ site, ordered, misses: 0 }))
     approach(sim, builder, site, claimed)
   }
@@ -455,9 +458,11 @@ function volunteer(sim: Sim) {
   const idle: Entity[] = []
   for (const [entity] of world.query(Repair, Unit, Owner)) {
     if (!onTurn(time, entity, RETRY_TICKS) || world.has(entity, Converting)) continue
-    // Стройка, которая ждёт материалов, строителя не держит: он берётся за другую работу, а вернётся, когда подвезут.
+    // Стройка, которая ждёт материалов, строителя не держит: он берётся за другую работу, а вернётся, когда подвезут. Если
+    // только материал не везёт он сам или взять его есть где, — тогда он поедет за ним, см. fetching.ts.
+    if (world.has(entity, Fetch)) continue
     const builds = world.get(entity, Builds)
-    if (builds ? !awaitsMaterials(sim, builds.site as Entity) : world.has(entity, Path)) continue
+    if (builds ? !awaitsMaterials(sim, builds.site as Entity) || willFetch(sim, entity, builds.site as Entity) : world.has(entity, Path)) continue
     idle.push(entity)
   }
   if (!idle.length) return
@@ -741,7 +746,8 @@ export function construct(sim: Sim) {
       free.push(entity)
       continue
     }
-    if (world.has(entity, Path)) continue
+    // Едущий за материалом к стройке не рвётся: вернётся с грузом сам.
+    if (world.has(entity, Path) || world.has(entity, Fetch)) continue
     const distance = distanceTo(work, position.x, position.y)
     if (distance > repair.radius) {
       // Не доехал или его оттеснили. Пробует снова не каждый тик: поиск пути недёшев; к работе, к которой не подъехать,

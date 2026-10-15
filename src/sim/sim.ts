@@ -21,6 +21,7 @@ import { REPAIR_COST, REPAIR_PAUSE, REPAIR_SPEED, construct } from './constructi
 import { chargeShields } from './shields'
 import { convert, deployOrders } from './conversion'
 import { haul } from './hauling'
+import { fetchMaterials } from './fetching'
 import { pipeFlow } from './pipes'
 import { markBusy } from './busy'
 import { closeBooks, earn, openBooks, storeEnergy } from './income'
@@ -284,6 +285,8 @@ export function createSim(source: SimOptions | SimSave): Sim {
       // До грузовиков: что идёт по трубам, грузовики уже не везут.
       () => pipeFlow(sim),
       () => haul(sim),
+      // После грузовиков: лучи уже забыли прошлый тик, и что везут грузовики, строители не повезут.
+      () => fetchMaterials(sim),
       () => trade(sim),
       // Тут же: корабли с подарками союзникам летят по тем же правилам, что рейсы космопорта.
       () => ferry(sim),
@@ -414,6 +417,10 @@ function refreshStorage(sim: Sim) {
     if (buildingSpec(building.type).inventory && !sim.world.has(entity, Inventory) && !sim.world.has(entity, Site)) bare.push(entity)
   }
   for (const entity of bare) equipStorage(sim.world, entity, buildingSpec(sim.world.get(entity, Building)!.type))
+  // Юниту, которому кузов дали позже, чем записано сохранение (так он появился у строителя), — пустой кузов и луч.
+  const unequipped: Entity[] = []
+  for (const [entity, unit] of sim.world.query(Unit)) if (unitSpec(unit.type).inventory && !sim.world.has(entity, Inventory)) unequipped.push(entity)
+  for (const entity of unequipped) equipStorage(sim.world, entity, unitSpec(sim.world.get(entity, Unit)!.type))
   for (const [entity, building, inventory] of sim.world.query(Building, Inventory)) {
     if (sim.world.has(entity, Site)) continue
     const spec = buildingSpec(building.type)

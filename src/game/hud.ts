@@ -10,7 +10,7 @@ import {
   Research, TOPICS, PAVE_RESEARCH, DIG_KINDS, DIG_RESEARCH, type DigKind, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, pickTopic, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   type Economy, Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
-  Accumulator, Wanted, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, ammoOf, isEmpty, magazineOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
+  Accumulator, Wanted, Fetch, Repair, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, ammoOf, isEmpty, magazineOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
 import { stepsDone } from './firstSteps'
 import { paveStrokeOf } from './placing'
@@ -227,6 +227,11 @@ export interface HudState {
   request: { buildings: number[]; wanted: Amounts; have: Amounts; capacity: number } | null
   /** Груз выбранных грузовиков вместе; bound — сколько из них привязано к шахте, busy — сколько заняты работой. */
   cargo: { items: Stack[]; capacity: number; bound: number; busy: number } | null
+  /**
+   * Груз выбранных строителей вместе, если хоть один что-то везёт или едет за материалом (см. fetching.ts): going —
+   * сколько едут за ним, toSite — везут на стройку, toStore — везут остаток в хранилище.
+   */
+  carry: { items: Stack[]; capacity: number; going: number; toSite: number; toStore: number } | null
   /**
    * Выбранные грузовики (не харвестеры): кому слать маршрут и фильтр. routed — сколько из них ездят по маршруту,
    * filter — фильтр первого из них, routing — сколько остановок игрок уже набрал, null — не набирает.
@@ -569,6 +574,7 @@ export function readHud(scene: Scene): HudState {
   let rods: HudState['rods'] = null
   let materials: HudState['materials'] = null
   let cargo: HudState['cargo'] = null
+  let carry: HudState['carry'] = null
   let haul: HudState['haul'] = null
   let tactics: HudState['tactics'] = null
   let trade: HudState['trade'] = null
@@ -652,6 +658,17 @@ export function readHud(scene: Scene): HudState {
       if (hauler.route.length) haul.routed++
       if (hauler.trapped && isOwn(sim, player, entity)) walled++
       if (hauler.serve.length) haul.served++
+    }
+    const fetch = world.get(entity, Fetch)
+    if (!hauler && unit && inventory && world.has(entity, Repair) && isOwn(sim, player, entity) && (fetch || loadOf(inventory) > 1e-6)) {
+      carry ??= { items: [], capacity: 0, going: 0, toSite: 0, toStore: 0 }
+      const items: Amounts = Object.fromEntries(carry.items.map(({ resource, amount }) => [resource, amount]))
+      for (const resource of GOODS) items[resource] = (items[resource] ?? 0) + amountOf(inventory, resource)
+      carry.items = stacksOf(items)
+      carry.capacity += inventory.capacity
+      if (fetch && !fetch.full) carry.going++
+      else if (fetch && world.has(fetch.to as Entity, Site)) carry.toSite++
+      else if (fetch) carry.toStore++
     }
     const built = world.get(entity, Building)
     const ready = !!built && !world.has(entity, Site)
@@ -923,6 +940,7 @@ export function readHud(scene: Scene): HudState {
     materials,
     trade,
     cargo,
+    carry,
     haul,
     tactics,
     site,
