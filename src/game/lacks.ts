@@ -1,9 +1,15 @@
 import type { Entity } from '../ecs'
 import {
   Assembly, Building, Converting, GOODS, Interceptor, Inventory, Producer, Research, Site, amountOf, awaitsMaterials, buildingSpec, hasRoom, sitesShortOfCredits, interceptorLack, isOwn, missingFor,
-  recipeOf, shutDown, type Amounts, type Good, type Sim,
+  recipeOf, shutDown, type Amounts, type BuildingType, type Good, type Sim,
 } from '../sim'
 import { networkHas } from '../sim/upgrades'
+import { feedOf } from '../sim/buildings'
+import { hasAmmo } from '../sim/combat'
+import { roomFor } from '../sim/inventory'
+import { AMMO_REORDER } from '../sim/logistics'
+import { TURRETS } from '../sim/turrets'
+import { WEAPONS, type WeaponType } from '../sim/weapons'
 
 const EPSILON = 1e-6
 
@@ -13,7 +19,8 @@ export type Lack = Good | 'credits'
 /**
  * Чего ждут свои здания, которые из-за этого стоят: каждому — первый недостающий груз. Стройка, дошедшая до
  * привезённого, а у которой материалы есть, но на остаток цены кредитов не хватит (см. sitesShortOfCredits), — кредитов; производитель, чей заказ не из чего начать; включённый цех без сырья на сборку; лаборатория без
- * сырья темы; перехватчик, которому не из чего собрать ракету. Чего не хватает зданию, которое и не должно
+ * сырья темы; перехватчик, которому не из чего собрать ракету; турель, которой нечем выстрелить, и реактор без
+ * стержней. Чего не хватает зданию, которое и не должно
  * работать — выключено, нет заказа, — не считается: это не тревога. О чужих судить не по чему: их склады знает
  * только хозяин. По этому над зданием рисуется значок, см. powerPass.ts.
  */
@@ -47,5 +54,41 @@ export function lacksOf(sim: Sim, player: number): Map<Entity, Lack> {
     const materials = buildingSpec(building.type).intercept?.materials ?? {}
     note(entity, (Object.keys(materials) as Good[]).find((good) => !networkHas(sim, entity, { [good]: materials[good] })))
   }
+  for (const [entity, building] of world.query(Building, Inventory)) {
+    const feed = feedOf(buildingSpec(building.type))
+    if (feed && !world.has(entity, Site) && stands(entity) && !fed(sim, entity, building.type)) note(entity, feed)
+  }
   return lacks
+}
+
+/** Стержень реактор сжигает целиком: меньше одного — не горит, см. reactors.ts. */
+const ROD = 1
+
+/** Есть ли у турели чем выстрелить хоть одним стволом, у реактора — стержень. */
+function fed(sim: Sim, entity: Entity, type: BuildingType) {
+  const spec = buildingSpec(type)
+  const inventory = sim.world.get(entity, Inventory)!
+  if (!spec.ammo) return !spec.burns || amountOf(inventory, spec.burns.good) >= ROD - EPSILON
+  return (spec.mounts ?? []).some(({ turret }) => {
+    const weapon = (TURRETS[turret] as { weapon?: WeaponType }).weapon
+    return !weapon || hasAmmo(sim, entity, WEAPONS[weapon])
+  })
+}
+
+/**
+ * Свои турели и реакторы, у которых запаса меньше AMMO_REORDER, но он ещё не кончился: тот же порог, с которого они
+ * сами заказывают подвоз. Над ними значок груза бледный — тревога заранее; кончится — станет ярким, см. lacksOf.
+ */
+export function runningLow(sim: Sim, player: number): Map<Entity, Good> {
+  const { world } = sim
+  const low = new Map<Entity, Good>()
+  for (const [entity, building, inventory] of world.query(Building, Inventory)) {
+    const spec = buildingSpec(building.type)
+    const feed = feedOf(spec)
+    if (!feed || world.has(entity, Site) || !isOwn(sim, player, entity) || shutDown(sim, player, entity)) continue
+    const have = amountOf(inventory, feed)
+    const share = have / (have + roomFor(inventory, feed))
+    if (share < AMMO_REORDER && fed(sim, entity, building.type)) low.set(entity, feed)
+  }
+  return low
 }

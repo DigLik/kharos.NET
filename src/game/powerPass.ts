@@ -4,9 +4,10 @@ import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atl
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Building, GOODS, Hauler, Magazine, Owner, Position, Site, UNITS, Unit, isEmpty, powerStates, shutDown, unlinked, unreachable, type Good, type PowerState } from '../sim'
+import { BUILDINGS, Building, GOODS, Hauler, Magazine, Owner, Position, Site, UNITS, Unit, ammoOf, isEmpty, magazineOf, powerStates, shutDown, unlinked, unreachable, type Good, type PowerState } from '../sim'
 import { GOOD_ICON, paintGood } from './goodIcons'
-import { lacksOf, type Lack } from './lacks'
+import { lacksOf, runningLow, type Lack } from './lacks'
+import { AMMO_REORDER } from '../sim/logistics'
 import { STATUS_BAR, STATUS_GAP, STATUS_STACK, statusBarsOf, statusLift } from './statusBars'
 import type { Scene } from './scene'
 
@@ -143,6 +144,13 @@ function drawBlocked() {
 const TRUCK_ICON_RISE = 0.9
 /** Насколько значок над юнитом выше его края, в тайлах. */
 const UNIT_ICON_GAP = 0.45
+/**
+ * Непрозрачность значка «запас на исходе»: у турели, реактора или магазина юнита меньше четверти, но он ещё не кончился.
+ * Он бледный и не мигает — тревога заранее; кончится запас — значок станет ярким и замигает.
+ */
+const LOW_ALPHA = 0.5
+/** С какой доли магазина юнит на исходе: тот же порог, с которого турель заказывает подвоз. */
+const LOW_SHARE = AMMO_REORDER
 
 type Color = readonly [number, number, number]
 const BAR_BACK: Color = [0.03, 0.05, 0.08]
@@ -164,7 +172,8 @@ const LACK_TICKS = 10
 /**
  * Проход тревог над зданиями: молнии перегруза на электростанциях, значок над зданиями, которые из-за нехватки
  * энергии работают медленнее, значок «Не подключено к сети» над своими зданиями со складом без труб, значок груза
- * над своими зданиями и стройками, которые стоят без него (см. lacks.ts), значок «Не подъехать» над своими зданиями,
+ * над своими зданиями и стройками, которые стоят без него (см. lacks.ts), — у турелей и реакторов на исходе он же
+ * бледный, — значок патронов над своими юнитами с пустым магазином и бледный — на исходе, значок «Не подъехать» над своими зданиями,
  * к которым не подъехать грузовикам, и над запертыми грузовиками, значок «Выключено» над своими
  * выключенными, над зданиями — полоски прочности повреждённых и синие полоски запаса генераторов щита,
  * см. statusBars.ts. Ставить выше освещения, чтобы ночью не темнело.
@@ -189,6 +198,7 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
   let states = new Map<Entity, PowerState>()
   let tick = -1
   let lacks = new Map<Entity, Lack>()
+  let low = new Map<Entity, Good>()
   let lacksAt = -Infinity
   let lacksSim: unknown
 
@@ -202,6 +212,7 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
       }
       if (lacksSim !== sim || Math.abs(sim.time.tick - lacksAt) >= LACK_TICKS) {
         lacks = lacksOf(sim, scene.player)
+        low = runningLow(sim, scene.player)
         lacksAt = sim.time.tick
         lacksSim = sim
       }
@@ -233,19 +244,21 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
         // Значки — над полосами состояния, несколько сразу — рядом, а не друг на друге. Тревожные мигают, а место
         // держат и пока погашены; «Выключено» горит ровно.
         const lifted = y - statusLift(world, entity, camera.zoom)
-        const icons: [frame: typeof iconFrame, shown: boolean][] = []
+        const icons: [frame: typeof iconFrame, shown: boolean, alpha?: number][] = []
         if (unlinked(sim, scene.player, entity)) icons.push([looseFrame, iconOn])
         if (unreachable(sim, entity) && world.get(entity, Owner)?.player === scene.player) icons.push([blockedFrame, iconOn])
         if (state === 'starved') icons.push([iconFrame, iconOn])
         const lack = lacks.get(entity)
         if (lack) icons.push([lackFrames.get(lack)!, iconOn])
+        const short = low.get(entity)
+        if (short && !lack) icons.push([lackFrames.get(short)!, true, LOW_ALPHA])
         if (shutDown(sim, scene.player, entity)) icons.push([offFrame, true])
-        icons.forEach(([frame, shown], i) => {
+        icons.forEach(([frame, shown, alpha = 1], i) => {
           if (!shown) return
           sprites.push(
             x + spec.width / 2 + (i - icons.length / 2) * ICON_TILES, lifted - ICON_TILES / 2, ICON_TILES, ICON_TILES,
             frame.u, frame.v, frame.width, frame.height,
-            1, 1, 1, 1,
+            alpha, alpha, alpha, alpha,
           )
         })
         // Полосы над крышей, сверху вниз: прочность, под ней запас щита. Нижняя — вплотную к крыше.
@@ -270,15 +283,19 @@ export function createPowerPass(gl: WebGL2RenderingContext, scene: Scene, art: P
           const frame = blockedFrame
           sprites.push(x - ICON_TILES / 2, y - TRUCK_ICON_RISE - ICON_TILES / 2, ICON_TILES, ICON_TILES, frame.u, frame.v, frame.width, frame.height, 1, 1, 1, 1)
         }
-        // Свои юниты с пустым магазином — значок боеприпасов, как над турелью без них. Магазин видит только хозяин.
-        const frame = lackFrames.get('ammo')!
-        for (const [entity, , unit, position, owner] of world.query(Magazine, Unit, Position, Owner)) {
-          if (owner.player !== scene.player || !isEmpty(sim, entity)) continue
-          const x = position.x - camera.x
-          const y = position.y - camera.y - UNITS[unit.type].radius - UNIT_ICON_GAP
-          if (x < -halfWidth || x > halfWidth || y < -halfHeight || y > halfHeight) continue
-          sprites.push(x - ICON_TILES / 2, y - ICON_TILES / 2, ICON_TILES, ICON_TILES, frame.u, frame.v, frame.width, frame.height, 1, 1, 1, 1)
-        }
+      }
+      // Свои юниты с пустым магазином — значок боеприпасов, как над турелью без них, на исходе — он же бледный. Магазин
+      // видит только хозяин.
+      const ammoFrame = lackFrames.get('ammo')!
+      for (const [entity, , unit, position, owner] of world.query(Magazine, Unit, Position, Owner)) {
+        if (owner.player !== scene.player || !sim.rules.unitAmmo) continue
+        const empty = isEmpty(sim, entity)
+        if (empty ? !iconOn : ammoOf(sim, entity) >= magazineOf(unit.type) * LOW_SHARE) continue
+        const x = position.x - camera.x
+        const y = position.y - camera.y - UNITS[unit.type].radius - UNIT_ICON_GAP
+        if (x < -halfWidth || x > halfWidth || y < -halfHeight || y > halfHeight) continue
+        const alpha = empty ? 1 : LOW_ALPHA
+        sprites.push(x - ICON_TILES / 2, y - ICON_TILES / 2, ICON_TILES, ICON_TILES, ammoFrame.u, ammoFrame.v, ammoFrame.width, ammoFrame.height, alpha, alpha, alpha, alpha)
       }
 
       // Площадки, к которым строитель ещё не приступил: здания на них нет, а материалов они уже ждут.

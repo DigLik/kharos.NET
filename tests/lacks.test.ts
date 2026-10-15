@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { lacksOf } from '../src/game/lacks'
+import { lacksOf, runningLow } from '../src/game/lacks'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { BUILDINGS, Inventory, Owner, Position, Site, UNITS, canPlace, createSim, type BuildingType, type Sim } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
@@ -74,4 +74,25 @@ test('знак нехватки: своя стройка без кредитов
   addCredits(sim, 1, -100)
   sim.world.set(site, Site, { demolish: true })
   expect(lacksOf(sim, 1).has(site)).toBe(false)
+})
+
+test('знак нехватки у турели и реактора: пустые — яркий, запас меньше четверти — бледный, полные — без знака', () => {
+  // Без тика: иначе грузовики и трубы успели бы подвезти.
+  const { sim, buildings: [empty, low, full, cannon, reactor] } = base(['turret', 'turret', 'turret', 'cannonTurret', 'reactor'])
+  const ammo = (entity: number, amount: number) => void (sim.world.get(entity as never, Inventory)!.items.ammo = amount)
+  ammo(empty, 0)
+  ammo(low, 20)
+  ammo(full, 120)
+  // Пушке нужно 8 на выстрел: с 5 она уже молчит.
+  ammo(cannon, 5)
+  sim.world.get(reactor, Inventory)!.items.rods = 0
+  const lacks = lacksOf(sim, 1)
+  const short = runningLow(sim, 1)
+  expect(lacks.get(empty)).toBe('ammo')
+  expect(lacks.get(cannon)).toBe('ammo')
+  expect(lacks.get(reactor)).toBe('rods')
+  expect(lacks.has(low)).toBe(false)
+  expect(short.get(low)).toBe('ammo')
+  expect(short.has(empty)).toBe(false)
+  expect(lacks.has(full) || short.has(full)).toBe(false)
 })
