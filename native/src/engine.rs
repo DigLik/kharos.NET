@@ -29,7 +29,12 @@ impl Engine {
       // Контекст нужен именно здесь: deno_core запоминает его у себя при создании рантайма.
       let _entered = tokio.enter();
       JsRuntime::new(RuntimeOptions {
-        extensions: vec![crate::canvas::kharos_canvas::init(), crate::gl::kharos_gl::init(), crate::web::kharos_web::init()],
+        extensions: vec![
+          crate::canvas::kharos_canvas::init(),
+          crate::gl::kharos_gl::init(),
+          crate::record::kharos_record::init(),
+          crate::web::kharos_web::init(),
+        ],
         // Модули игра берёт с диска: собранную игру кладёт туда сборщик (см. `src/modules.rs`).
         module_loader: Some(Rc::new(crate::modules::FromDisk)),
         ..Default::default()
@@ -42,7 +47,9 @@ impl Engine {
   /// привязки не могут разъехаться, — и сама обёртка браузерного API. Обе идут обычными скриптами, а не кодом
   /// расширения: от кода расширений deno_core требует семибитного ASCII, а в игре русские строки и комментарии.
   /// Игра же идёт модулем: её собирает Vite, как и для страницы, и `import.meta` в ней — обычное дело.
-  pub fn run(&mut self, game: &ModuleSpecifier) -> Result<()> {
+  /// `options` — объект JS с тем, что окно говорит игре до её начала (`__kharos_options`: часы, сценка, час суток).
+  pub fn run(&mut self, game: &ModuleSpecifier, options: &str) -> Result<()> {
+    self.runtime.execute_script("options", format!("globalThis.__kharos_options = {options}"))?;
     self.runtime.execute_script("opcodes", crate::gl::opcodes_script())?;
     self.runtime.execute_script("prelude", PRELUDE.to_string())?;
     // Начало игры — дело не мгновенное: она сама берёт графику и заводит мир, а первый шаг после `await` ждёт,

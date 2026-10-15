@@ -15,8 +15,13 @@ import { DEFAULT_SETTINGS, type MapSettings } from '../../src/map/settings'
 import { LOCAL_PLAYER } from '../../src/net/local'
 import { SCENES, createSim, type Scene, type SceneName } from '../../src/sim'
 
-/** Сценка, которую ведёт окно: у неё своё действие, и ввода для него не нужно. */
-const SCENE: SceneName = 'mining'
+/** Что окно сказало до начала игры (см. `game_options` в `src/main.rs`): сценка, час суток и ровные ли часы. */
+type Options = { fixed?: boolean; scene?: string | null; hour?: number | null }
+const native = globalThis as typeof globalThis & { __kharos_options?: Options; __kharos_roll?: () => void }
+const shell: Options = native.__kharos_options ?? {}
+
+/** Сценка, которую ведёт окно: у неё своё действие, и ввода для него не нужно. Другую выбирает `KHAROS_SCENE`. */
+const SCENE: SceneName = shell.scene && shell.scene in SCENES ? (shell.scene as SceneName) : 'mining'
 /** Карта крошечная: её считает сам рантайм, без хоста, — как у витрины меню. */
 const SIZE = 128
 /** Как часто сценка ведёт свой мир: тот же срок, что у витрины меню. */
@@ -30,9 +35,12 @@ let sim: ReturnType<typeof createSim> | null = null
 let game: Game | null = null
 let drive: number | undefined
 
-/** Погода мира: случайный час, чаще днём, и короткие сутки — за время показа свет заметно смещается. */
+/**
+ * Погода мира: случайный час, чаще днём, и короткие сутки — за время показа свет заметно смещается. Для ролика час
+ * задаётся (`KHAROS_HOUR`): свет в кадре не должен зависеть от случая.
+ */
 const weather = () => ({
-  startHour: Math.random() < 0.75 ? 7 + Math.random() * 11 : Math.random() * 24,
+  startHour: shell.hour ?? (Math.random() < 0.75 ? 7 + Math.random() * 11 : Math.random() * 24),
   dayLength: 600,
   changes: true,
 })
@@ -49,7 +57,9 @@ const fail = (error: unknown) => console.error('кадр не нарисовал
  */
 function checkFrame(canvas: HTMLCanvasElement) {
   let frames = 0
+  let since: number | undefined
   const read = (milliseconds: number) => {
+    since ??= milliseconds
     if (++frames < CHECK_FRAME) {
       requestAnimationFrame(read)
       return
@@ -60,7 +70,10 @@ function checkFrame(canvas: HTMLCanvasElement) {
     const width = gl.drawingBufferWidth
     const height = gl.drawingBufferHeight
     gl.readPixels(width >> 1, height >> 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel)
-    const pace = Math.round(frames / (milliseconds / 1000))
+    // Ход кадров — за последние CHECK_FRAME кадров, и печатается раз в столько же: журнал не тонет в строках.
+    const pace = Math.round(frames / ((milliseconds - since) / 1000))
+    frames = 0
+    since = milliseconds
     console.log(`центр кадра: ${pixel[0]}, ${pixel[1]}, ${pixel[2]} (окно ${width}×${height}, ${pace} кадров/с)`)
     requestAnimationFrame(read)
   }
@@ -102,6 +115,8 @@ function start(name: SceneName) {
     const canvas = stage()
     game = createGame(canvas, settings, fail, { sim: world, player: LOCAL_PLAYER }, { showcase: true })
     checkFrame(canvas)
+    // Мир встал и рисуется — запись (если она идёт) может начинать ролик.
+    native.__kharos_roll?.()
     drive = window.setInterval(() => {
       if (!sim || !scene.drive) return
       // Сценка кончилась — на её место берётся такая же, с новым миром: показать больше нечего.

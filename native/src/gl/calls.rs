@@ -52,7 +52,7 @@ pub fn op_gl(opcode: u32, a: f64, b: f64, c: f64, d: f64, e: f64, f: f64) -> f64
       with(|gl| unsafe { gl.bind_texture(u(a), texture) });
     }
     call::BIND_FRAMEBUFFER => {
-      let target = if a > 0.0 { find!(a, Framebuffer) } else { None };
+      let target = if a > 0.0 { find!(a, Framebuffer) } else { super::SCREEN.with(std::cell::Cell::get) };
       with(|gl| unsafe { gl.bind_framebuffer(u(b), target) });
     }
     call::ACTIVE_TEXTURE => {

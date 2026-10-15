@@ -47,6 +47,14 @@ thread_local! {
   static NEXT: std::cell::Cell<u32> = const { std::cell::Cell::new(1) };
   /// Настольный ли OpenGL: шейдеры игры написаны на GLSL ES, и на настольном драйвере версию приходится переписывать.
   static DESKTOP: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+  /// Чем служит «экран» WebGL (`bindFramebuffer(null)`): пусто — настоящий экран окна, иначе — буфер кадра записи
+  /// (см. `record.rs`). Игра подмены не замечает: она рисует туда же, куда рисовала бы на странице.
+  static SCREEN: std::cell::Cell<Option<glow::Framebuffer>> = const { std::cell::Cell::new(None) };
+}
+
+/// Подменяет «экран» игры буфером кадра (или возвращает настоящий — `None`).
+pub fn screen(framebuffer: Option<glow::Framebuffer>) {
+  SCREEN.with(|screen| screen.set(framebuffer));
 }
 
 /// Принимает загруженный контекст драйвера. Зовётся один раз, при создании окна.
@@ -61,7 +69,7 @@ pub fn desktop() -> bool {
 }
 
 /// Работа с контекстом драйвера. Наружу контекст не отдаётся: он живёт до конца игры и не переносится между потоками.
-fn with<R>(f: impl FnOnce(&glow::Context) -> R) -> Option<R> {
+pub(crate) fn with<R>(f: impl FnOnce(&glow::Context) -> R) -> Option<R> {
   GL.with(|cell| cell.borrow().as_ref().map(f))
 }
 

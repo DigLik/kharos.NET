@@ -56,8 +56,14 @@
   }
   globalThis.cancelAnimationFrame = (handle) => pending.delete(handle)
 
+  /** Что окно сказало до начала игры (см. `game_options` в `src/main.rs`): ровные ли часы, сценка, час суток. */
+  const options = globalThis.__kharos_options ?? {}
+  /** Время последнего кадра: при записи оно и есть часы игры. */
+  let clock = 0
+
   /** Кадр окна: Rust зовёт это раз в кадр, как браузер. Работа, назначенная в кадре, попадает в следующий. */
   globalThis.__kharos_frame = (milliseconds) => {
+    clock = milliseconds
     const callbacks = [...pending.values()]
     pending.clear()
     globalThis.__kharos_timers(milliseconds)
@@ -80,11 +86,17 @@
     globalThis.dispatchEvent?.(new Event('resize'))
   }
 
-  /** Часы игры: монотонные миллисекунды, как `performance.now()` в браузере. */
+  /**
+   * Часы игры: монотонные миллисекунды, как `performance.now()` в браузере. При записи время ведёт окно ровным шагом
+   * (см. `src/record.rs`), и часы стоят на времени кадра: иначе таймеры и игра разошлись бы с кадрами ролика.
+   */
   const started = Date.now()
   globalThis.performance = {
-    now: () => Date.now() - started,
+    now: options.fixed ? () => clock : () => Date.now() - started,
   }
+
+  /** Игра встала и рисует мир — с этого кадра запись пишет ролик. */
+  globalThis.__kharos_roll = () => core.ops.op_record_roll()
 
   globalThis.console = {
     log: (...values) => core.ops.op_gl_log(values.map(String).join(' ')),
