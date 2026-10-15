@@ -137,3 +137,68 @@ test('с выключенным правилом юниты стреляют б�
   seconds(sim, 10)
   expect(ammo(sim, tank)).toBe(magazineOf('tank'))
 })
+
+const cargo = (sim: Sim, entity: Entity) => amountOf(sim.world.get(entity, Inventory)!, 'ammo')
+
+test('машина снабжения пополняет магазины своих в радиусе со своего склада', () => {
+  const { sim, x, y } = base()
+  const supplier = spawnAt(sim, 'supplier', 1, x + 30, y + 4)
+  sim.world.get(supplier, Inventory)!.items.ammo = 100
+  const near = spawnAt(sim, 'tank', 1, x + 33, y + 4)
+  const far = spawnAt(sim, 'tank', 1, x + 30 + 12, y + 4)
+  for (const tank of [near, far]) {
+    sim.send(1, { type: 'stance', units: [tank], stance: 'hold' })
+    sim.world.get(tank, Magazine)!.ammo = 0
+  }
+  seconds(sim, 10)
+  expect(ammo(sim, near)).toBeCloseTo(magazineOf('tank'))
+  expect(ammo(sim, far)).toBe(0)
+  expect(cargo(sim, supplier)).toBeCloseTo(100 - magazineOf('tank'))
+})
+
+test('пустой вне сети идёт к машине снабжения, если она ближе хранилища', () => {
+  const { sim, bunker, x, y } = base()
+  const supplier = spawnAt(sim, 'supplier', 1, x + 40, y + 4)
+  sim.send(1, { type: 'stance', units: [supplier], stance: 'hold' })
+  sim.world.get(supplier, Inventory)!.items.ammo = 100
+  const tank = spawnAt(sim, 'tank', 1, x + 30, y + 4)
+  sim.world.get(tank, Magazine)!.ammo = 0
+  until(sim, () => ammo(sim, tank) >= magazineOf('tank') - 1e-6)
+  expect(stock(sim, bunker)).toBe(200)
+  expect(cargo(sim, supplier)).toBeCloseTo(100 - magazineOf('tank'))
+})
+
+test('машине снабжения в поле грузовик сам везёт патроны из хранилища', () => {
+  const { sim, bunker, x, y } = base()
+  const supplier = spawnAt(sim, 'supplier', 1, x + 30, y + 4)
+  spawnAt(sim, 'truck', 1, x + 4, y + 5)
+  expect(cargo(sim, supplier)).toBe(0)
+  until(sim, () => cargo(sim, supplier) > 0, 90)
+  until(sim, () => cargo(sim, supplier) >= 25 - 1e-6, 30)
+  expect(stock(sim, bunker)).toBeLessThan(200)
+})
+
+test('в своей сети машина снабжения грузится из хранилищ, у станции поставки — быстрее', () => {
+  const { sim, bunker, x, y } = base(400)
+  const supplier = spawnAt(sim, 'supplier', 1, x + 4, y + 5)
+  seconds(sim, 5)
+  const loaded = cargo(sim, supplier)
+  expect(loaded).toBeGreaterThan(30)
+  expect(loaded).toBeLessThan(70)
+  expect(stock(sim, bunker)).toBeCloseTo(400 - loaded)
+
+  const depotBase = base(0)
+  const { x: dx, y: dy } = depotBase
+  let depot: Entity | undefined
+  for (let oy = -6; oy <= 6 && depot === undefined; oy++) {
+    for (let ox = -6; ox <= 10 && depot === undefined; ox++) {
+      if (canPlace(depotBase.sim, 'supplyDepot', dx + ox, dy + oy)) depot = placeBuilding(depotBase.sim.world, 'supplyDepot', dx + ox, dy + oy, 1)
+    }
+  }
+  if (depot === undefined) throw new Error('Не нашлось места для станции')
+  depotBase.sim.world.get(depot, Inventory)!.items.ammo = 300
+  const at = depotBase.sim.world.get(depot, Position)!
+  const rig = spawnAt(depotBase.sim, 'supplier', 1, at.x + 1, at.y + 3)
+  seconds(depotBase.sim, 5)
+  expect(cargo(depotBase.sim, rig)).toBeCloseTo(150)
+})

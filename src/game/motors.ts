@@ -12,12 +12,12 @@ import type { Scene } from './scene'
 const UNIT_MOTORS: Record<UnitType, MotorName | null> = {
   infantry: null, rocketeer: null, flamer: null,
   builder: 'petrol', buggy: 'petrol', flak: 'petrol', lancer: 'petrol',
-  truck: 'diesel', artillery: 'diesel', carrier: 'diesel',
+  truck: 'diesel', artillery: 'diesel', carrier: 'diesel', supplier: 'diesel',
   mcv: 'heavy', tank: 'heavy', tesla: 'heavy',
   drone: 'props', airTruck: 'rotor', gunship: 'rotor', bomber: 'jet',
 }
 /** Тон машины против её мотора: мелкие выше, громоздкие ниже. */
-const PITCH: Partial<Record<UnitType, number>> = { builder: 1.12, buggy: 1.18, lancer: 0.95, carrier: 0.9, mcv: 0.85, tesla: 1.06, gunship: 0.92 }
+const PITCH: Partial<Record<UnitType, number>> = { builder: 1.12, buggy: 1.18, lancer: 0.95, carrier: 0.9, supplier: 0.85, mcv: 0.85, tesla: 1.06, gunship: 0.92 }
 /** Громкость мотора вблизи: тяжёлые громче. */
 const LOUDNESS: Record<MotorName, number> = { petrol: 0.3, diesel: 0.38, heavy: 0.48, rotor: 0.4, props: 0.2, jet: 0.38 }
 const HANDLINGS: Record<MotorName, Handling> = { petrol: HANDLING.petrol, diesel: HANDLING.diesel, heavy: HANDLING.heavy, rotor: HANDLING.air, props: HANDLING.air, jet: HANDLING.air }

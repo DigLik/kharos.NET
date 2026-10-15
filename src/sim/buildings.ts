@@ -71,6 +71,11 @@ export interface BuildingSpec {
   ammo?: boolean
   /** Транспортный луч: им здание отдаёт ресурсы со своего склада или забирает на него. См. inventory.ts. */
   beam?: BeamSpec
+  /**
+   * Станция поставки: держит на складе груз машин снабжения и своим лучом грузит их, когда они рядом. Склад заказывает
+   * у зоны сама, как турель патроны; по общим заявкам не отдаёт — это запас армии. См. supply.ts.
+   */
+  depot?: boolean
   /** Через это здание продают ресурсы: грузовики свозят их сюда из хранилищ его зоны, см. trade.ts. */
   trades?: boolean
   /** Каких юнитов здание производит, когда достроено. Потребитель энергии при её нехватке производит медленнее. */
@@ -216,7 +221,7 @@ export const BUILDINGS = {
   partsPlant: plant('parts'),
   rodPlant: plant('rods'),
   // Машинный завод: машинки и тяжёлая техника. Строится из стройблоков: военная промышленность требует цеха.
-  factory: { width: 3, height: 3, cost: 450, power: -5, materials: { blocks: 10 }, produces: ['buggy', 'flak', 'lancer', 'tank', 'artillery', 'tesla', 'carrier', 'mcv'] },
+  factory: { width: 3, height: 3, cost: 450, power: -5, materials: { blocks: 10 }, produces: ['buggy', 'flak', 'lancer', 'supplier', 'tank', 'artillery', 'tesla', 'carrier', 'mcv'] },
   // Лаборатория ведёт исследования: они открывают переработку, цеха, армию и уровни зданий. Нужна с самого начала —
   // до плавильни, — поэтому дешёвая и без материалов; несколько лабораторий исследуют одну тему вместе, быстрее.
   // Склад — под сырьё нынешней темы: его подвозят грузовики и трубы, см. requestsOf в logistics.ts.
@@ -224,6 +229,9 @@ export const BUILDINGS = {
   // Ремонтная станция чинит технику и здания вокруг себя — так же и за ту же цену, что строитель, и тоже не под
   // огнём: это пункт обслуживания в тылу. Пехота рядом поправляется быстрее. Без энергии не работает.
   repairStation: { width: 3, height: 3, cost: 500, power: -3, materials: { blocks: 8 }, repair: 5.5 },
+  // Станция поставки: здесь машины снабжения грузятся вчетверо быстрее, чем у хранилищ сети. Без неё машину снабжения
+  // не заказать.
+  supplyDepot: { width: 3, height: 2, cost: 350, materials: { blocks: 6 }, inventory: 300, accepts: ['ammo'], depot: true, beam: { radius: 3, rate: 40, give: true } },
   // Аэродром выпускает летающих: им нужно топливо, бомбардировщику ещё и техцентр.
   airfield: { width: 4, height: 3, cost: 500, power: -4, materials: { metal: 15, blocks: 5 }, produces: ['airTruck', 'drone', 'gunship', 'bomber'] },
   // Электростанция.
@@ -312,7 +320,7 @@ export const BUILDING_TYPES = Object.keys(BUILDINGS) as BuildingType[]
 export const BUILDABLE: BuildingType[] = [
   'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill', 'blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant',
   'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack', 'accumulator', 'reactor', 'silo', 'spaceport', 'barracks', 'factory', 'airfield', 'lab',
-  'repairStation', 'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator', 'interceptor',
+  'repairStation', 'supplyDepot', 'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator', 'interceptor',
 ]
 
 /** Выше этого уровня здания не улучшают. */
@@ -379,8 +387,8 @@ export function applyLevel(world: World, entity: Entity) {
   if ((spec.stores || spec.trades) && spec.inventory) inventory.capacity = Math.round(spec.inventory * levelFactor(building.level))
 }
 
-/** Что здание само заказывает на свой склад: патроны турели, стержни реактора; undefined — ничего. */
-export const feedOf = (spec: BuildingSpec): Product | undefined => (spec.ammo ? 'ammo' : spec.burns?.good)
+/** Что здание само заказывает на свой склад: патроны турели и станции поставки, стержни реактора; undefined — ничего. */
+export const feedOf = (spec: BuildingSpec): Product | undefined => (spec.ammo || spec.depot ? 'ammo' : spec.burns?.good)
 
 /** Выключается ли здание игроком: потребитель энергии и реактор — тот бережёт стержни. */
 export const isSwitchable = (type: BuildingType) => (buildingSpec(type).power ?? 0) < 0 || !!buildingSpec(type).burns
@@ -431,6 +439,7 @@ export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = 
   rocketTurret: ['radar'],
   cannonTurret: ['radar'],
   repairStation: ['factory'],
+  supplyDepot: ['factory'],
   laserTurret: ['radar'],
   arcTurret: ['radar'],
   reactor: ['uraniumMill'],
@@ -469,6 +478,7 @@ export const RESEARCH_FOR: Partial<Record<BuildingType, Topic>> = {
   factory: 'vehicles',
   airfield: 'aviation',
   repairStation: 'repair',
+  supplyDepot: 'vehicles',
   laserTurret: 'lasers',
   arcTurret: 'arcs',
   cannonTurret: 'armor',

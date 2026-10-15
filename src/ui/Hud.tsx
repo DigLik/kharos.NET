@@ -689,6 +689,12 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
             {state.ammo.have <= 0 ? t('hud.ammoEmpty') : t('hud.ammoTip')}
           </div>
         )}
+        {state.supplies?.bays.map((bay) => (
+          <div key={bay.resource} class={bay.have <= 0 ? 'hud__hint is-short' : 'hud__hint'}>
+            {t(`goods.${bay.resource}`)}: <Res resource={bay.resource} amount={bay.have} of={bay.capacity} />
+            {bay.have <= 0 ? t('hud.suppliesEmpty') : t('hud.suppliesTip', { radius: state.supplies!.radius })}
+          </div>
+        ))}
         {state.rods && (
           <div class={state.rods.have <= 0 && !state.rods.burning ? 'hud__hint is-short' : 'hud__hint'}>
             {t('hud.rods')}: <Res resource="rods" amount={state.rods.have} of={state.rods.capacity} />

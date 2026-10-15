@@ -4,7 +4,7 @@ import { Armed, Owner, Path, Position, Unit } from './components'
 import { setStance } from './tactics'
 import { turretsOf } from './turrets'
 import type { Sim } from './sim'
-import { UNITS, UNIT_TYPES, canStand, flies, spawnUnit, isFighter, type UnitType } from './units'
+import { UNITS, UNIT_TYPES, canStand, flies, spawnUnit, isFighter, unitSpec, type UnitType } from './units'
 import { WEAPONS, type WeaponSpec } from './weapons'
 
 /** Сколько кредитов стоит армия одной стороны показательного боя. */
@@ -14,13 +14,14 @@ const ARMY_BUDGET = 3500
 const BATTLE_GAP = 6
 
 /**
- * Случайная армия из боевых юнитов на budget кредитов: юниты добираются по одному, пока хватает денег хотя бы
+ * Случайная армия из боевых юнитов на budget кредитов, без машин снабжения: юниты добираются по одному, пока хватает денег хотя бы
  * на самого дешёвого из разрешённых. weights — насколько часто берётся каждый тип: 0 — не берётся совсем, тип без
  * веса берётся с весом 1; если все веса нулевые, типы равноправны. random — источник случайных чисел от 0 до 1.
  */
 export function randomArmy(budget = ARMY_BUDGET, weights: Partial<Record<UnitType, number>> = {}, random: () => number = Math.random) {
   const weightOf = (type: UnitType) => Math.max(0, weights[type] ?? 1)
-  let armed = UNIT_TYPES.filter(isFighter)
+  // Машина снабжения в бою армий не нужна: патронов там не тратят.
+  let armed = UNIT_TYPES.filter((type) => isFighter(type) && !unitSpec(type).supplies)
   if (armed.some((type) => weightOf(type) > 0)) armed = armed.filter((type) => weightOf(type) > 0)
   else weights = {}
   const army: UnitType[] = []

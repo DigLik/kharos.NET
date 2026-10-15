@@ -39,7 +39,7 @@ const SECTIONS: Partial<Record<Page, BuildingType[]>> = {
   storage: ['metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack'],
   industry: ['smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill'],
   production: ['blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant'],
-  military: ['barracks', 'factory', 'airfield', 'repairStation', 'silo'],
+  military: ['barracks', 'factory', 'airfield', 'repairStation', 'supplyDepot', 'silo'],
   defense: ['wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator', 'interceptor', 'radar'],
 }
 /** Описание здания для карточки: что делает и какие здания открывает. */

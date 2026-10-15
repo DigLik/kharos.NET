@@ -144,17 +144,19 @@ export const POCKET = 48
 const ASIDE_REACH = 6
 
 /**
- * Подводит юнит к зданию (или дропу) так, чтобы между ними дотянулся луч длиной radius: на ближайший к юниту свободный тайл,
- * откуда хватает, и куда можно доехать. Вплотную ему не нужно. Возвращает, нашлось ли такое место.
+ * Подводит юнит к зданию, дропу или другому юниту так, чтобы между ними дотянулся луч длиной radius: на ближайший к юниту
+ * свободный тайл, откуда хватает, и куда можно доехать. Вплотную ему не нужно. Возвращает, нашлось ли такое место.
  */
 export function approach(sim: Sim, entity: Entity, building: Entity, radius: number) {
   const { world } = sim
   const position = world.get(entity, Position)
   const unit = world.get(entity, Unit)
-  const at = world.get(building, Position)
-  const type = world.get(building, Building)?.type ?? world.get(building, Site)?.type
-  if (!position || !unit || !at || (type === undefined && !world.has(building, Drop))) return false
-  const { width, height } = type === undefined ? { width: 1, height: 1 } : BUILDINGS[type]
+  const target = shapeOf(sim, building)
+  if (!position || !unit || !target || building === entity) return false
+  // Юнит — квадрат вокруг своего круга: к машине снабжения подъезжают, где она стоит сейчас.
+  const at = target.radius ? { x: target.x - target.radius, y: target.y - target.radius } : target
+  const width = target.width || target.radius * 2
+  const height = target.height || target.radius * 2
   const size = UNITS[unit.type].radius
   const reach = Math.max(0, radius - APPROACH_MARGIN)
   const taken = standingUnits(sim, new Set([entity]), size)
@@ -163,8 +165,8 @@ export function approach(sim: Sim, entity: Entity, building: Entity, radius: num
   // Места в радиусе луча: сначала свободные, ближние к юниту — раньше. Занятое стоящим годится, если свободных нет:
   // стоящий уступит, когда юнит подъедет.
   const places: { x: number; y: number; order: number }[] = []
-  for (let y = at.y - span; y < at.y + height + span; y++) {
-    for (let x = at.x - span; x < at.x + width + span; x++) {
+  for (let y = Math.floor(at.y - span); y < at.y + height + span; y++) {
+    for (let x = Math.floor(at.x - span); x < at.x + width + span; x++) {
       const dx = Math.max(0, at.x - x - 0.5, x + 0.5 - at.x - width)
       const dy = Math.max(0, at.y - y - 0.5, y + 0.5 - at.y - height)
       if (Math.hypot(dx, dy) - size > reach) continue

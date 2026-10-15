@@ -4,7 +4,7 @@ import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atl
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { Armed, Attached, BUILDINGS, Building, Converting, Orders, Owner, Path, Position, Producer, Site, UNITS, Unit, buildTicks, networkOf, siteTicks } from '../sim'
+import { Armed, Attached, BUILDINGS, Building, Converting, Orders, Owner, Path, Position, Producer, Site, UNITS, Unit, buildTicks, networkOf, siteTicks, unitSpec } from '../sim'
 import type { Scene } from './scene'
 import { statusLift } from './statusBars'
 import { prefs } from './prefs'
@@ -215,6 +215,22 @@ export function createSelectionPass(gl: WebGL2RenderingContext, scene: Scene, ar
         // Флажок: древко и полотнище.
         rect(toX - camera.x - pixel, toY - camera.y - 0.9, pixel * 2, 0.9, SELECTED, 1)
         rect(toX - camera.x + pixel, toY - camera.y - 0.9, 0.45, 0.3, SELECTED, 1)
+      }
+
+      // Круг раздачи выбранной машины снабжения: свои внутри него пополняют магазины с её склада.
+      for (const entity of scene.selection) {
+        const unit = world.get(entity, Unit)
+        const position = world.get(entity, Position)
+        const supplies = unit && unitSpec(unit.type).supplies
+        if (!supplies || !position) continue
+        const center = drawnPosition(position, unit, time.alpha)
+        const count = Math.ceil((Math.PI * 2 * supplies.radius) / PATH_STEP)
+        for (let i = 0; i < count; i++) {
+          const angle = (i / count) * Math.PI * 2
+          const x = center.x + Math.cos(angle) * supplies.radius - camera.x - dot / 2
+          const y = center.y + Math.sin(angle) * supplies.radius - camera.y - dot / 2
+          rect(x, y, dot, dot, SELECTED, PATH_ALPHA)
+        }
       }
 
       /** Кольцо вокруг юнита или рамка вокруг здания; alpha — насколько ярко, до настройки игрока. */

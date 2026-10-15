@@ -177,6 +177,11 @@ export interface HudState {
   } | null
   /** Боеприпасы выбранной турели: сколько есть и сколько помещается. */
   ammo: { have: number; capacity: number } | null
+  /**
+   * Отсеки выбранных своих машин снабжения, вместе: что в каждом и сколько помещается. Отсек — груз, который склад
+   * машины принимает; пока это только патроны. radius — на сколько тайлов машина раздаёт.
+   */
+  supplies: { bays: { resource: Good; have: number; capacity: number }[]; radius: number } | null
   /** Стержни выбранного своего реактора: сколько на складе, сколько помещается и горит ли стержень сейчас. */
   rods: { have: number; capacity: number; burning: boolean } | null
   /**
@@ -516,6 +521,7 @@ export function readHud(scene: Scene): HudState {
   let mixed = false
   let firstKind: BuildingType | undefined
   let ammo: HudState['ammo'] = null
+  let supplies: HudState['supplies'] = null
   let rods: HudState['rods'] = null
   let materials: HudState['materials'] = null
   let cargo: HudState['cargo'] = null
@@ -581,6 +587,14 @@ export function readHud(scene: Scene): HudState {
     if (cell && building !== null) battery = { charge: Math.floor(cell.charge), capacity: buildingSpec(building).battery!.capacity, flow: round(cell.flow) }
     const hauler = world.get(entity, Hauler)
     const inventory = world.get(entity, Inventory)
+    const serves = unit && unitSpec(unit.type).supplies
+    if (serves && inventory && isOwn(sim, player, entity)) {
+      supplies ??= { bays: inventory.accepts.map((resource) => ({ resource, have: 0, capacity: 0 })), radius: serves.radius }
+      for (const bay of supplies.bays) {
+        bay.have += Math.floor(amountOf(inventory, bay.resource))
+        bay.capacity += inventory.capacity
+      }
+    }
     if (hauler && inventory) {
       cargo ??= { items: [], capacity: 0, bound: 0, busy: 0 }
       const items: Amounts = Object.fromEntries(cargo.items.map(({ resource, amount }) => [resource, amount]))
@@ -850,6 +864,7 @@ export function readHud(scene: Scene): HudState {
     buildings: buildingCount,
     mixed,
     ammo,
+    supplies,
     rods,
     materials,
     trade,

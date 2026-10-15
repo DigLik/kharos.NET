@@ -16,7 +16,8 @@
     "drone": "Dron",
     "gunship": "Cañonera",
     "bomber": "Bombardero",
-    "carrier": "Portadrones"
+    "carrier": "Portadrones",
+    "supplier": "Vehículo de suministro"
   },
   "buildings": {
     "command": "Centro de mando",
@@ -33,6 +34,7 @@
     "factory": "Fábrica de vehículos",
     "lab": "Laboratorio",
     "repairStation": "Estación de reparación",
+    "supplyDepot": "Depósito de suministro",
     "generator": "Central eléctrica",
     "accumulator": "Acumulador",
     "reactor": "Reactor",
@@ -103,6 +105,7 @@
     "airfield": "Fabrica aviación: camiones aéreos, drones, cañoneras y bombarderos",
     "lab": "Investiga: desbloquea el refinado, las plantas, el ejército y los niveles de edificios. Varios laboratorios investigan un tema juntos, más rápido",
     "repairStation": "Repara vehículos y edificios cercanos a cambio de créditos, pero no bajo fuego; la infantería cercana se recupera más rápido. Necesita energía",
+    "supplyDepot": "Guarda munición para los vehículos de suministro y los carga con su rayo cuatro veces más rápido que los almacenes. Camiones y tuberías lo mantienen lleno; no entrega munición a otros pedidos",
     "wall": "Una barrera barata y resistente: corta el paso y cubre de los disparos. Se puede colocar fuera de la zona",
     "gate": "Placas que salen del suelo: bajadas mientras no haya extraños cerca, se alzan como muro cuando se acerca un enemigo. Se trazan en línea de cualquier anchura. También fuera de la zona",
     "pipe": "Une los edificios en una red: por las tuberías van la carga y la energía, y amplían la zona. Barata y frágil, corta el paso. Se puede colocar fuera de la zona",
@@ -563,6 +566,8 @@
     "ammo": "Munición",
     "ammoEmpty": " — vacía, la torreta calla hasta que la abastezcan",
     "ammoTip": ". Cuando gaste una cuarta parte, los camiones traerán más de los almacenes de la zona",
+    "suppliesTip": ". Reabastece a tus unidades en un radio de {radius} casillas; al gastar una cuarta parte, los camiones traen más al campo. Carga desde los almacenes de tu red, cuatro veces más rápido en un depósito de suministro",
+    "suppliesEmpty": " — vacío: espera camiones, almacenes de la red o un depósito de suministro",
     "rods": "Barras",
     "rodsTip": ". Una barra arde un minuto; los camiones traen más de los almacenes de la zona",
     "rodsEmpty": " — no arde ninguna barra, el reactor no produce",

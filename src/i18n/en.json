@@ -16,7 +16,8 @@
     "drone": "Drone",
     "gunship": "Gunship",
     "bomber": "Bomber",
-    "carrier": "Carrier"
+    "carrier": "Carrier",
+    "supplier": "Supply Rig"
   },
   "buildings": {
     "command": "Command Center",
@@ -33,6 +34,7 @@
     "factory": "Vehicle Factory",
     "lab": "Laboratory",
     "repairStation": "Repair Station",
+    "supplyDepot": "Supply Depot",
     "generator": "Power Plant",
     "accumulator": "Accumulator",
     "reactor": "Reactor",
@@ -103,6 +105,7 @@
     "airfield": "Builds aircraft: air trucks, drones, gunships and bombers",
     "lab": "Conducts research: it unlocks refining, plants, the army and building levels. Several laboratories research one topic together, faster",
     "repairStation": "Repairs nearby vehicles and buildings for credits, but not under fire; infantry nearby heals faster. Needs power",
+    "supplyDepot": "Holds ammo for supply rigs and loads them with its beam four times faster than storage. Trucks and pipes keep it full; it does not give ammo to other requests",
     "wall": "A cheap, sturdy barrier: blocks the way and shields from fire. Can be placed outside a zone",
     "gate": "Plates that rise from the ground: lowered while no strangers are near, raised into a wall when an enemy approaches. Drag a line of any width. Can be placed outside the zone",
     "pipe": "Links buildings into a network: pipes carry goods and power and extend the zone. Cheap and fragile, blocks passage. Can be placed outside a zone",
@@ -563,6 +566,8 @@
     "ammo": "Ammo",
     "ammoEmpty": " — empty, the turret is silent until resupplied",
     "ammoTip": ". Once a quarter is spent, trucks resupply it from the zone's stores",
+    "suppliesTip": ". Resupplies your units within {radius} tiles; once a quarter is spent, trucks bring more into the field. Loads from storage inside your network, four times faster at a supply depot",
+    "suppliesEmpty": " — empty: waiting for trucks, network storage or a supply depot",
     "rods": "Rods",
     "rodsTip": ". A rod burns for a minute; trucks bring new ones from the zone's stores",
     "rodsEmpty": " — no rod burning, the reactor produces nothing",

@@ -16,7 +16,8 @@
     "drone": "Drone",
     "gunship": "Hélicoptère d'assaut",
     "bomber": "Bombardier",
-    "carrier": "Porte-drones"
+    "carrier": "Porte-drones",
+    "supplier": "Véhicule de ravitaillement"
   },
   "buildings": {
     "command": "Centre de commandement",
@@ -33,6 +34,7 @@
     "factory": "Usine de véhicules",
     "lab": "Laboratoire",
     "repairStation": "Station de réparation",
+    "supplyDepot": "Dépôt de ravitaillement",
     "generator": "Centrale électrique",
     "accumulator": "Accumulateur",
     "reactor": "Réacteur",
@@ -103,6 +105,7 @@
     "airfield": "Produit l'aviation : camions volants, drones, hélicoptères d'assaut et bombardiers",
     "lab": "Mène les recherches : elles débloquent le raffinage, les usines, l’armée et les niveaux des bâtiments. Plusieurs laboratoires étudient un même sujet ensemble, plus vite",
     "repairStation": "Répare les véhicules et bâtiments proches contre des crédits, mais pas sous le feu ; l’infanterie proche se soigne plus vite. Consomme de l’énergie",
+    "supplyDepot": "Garde des munitions pour les véhicules de ravitaillement et les charge avec son rayon quatre fois plus vite que les entrepôts. Camions et tuyaux le gardent plein ; il ne sert pas les autres demandes",
     "wall": "Un obstacle solide et bon marché : il barre le passage et protège des tirs. Peut être placé hors zone",
     "gate": "Plaques qui sortent du sol : abaissées tant qu'aucun étranger n'est proche, relevées en mur à l'approche de l'ennemi. Se tracent en ligne de toute largeur. Se placent aussi hors zone",
     "pipe": "Relie les bâtiments en réseau : les tuyaux transportent marchandises et énergie et étendent la zone. Bon marché et fragile, il barre le passage. Peut être placé hors zone",
@@ -563,6 +566,8 @@
     "ammo": "Munitions",
     "ammoEmpty": " — vide, la tourelle se tait jusqu'au ravitaillement",
     "ammoTip": ". Un quart tiré, et les camions en rapportent des entrepôts de la zone",
+    "suppliesTip": ". Ravitaille vos unités dans un rayon de {radius} cases ; dès qu’un quart est dépensé, des camions en apportent sur le terrain. Se charge depuis les entrepôts de votre réseau, quatre fois plus vite à un dépôt de ravitaillement",
+    "suppliesEmpty": " — vide : attend des camions, les entrepôts du réseau ou un dépôt de ravitaillement",
     "rods": "Barres",
     "rodsTip": ". Une barre brûle une minute ; les camions en apportent des entrepôts de la zone",
     "rodsEmpty": " — aucune barre ne brûle, le réacteur ne produit rien",

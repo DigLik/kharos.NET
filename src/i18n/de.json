@@ -16,7 +16,8 @@
     "drone": "Drohne",
     "gunship": "Kampfhubschrauber",
     "bomber": "Bomber",
-    "carrier": "Trägerschiff"
+    "carrier": "Trägerschiff",
+    "supplier": "Versorgungsfahrzeug"
   },
   "buildings": {
     "command": "Kommandozentrale",
@@ -33,6 +34,7 @@
     "factory": "Fahrzeugfabrik",
     "lab": "Labor",
     "repairStation": "Reparaturstation",
+    "supplyDepot": "Versorgungsdepot",
     "generator": "Kraftwerk",
     "accumulator": "Akkumulator",
     "reactor": "Reaktor",
@@ -103,6 +105,7 @@
     "airfield": "Baut Fluggeräte: Fluglaster, Drohnen, Kampfhubschrauber und Bomber",
     "lab": "Forscht: Forschung schaltet Verarbeitung, Werke, Armee und Gebäudestufen frei. Mehrere Labore erforschen ein Thema gemeinsam schneller",
     "repairStation": "Repariert Fahrzeuge und Gebäude in der Nähe gegen Credits, aber nicht unter Beschuss; Infanterie in der Nähe heilt schneller. Braucht Energie",
+    "supplyDepot": "Hält Munition für Versorgungsfahrzeuge bereit und belädt sie mit seinem Strahl viermal schneller als Lager. Lastwagen und Rohre halten es voll; an andere Anforderungen gibt es nichts ab",
     "wall": "Ein billiges, stabiles Hindernis: versperrt den Weg und schützt vor Beschuss. Kann auch außerhalb der Zone stehen",
     "gate": "Platten, die aus dem Boden fahren: abgesenkt, solange keine Fremden in der Nähe sind, und als Mauer ausgefahren, wenn ein Feind naht. In beliebiger Breite als Linie ziehbar. Auch außerhalb der Zone baubar",
     "pipe": "Verbindet Gebäude zu einem Netz: Rohre leiten Fracht und Energie und erweitern die Zone. Billig und zerbrechlich, versperrt die Durchfahrt. Kann auch außerhalb der Zone stehen",
@@ -563,6 +566,8 @@
     "ammo": "Munition",
     "ammoEmpty": " — leer, der Turm schweigt bis zum Nachschub",
     "ammoTip": ". Ist ein Viertel verschossen, bringen Lastwagen Nachschub aus den Lagern der Zone",
+    "suppliesTip": ". Versorgt eigene Einheiten im Umkreis von {radius} Feldern; ist ein Viertel verbraucht, bringen Lastwagen Nachschub ins Feld. Lädt im eigenen Netz aus den Lagern, am Versorgungsdepot viermal schneller",
+    "suppliesEmpty": " — leer: wartet auf Lastwagen, Lager im Netz oder ein Versorgungsdepot",
     "rods": "Brennstäbe",
     "rodsTip": ". Ein Stab brennt eine Minute; Lastwagen bringen neue aus den Lagern der Zone",
     "rodsEmpty": " — kein Stab brennt, der Reaktor erzeugt nichts",

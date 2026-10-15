@@ -16,7 +16,7 @@ import { inCircles, networkOf, zonesOf, type Zone } from './zones'
  * Зональные заявки. Всё, что потребляет груз, само заказывает его у своей зоны строительства: стройка — материалы
  * на здание, производитель — материалы на первый заказ очереди, космопорт — товар по заявке на продажу, переработка
  * — руду из шахт (её берут где угодно: месторождение решает, где шахта, а не зона), цех — сырьё своего рецепта,
- * турель — патроны. Свободные грузовики игрока берут самую важную заявку и везут груз из хранилищ, переработки
+ * турель и станция поставки — патроны, машина снабжения — патроны туда, где она стоит. Свободные грузовики игрока берут самую важную заявку и везут груз из хранилищ, переработки
  * и цехов той же зоны. Когда заявок нет, они развозят готовое по хранилищам. Руду без переработки никто не возит:
  * она копится в шахте, пока завод не построят.
  * Игроку не нужно указывать каждому грузовику, что и куда везти.
@@ -310,6 +310,17 @@ export function requestsOf(sim: Sim, player: number, flows = flowsOf(sim)): Requ
     const room = roomFor(inventory, feed)
     if (room >= inventory.capacity * AMMO_REORDER) need(entity, feed, room, PRIORITY.ammo, 'zone', true)
   }
+  // Машины снабжения: патроны, когда израсходована четверть склада, — грузовики везут их в поле. Стоящая в сети, где
+  // патроны есть, грузится из хранилищ сама (см. supply.ts), и грузовик к ней не гонят.
+  let offering: ReturnType<typeof offerIndex> | undefined
+  for (const [entity, unit, inventory, owner, position] of world.query(Unit, Inventory, Owner, Position)) {
+    if (owner.player !== player || !unitSpec(unit.type).supplies) continue
+    const room = roomFor(inventory, 'ammo')
+    if (room < inventory.capacity * AMMO_REORDER) continue
+    const zone = zones.find((one) => inCircles(one.circles, position.x, position.y))
+    if (zone && (offering ??= offerIndex(sim))(zone, 'ammo').some((source) => givenBy(sim, source, 'ammo') >= MIN_JOB)) continue
+    need(entity, 'ammo', room, PRIORITY.ammo, 'zone', true)
+  }
   // Продажа: товар заявки.
   for (const [entity, order] of world.query(Trade, Inventory)) {
     if (order.total > 0 || !isReady(sim, player, entity)) continue
@@ -409,6 +420,9 @@ export function acceptsDelivery(sim: Sim, player: number, to: Entity, resource: 
   const inventory = world.get(to, Inventory)
   if (!inventory || !isOwn(sim, player, to) || roomFor(inventory, resource) <= 1e-9) return false
   if (world.has(to, Site)) return !!materialsFor(sim, to)?.[resource]
+  // Машина снабжения принимает груз своих отсеков где угодно: к ней едут в поле.
+  const unit = world.get(to, Unit)
+  if (unit) return !!unitSpec(unit.type).supplies
   if (!isReady(sim, player, to) || world.has(to, Converting)) return false
   if (isStore(sim, to)) return true
   const order = world.get(to, Trade)

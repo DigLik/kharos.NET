@@ -16,7 +16,8 @@
     "drone": "Dron",
     "gunship": "Shturmovik",
     "bomber": "Bombardimonchi",
-    "carrier": "Tashuvchi"
+    "carrier": "Tashuvchi",
+    "supplier": "Taʼminot mashinasi"
   },
   "buildings": {
     "command": "Bosh bino",
@@ -33,6 +34,7 @@
     "factory": "Mashinasozlik zavodi",
     "lab": "Laboratoriya",
     "repairStation": "Ta’mirlash stansiyasi",
+    "supplyDepot": "Taʼminot stansiyasi",
     "generator": "Elektr stansiyasi",
     "accumulator": "Akkumulyator",
     "reactor": "Reaktor",
@@ -103,6 +105,7 @@
     "airfield": "Aviatsiyani ishlab chiqaradi: uchar yuk mashinalari, dronlar, shturmoviklar va bombardimonchilar",
     "lab": "Tadqiqot olib boradi: ular qayta ishlash, sexlar, armiya va bino darajalarini ochadi. Bir nechta laboratoriya bitta mavzuni birga, tezroq o‘rganadi",
     "repairStation": "Yaqindagi texnika va binolarni kredit evaziga ta’mirlaydi, lekin o‘q ostida emas; yaqindagi piyoda tezroq tiklanadi. Energiya talab qiladi",
+    "supplyDepot": "Taʼminot mashinalari uchun o‘q-dori zaxirasini saqlaydi va ularni o‘z nuri bilan omborlardan to‘rt barobar tezroq yuklaydi. Yuk mashinalari va quvurlar uni to‘la tutadi; umumiy buyurtmalarga bermaydi",
     "wall": "Arzon va mustahkam to‘siq: yo‘lni to‘sadi va o‘qlardan himoya qiladi. Zonadan tashqarida ham quriladi",
     "gate": "Yerdan chiqadigan plitalar: yaqinida begonalar bo‘lmasa — tushirilgan turadi, dushman yaqinlashganda esa devor bo‘lib ko‘tariladi. Istalgan kenglikdagi chiziq bo‘lib tortiladi. Zonadan tashqarida ham quriladi",
     "pipe": "Binolarni tarmoqqa ulaydi: quvurlar orqali yuk va energiya o‘tadi hamda zonani kengaytiradi. Arzon va nozik, yo‘lni to‘sadi. Zonadan tashqarida ham quriladi",
@@ -563,6 +566,8 @@
     "ammo": "O‘q-dori",
     "ammoEmpty": " — bo‘sh, to‘ldirilmaguncha minora o‘t ochmaydi",
     "ammoTip": ". To‘rtdan bir qismi sarflangach — yuk mashinalari zona omborlaridan yetkazib beradi",
+    "suppliesTip": ". {radius} katak radiusidagi o‘z birliklarini taʼminlaydi; choragi sarflansa, yuk mashinalari dalaga olib keladi. Tarmoqda omborlardan, taʼminot stansiyasida to‘rt barobar tezroq yuklanadi",
+    "suppliesEmpty": " — bo‘sh: yuk mashinalari, tarmoq omborlari yoki taʼminot stansiyasini kutmoqda",
     "rods": "Sterjenlar",
     "rodsTip": ". Sterjen bir daqiqa yonadi; yuk mashinalari zona omborlaridan yangisini olib keladi",
     "rodsEmpty": " — ishlayotgan sterjen yo‘q, reaktor energiya bermaydi",

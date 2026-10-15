@@ -7,7 +7,7 @@ import { Armed, Converting, Hauler, Health, Magazine, Owner, Repair, Path, Posit
 import { unitSight } from './vision'
 import { STARTING_CREDITS, addCredits } from './economy'
 import { equipStorage, type BeamSpec } from './inventory'
-import type { Amounts } from './resources'
+import type { Amounts, Good } from './resources'
 import { SEARCH_LIMIT, beyondWindow, findPath, searchCut, smoothPath } from './path'
 import type { Sim } from './sim'
 import { mountTurrets, turretSpec, type MountSpec } from './turrets'
@@ -48,6 +48,8 @@ export interface UnitSpec {
   research?: string
   /** Склад: сколько ресурсов юнит везёт. См. inventory.ts. */
   inventory?: number
+  /** Какой груз принимает склад юнита: без поля — любой. */
+  accepts?: readonly Good[]
   /** Грузовик: возит груз по заявкам зон, из шахты, по маршруту. См. hauling.ts. */
   hauls?: boolean
   /** Транспортный луч: им юнит отдаёт ресурсы со своего склада или забирает на него. */
@@ -60,6 +62,11 @@ export interface UnitSpec {
    * оружие — лазер и разряд.
    */
   ammo?: number
+  /**
+   * Машина снабжения: своим в радиусе radius тайлов от её центра пополняет магазины со своего склада, каждому до rate
+   * в секунду. Склад ей наполняют грузовики по заявке, хранилища её сети и станция поставки. См. supply.ts.
+   */
+  supplies?: { radius: number; rate: number }
 }
 
 /**
@@ -121,6 +128,14 @@ export const UNITS = {
       { turret: 'repair', along: -0.28, across: 0.27 },
     ],
   },
+  // Машина снабжения: хвост армии. Медленная и крупная, с пулемётчиком против разведки; раздаёт патроны своим вокруг,
+  // а сама берёт их у грузовиков в поле, из хранилищ сети и быстрее всего — на станции поставки. Отсеки под топливо
+  // и аккумуляторы добавятся в accepts, когда их начнут тратить.
+  supplier: {
+    speed: 2, turn: 2.2, radius: 0.75, cost: 450, buildTime: 12, kind: 'vehicle', hp: 400, materials: { metal: 12, blocks: 4 }, sight: 7, ammo: 30,
+    inventory: 150, accepts: ['ammo'], supplies: { radius: 6, rate: 10 }, requires: ['supplyDepot'],
+    mounts: [{ turret: 'gunner', along: 0.3, across: 0 }],
+  },
   // Летающие: им нужно топливо.
   // Летающий грузовик: везёт меньше обычного, зато вдвое быстрее и напрямик — над болотами и горами. Его сбивает ПВО.
   airTruck: { speed: 7, turn: 5, radius: 0.45, cost: 300, buildTime: 10, kind: 'air', hp: 100, sight: 8, inventory: 10, hauls: true, beam: { radius: 2, rate: 10, give: true, take: true }, materials: { fuel: 4 } },
@@ -139,7 +154,7 @@ export const UNIT_TYPES = Object.keys(UNITS) as UnitType[]
 
 /**
  * Сколько места юнит занимает в лимите армии (Rules.armyLimit): пехота и рабочие — по одному, лёгкая техника — два,
- * тяжёлая и ударная авиация — три, носитель — четыре. MCV не в счёт: базу поднять заново можно всегда.
+ * тяжёлая и ударная авиация — три, носитель — четыре, машина снабжения — два, как лёгкая техника: она обслуживает армию. MCV не в счёт: базу поднять заново можно всегда.
  */
 export const SUPPLY: Record<UnitType, number> = {
   mcv: 0,
@@ -155,6 +170,7 @@ export const SUPPLY: Record<UnitType, number> = {
   artillery: 3,
   tesla: 3,
   carrier: 4,
+  supplier: 2,
   airTruck: 2,
   drone: 2,
   gunship: 3,

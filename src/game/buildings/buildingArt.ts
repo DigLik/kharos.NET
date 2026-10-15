@@ -1097,6 +1097,56 @@ const ammoBunker: BuildingArt = {
   },
 }
 
+/**
+ * Станция поставки, 3×2: бетонная площадка погрузки с разметкой, штабель ящиков с патронами и поворотный кран
+ * с излучателем транспортного луча — им станция грузит машины снабжения, вставшие рядом.
+ */
+const supplyDepot: BuildingArt = {
+  ...BUILDINGS.supplyDepot,
+  draw(g, t, light) {
+    const tint = accent(GOOD_COLORS.ammo)
+    slab(g, 0, 1, 48, 31, 3, IRON)
+    // Площадка погрузки справа: жёлто-чёрная рамка, внутри — бетон.
+    g.rect(24, 4, 21, 22, INK)
+    g.rect(25, 5, 19, 20, IRON[2])
+    for (let i = 0; i < 19; i += 4) {
+      g.rect(25 + i, 5, 2, 1, HAZARD[1])
+      g.rect(25 + i, 24, 2, 1, HAZARD[1])
+    }
+    for (let i = 0; i < 20; i += 4) {
+      g.rect(25, 5 + i, 1, 2, HAZARD[1])
+      g.rect(43, 5 + i, 1, 2, HAZARD[1])
+    }
+    g.rect(27, 7, 15, 16, IRON[1])
+    // Штабель ящиков слева, три ряда по три.
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        const x = 3 + col * 6
+        const y = 4 + row * 7
+        g.rect(x, y, 6, 6, INK)
+        g.rect(x + 1, y + 1, 4, 4, tint[1])
+        g.rect(x + 1, y + 1, 4, 1, tint[2])
+        g.rect(x + 2, y + 3, 2, 1, tint[0])
+      }
+    }
+    // Поворотный кран между штабелем и площадкой: стрела ходит над площадкой, на конце — излучатель луча.
+    const angle = -Math.PI / 4 + Math.sin(TURN * t) * 0.6
+    const baseX = 22
+    const baseY = 15
+    const tipX = baseX + Math.cos(angle) * 12
+    const tipY = baseY + Math.sin(angle) * 12 + 4
+    g.line(baseX, baseY, tipX, tipY, 3, INK)
+    g.line(baseX, baseY, tipX, tipY, 1, HAZARD[1])
+    tower(g, baseX, baseY + 2, 3, 2, STEEL)
+    g.circle(tipX, tipY, 2.2, INK)
+    g.circle(tipX, tipY, 1.4, 0x5ff2d0)
+    light(Math.round(tipX), Math.round(tipY), 2, 0.4 + 0.4 * pulse(t * 2))
+    // Огни погрузки по углам площадки бегут по кругу.
+    const corners = [[26, 6], [42, 6], [42, 22], [26, 22]] as const
+    corners.forEach(([x, y], i) => bulb(g, light, x - 1, y - 1, chase(t, i / corners.length)))
+  },
+}
+
 /** Шкаф компонентов, 1×1: закрытая стойка с ящичками, на каждом — огонёк учёта. */
 const partsLocker: BuildingArt = {
   ...BUILDINGS.partsLocker,
@@ -1802,6 +1852,7 @@ export const BUILDING_ART = {
   uraniumCask,
   accumulator,
   repairStation,
+  supplyDepot,
   shieldGenerator,
   lab,
   airfield,

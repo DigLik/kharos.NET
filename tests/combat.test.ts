@@ -309,7 +309,7 @@ test('пехоту выпускают казармы, технику — маш�
   const [, barracks, factory, port, plant, spare, trader] = layout.map(([type, dx]) => placeBuilding(sim.world, type, spot!.x + dx, spot!.y, 1))
   for (let dx = 0; dx < 24; dx++) placeBuilding(sim.world, 'pipe', spot!.x + dx, spot!.y - 1, 1)
   expect(producibleBy(sim, barracks)).toEqual(['infantry', 'rocketeer', 'flamer'])
-  expect(producibleBy(sim, factory)).toEqual(['buggy', 'flak', 'lancer', 'tank', 'artillery', 'tesla', 'carrier', 'mcv'])
+  expect(producibleBy(sim, factory)).toEqual(['buggy', 'flak', 'lancer', 'supplier', 'tank', 'artillery', 'tesla', 'carrier', 'mcv'])
   expect(producibleBy(sim, port)).toEqual(['airTruck', 'drone', 'gunship', 'bomber'])
   expect(producibleBy(sim, trader)).toEqual([])
   // В работе просят 2 + 5 + 4 + 5 из 20, а пока заказов нет — 1 + 2 + 2 + 2.

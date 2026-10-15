@@ -1,7 +1,7 @@
 import type { Entity } from '../ecs'
-import { buildingSpec } from './buildings'
+import { buildingSpec, isReady } from './buildings'
 import { Building, Inventory, Magazine, Owner, Path, Position, Tactics, Unit } from './components'
-import { take } from './inventory'
+import { amountOf, put, reaches, roomFor, take, transfer } from './inventory'
 import { flowsOf, givenBy, offerIndex } from './logistics'
 import type { Sim } from './sim'
 import { leaveHome, stanceOf } from './tactics'
@@ -15,6 +15,10 @@ import { inCircles, zonesOf, type Zone } from './zones'
  * внутри её кругов — магазин сам пополняется из её хранилищ, как турель. Пустой юнит вне сети по стойке: держащий
  * позицию стоит и ждёт, остальные сами идут к ближайшей сети с боеприпасами, а наполнив магазин, возвращаются на место,
  * откуда ушли (см. Tactics.away). Пехота ходит в той же сети: её круги и есть «у любого своего здания».
+ *
+ * Вне сети магазины пополняет машина снабжения (UnitSpec.supplies): всем своим в её радиусе — со своего склада. Пустые
+ * идут и к ней, если она ближе хранилища. Склад машины наполняют грузовики по её заявке (см. requestsOf), хранилища
+ * сети, в кругах которой она стоит, и станция поставки (BuildingSpec.depot) — своим лучом, вчетверо быстрее хранилищ.
  */
 
 /** На сколько секунд непрерывного огня всеми стволами хватает полного магазина. */
@@ -31,6 +35,10 @@ const SEEK_PASSES = 4
 const RESEEK_PASSES = 10
 /** На сколько тайлов от края хранилища достаточно подойти: пополняет вся сеть, а не само хранилище. */
 const SEEK_NEAR = 2
+/** Насколько ближе края раздачи встаёт пустой, идущий к машине снабжения: она тоже может отъехать. */
+const SUPPLIER_MARGIN = 1.5
+/** Сколько боеприпасов в секунду машина снабжения грузит из хранилищ своей сети. Станция поставки грузит своим лучом. */
+export const SUPPLIER_LOAD = 10
 const EPSILON = 1e-9
 
 /** Сколько стволов у юнита: его оружие и вооружённые турели. */
@@ -119,14 +127,78 @@ function centerOf(sim: Sim, entity: Entity) {
   return { x: x + (spec?.width ?? 1) / 2, y: y + (spec?.height ?? 1) / 2, size: Math.max(spec?.width ?? 1, spec?.height ?? 1) }
 }
 
+/** Машина снабжения в мире: где стоит, чья, на какой радиус раздаёт и её склад. */
+interface Supplier {
+  entity: Entity
+  player: number
+  x: number
+  y: number
+  radius: number
+  rate: number
+  stock: Parameters<typeof amountOf>[0]
+}
+
+/** Машины снабжения всех игроков. */
+function suppliersOf(sim: Sim) {
+  const found: Supplier[] = []
+  for (const [entity, unit, stock, owner, position] of sim.world.query(Unit, Inventory, Owner, Position)) {
+    const supplies = unitSpec(unit.type).supplies
+    if (supplies) found.push({ entity, player: owner.player, x: position.x, y: position.y, radius: supplies.radius, rate: supplies.rate, stock })
+  }
+  return found
+}
+
 /**
- * Раз в SUPPLY_TICKS: магазины юнитов в своих сетях пополняются из хранилищ сети, пустые вне сетей идут к ближайшей
- * сети с боеприпасами, наполнившие магазин возвращаются. Груз берётся сверх резерва хранилища и сверх обещанного
- * грузовикам — как его берут заявки, см. givenBy.
+ * Каждый тик: станции поставки грузят машины снабжения, до которых дотягивается их луч. Каждый тик, а не проходами,
+ * потому что луч рисуется по связям нынешнего тика, см. resetBeams. Станции ищутся по тайлам вокруг машины.
+ */
+function loadAtDepots(sim: Sim, suppliers: readonly Supplier[]) {
+  const { world, occupancy } = sim
+  for (const supplier of suppliers) {
+    if (roomFor(supplier.stock, 'ammo') <= EPSILON) continue
+    const reach = Math.ceil(supplier.radius + DEPOT_REACH)
+    const seen = new Set<Entity>()
+    for (let y = Math.floor(supplier.y) - reach; y <= Math.floor(supplier.y) + reach; y++) {
+      for (let x = Math.floor(supplier.x) - reach; x <= Math.floor(supplier.x) + reach; x++) {
+        const depot = occupancy.at(x, y)
+        if (depot === undefined || seen.has(depot)) continue
+        seen.add(depot)
+        const type = world.get(depot, Building)!.type
+        if (!buildingSpec(type).depot || !isReady(sim, supplier.player, depot) || !reaches(sim, depot, supplier.entity)) continue
+        transfer(sim, depot, supplier.entity, 'ammo')
+      }
+    }
+  }
+}
+/** Дальше скольких тайлов от машины снабжения станцию не ищут: луч станции короче. */
+const DEPOT_REACH = 4
+
+/** Ближайшая к точке машина снабжения игрока с боеприпасами, в радиусе раздачи которой точка лежит; except — не она. */
+function supplierAt(suppliers: readonly Supplier[], player: number, x: number, y: number, except?: Entity) {
+  let best: Supplier | undefined
+  let bestDistance = Infinity
+  for (const supplier of suppliers) {
+    if (supplier.player !== player || supplier.entity === except || amountOf(supplier.stock, 'ammo') <= EPSILON) continue
+    const distance = Math.hypot(supplier.x - x, supplier.y - y)
+    if (distance <= supplier.radius && distance < bestDistance) {
+      best = supplier
+      bestDistance = distance
+    }
+  }
+  return best
+}
+
+/**
+ * Раз в SUPPLY_TICKS: магазины юнитов в своих сетях пополняются из хранилищ сети, вне сетей — у машин снабжения, пустые
+ * идут к ближайшему снабжению, наполнившие магазин возвращаются. Груз берётся сверх резерва хранилища и сверх
+ * обещанного грузовикам — как его берут заявки, см. givenBy. Станции поставки грузят машины снабжения каждый тик.
  */
 export function supply(sim: Sim) {
   const { world, time } = sim
-  if (!sim.rules.unitAmmo || time.tick % SUPPLY_TICKS) return
+  if (!sim.rules.unitAmmo) return
+  const suppliers = suppliersOf(sim)
+  if (suppliers.length) loadAtDepots(sim, suppliers)
+  if (time.tick % SUPPLY_TICKS) return
   const seconds = SUPPLY_TICKS * time.step
   // Проход — раз в SUPPLY_TICKS, поэтому очередь юнитов считается проходами, а не тиками, как в onTurn.
   const pass = time.tick / SUPPLY_TICKS
@@ -145,6 +217,25 @@ export function supply(sim: Sim) {
     return amount
   }
   const stocked = (zone: Zone) => offers(zone, 'ammo').some((source) => leftIn(source) > EPSILON)
+  /** Берёт из хранилищ сети до amount боеприпасов; возвращает, сколько взято. */
+  const takeFrom = (zone: Zone, amount: number) => {
+    let taken = 0
+    for (const source of offers(zone, 'ammo')) {
+      if (amount - taken <= EPSILON) break
+      const part = take(world.get(source, Inventory)!, 'ammo', Math.min(amount - taken, leftIn(source)))
+      left.set(source, leftIn(source) - part)
+      taken += part
+    }
+    return taken
+  }
+
+  // Машины снабжения в кругах своей сети грузятся из её хранилищ.
+  for (const supplier of suppliers) {
+    const room = roomFor(supplier.stock, 'ammo')
+    if (room <= EPSILON) continue
+    const zone = zonesOf(sim, supplier.player).find((one) => inCircles(one.circles, supplier.x, supplier.y))
+    if (zone) put(supplier.stock, 'ammo', takeFrom(zone, Math.min(room, SUPPLIER_LOAD * seconds)))
+  }
 
   const seekers: Entity[] = []
   for (const [entity, unit, position, owner] of world.query(Unit, Position, Owner)) {
@@ -156,40 +247,43 @@ export function supply(sim: Sim) {
       continue
     }
     const tactics = world.get(entity, Tactics)
-    const zone = magazine.ammo < capacity - EPSILON ? zonesOf(sim, owner.player).find((one) => inCircles(one.circles, position.x, position.y)) : undefined
-    if (zone) {
-      let wanted = Math.min(capacity - magazine.ammo, REFILL_RATE * seconds)
-      for (const source of offers(zone, 'ammo')) {
-        if (wanted <= EPSILON) break
-        const amount = Math.min(wanted, leftIn(source))
-        if (amount <= EPSILON) continue
-        const taken = take(world.get(source, Inventory)!, 'ammo', amount)
-        left.set(source, leftIn(source) - taken)
-        magazine.ammo += taken
-        wanted -= taken
-      }
-    }
+    const lacking = magazine.ammo < capacity - EPSILON
+    const zone = lacking ? zonesOf(sim, owner.player).find((one) => inCircles(one.circles, position.x, position.y)) : undefined
+    // Вне сети магазин пополняет машина снабжения, в радиусе которой юнит стоит.
+    const supplier = lacking && !zone ? supplierAt(suppliers, owner.player, position.x, position.y) : undefined
+    if (zone) magazine.ammo += takeFrom(zone, Math.min(capacity - magazine.ammo, REFILL_RATE * seconds))
+    else if (supplier) magazine.ammo += take(supplier.stock, 'ammo', Math.min(capacity - magazine.ammo, supplier.rate * seconds))
     if (tactics?.resupply) {
       // Наполнил — встаёт и возвращается, куда помнит (patrol), и снова воюет по стойке. Путь у идущего за снабжением —
       // всегда снабжения: приказ игрока снимает resupply, см. clearTactics.
       if (magazine.ammo >= capacity - EPSILON) {
         tactics.resupply = false
         world.remove(entity, Path)
-      } else if (!zone && !world.has(entity, Path) && onPass(entity, RESEEK_PASSES)) seekers.push(entity)
+      } else if (!zone && !supplier && !world.has(entity, Path) && onPass(entity, RESEEK_PASSES)) seekers.push(entity)
       continue
     }
-    if (zone || magazine.ammo >= cheapestShot(unit.type) - EPSILON) continue
+    if (zone || supplier || magazine.ammo >= cheapestShot(unit.type) - EPSILON) continue
     // Идущий по приказу идёт, куда велели: за боеприпасами он пойдёт, когда встанет.
     if (world.has(entity, Path) || stanceOf(sim, entity) === 'hold' || !onPass(entity, SEEK_PASSES)) continue
     seekers.push(entity)
   }
 
-  // Пустые — к ближайшему хранилищу своей сети, где есть боеприпасы. Нет такого — ждут, где стоят.
+  // Пустые — к ближайшему хранилищу своей сети, где есть боеприпасы, или к машине снабжения с ними. Нет таких — ждут,
+  // где стоят.
   for (const entity of seekers) {
     const player = world.get(entity, Owner)!.player
     const { x, y } = world.get(entity, Position)!
     let best: { x: number; y: number; size: number } | undefined
+    let near = 0
     let bestDistance = Infinity
+    for (const supplier of suppliers) {
+      if (supplier.player !== player || supplier.entity === entity || amountOf(supplier.stock, 'ammo') <= EPSILON) continue
+      const distance = Math.hypot(supplier.x - x, supplier.y - y)
+      if (distance >= bestDistance) continue
+      best = { x: supplier.x, y: supplier.y, size: 0 }
+      near = Math.max(0, supplier.radius - SUPPLIER_MARGIN)
+      bestDistance = distance
+    }
     for (const zone of zonesOf(sim, player)) {
       if (!stocked(zone)) continue
       for (const source of offers(zone, 'ammo')) {
@@ -199,12 +293,13 @@ export function supply(sim: Sim) {
         if (distance < bestDistance) {
           bestDistance = distance
           best = center
+          near = center.size / 2 + SEEK_NEAR
         }
       }
     }
     if (!best) continue
     leaveHome(sim, entity)
-    orderMove(sim, entity, Math.floor(best.x), Math.floor(best.y), undefined, 0, best.size / 2 + SEEK_NEAR)
+    orderMove(sim, entity, Math.floor(best.x), Math.floor(best.y), undefined, 0, near)
     if (!world.has(entity, Path)) continue
     world.get(entity, Tactics)!.resupply = true
   }
