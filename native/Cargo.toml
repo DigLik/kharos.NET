@@ -9,6 +9,7 @@ description = "Нативная оболочка Kharos: окно, OpenGL и JS-
 anyhow = "1"
 deno_core = "0.412"
 deno_error = "=0.7.1"
+flate2 = "1.1.10"
 glow = "0.18"
 glutin = "0.32"
 glutin-winit = "0.5"

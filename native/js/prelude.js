@@ -61,13 +61,18 @@
   /** Время последнего кадра: при записи оно и есть часы игры. */
   let clock = 0
 
-  /** Кадр окна: Rust зовёт это раз в кадр, как браузер. Работа, назначенная в кадре, попадает в следующий. */
+  /**
+   * Кадр окна: Rust зовёт это раз в кадр, как браузер. Работа, назначенная в кадре, попадает в следующий. Время кадра
+   * — то же, что у `performance.now()`, как и в браузере: иначе таймеры (их срок считается от `performance.now()`)
+   * разошлись бы с кадрами на время загрузки игры. При записи же время ведёт окно, и часы стоят на нём.
+   */
   globalThis.__kharos_frame = (milliseconds) => {
-    clock = milliseconds
+    const now = options.fixed ? milliseconds : performance.now()
+    clock = now
     const callbacks = [...pending.values()]
     pending.clear()
-    globalThis.__kharos_timers(milliseconds)
-    for (const callback of callbacks) callback(milliseconds)
+    globalThis.__kharos_timers(now)
+    for (const callback of callbacks) callback(now)
   }
 
   /**
@@ -126,8 +131,10 @@
 
   /** Отложенная работа — тоже в кадре: отдельного потока таймеров здесь нет. */
   globalThis.__kharos_timers = (milliseconds) => {
-    for (const [handle, timer] of timers) {
-      if (milliseconds < timer.due) continue
+    // Список берётся заранее: таймер, заведённый таймером (`setTimeout(…, 0)` подряд), ждёт следующего кадра, а не
+    // крутится в этом без конца.
+    for (const [handle, timer] of [...timers]) {
+      if (!timers.has(handle) || milliseconds < timer.due) continue
       if (timer.repeatable) timer.due = milliseconds + timer.repeat
       else timers.delete(handle)
       try {
@@ -151,6 +158,8 @@
     clientLeft: 0,
     clientTop: 0,
     gl: null,
+    /** Холст окна как место страницы: ему достаются события указателя (см. `__kharos_input`). */
+    element: null,
     style: {},
     getContext: (name) => (name === 'webgl2' ? (canvas.gl ??= new WebGL2RenderingContext()) : null),
     addEventListener: () => {},
@@ -181,31 +190,96 @@
     }
   }
 
-  /** Место на странице, которой пока нет: игре нужно, чтобы у него были слушатели и стиль. Разметку даст интерфейс. */
-  const element = () => ({ addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => true, style: styleOf() })
+  /**
+   * Слушатели событий — то, чем страница раздаёт ввод: у окна, документа, холста окна и прочих мест они свои.
+   * Слушатель — функция или объект с `handleEvent`, как у браузера; ошибка в одном не мешает остальным.
+   */
+  const listening = (owner) => {
+    const listeners = new Map()
+    owner.addEventListener = (type, listener) => {
+      if (!listener) return
+      if (!listeners.has(type)) listeners.set(type, new Set())
+      listeners.get(type).add(listener)
+    }
+    owner.removeEventListener = (type, listener) => void listeners.get(type)?.delete(listener)
+    owner.dispatchEvent = (event) => {
+      event.currentTarget = owner
+      for (const listener of [...(listeners.get(event.type) ?? [])]) {
+        if (event.stopped) break
+        try {
+          if (typeof listener === 'function') listener.call(owner, event)
+          else listener.handleEvent(event)
+        } catch (error) {
+          globalThis.console.error(String(error?.stack ?? error))
+        }
+      }
+      return !event.defaultPrevented
+    }
+    return owner
+  }
 
-  const listeners = new Map()
+  /** Место на странице, которой пока нет: игре нужно, чтобы у него были слушатели и стиль. Разметку даст интерфейс. */
+  const element = () => listening({ style: styleOf() })
+
   globalThis.window = globalThis
   /** Размер окна и плотность его пикселей: их выставляет `__kharos_resize`, когда окно меняется. */
   globalThis.innerWidth = 0
   globalThis.innerHeight = 0
   globalThis.devicePixelRatio = 1
-  globalThis.addEventListener = (type, listener) => {
-    if (!listeners.has(type)) listeners.set(type, new Set())
-    listeners.get(type).add(listener)
-  }
-  globalThis.removeEventListener = (type, listener) => listeners.get(type)?.delete(listener)
-  globalThis.dispatchEvent = (event) => {
-    for (const listener of listeners.get(event.type) ?? []) listener(event)
-    return true
-  }
+  listening(globalThis)
+
+  /** События — как у страницы: тип, поля из второго аргумента, отмена действия и остановка всплытия. */
   globalThis.Event = class Event {
-    constructor(type) {
+    constructor(type, init = {}) {
+      Object.assign(this, init)
       this.type = type
+      this.defaultPrevented = false
+      this.stopped = false
+      this.timeStamp = performance.now()
+    }
+    preventDefault() {
+      this.defaultPrevented = true
+    }
+    stopPropagation() {
+      this.stopped = true
+    }
+    stopImmediatePropagation() {
+      this.stopped = true
     }
   }
-  globalThis.document = {
+  globalThis.UIEvent ??= class UIEvent extends Event {}
+  globalThis.MouseEvent ??= class MouseEvent extends UIEvent {}
+  globalThis.PointerEvent ??= class PointerEvent extends MouseEvent {}
+  globalThis.WheelEvent ??= class WheelEvent extends MouseEvent {}
+  globalThis.KeyboardEvent ??= class KeyboardEvent extends UIEvent {}
+  /** Виды мест страницы: игра проверяет ими, куда пришло нажатие (в поле ввода клавиши игре не достаются). */
+  globalThis.Node ??= class Node {}
+  globalThis.Element ??= class Element extends Node {}
+  globalThis.HTMLElement ??= class HTMLElement extends Element {}
+  globalThis.HTMLInputElement ??= class HTMLInputElement extends HTMLElement {}
+  globalThis.HTMLTextAreaElement ??= class HTMLTextAreaElement extends HTMLElement {}
+
+  /**
+   * Хранилище страницы — в памяти: настройки и сохранения игра пишет в `localStorage`, а у окна его пока нет. Живёт
+   * до закрытия окна; на диск оно ляжет вместе со сборками (пункт 10.5 плана).
+   */
+  const stored = new Map()
+  globalThis.localStorage ??= {
+    getItem: (key) => (stored.has(String(key)) ? stored.get(String(key)) : null),
+    setItem: (key, value) => void stored.set(String(key), String(value)),
+    removeItem: (key) => void stored.delete(String(key)),
+    clear: () => stored.clear(),
+    key: (index) => [...stored.keys()][index] ?? null,
+    get length() {
+      return stored.size
+    },
+  }
+
+  globalThis.document = listening({
     hidden: false,
+    visibilityState: 'visible',
+    body: element(),
+    activeElement: null,
     // Корень документа: на нём живут переменные интерфейса (`--skin-*`) и язык строк (см. `i18n`).
     documentElement: { ...element(), lang: '' },
     // Холст на всю игру здесь не один: холстом окна становится тот, у которого спросят WebGL 2 (см. `stage.ts`),
@@ -215,8 +289,83 @@
     // Разметки нет: игра ищет на странице только панели интерфейса, а его в оболочке ещё нет.
     querySelector: () => null,
     querySelectorAll: () => [],
-    addEventListener: () => {},
-    removeEventListener: () => {},
+  })
+  document.activeElement = document.body
+
+  /**
+   * Ввод от окна (см. `input` в `src/main.rs`): из него собираются события страницы — указатель и колесо на холсте
+   * окна, клавиши на документе — и всплывают дальше к документу и окну, как в браузере. Указатель приходит
+   * физическими пикселями окна, а игре нужны пиксели страницы: холст занимает всё окно, так что его место и место на
+   * странице совпадают.
+   */
+  const input = { x: 0, y: 0, buttons: 0, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false }
+  /** Бит кнопки в `buttons` по её номеру: у страницы правая — 2, средняя — 4. */
+  const BUTTON_BITS = [1, 4, 2, 8, 16]
+  const bubble = (event, ...owners) => {
+    for (const owner of owners) {
+      if (event.stopped) break
+      owner?.dispatchEvent(event)
+    }
+  }
+  const modifiers = () => ({ shiftKey: input.shiftKey, ctrlKey: input.ctrlKey, altKey: input.altKey, metaKey: input.metaKey })
+  globalThis.__kharos_input = (kind, a, b, c, d) => {
+    const surface = canvas.element
+    const pointer = (Kind, type, extra = {}) =>
+      new Kind(type, {
+        clientX: input.x,
+        clientY: input.y,
+        offsetX: input.x,
+        offsetY: input.y,
+        pageX: input.x,
+        pageY: input.y,
+        button: -1,
+        buttons: input.buttons,
+        pointerId: 1,
+        pointerType: 'mouse',
+        isPrimary: true,
+        target: surface,
+        ...modifiers(),
+        ...extra,
+      })
+    switch (kind) {
+      case 'move': {
+        const ratio = globalThis.devicePixelRatio || 1
+        input.x = a / ratio
+        input.y = b / ratio
+        bubble(pointer(PointerEvent, 'pointermove'), surface, document, globalThis)
+        break
+      }
+      case 'leave':
+        surface?.dispatchEvent(pointer(PointerEvent, 'pointerleave'))
+        break
+      case 'down':
+        input.buttons |= BUTTON_BITS[a] ?? 0
+        bubble(pointer(PointerEvent, 'pointerdown', { button: a }), surface, document, globalThis)
+        if (a === 2) bubble(pointer(MouseEvent, 'contextmenu', { button: a }), surface, document, globalThis)
+        break
+      case 'up':
+        input.buttons &= ~(BUTTON_BITS[a] ?? 0)
+        bubble(pointer(PointerEvent, 'pointerup', { button: a }), surface, document, globalThis)
+        break
+      case 'wheel':
+        bubble(pointer(WheelEvent, 'wheel', { deltaX: a, deltaY: b, deltaZ: 0, deltaMode: 0 }), surface, document, globalThis)
+        break
+      case 'key': {
+        // Модификаторы — и по самой клавише: смена модификаторов может прийти от окна позже нажатия.
+        const held = { Shift: 'shiftKey', Control: 'ctrlKey', Alt: 'altKey', Meta: 'metaKey', Super: 'metaKey' }[c]
+        if (held) input[held] = a
+        const event = new KeyboardEvent(a ? 'keydown' : 'keyup', { code: b, key: c, repeat: d, target: document.body, ...modifiers() })
+        bubble(event, document.body, document, globalThis)
+        break
+      }
+      case 'modifiers':
+        Object.assign(input, { shiftKey: a, ctrlKey: b, altKey: c, metaKey: d })
+        break
+      case 'blur':
+        input.buttons = 0
+        globalThis.dispatchEvent(new Event('blur'))
+        break
+    }
   }
 
   /** Адресной строки у окна нет: игра читает из адреса только отладочные ключи, и тех нет. */
@@ -269,6 +418,90 @@
     }
   }
 
+  /** Склейка кусков байтов в один массив. */
+  const joined = (chunks) => {
+    const out = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0))
+    let at = 0
+    for (const chunk of chunks) {
+      out.set(chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk.buffer ?? chunk, chunk.byteOffset ?? 0, chunk.byteLength), at)
+      at += chunk.byteLength
+    }
+    return out
+  }
+
+  /**
+   * Потоки — в том объёме, в каком их берёт игра: источник отдаёт куски (`pull`/`start`), поток сжатия перерабатывает
+   * их целиком, а `Response` собирает итог (так сжимаются карта для клиента и сохранения, см. `src/save/file.ts`).
+   * Порциями здесь ничего не идёт: кусков мало, и сжимает их Rust (`op_compress`) одним вызовом.
+   */
+  globalThis.ReadableStream ??= class ReadableStream {
+    constructor(source = {}) {
+      this.source = source
+    }
+    /** Все куски источника по порядку — до `close()`. */
+    async collect() {
+      const chunks = []
+      let closed = false
+      const controller = { enqueue: (chunk) => chunks.push(chunk), close: () => (closed = true), error: (error) => { throw error } }
+      await this.source.start?.(controller)
+      while (!closed && this.source.pull) await this.source.pull(controller)
+      return chunks
+    }
+    pipeThrough(transform) {
+      return transform.from(this)
+    }
+  }
+  const compression = (inflate) =>
+    class {
+      constructor(format) {
+        this.format = format
+      }
+      from(readable) {
+        return new ReadableStream({
+          start: async (controller) => {
+            controller.enqueue(core.ops.op_compress(joined(await readable.collect()), this.format, inflate))
+            controller.close()
+          },
+        })
+      }
+    }
+  globalThis.CompressionStream ??= compression(false)
+  globalThis.DecompressionStream ??= compression(true)
+  globalThis.Response ??= class Response {
+    constructor(body = null) {
+      this.body = body
+    }
+    async bytes() {
+      const body = this.body
+      if (body instanceof ReadableStream) return joined(await body.collect())
+      if (typeof body === 'string') return new TextEncoder().encode(body)
+      if (body instanceof ArrayBuffer) return new Uint8Array(body)
+      if (ArrayBuffer.isView(body)) return new Uint8Array(body.buffer, body.byteOffset, body.byteLength).slice()
+      return new Uint8Array(0)
+    }
+    async arrayBuffer() {
+      return (await this.bytes()).buffer
+    }
+    async text() {
+      return new TextDecoder().decode(await this.bytes())
+    }
+    async json() {
+      return JSON.parse(await this.text())
+    }
+  }
+
+  /**
+   * Сведения о браузере: язык строк (по нему `i18n` выбирает словарь — его окно берёт из `LANG`) и то, что
+   * пользователь уже нажимал на страницу: звук браузер даёт только после этого, а у окна такого запрета нет.
+   */
+  globalThis.navigator ??= {
+    language: options.lang ?? 'ru',
+    languages: [options.lang ?? 'ru'],
+    userAgent: 'Kharos native',
+    hardwareConcurrency: 1,
+    userActivation: { hasBeenActive: true, isActive: true },
+  }
+
   /** Цвет в число 0xRRGGBBAA: игра пишет цвета строками (`#1c2b3e`, `rgba(...)`), а холст берёт числами. */
   const colorOf = (value) => {
     const text = String(value).trim()
@@ -314,9 +547,9 @@
       this.pixels = { width, height }
       this.context = null
       this.isWindow = false
-      /** Обработчики пока только копятся: события придут вместе с документом (их вешает `stage.ts`). */
-      this.listeners = new Map()
       this.style = {}
+      // Холст окна получает ввод (см. `__kharos_input`), прочим слушатели нужны лишь для порядка.
+      listening(this)
     }
 
     get width() {
@@ -374,6 +607,7 @@
       if (name === 'webgl2') {
         // Единственный холст с WebGL 2 — холст окна: так его берёт игра (см. `stage.ts`), и проходы рисуют в него.
         this.isWindow = true
+        canvas.element = this
         return (canvas.gl ??= new WebGL2RenderingContext())
       }
       return null
@@ -392,14 +626,15 @@
       return `data:${type};base64,${core.ops.op_canvas_png(this.id)}`
     }
 
-    addEventListener(type, listener) {
-      if (!this.listeners.has(type)) this.listeners.set(type, new Set())
-      this.listeners.get(type).add(listener)
+    /** Захват указателя: у окна указатель и так один и не теряется за краем холста. */
+    setPointerCapture() {}
+    releasePointerCapture() {}
+    hasPointerCapture() {
+      return false
     }
 
-    removeEventListener(type, listener) {
-      this.listeners.get(type)?.delete(listener)
-    }
+    focus() {}
+    blur() {}
   }
 
   /**

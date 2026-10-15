@@ -65,16 +65,29 @@ impl Engine {
     })
   }
 
+  /// Вызов в игру из окна — кадр, размер, ввод. После него прокручиваются микрозадачи: событийного цикла после
+  /// начала игры нет (кадры окно зовёт само), а без прокрутки продолжение `await` и `.then`, начатых в кадре, не
+  /// выполнилось бы никогда — браузер же делает это после каждой задачи.
+  fn call(&mut self, name: &'static str, script: String) -> Result<()> {
+    let result = self.runtime.execute_script(name, script);
+    self.runtime.v8_isolate().perform_microtask_checkpoint();
+    result?;
+    Ok(())
+  }
+
   /// Кадр окна: игра получает время игры в миллисекундах — как `requestAnimationFrame` в браузере.
   pub fn frame(&mut self, milliseconds: f64) -> Result<()> {
-    self.runtime.execute_script("frame", format!("globalThis.__kharos_frame({milliseconds})"))?;
-    Ok(())
+    self.call("frame", format!("globalThis.__kharos_frame({milliseconds})"))
   }
 
   /// Размер окна изменился: об этом игре говорят так же, как браузер говорил бы холсту. Плотность пикселей (ratio)
   /// идёт вместе с размером: по ней игра решает, сколько физических пикселей рисовать.
   pub fn resize(&mut self, width: f64, height: f64, ratio: f64) -> Result<()> {
-    self.runtime.execute_script("resize", format!("globalThis.__kharos_resize({width}, {height}, {ratio})"))?;
-    Ok(())
+    self.call("resize", format!("globalThis.__kharos_resize({width}, {height}, {ratio})"))
+  }
+
+  /// Ввод от окна: указатель, колесо, клавиши. `arguments` — уже записанные на JS аргументы `__kharos_input`.
+  pub fn input(&mut self, arguments: &str) -> Result<()> {
+    self.call("input", format!("globalThis.__kharos_input({arguments})"))
   }
 }

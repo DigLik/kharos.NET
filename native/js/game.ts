@@ -5,23 +5,31 @@
 //   когда воркер не запустился (см. loadArt.ts);
 // - проходы собираются одним куском, без экрана загрузки (warmUp.ts): очередь видеокарты у окна своя, а не общая на
 //   все вкладки браузера;
-// - ни управления, ни звука, ни интерфейса: это следующие шаги оболочки;
+// - звука и интерфейса нет: это следующие шаги оболочки; управление есть в настоящей игре (`KHAROS_MODE`, см. `play`);
 // - в конце — проверка, что нарисованное дошло до драйвера: та же, что у проверки фундамента (см. README).
 
 import { createGame, simOptions, type Game } from '../../src/game/game'
 import { loadArt } from '../../src/game/loadArt'
 import { stage } from '../../src/game/stage'
 import { DEFAULT_SETTINGS, type MapSettings } from '../../src/map/settings'
-import { LOCAL_PLAYER } from '../../src/net/local'
+import { LOCAL_PLAYER, type GameMode } from '../../src/net/local'
 import { SCENES, createSim, type Scene, type SceneName } from '../../src/sim'
+import { startLocal } from './local'
 
 /** Что окно сказало до начала игры (см. `game_options` в `src/main.rs`): сценка, час суток и ровные ли часы. */
-type Options = { fixed?: boolean; scene?: string | null; hour?: number | null }
+type Options = { fixed?: boolean; scene?: string | null; hour?: number | null; mode?: string | null }
 const native = globalThis as typeof globalThis & { __kharos_options?: Options; __kharos_roll?: () => void }
 const shell: Options = native.__kharos_options ?? {}
 
 /** Сценка, которую ведёт окно: у неё своё действие, и ввода для него не нужно. Другую выбирает `KHAROS_SCENE`. */
 const SCENE: SceneName = shell.scene && shell.scene in SCENES ? (shell.scene as SceneName) : 'mining'
+/**
+ * Во что играть вместо сценки (`KHAROS_MODE`): обычная игра, тестовая карта с готовой базой или показательный бой —
+ * как в меню страницы. Тогда мир считает локальный хост, а камерой и приказами управляют мышь и клавиши.
+ */
+const MODES: GameMode[] = ['play', 'sandbox', 'battle']
+const MODE = MODES.find((mode) => mode === shell.mode) ?? null
+
 /** Карта крошечная: её считает сам рантайм, без хоста, — как у витрины меню. */
 const SIZE = 128
 /** Как часто сценка ведёт свой мир: тот же срок, что у витрины меню. */
@@ -127,6 +135,29 @@ function start(name: SceneName) {
   throw new Error(`сценка «${name}» не встала ни на одной из ${ATTEMPTS} местностей`)
 }
 
+/**
+ * Настоящая игра: мир заводит локальный хост по режиму, как меню страницы, а управление — то же, что на странице
+ * (`controls.ts`): ввод окна приходит в игру событиями страницы (см. `__kharos_input` в `prelude.js`).
+ */
+async function play(mode: GameMode) {
+  const settings: MapSettings = {
+    ...DEFAULT_SETTINGS,
+    generator: { ...DEFAULT_SETTINGS.generator, seed: Math.floor(Math.random() * 2 ** 31) },
+  }
+  const options = simOptions(settings)
+  const session = await startLocal({
+    options: shell.hour === null || shell.hour === undefined ? options : { ...options, weather: { startHour: shell.hour } },
+    mode,
+    battle: settings.battle,
+    save: null,
+  })
+  console.log(`нативная игра: режим «${mode}», карта ${settings.world.size}×${settings.world.size}, игрок ${session.player}`)
+  const canvas = stage()
+  game = createGame(canvas, settings, fail, session)
+  checkFrame(canvas)
+  native.__kharos_roll?.()
+}
+
 /** Начало: графика рисуется один раз, а дальше идёт игра. Ход рисования виден в журнале — это несколько секунд. */
 async function main() {
   let told = -10
@@ -136,7 +167,8 @@ async function main() {
     told = percent
     console.log(`графика: ${percent}%`)
   })
-  start(SCENE)
+  if (MODE) await play(MODE)
+  else start(SCENE)
 }
 
 void main().catch((error: unknown) => console.error('игра не запустилась:', error))

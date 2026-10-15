@@ -27,7 +27,8 @@ use glutin_winit::{DisplayBuilder, GlWindow};
 use raw_window_handle::HasWindowHandle;
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::keyboard::{Key, PhysicalKey};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowAttributes, WindowId};
 
@@ -50,7 +51,9 @@ fn game_url() -> Result<ModuleSpecifier> {
 /// Что окно говорит игре до её начала — объект JS, его читают обёртка и вход игры (`__kharos_options`):
 /// - `fixed` — время ведёт окно ровным шагом (запись), а не часы;
 /// - `scene` — какую сценку показывать (`KHAROS_SCENE`, см. `SCENES` в `src/sim/showcase.ts`);
-/// - `hour` — с какого часа суток начать (`KHAROS_HOUR`): свет в ролике не должен зависеть от случая.
+/// - `hour` — с какого часа суток начать (`KHAROS_HOUR`): свет в ролике не должен зависеть от случая;
+/// - `mode` — настоящая игра вместо сценки (`KHAROS_MODE`: `play`, `sandbox`, `battle`), с мышью и клавишами;
+/// - `lang` — язык строк из `LANG`.
 fn game_options(fixed: bool) -> Result<String> {
   let scene = match std::env::var("KHAROS_SCENE") {
     Ok(name) if name.chars().all(|c| c.is_ascii_alphanumeric()) => format!("'{name}'"),
@@ -61,7 +64,18 @@ fn game_options(fixed: bool) -> Result<String> {
     Ok(value) => value.trim().parse::<f64>().map_err(|_| anyhow!("KHAROS_HOUR={value}: ждём число"))?.to_string(),
     Err(_) => "null".into(),
   };
-  Ok(format!("{{ fixed: {fixed}, scene: {scene}, hour: {hour} }}"))
+  let mode = match std::env::var("KHAROS_MODE") {
+    Ok(name) if ["play", "sandbox", "battle"].contains(&name.as_str()) => format!("'{name}'"),
+    Ok(name) => return Err(anyhow!("KHAROS_MODE={name}: ждём play, sandbox или battle")),
+    Err(_) => "null".into(),
+  };
+  // Язык строк — из окружения, как его берут прочие программы: `ru_RU.UTF-8` даёт `ru-RU`.
+  let lang = std::env::var("LANG")
+    .ok()
+    .and_then(|value| value.split('.').next().map(|tag| tag.replace('_', "-")))
+    .filter(|tag| !tag.is_empty() && tag != "C" && tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
+    .map_or("null".into(), |tag| format!("'{tag}'"));
+  Ok(format!("{{ fixed: {fixed}, scene: {scene}, hour: {hour}, mode: {mode}, lang: {lang} }}"))
 }
 
 fn main() -> Result<()> {
@@ -179,6 +193,63 @@ impl App {
     Ok(done)
   }
 
+  /// Ввод от окна уходит в игру (см. `__kharos_input` в `js/prelude.js`): там из него собираются события страницы.
+  /// Координаты — физические пиксели окна, в пиксели страницы их переводит обёртка. При записи ввода нет: кадр ролика
+  /// другого размера, чем окно, и указатель в нём попадал бы не туда.
+  fn input(&mut self, event: &WindowEvent) {
+    if self.recorder.is_some() {
+      return;
+    }
+    let ratio = self.window.as_ref().map_or(1.0, |window| window.scale_factor());
+    let arguments = match event {
+      WindowEvent::CursorMoved { position, .. } => format!("'move', {}, {}", position.x, position.y),
+      WindowEvent::CursorLeft { .. } => "'leave'".into(),
+      WindowEvent::MouseInput { state, button, .. } => {
+        // Номера кнопок — как у страницы: левая 0, средняя 1, правая 2.
+        let button = match button {
+          MouseButton::Left => 0,
+          MouseButton::Middle => 1,
+          MouseButton::Right => 2,
+          MouseButton::Back => 3,
+          MouseButton::Forward => 4,
+          MouseButton::Other(_) => return,
+        };
+        let kind = if *state == ElementState::Pressed { "down" } else { "up" };
+        format!("'{kind}', {button}")
+      }
+      // Колесо — в пикселях страницы и со знаком страницы: от себя — отрицательно. Щелчок колеса браузер считает за
+      // сто пикселей.
+      WindowEvent::MouseWheel { delta, .. } => match delta {
+        MouseScrollDelta::LineDelta(x, y) => format!("'wheel', {}, {}", -x * 100.0, -y * 100.0),
+        MouseScrollDelta::PixelDelta(position) => format!("'wheel', {}, {}", -position.x / ratio, -position.y / ratio),
+      },
+      WindowEvent::KeyboardInput { event, .. } => {
+        // Имена клавиш winit берёт из той же спецификации, что и страница (`KeyA`, `Digit1`, `ArrowUp`, `Escape`).
+        let PhysicalKey::Code(code) = event.physical_key else {
+          return;
+        };
+        let key = match &event.logical_key {
+          Key::Character(text) => text.to_string(),
+          Key::Named(name) => format!("{name:?}"),
+          _ => String::new(),
+        };
+        let down = event.state == ElementState::Pressed;
+        format!("'key', {down}, {}, {}, {}", js_string(&format!("{code:?}")), js_string(&key), event.repeat)
+      }
+      WindowEvent::ModifiersChanged(modifiers) => {
+        let state = modifiers.state();
+        format!("'modifiers', {}, {}, {}, {}", state.shift_key(), state.control_key(), state.alt_key(), state.super_key())
+      }
+      WindowEvent::Focused(false) => "'blur'".into(),
+      _ => return,
+    };
+    if let Some(engine) = self.engine.as_mut() {
+      if let Err(error) = engine.input(&arguments) {
+        eprintln!("ввод не дошёл до игры: {error}");
+      }
+    }
+  }
+
   /// Кадр и то, что за ним следует: ошибка или готовый ролик закрывают окно.
   fn step(&mut self, event_loop: &ActiveEventLoop) {
     match self.redraw() {
@@ -240,6 +311,7 @@ impl ApplicationHandler for App {
   }
 
   fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+    self.input(&event);
     match event {
       WindowEvent::CloseRequested => event_loop.exit(),
       WindowEvent::Resized(size) => {
@@ -267,6 +339,19 @@ impl ApplicationHandler for App {
       window.request_redraw();
     }
   }
+}
+
+/// Строка для JS: всё, кроме латиницы и цифр, — кодами UTF-16, так что ни кавычка, ни перевод строки её не разорвут.
+fn js_string(text: &str) -> String {
+  let mut out = String::from("'");
+  for unit in text.encode_utf16() {
+    match char::from_u32(unit as u32) {
+      Some(c) if c.is_ascii_alphanumeric() => out.push(c),
+      _ => out.push_str(&format!("\\u{unit:04x}")),
+    }
+  }
+  out.push('\'');
+  out
 }
 
 /// Выбирает конфигурацию для окна: сглаживание и глубина не нужны — порядок отрисовки задают проходы игры.
