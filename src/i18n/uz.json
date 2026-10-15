@@ -77,7 +77,7 @@
     "silo": "20 ta sterjen va 10 ta komponentdan yadro jangovar kallagini yig‘adi va uni xaritaning istalgan nuqtasiga uchiradi. Uchirish haqida hamma chatda biladi, uchayotgan raketani hamma ko‘radi, radari bor o‘yinchilarga uchirish joyi belgilanadi. Radiusi 12 bo‘lgan portlash hammaga farqsiz zarar yetkazadi, qalqon uni ushlab qololmaydi. Ichida jangovar kallak bilan vayron bo‘lsa, portlaydi",
     "interceptor": "Tarmoqdan har biriga 600 kredit, 4 ta komponent va 10 yoqilg‘i olib, tutib oluvchi raketalarni birma-bir o‘zi yig‘adi va 4 tagacha saqlaydi. Har biri radiusi 80 bo‘lgan doiraga mo‘ljallangan bitta dushman yadro raketasini doiraga kirishi bilan urib tushiradi. Energiyasiz sekinroq yig‘adi, o‘chirilgani yig‘maydi va o‘q uzmaydi",
     "matter": "O‘z-o‘zidan kredit keltiradi, ammo energiya sarflaydi. Zonadagi har bir keyingisi ko‘proq energiya talab qiladi",
-    "mine": "Kon ustiga quriladi va rudani o‘z omboriga qazib oladi. Uning tarmog‘idagi qayta ishlash va laboratoriya rudani o‘zi oladi — ularni yonma-yon qo‘ying yoki quvur torting; boshqa tarmoqlarga uni yuk mashinalari tashiydi. O‘zi kichik zonani boshlab beradi",
+    "mine": "Kon ustiga quriladi va rudani o‘z omboriga qazib oladi. Qayta ishlash va laboratoriyalar uning rudasini buyurtma qiladi: yuk mashinalari uni o‘zlari olib keladi, shaxtadan tortilgan quvur esa ularsiz yetkazadi. O‘zi kichik zonani boshlab beradi",
     "smelter": "Metall rudasini eritib, metallga aylantiradi",
     "siliconWorks": "Kremniy rudasini qayta ishlab, kremniy hosil qiladi",
     "distillery": "Xom neftni haydab, yoqilg‘i ishlab chiqaradi",
@@ -110,7 +110,7 @@
     "supplyDepot": "Taʼminot mashinalari uchun o‘q-dori zaxirasini saqlaydi va ularni o‘z nuri bilan omborlardan to‘rt barobar tezroq yuklaydi. Yuk mashinalari va quvurlar uni to‘la tutadi; umumiy buyurtmalarga bermaydi",
     "wall": "Arzon va mustahkam to‘siq: yo‘lni to‘sadi va o‘qlardan himoya qiladi. Zonadan tashqarida ham quriladi",
     "gate": "Yerdan chiqadigan plitalar: yaqinida begonalar bo‘lmasa — tushirilgan turadi, dushman yaqinlashganda esa devor bo‘lib ko‘tariladi. Istalgan kenglikdagi chiziq bo‘lib tortiladi. Zonadan tashqarida ham quriladi",
-    "pipe": "Bir-biridan uzoq binolarni tarmoqqa ulaydi: quvurlar orqali yuk va energiya o‘tadi hamda zonani kengaytiradi. Yonma-yon turgan binolar quvursiz ham ulangan. Arzon va nozik, yo‘lni to‘sadi. Zonadan tashqarida ham quriladi",
+    "pipe": "Bir-biridan uzoq binolarni tarmoqqa ulaydi: quvurlar orqali yuk va energiya o‘tadi hamda zonani kengaytiradi. Bir xil binolar yonma-yon quvursiz ham ulangan: ombor ombor bilan, laboratoriya laboratoriya bilan. Arzon va nozik, yo‘lni to‘sadi. Zonadan tashqarida ham quriladi",
     "well": "Yerosti quvurining kirish joyi: 10 katakkacha to‘g‘ri chiziq bo‘ylab o‘z juft qudug‘iga ulanadi. Oralig‘ida harakatlanish va qurish mumkin. Zonadan tashqarida ham quriladi",
     "turret": "Piyodalar va yengil texnikaga qarshi pulemyot, havoga ham zarba beradi. O‘z omboridagi o‘q-dorilar bilan otadi",
     "rocketTurret": "Texnika va aviatsiyaga qarshi raketalar. O‘z omboridagi o‘q-dorilar bilan otadi",
@@ -344,7 +344,7 @@
       "military": "Kazarma, mashinasozlik zavodi, aerodrom, ta’mirlash stansiyasi, taʼminot stansiyasi va raketa shaxtasi",
       "defense": "Devorlar, minoralar, qalqon, yadro raketalarini tutib oluvchi va radar",
       "paving": "Poydevor, yo‘llar va ko‘priklar",
-      "logistics": "Quvurlar va quduqlar: bir-biridan uzoq binolarni tarmoqqa birlashtiradi; yonma-yon binolar baribir ulangan"
+      "logistics": "Quvurlar va quduqlar: bir-biridan uzoq binolarni tarmoqqa birlashtiradi; bir xil binolar yonma-yon baribir ulangan"
     },
     "stances": {
       "aggressive": "Agressiv",
@@ -370,7 +370,7 @@
     "toolTips": {
       "foundation": "Uning ustidagi binolar ikki baravar tezroq quriladi va qum ustida qurishga imkon beradi. O‘z binolaringiz ostiga va o‘z yo‘lingiz o‘rniga ham yotqiziladi. Portlashlar uni buzadi. Sichqoncha bilan to‘rtburchak torting",
       "road": "Quruqlik bo‘linmalari tezroq harakatlanadi; botqoqlik ustida har bir katak uchun {bridge} narxida ko‘prik bo‘ladi. Yo‘l ustida qurilish qilinmaydi; u o‘z poydevoringiz o‘rnini ham egallaydi. Sichqoncha bilan chiziq torting",
-      "pipe": "Bir-biridan uzoq binolarni ulaydi (yonma-yon turganlari quvursiz ham ulangan): quvurlar orqali yuk va energiya o‘tadi hamda zonani kengaytiradi. Yo‘lni to‘sadi — yo‘l ostidan quduqlar orqali o‘tkazing. O‘z zonasi shart emas. Sichqoncha bilan chiziq torting",
+      "pipe": "Bir-biridan uzoq binolarni ulaydi (bir xil binolar yonma-yon quvursiz ham ulangan): quvurlar orqali yuk va energiya o‘tadi hamda zonani kengaytiradi. Yo‘lni to‘sadi — yo‘l ostidan quduqlar orqali o‘tkazing. O‘z zonasi shart emas. Sichqoncha bilan chiziq torting",
       "well": "Quduqlar — yerosti quvurining uchlari: bir marta bosish bitta qo‘yadi (to‘g‘ri chiziqdagi quduq bilan ulanadi), tortish esa {reach} katakkacha masofada bir juft qo‘yadi. Ustida yurish va qurish mumkin, faqat quduqlarning o‘zi zaif. O‘z zonasi shart emas",
       "peak": "Quruvchilar tog‘ni butunlay tekislaydi, uning o‘rnida qoya qoladi. Tog‘ning har bir katagi uchun {cost}. Sichqoncha bilan tog‘ ustida to‘rtburchak torting",
       "cliff": "Quruvchilar jarlik chetini silliqlaydi: uning ostidagi etak texnika uchun o‘tish joyiga aylanadi. Chetning har bir katagi uchun {cost}. Sichqoncha bilan jarlik bo‘ylab to‘rtburchak torting"
@@ -720,9 +720,13 @@
         "title": "Metall rudasiga shaxta qo‘y",
         "tip": "«Ko‘rsatish»ni bosing: kamera eng yaqin topilgan metall konini ko‘rsatadi, xaritada u chizilgan. Quruvchi → «Iqtisodiyot» → «Shaxta» — to‘g‘ri uning ustiga bosing. Hali birortasi topilmagan bo‘lsa — atrofni bagi bilan razvedka qiling."
       },
+      "truck": {
+        "title": "Yuk mashinasi buyurtma qil",
+        "tip": "Bosh binoni tanlang va o‘ngdagi to‘rda «Yuk mashinasi»ni bosing. Yuk mashinalari rudani shaxtalardan laboratoriya va qayta ishlashga, tayyorini omborlarga tashiydi va zona so‘rovlarini o‘zlari oladi."
+      },
       "lab": {
         "title": "Shaxta yonida laboratoriya qur",
-        "tip": "Quruvchi → «Iqtisodiyot» → «Laboratoriya» — shaxtaga yonma-yon: yonma-yon binolar bitta tarmoq, laboratoriya rudani shaxtadan o‘zi oladi. Tadqiqotlar deyarli hamma narsani ochadi."
+        "tip": "Quruvchi → «Iqtisodiyot» → «Laboratoriya» — shaxta yonida: unga rudani yuk mashinalari olib keladi. Tadqiqotlar deyarli hamma narsani ochadi."
       },
       "metalOre": {
         "title": "«Metall eritish»ni tadqiq qil",
@@ -730,15 +734,15 @@
       },
       "smelter": {
         "title": "Shaxta yonida eritish zavodini qur",
-        "tip": "Quruvchi → «Qayta ishlash» → «Eritish zavodi» — shaxtaga yoki uning yonidagi laboratoriyaga yonma-yon: ruda zavodga o‘zi kiradi, undan metall chiqadi."
+        "tip": "Quruvchi → «Qayta ishlash» → «Eritish zavodi» — shaxta yonida: unga rudani yuk mashinalari olib keladi, rudadan metall chiqadi."
       },
       "metalYard": {
         "title": "Eritish zavodi yonida metall ombori qur",
-        "tip": "Quruvchi → «Omborlar» → «Metall ombori» — eritish zavodiga yonma-yon. Omborsiz zavod metallga to‘lib to‘xtaydi; qurilish va sotuv ham metallni shu yerdan oladi."
+        "tip": "Quruvchi → «Omborlar» → «Metall ombori» — eritish zavodi yonida: yuk mashinalari metallni u yerga tashiydi. Omborsiz zavod metallga to‘lib to‘xtaydi; qurilish va sotuv ham metallni shu yerdan oladi."
       },
       "spaceport": {
         "title": "Kosmodrom qur",
-        "tip": "Quruvchi → «Iqtisodiyot» → «Kosmodrom», yaxshisi metall omboriga yonma-yon. Unga 20 metall kerak — quruvchi uni ombordan o‘zi olib keladi."
+        "tip": "Quruvchi → «Iqtisodiyot» → «Kosmodrom», yaxshisi metall ombori yonida. Unga 20 metall kerak — quruvchi uni ombordan o‘zi olib keladi."
       },
       "sale": {
         "title": "Metall sot",
@@ -832,7 +836,7 @@
     "siege": "Artilleriya va tashuvchi",
     "atom": "Reaktor: bir joyda olti elektr stansiyasi, sterjen yoqadi",
     "warheads": "Raketa shaxtasi: xaritaning istalgan nuqtasiga yadroviy zarba",
-    "pipes": "Quvurlar bir-biridan uzoq binolarni tarmoqqa bog‘laydi: undan yuk va energiya o‘tadi. Yonma-yon binolar quvursiz ham ulangan",
+    "pipes": "Quvurlar bir-biridan uzoq binolarni tarmoqqa bog‘laydi: undan yuk va energiya o‘tadi. Bir xil binolar yonma-yon quvursiz ham ulangan: ombor ombor bilan, laboratoriya laboratoriya bilan",
     "walls": "Arzon va mustahkam to‘siq: yo‘lni to‘sadi va o‘qdan pana qiladi",
     "radar": "Radar uzoqni ko‘radi va chaqnoqlar bilan razvedka qiladi; undan keyin armiya va minoralar",
     "roads": "Yo‘llar birliklarni tezlashtiradi",

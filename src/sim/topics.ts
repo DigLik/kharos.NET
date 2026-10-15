@@ -46,8 +46,8 @@ export const RESEARCH = {
   lithiumFound: { trigger: 'lithium' },
   uraniumFound: { trigger: 'uranium' },
   trade: { trigger: 'refined' },
-  // Ярус 1: стены, радар и дороги — за одни кредиты: с них начинается база. Здания вплотную и так одна сеть, а трубы
-  // из металла — после плавки.
+  // Ярус 1: стены, радар и дороги — за одни кредиты: с них начинается база. Одинаковые здания вплотную и так одна
+  // сеть, а трубы из металла — после плавки.
   walls: { after: ['science'] },
   radar: { after: ['science'] },
   roads: { after: ['science'] },

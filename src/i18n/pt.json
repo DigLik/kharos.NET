@@ -77,7 +77,7 @@
     "silo": "Monta uma ogiva nuclear com 20 barras e 10 componentes e a lança em qualquer ponto do mapa. Todos ficam sabendo do lançamento pelo chat e veem o míssil em voo, e quem tem radar tem o local de lançamento marcado. A explosão de raio 12 atinge todos sem distinção, escudos não a detêm. Destruído com uma ogiva dentro, ele explode",
     "interceptor": "Monta sozinho mísseis interceptadores, um de cada vez por 600 créditos, 4 componentes e 10 de combustível da rede, e guarda até 4. Cada um derruba um míssil nuclear inimigo que mire dentro do seu raio de 80 assim que ele entra. Sem energia monta mais devagar; desligado, não monta nem dispara",
     "matter": "Rende créditos sozinho, mas consome energia. Cada um a mais na zona pede mais energia",
-    "mine": "É colocada sobre uma jazida e extrai minério para o próprio estoque. O refino e os laboratórios da sua rede pegam o minério sozinhos — encoste-os ou passe um cano; para outras redes, caminhões o levam. Inicia uma pequena zona própria",
+    "mine": "É colocada sobre uma jazida e extrai minério para o próprio estoque. O refino e os laboratórios pedem seu minério: os caminhões o levam sozinhos, e um cano desde a mina poupa a viagem. Inicia uma pequena zona própria",
     "smelter": "Funde minério de metal em metal",
     "siliconWorks": "Refina minério de silício em silício",
     "distillery": "Destila petróleo em combustível",
@@ -110,7 +110,7 @@
     "supplyDepot": "Guarda munição para os veículos de suprimento e os carrega com seu raio quatro vezes mais rápido que os armazéns. Caminhões e canos o mantêm cheio; não entrega munição a outros pedidos",
     "wall": "Uma barreira barata e resistente: bloqueia a passagem e protege dos tiros. Pode ser colocada fora da zona",
     "gate": "Placas que saem do chão: abaixadas enquanto não há estranhos por perto, erguem-se como muro quando o inimigo se aproxima. Arraste uma linha de qualquer largura. Também fora da zona",
-    "pipe": "Liga em rede os edifícios afastados: os canos levam carga e energia e ampliam a zona. Edifícios encostados já se ligam sem cano. Barato e frágil, bloqueia a passagem. Pode ser colocado fora da zona",
+    "pipe": "Liga em rede os edifícios afastados: os canos levam carga e energia e ampliam a zona. Edifícios do mesmo tipo encostados já se ligam sem cano: um depósito com um depósito, um laboratório com um laboratório. Barato e frágil, bloqueia a passagem. Pode ser colocado fora da zona",
     "well": "A entrada de um cano subterrâneo: liga-se ao seu par em linha reta a até 10 casas. Sobre o trecho se anda e se constrói. Pode ser colocado fora da zona",
     "turret": "Metralhadora contra infantaria e veículos leves; atinge também o ar. Usa munição do próprio estoque",
     "rocketTurret": "Foguetes contra veículos e aviação. Usa munição do próprio estoque",
@@ -344,7 +344,7 @@
       "military": "Quartel, fábrica de veículos, aeródromo, estação de reparo, depósito de suprimento e silo de mísseis",
       "defense": "Muros, torres, escudo, interceptador de mísseis nucleares e radar",
       "paving": "Fundação, estradas e pontes",
-      "logistics": "Canos e poços: ligam os edifícios afastados; edifícios encostados já estão ligados"
+      "logistics": "Canos e poços: ligam os edifícios afastados; edifícios do mesmo tipo encostados já estão ligados"
     },
     "stances": {
       "aggressive": "Agressivo",
@@ -370,7 +370,7 @@
     "toolTips": {
       "foundation": "Edifícios sobre ela são erguidos duas vezes mais rápido, e ela permite construir na areia. Pode ir também sob seus edifícios e no lugar da sua estrada. Explosões a quebram. Arraste um retângulo com o mouse",
       "road": "Unidades terrestres andam mais rápido; sobre pântano vira ponte por {bridge} a casa. Não se constrói na estrada; ela pode substituir sua fundação. Arraste uma linha com o mouse",
-      "pipe": "Liga os edifícios afastados (encostados, já se ligam sem cano): os canos levam carga e energia e ampliam a zona. Bloqueia a passagem: sob uma passagem use poços. Não precisa de zona própria. Arraste uma linha com o mouse",
+      "pipe": "Liga os edifícios afastados (do mesmo tipo encostados, já se ligam sem cano): os canos levam carga e energia e ampliam a zona. Bloqueia a passagem: sob uma passagem use poços. Não precisa de zona própria. Arraste uma linha com o mouse",
       "well": "Poços são as pontas de um cano subterrâneo: um clique coloca um (ele se liga a um poço em linha reta), arrastar coloca um par, a até {reach} casas. Sobre ele se anda e se constrói; só os poços são vulneráveis. Não precisa de zona própria",
       "peak": "Construtores derrubam a montanha inteira e fica rocha no lugar. {cost} por casa de montanha. Arraste um retângulo sobre a montanha",
       "cliff": "Construtores suavizam a borda do penhasco: o pé abaixo dela vira passagem para veículos. {cost} por casa de borda. Arraste um retângulo ao longo do penhasco"
@@ -720,9 +720,13 @@
         "title": "Coloque uma mina em minério de metal",
         "tip": "Aperte Mostrar: a câmera vai à jazida de metal encontrada mais próxima, contornada no mapa. Construtor → Economia → Mina — clique bem em cima dela. Nenhuma encontrada — explore os arredores com buggies."
       },
+      "truck": {
+        "title": "Peça um caminhão",
+        "tip": "Selecione o Centro de comando e aperte Caminhão na grade à direita. Caminhões levam minério das minas aos laboratórios e ao refino, o pronto aos armazéns, e tomam sozinhos os pedidos das redes."
+      },
       "lab": {
         "title": "Construa um laboratório junto à mina",
-        "tip": "Construtor → Economia → Laboratório — encostado à mina: edifícios encostados formam uma só rede, e o laboratório pega o minério da mina sozinho. A pesquisa libera quase tudo."
+        "tip": "Construtor → Economia → Laboratório — junto à mina: os caminhões lhe levarão o minério. A pesquisa libera quase tudo."
       },
       "metalOre": {
         "title": "Pesquise Fundição de metal",
@@ -730,15 +734,15 @@
       },
       "smelter": {
         "title": "Construa uma fundição junto à mina",
-        "tip": "Construtor → Refino → Fundição — encostada à mina ou ao laboratório ao lado: o minério entra sozinho e sai metal."
+        "tip": "Construtor → Refino → Fundição — junto à mina: os caminhões lhe levam minério e dele sai metal."
       },
       "metalYard": {
         "title": "Construa um depósito de metal junto à fundição",
-        "tip": "Construtor → Armazéns → Depósito de metal — encostado à fundição. Sem ele a fundição se enche de metal e para; obras e vendas também pegam metal daqui."
+        "tip": "Construtor → Armazéns → Depósito de metal — junto à fundição: os caminhões levam o metal para lá. Sem ele a fundição se enche de metal e para; obras e vendas também pegam metal daqui."
       },
       "spaceport": {
         "title": "Construa um espaçoporto",
-        "tip": "Construtor → Economia → Espaçoporto, de preferência encostado ao depósito de metal. Ele precisa de 20 de metal — o construtor o traz do depósito sozinho."
+        "tip": "Construtor → Economia → Espaçoporto, de preferência junto ao depósito de metal. Ele precisa de 20 de metal — o construtor o traz do depósito sozinho."
       },
       "sale": {
         "title": "Venda metal",
@@ -832,7 +836,7 @@
     "siege": "Artilharia e porta-foguetes",
     "atom": "Reator: seis usinas em um só lugar, queima barras",
     "warheads": "Silo de mísseis: um ataque nuclear em qualquer ponto do mapa",
-    "pipes": "Tubos ligam os edifícios afastados numa rede que leva carga e energia. Edifícios encostados já se ligam sem canos",
+    "pipes": "Canos ligam os edifícios afastados numa rede que leva carga e energia. Edifícios do mesmo tipo encostados já se ligam sem canos",
     "walls": "Barreira barata e resistente: bloqueia a passagem e protege do fogo",
     "radar": "O radar vê longe e explora com pulsos; depois dele vêm o exército e as torres",
     "roads": "Estradas aceleram as unidades",

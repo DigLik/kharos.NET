@@ -77,7 +77,7 @@
     "silo": "Assembles a nuclear warhead from 20 rods and 10 parts and launches it at any point on the map. Everyone learns of the launch in chat and sees the missile in flight, players with a radar get the launch site marked. The blast of radius 12 hits everyone alike, shields do not stop it. Destroyed with a warhead inside, it explodes",
     "interceptor": "Assembles interceptor missiles by itself, one at a time for 600 credits, 4 parts and 10 fuel from the network, and holds up to 4. Each shoots down one enemy nuclear missile aimed inside its radius of 80 as soon as that missile enters it. Assembles slower without power; switched off, it neither assembles nor fires",
     "matter": "Earns credits on its own but eats power. Each next one in the zone asks for more power",
-    "mine": "Placed on a deposit, it digs ore into its own store. Refineries and labs in its network take the ore themselves — place them right next to it or lay a pipe; trucks carry it to other networks. Starts a small zone of its own",
+    "mine": "Placed on a deposit, it digs ore into its own store. Refineries and labs order its ore — trucks bring it on their own, or a pipe from the mine saves them the trip. Starts a small zone of its own",
     "smelter": "Smelts metal ore into metal",
     "siliconWorks": "Refines silicon ore into silicon",
     "distillery": "Distils oil into fuel",
@@ -110,7 +110,7 @@
     "supplyDepot": "Holds ammo for supply rigs and loads them with its beam four times faster than storage. Trucks and pipes keep it full; it does not give ammo to other requests",
     "wall": "A cheap, sturdy barrier: blocks the way and shields from fire. Can be placed outside a zone",
     "gate": "Plates that rise from the ground: lowered while no strangers are near, raised into a wall when an enemy approaches. Drag a line of any width. Can be placed outside the zone",
-    "pipe": "Links buildings that stand apart into a network: pipes carry goods and power and extend the zone. Buildings side by side are linked without a pipe. Cheap and fragile, blocks passage. Can be placed outside a zone",
+    "pipe": "Links buildings that stand apart into a network: pipes carry goods and power and extend the zone. Buildings of the same kind side by side are linked without a pipe: a yard with a yard, a lab with a lab. Cheap and fragile, blocks passage. Can be placed outside a zone",
     "well": "The entrance of an underground pipe: links with its pair in a straight line up to 10 tiles away. Units drive and build over the stretch. Can be placed outside a zone",
     "turret": "A machine gun against infantry and light vehicles; hits aircraft too. Fires ammo from its own store",
     "rocketTurret": "Rockets against vehicles and aircraft. Fires ammo from its own store",
@@ -344,7 +344,7 @@
       "military": "Barracks, vehicle factory, airfield, repair station, supply depot and missile silo",
       "defense": "Walls, turrets, shield, nuclear missile interceptor and radar",
       "paving": "Foundation, roads and bridges",
-      "logistics": "Pipes and wells: they link buildings that stand apart; buildings side by side are linked anyway"
+      "logistics": "Pipes and wells: they link buildings that stand apart; buildings of the same kind side by side are linked anyway"
     },
     "stances": {
       "aggressive": "Aggressive",
@@ -370,7 +370,7 @@
     "toolTips": {
       "foundation": "Buildings on it go up twice as fast, and it allows building on sand. Can be laid under your own buildings and in place of your road. Explosions break it. Drag a rectangle with the mouse",
       "road": "Ground units drive faster; over swamp it becomes a bridge at {bridge} per tile. Nothing can be built on a road; it can replace your foundation. Drag a line with the mouse",
-      "pipe": "Links buildings that stand apart (side by side they are linked without a pipe): pipes carry goods and power and extend the zone. Blocks passage — run wells under a crossing. Needs no zone of its own. Drag a line with the mouse",
+      "pipe": "Links buildings that stand apart (the same kind side by side is linked without a pipe): pipes carry goods and power and extend the zone. Blocks passage — run wells under a crossing. Needs no zone of its own. Drag a line with the mouse",
       "well": "Wells are the ends of an underground pipe: a click places one (it links with a well in a straight line), a drag places a pair, up to {reach} tiles apart. Units drive and build above it; only the wells are vulnerable. Needs no zone of its own",
       "peak": "Builders level the whole mountain, leaving rock in its place. {cost} per mountain tile. Drag a rectangle over the mountain",
       "cliff": "Builders smooth the cliff edge: the foot below it becomes passable for vehicles. {cost} per edge tile. Drag a rectangle along the cliff"
@@ -720,9 +720,13 @@
         "title": "Put a mine on metal ore",
         "tip": "Press Show: the camera goes to the nearest found metal deposit, outlined on the map. Builder → Economy → Mine — click right on it. None found yet — scout around with buggies."
       },
+      "truck": {
+        "title": "Order a truck",
+        "tip": "Select the Command Center and press Truck in the grid on the right. Trucks carry ore from mines to labs and refineries, finished goods to stores, and take up zone requests on their own."
+      },
       "lab": {
         "title": "Build a lab by the mine",
-        "tip": "Builder → Economy → Laboratory — right next to the mine: buildings side by side share one network, and the lab takes ore from the mine by itself. Research unlocks almost everything."
+        "tip": "Builder → Economy → Laboratory — by the mine: trucks bring ore into it. Research unlocks almost everything."
       },
       "metalOre": {
         "title": "Research Metal Smelting",
@@ -730,15 +734,15 @@
       },
       "smelter": {
         "title": "Build a smelter by the mine",
-        "tip": "Builder → Refining → Smelter — next to the mine or to the lab beside it: ore flows into the smelter by itself, and metal comes out."
+        "tip": "Builder → Refining → Smelter — by the mine: trucks bring it ore, and metal comes out."
       },
       "metalYard": {
         "title": "Build a metal yard by the smelter",
-        "tip": "Builder → Storage → Metal Yard — next to the smelter. Without it the smelter fills up with metal and stops; construction and sales take metal from here too."
+        "tip": "Builder → Storage → Metal Yard — by the smelter: trucks haul the metal there. Without it the smelter fills up with metal and stops; construction and sales take metal from here too."
       },
       "spaceport": {
         "title": "Build a spaceport",
-        "tip": "Builder → Economy → Spaceport, best right next to the metal yard. It needs 20 metal — the builder brings it from the yard itself."
+        "tip": "Builder → Economy → Spaceport, best near the metal yard. It needs 20 metal — the builder brings it from the yard itself."
       },
       "sale": {
         "title": "Sell metal",
@@ -832,7 +836,7 @@
     "siege": "Artillery and carrier",
     "atom": "Reactor: six power plants in one place, burns rods",
     "warheads": "Missile silo: a nuclear strike anywhere on the map",
-    "pipes": "Pipes link buildings that stand apart into a network carrying goods and power. Buildings side by side are linked without pipes",
+    "pipes": "Pipes link buildings that stand apart into a network carrying goods and power. Buildings of the same kind side by side are linked without pipes: a yard with a yard, a lab with a lab",
     "walls": "A cheap, sturdy barrier: blocks the way and shields from fire",
     "radar": "The radar sees far and scouts with pulses; the army and turrets come after it",
     "roads": "Roads speed units up",

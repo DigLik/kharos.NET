@@ -22,7 +22,8 @@ export function inCircles(circles: readonly number[], x: number, y: number) {
 
 /**
  * Зона строительства — она же сеть труб: связная группа готовых зданий и труб игрока. Запас, энергия и доставка
- * у каждой сети свои. Здания связаны трубой или стоят вплотную, сторона к стороне: соседи по углу не связаны.
+ * у каждой сети свои. Здания связаны трубой или стоят вплотную, сторона к стороне, — но только с таким же зданием:
+ * склад со складом, лаборатория с лабораторией. Соседи по углу не связаны.
  */
 export interface Zone {
   /** Круги, из которых зона состоит: x, y и радиус подряд. */
@@ -71,7 +72,8 @@ export const resetZones = (sim: Sim) => {
 /**
  * Сети труб всех игроков, у каждого игрока — сначала сети с главным зданием. Сеть — связная группа готовых зданий
  * и труб: труба связывает соседние по стороне трубы и здания, колодец — ещё и с ближайшим своим колодцем по прямой
- * (подземный отрезок, см. BuildingSpec.pipe), а здания, стоящие вплотную, связаны и без трубы — стыком, см. joints.
+ * (подземный отрезок, см. BuildingSpec.pipe), а здания, стоящие вплотную, связаны и без трубы — стыком, но только
+ * с таким же зданием: склады со складами, лаборатории с лабораториями; разным связь даёт только труба.
  * Здание без трубы и соседей — сеть само по себе. Зону сети составляют круги её
  * зданий (BuildingSpec.zone, expand или EXPAND_RADIUS) и труб (PIPE_REACH). Стена в сеть не входит.
  */
@@ -145,12 +147,14 @@ function computeZones(sim: Sim): Map<number, Zone[]> {
     }
   }
 
-  // Здания вплотную: стык — от меньшего к большему, длина — путь между серединами по сторонам, как у трубы.
+  // Здания вплотную: стык — от меньшего к большему, только у зданий одного вида, длина — путь между серединами по
+  // сторонам, как у трубы. Разные здания связывает лишь труба.
   for (const [entity, position, building] of world.query(Position, Building)) {
     const player = members.get(entity)
     if (player === undefined || buildingSpec(building.type).pipe) continue
     for (const other of neighbours(sim, entity, position, building.type)) {
       if (other < entity || members.get(other) !== player || pipeOf(other)) continue
+      if (world.get(other, Building)!.type !== building.type) continue
       const there = world.get(other, Position)!
       const spec = BUILDINGS[world.get(other, Building)!.type]
       const { width, height } = BUILDINGS[building.type]
@@ -179,7 +183,8 @@ function computeZones(sim: Sim): Map<number, Zone[]> {
   }
   for (let i = 0; i < edges.length; i += 3) byRoot.get(find(edges[i] as Entity))!.edges.push(edges[i], edges[i + 1], edges[i + 2])
 
-  // Стройка входит в сеть первой трубы, подведённой к её основанию сбоку, или здания, к которому она стоит вплотную.
+  // Стройка входит в сеть первой трубы, подведённой к её основанию сбоку, или здания того же вида, к которому она
+  // стоит вплотную: как и готовые, разные здания сеть не связывают.
   for (const [entity, position, site, owner] of world.query(Position, Site, Owner)) {
     if (site.demolish || !world.has(entity, Inventory)) continue
     const { width, height } = BUILDINGS[site.type]
@@ -187,6 +192,7 @@ function computeZones(sim: Sim): Map<number, Zone[]> {
     const touch = (x: number, y: number) => {
       const other = occupancy.at(x, y)
       if (other === undefined || members.get(other) !== owner.player) return
+      if (!pipeOf(other) && world.get(other, Building)!.type !== site.type) return
       const found = byRoot.get(find(other))!
       if (zone && zone !== found) return
       if (!zone) found.sites.push(entity)

@@ -77,7 +77,7 @@
     "silo": "Baut aus 20 Brennstäben und 10 Teilen einen Atomsprengkopf und startet ihn auf jeden Punkt der Karte. Vom Start erfahren alle im Chat, die Rakete im Flug sehen alle, Spielern mit Radar wird der Startort markiert. Die Explosion mit Radius 12 trifft alle ohne Unterschied, Schilde halten sie nicht auf. Wird es mit Sprengkopf zerstört, explodiert es",
     "interceptor": "Baut selbst Abfangraketen, eine nach der anderen für je 600 Credits, 4 Teile und 10 Treibstoff aus dem Netz, und hält bis zu 4 bereit. Jede schießt eine feindliche Atomrakete ab, die in den Kreis mit Radius 80 zielt, sobald sie ihn erreicht. Ohne Energie baut sie langsamer, ausgeschaltet baut und feuert sie nicht",
     "matter": "Bringt von selbst Credits, frisst aber Energie. Jeder weitere in der Zone verlangt mehr Energie",
-    "mine": "Wird auf ein Vorkommen gesetzt und fördert Erz in ihr Lager. Verarbeitung und Labor in ihrem Netz nehmen das Erz selbst — stell sie direkt daneben oder leg ein Rohr; in andere Netze bringen es Lastwagen. Beginnt selbst eine kleine Zone",
+    "mine": "Wird auf ein Vorkommen gesetzt und fördert Erz in ihr Lager. Verarbeitung und Labore bestellen ihr Erz: Lastwagen bringen es von selbst, ein Rohr von der Mine spart ihnen die Fahrt. Beginnt selbst eine kleine Zone",
     "smelter": "Schmilzt Metallerz zu Metall",
     "siliconWorks": "Verarbeitet Siliziumerz zu Silizium",
     "distillery": "Destilliert Erdöl zu Treibstoff",
@@ -110,7 +110,7 @@
     "supplyDepot": "Hält Munition für Versorgungsfahrzeuge bereit und belädt sie mit seinem Strahl viermal schneller als Lager. Lastwagen und Rohre halten es voll; an andere Anforderungen gibt es nichts ab",
     "wall": "Ein billiges, stabiles Hindernis: versperrt den Weg und schützt vor Beschuss. Kann auch außerhalb der Zone stehen",
     "gate": "Platten, die aus dem Boden fahren: abgesenkt, solange keine Fremden in der Nähe sind, und als Mauer ausgefahren, wenn ein Feind naht. In beliebiger Breite als Linie ziehbar. Auch außerhalb der Zone baubar",
-    "pipe": "Verbindet auseinanderstehende Gebäude zu einem Netz: Rohre leiten Fracht und Energie und erweitern die Zone. Gebäude Wand an Wand sind auch ohne Rohr verbunden. Billig und zerbrechlich, versperrt die Durchfahrt. Kann auch außerhalb der Zone stehen",
+    "pipe": "Verbindet auseinanderstehende Gebäude zu einem Netz: Rohre leiten Fracht und Energie und erweitern die Zone. Gebäude gleicher Art Wand an Wand sind auch ohne Rohr verbunden: ein Lager mit einem Lager, ein Labor mit einem Labor. Billig und zerbrechlich, versperrt die Durchfahrt. Kann auch außerhalb der Zone stehen",
     "well": "Der Eingang eines unterirdischen Rohrs: verbindet sich in gerader Linie mit seinem Gegenstück, bis zu 10 Felder weit. Über der Strecke wird gefahren und gebaut. Kann auch außerhalb der Zone stehen",
     "turret": "Ein Maschinengewehr gegen Infanterie und leichte Fahrzeuge; trifft auch Fluggeräte. Verschießt Munition aus dem eigenen Lager",
     "rocketTurret": "Raketen gegen Fahrzeuge und Fluggeräte. Verschießt Munition aus dem eigenen Lager",
@@ -344,7 +344,7 @@
       "military": "Kaserne, Fahrzeugfabrik, Flugplatz, Reparaturstation, Versorgungsdepot und Raketensilo",
       "defense": "Mauern, Geschütztürme, Schild, Abfangstellung gegen Atomraketen und Radar",
       "paving": "Fundament, Straßen und Brücken",
-      "logistics": "Rohre und Schächte: Sie verbinden auseinanderstehende Gebäude; Gebäude Wand an Wand sind ohnehin verbunden"
+      "logistics": "Rohre und Schächte: Sie verbinden auseinanderstehende Gebäude; Gebäude gleicher Art Wand an Wand sind ohnehin verbunden"
     },
     "stances": {
       "aggressive": "Aggressiv",
@@ -370,7 +370,7 @@
     "toolTips": {
       "foundation": "Gebäude darauf entstehen doppelt so schnell, und auf Sand erlaubt es das Bauen. Lässt sich auch unter eigene Gebäude und anstelle der eigenen Straße legen. Explosionen zerstören es. Mit der Maus ein Rechteck ziehen",
       "road": "Bodeneinheiten fahren schneller; über Sumpf wird es eine Brücke für {bridge} pro Feld. Auf Straßen wird nicht gebaut; sie ersetzt auch das eigene Fundament. Mit der Maus eine Linie ziehen",
-      "pipe": "Verbindet auseinanderstehende Gebäude (Wand an Wand sind sie auch ohne Rohr verbunden): Rohre leiten Fracht und Energie und erweitern die Zone. Versperrt die Durchfahrt — unter einer Durchfahrt Schächte verwenden. Braucht keine eigene Zone. Mit der Maus eine Linie ziehen",
+      "pipe": "Verbindet auseinanderstehende Gebäude (gleicher Art Wand an Wand sind sie auch ohne Rohr verbunden): Rohre leiten Fracht und Energie und erweitern die Zone. Versperrt die Durchfahrt — unter einer Durchfahrt Schächte verwenden. Braucht keine eigene Zone. Mit der Maus eine Linie ziehen",
       "well": "Schächte sind die Enden eines unterirdischen Rohrs: Ein Klick setzt einen (er verbindet sich in gerader Linie mit einem Schacht), Ziehen ein Paar, bis zu {reach} Felder weit. Darüber wird gefahren und gebaut; verwundbar sind nur die Schächte. Braucht keine eigene Zone",
       "peak": "Bauer tragen den ganzen Berg ab, an seiner Stelle bleibt Fels. {cost} pro Bergfeld. Mit der Maus ein Rechteck über den Berg ziehen",
       "cliff": "Bauer glätten die Kante des Steilhangs: der Fuß darunter wird für Fahrzeuge befahrbar. {cost} pro Kantenfeld. Mit der Maus ein Rechteck entlang des Hangs ziehen"
@@ -720,9 +720,13 @@
         "title": "Setze eine Mine auf Metallerz",
         "tip": "Drücke „Zeigen“: die Kamera zeigt das nächste gefundene Metallvorkommen, auf der Karte umrandet. Baufahrzeug → „Wirtschaft“ → „Mine“ — klicke direkt darauf. Noch keins gefunden — erkunde die Umgebung mit Buggys."
       },
+      "truck": {
+        "title": "Bestelle einen Lastwagen",
+        "tip": "Wähle die Kommandozentrale und drücke „Lastwagen“ im Raster rechts. Lastwagen bringen Erz von Minen in Labore und Verarbeitung, Fertiges in Lager und nehmen Anfragen der Netze selbst an."
+      },
       "lab": {
         "title": "Baue ein Labor an der Mine",
-        "tip": "Baufahrzeug → „Wirtschaft“ → „Labor“ — direkt an die Mine: Gebäude Wand an Wand bilden ein Netz, und das Labor nimmt das Erz selbst aus der Mine. Forschung schaltet fast alles frei."
+        "tip": "Baufahrzeug → „Wirtschaft“ → „Labor“ — an der Mine: Lastwagen bringen ihm das Erz. Forschung schaltet fast alles frei."
       },
       "metalOre": {
         "title": "Erforsche „Metallschmelze“",
@@ -730,15 +734,15 @@
       },
       "smelter": {
         "title": "Baue eine Schmelze an der Mine",
-        "tip": "Baufahrzeug → „Verarbeitung“ → „Schmelze“ — an die Mine oder an das Labor daneben: das Erz fließt von selbst in die Schmelze, heraus kommt Metall."
+        "tip": "Baufahrzeug → „Verarbeitung“ → „Schmelze“ — an der Mine: Lastwagen bringen ihr Erz, heraus kommt Metall."
       },
       "metalYard": {
         "title": "Baue ein Metalllager an der Schmelze",
-        "tip": "Baufahrzeug → „Lager“ → „Metalllager“ — direkt an die Schmelze. Ohne Lager läuft sie mit Metall voll und steht; auch Bau und Verkauf nehmen das Metall von hier."
+        "tip": "Baufahrzeug → „Lager“ → „Metalllager“ — an der Schmelze: Lastwagen fahren das Metall dorthin. Ohne Lager läuft sie mit Metall voll und steht; auch Bau und Verkauf nehmen das Metall von hier."
       },
       "spaceport": {
         "title": "Baue einen Raumhafen",
-        "tip": "Baufahrzeug → „Wirtschaft“ → „Raumhafen“, am besten direkt am Metalllager. Er braucht 20 Metall — das Baufahrzeug holt es selbst aus dem Lager."
+        "tip": "Baufahrzeug → „Wirtschaft“ → „Raumhafen“, am besten am Metalllager. Er braucht 20 Metall — das Baufahrzeug holt es selbst aus dem Lager."
       },
       "sale": {
         "title": "Verkaufe Metall",
@@ -832,7 +836,7 @@
     "siege": "Artillerie und Träger",
     "atom": "Reaktor: sechs Kraftwerke an einem Ort, verbrennt Brennstäbe",
     "warheads": "Raketensilo: ein Atomschlag an jeden Punkt der Karte",
-    "pipes": "Rohre verbinden auseinanderstehende Gebäude zu einem Netz für Güter und Energie. Gebäude Wand an Wand sind auch ohne Rohre verbunden",
+    "pipes": "Rohre verbinden auseinanderstehende Gebäude zu einem Netz für Güter und Energie. Gebäude gleicher Art Wand an Wand sind auch ohne Rohre verbunden",
     "walls": "Billige, robuste Sperre: versperrt den Weg und schützt vor Beschuss",
     "radar": "Das Radar sieht weit und erkundet mit Impulsen; danach kommen Armee und Türme",
     "roads": "Straßen beschleunigen Einheiten",

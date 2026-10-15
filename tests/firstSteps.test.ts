@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { STEPS, currentStep, stepTarget, stepsDone } from '../src/game/firstSteps'
-import { Building, Owner, Player, Position, createSim, depositAt, depositIn, spawnStartingUnits } from '../src/sim'
+import { Building, Owner, Player, Position, Unit, createSim, depositAt, depositIn, spawnStartingUnits } from '../src/sim'
 import { grantResearch } from '../src/sim/research'
 import { spawnUnit } from '../src/sim/units'
 
@@ -59,6 +59,10 @@ test('шаг шахты — на металлической руде; цель �
   sim.world.spawn(Position({ x: other.x, y: other.y }), Building({ type: 'mine' }), Owner({ player: 1 }))
   expect(currentStep(stepsDone(sim, 1))?.key).toBe('mine')
   sim.world.spawn(Position({ x: metal.x, y: metal.y }), Building({ type: 'mine' }), Owner({ player: 1 }))
+  // Руду с шахты в лабораторию возят грузовики: вплотную связаны только одинаковые здания, а трубы — после плавки.
+  expect(currentStep(stepsDone(sim, 1))?.key).toBe('truck')
+  expect(stepTarget(sim, 1, 'truck')).toEqual({ x: metal.x + 8, y: metal.y + 8, width: 3, height: 3 })
+  sim.world.spawn(Unit({ type: 'truck' }), Owner({ player: 1 }))
   expect(currentStep(stepsDone(sim, 1))?.key).toBe('lab')
   expect(stepTarget(sim, 1, 'lab')).toEqual({ x: metal.x, y: metal.y, width: 2, height: 2 })
 })

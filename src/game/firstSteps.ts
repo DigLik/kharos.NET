@@ -7,9 +7,10 @@ import { knowsDeposit } from '../sim/deposits'
  * Первые шаги новичка вместо туториала: список с галочками по настоящей цепочке экономики. Шаг отмечается сам, по миру,
  * а не по сценарию: есть готовое здание, открыта тема, получена награда. Поэтому переделка зданий ломает только
  * тексты, а не обучение. Цепочка: MCV разворачивается в главное здание, оно выпускает строителя; электростанция даёт
- * энергию, генератор материи — первый доход; шахта ставится на металлическую руду, лаборатория вплотную к ней
- * исследует плавку — тема тратит руду из шахты; тогда открывается плавильня, а металл из неё нужно куда-то складывать —
- * иначе она забьётся и встанет; первый металл открывает космопорт, а продажа — главный доход.
+ * энергию, генератор материи — первый доход; шахта ставится на металлическую руду, грузовик возит её руду в лабораторию
+ * (здания вплотную связывает только одинаковые, а трубы — после плавки), лаборатория исследует плавку; тогда
+ * открывается плавильня, металл из неё нужно куда-то складывать — иначе она забьётся и встанет; первый металл открывает
+ * космопорт, а продажа — главный доход.
  *
  * У шага есть место на карте (stepTarget): где его делать — месторождение металла, шахта, рядом с которой ставить,
  * космопорт, который продаёт. Кнопка «Показать» ведёт туда камеру, а на карте оно обведено.
@@ -26,7 +27,7 @@ export interface StepSpec {
   sell?: true
 }
 
-export type StepKey = 'deploy' | 'builder' | 'generator' | 'matter' | 'mine' | 'lab' | 'metalOre' | 'smelter' | 'metalYard' | 'spaceport' | 'sale'
+export type StepKey = 'deploy' | 'builder' | 'generator' | 'matter' | 'mine' | 'truck' | 'lab' | 'metalOre' | 'smelter' | 'metalYard' | 'spaceport' | 'sale'
 
 export const STEPS: readonly StepSpec[] = [
   { key: 'deploy', deploy: true },
@@ -34,6 +35,7 @@ export const STEPS: readonly StepSpec[] = [
   { key: 'generator', building: 'generator' },
   { key: 'matter', building: 'matter' },
   { key: 'mine', building: 'mine' },
+  { key: 'truck', unit: 'truck' },
   { key: 'lab', building: 'lab' },
   { key: 'metalOre', research: 'metalOre' },
   { key: 'smelter', building: 'smelter' },
@@ -62,6 +64,8 @@ export function stepsDone(sim: Sim, player: number): boolean[] {
     matter: rewards.includes('matter') || built('matter'),
     // Шахта нужна на металле: на другой руде плавку не изучить.
     mine: minesOn(sim, player, 'metal').length > 0,
+    // Грузовик возит руду с шахты в лабораторию: вплотную связаны только одинаковые здания, а трубы — после плавки.
+    truck: hasUnit(sim, player, 'truck'),
     // Научный метод открывается, когда достроена лаборатория. Без дерева технологий темы открыты все — шаги о них
     // пройдены сразу.
     lab: built('lab') || hasResearch(sim, player, 'science'),
@@ -145,9 +149,10 @@ function nearestDeposit(sim: Sim, player: number, kind: DepositKind, from: { x: 
 }
 
 /**
- * Где делать шаг: MCV — разворачивать, главное здание — заказывать строителя и строиться рядом, месторождение металла —
- * ставить шахту, шахта на металле — ставить к ней вплотную лабораторию и плавильню, плавильня — склад металла, склад —
- * космопорт, космопорт — продавать. undefined — показать нечего: исследование, или нужное ещё не найдено.
+ * Где делать шаг: MCV — разворачивать, главное здание — заказывать строителя, грузовика и строиться рядом,
+ * месторождение металла — ставить шахту, шахта на металле — ставить рядом лабораторию и плавильню (их кормят
+ * грузовики), плавильня — склад металла, склад — космопорт, космопорт — продавать. undefined — показать нечего:
+ * исследование, или нужное ещё не найдено.
  */
 export function stepTarget(sim: Sim, player: number, key: StepKey): StepTarget | undefined {
   const core = footprint(sim, ownBuilding(sim, player, CORE))
@@ -156,6 +161,7 @@ export function stepTarget(sim: Sim, player: number, key: StepKey): StepTarget |
     case 'deploy':
       return unitTarget(sim, player, 'mcv')
     case 'builder':
+    case 'truck':
     case 'generator':
     case 'matter':
       return core

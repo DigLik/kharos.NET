@@ -9,7 +9,7 @@ import { powerSupply } from '../src/sim/income'
 import { BATCH } from '../src/sim/pipes'
 import { networkOf, type Zone } from '../src/sim/zones'
 import { pipeStroke, pipeSwap, wellPartners } from '../src/sim/piping'
-import { addCredits, creditsOf } from '../src/sim/economy'
+import { addCredits } from '../src/sim/economy'
 import { freeCredits } from '../src/sim/construction'
 import { spawnUnit } from '../src/sim/units'
 import { apply } from '../src/sim/commands'
@@ -50,38 +50,51 @@ const joined = (zone: Zone, a: Entity, b: Entity) => {
   return false
 }
 
-test('здания вплотную — одна сеть и без трубы; по углу и через тайл — разные, труба их соединяет', () => {
+test('здания вплотную — одна сеть, но только одинаковые; по углу и через тайл — разные, труба соединяет', () => {
   const sim = createSim(options)
-  const { x, y } = rock(sim, 14, 6)
-  const generator = placeBuilding(sim.world, 'generator', x, y, 1)
-  const matter = placeBuilding(sim.world, 'matter', x + 2, y, 1)
-  expect(networkOf(sim, generator)).toBe(networkOf(sim, matter))
-  expect(joined(networkOf(sim, generator)!, generator, matter)).toBe(true)
-  // По углу — не соседи.
-  const corner = placeBuilding(sim.world, 'radar', x + 2 + 2, y + 2, 1)
-  expect(networkOf(sim, corner)).not.toBe(networkOf(sim, generator))
-  // Через тайл — тоже, пока его не займёт труба.
-  const gap = placeBuilding(sim.world, 'radar', x + 7, y, 1)
-  expect(networkOf(sim, gap)).not.toBe(networkOf(sim, matter))
-  lay(sim, x + 4, y, 3)
-  expect(networkOf(sim, gap)).toBe(networkOf(sim, matter))
-  expect(joined(networkOf(sim, gap)!, generator, matter)).toBe(true)
-  // Чужое здание вплотную в сеть не входит.
-  const foreign = placeBuilding(sim.world, 'radar', x, y - 2, 2)
-  expect(networkOf(sim, foreign)).not.toBe(networkOf(sim, generator))
+  const { x, y } = rock(sim, 16, 6)
+  const one = placeBuilding(sim.world, 'generator', x, y, 1)
+  const two = placeBuilding(sim.world, 'generator', x + 2, y, 1)
+  expect(networkOf(sim, one)).toBe(networkOf(sim, two))
+  expect(joined(networkOf(sim, one)!, one, two)).toBe(true)
+  // Разное здание вплотную — не одна сеть: свяжет только труба.
+  const lab = placeBuilding(sim.world, 'lab', x + 4, y, 1)
+  expect(networkOf(sim, lab)).not.toBe(networkOf(sim, one))
+  // По углу не связаны и одинаковые.
+  const corner = placeBuilding(sim.world, 'generator', x + 4, y + 2, 1)
+  expect(networkOf(sim, corner)).not.toBe(networkOf(sim, one))
+  // Через тайл — тоже разные, пока его не займёт труба.
+  const gap = placeBuilding(sim.world, 'radar', x + 8, y, 1)
+  expect(networkOf(sim, gap)).not.toBe(networkOf(sim, lab))
+  const pipes = lay(sim, x + 6, y, 2)
+  expect(networkOf(sim, gap)).toBe(networkOf(sim, lab))
+  expect(joined(networkOf(sim, gap)!, lab, pipes[0]!)).toBe(true)
+  // Чужое здание вплотную в сеть не входит, даже такое же.
+  const foreign = placeBuilding(sim.world, 'generator', x, y - 2, 2)
+  expect(networkOf(sim, foreign)).not.toBe(networkOf(sim, one))
 })
 
-test('стройка вплотную к зданию сети получает материалы без трубы', () => {
+test('стройка вплотную получает материалы без трубы только от здания того же вида', () => {
   const sim = createSim(options)
-  const { x, y } = rock(sim, 12, 6)
-  const yard = placeBuilding(sim.world, 'metalYard', x, y, 1)
-  put(sim.world.get(yard, Inventory)!, 'metal', 50)
+  const { x, y } = rock(sim, 20, 8)
+  const core = placeBuilding(sim.world, 'command', x, y, 1)
+  const port = placeBuilding(sim.world, 'spaceport', x + 6, y, 1)
+  put(sim.world.get(port, Inventory)!, 'metal', 50)
   addCredits(sim, 1, 5000)
-  apply(sim, 1, { type: 'build', building: 'spaceport', x: x + 3, y, builders: [] })
-  const site = siteAt(sim, x + 3, y)!
-  expect(networkOf(sim, site)).toBe(networkOf(sim, yard))
-  for (let i = 0; i < 200 && amountOf(sim.world.get(site, Inventory)!, 'metal') < BUILDINGS.spaceport.materials.metal; i++) sim.advance(1 / 20)
-  expect(amountOf(sim.world.get(site, Inventory)!, 'metal')).toBe(BUILDINGS.spaceport.materials.metal)
+  // Стройка вплотную к другому виду — не в сеть: главное здание рядом, а сети у неё нет.
+  apply(sim, 1, { type: 'build', building: 'spaceport', x, y: y + 3, builders: [] })
+  const lone = siteAt(sim, x, y + 3)!
+  expect(networkOf(sim, lone)).toBeUndefined()
+  // Своё здание вплотную — одна сеть с ним, и материалы доезжают без трубы.
+  apply(sim, 1, { type: 'build', building: 'spaceport', x: x + 6, y: y + 3, builders: [] })
+  const site = siteAt(sim, x + 6, y + 3)!
+  expect(networkOf(sim, site)).toBe(networkOf(sim, port))
+  expect(networkOf(sim, port)).not.toBe(networkOf(sim, core))
+  const need = BUILDINGS.spaceport.materials.metal
+  for (let i = 0; i < 400 && amountOf(sim.world.get(site, Inventory)!, 'metal') < need; i++) sim.advance(1 / 20)
+  expect(amountOf(sim.world.get(site, Inventory)!, 'metal')).toBe(need)
+  // Которой сети нет, той и материалов не везут.
+  expect(amountOf(sim.world.get(lone, Inventory)!, 'metal')).toBe(0)
 })
 
 test('энергия идёт по зоне: рядом — и без трубы, вдали — по трубе', () => {

@@ -77,7 +77,7 @@
     "silo": "Arma una ojiva nuclear con 20 barras y 10 componentes y la lanza a cualquier punto del mapa. Todos se enteran del lanzamiento por el chat y ven el misil en vuelo, y a quien tiene radar se le marca el lugar de lanzamiento. La explosión de radio 12 golpea a todos por igual, los escudos no la detienen. Si lo destruyen con una ojiva dentro, explota",
     "interceptor": "Arma por sí mismo misiles interceptores, de uno en uno por 600 créditos, 4 componentes y 10 de combustible de la red, y guarda hasta 4. Cada uno derriba un misil nuclear enemigo que apunte dentro de su radio de 80 en cuanto entra en él. Sin energía arma más despacio; apagado, ni arma ni dispara",
     "matter": "Genera créditos por sí solo, pero consume energía. Cada uno más en la zona pide más energía",
-    "mine": "Se coloca sobre un yacimiento y extrae mineral a su almacén. Las refinerías y laboratorios de su red lo toman solos —ponlos pegados o tiende una tubería—; a otras redes lo llevan los camiones. Inicia una pequeña zona propia",
+    "mine": "Se coloca sobre un yacimiento y extrae mineral a su almacén. El refino y los laboratorios piden su mineral: los camiones se lo llevan solos, y una tubería desde la mina ahorra el viaje. Inicia una pequeña zona propia",
     "smelter": "Funde mineral de metal en metal",
     "siliconWorks": "Refina mineral de silicio en silicio",
     "distillery": "Destila petróleo en combustible",
@@ -110,7 +110,7 @@
     "supplyDepot": "Guarda munición para los vehículos de suministro y los carga con su rayo cuatro veces más rápido que los almacenes. Camiones y tuberías lo mantienen lleno; no entrega munición a otros pedidos",
     "wall": "Una barrera barata y resistente: corta el paso y cubre de los disparos. Se puede colocar fuera de la zona",
     "gate": "Placas que salen del suelo: bajadas mientras no haya extraños cerca, se alzan como muro cuando se acerca un enemigo. Se trazan en línea de cualquier anchura. También fuera de la zona",
-    "pipe": "Une en una red los edificios separados: por las tuberías van la carga y la energía, y amplían la zona. Los edificios pegados ya están unidos sin tubería. Barata y frágil, corta el paso. Se puede colocar fuera de la zona",
+    "pipe": "Une en una red los edificios separados: por las tuberías van la carga y la energía, y amplían la zona. Los edificios del mismo tipo pegados ya están unidos sin tubería: un depósito con un depósito, un laboratorio con un laboratorio. Barata y frágil, corta el paso. Se puede colocar fuera de la zona",
     "well": "Entrada de una tubería subterránea: se une con su pareja en línea recta hasta 10 casillas. Sobre el tramo se circula y se construye. Se puede colocar fuera de la zona",
     "turret": "Ametralladora contra infantería y vehículos ligeros; también dispara al aire. Usa munición de su propio almacén",
     "rocketTurret": "Cohetes contra vehículos y aviación. Usa munición de su propio almacén",
@@ -344,7 +344,7 @@
       "military": "Cuartel, fábrica de vehículos, aeródromo, estación de reparación, depósito de suministro y silo de misiles",
       "defense": "Muros, torretas, escudo, interceptor de misiles nucleares y radar",
       "paving": "Cimientos, carreteras y puentes",
-      "logistics": "Tuberías y pozos: unen los edificios separados; los edificios pegados ya están unidos"
+      "logistics": "Tuberías y pozos: unen los edificios separados; los edificios del mismo tipo pegados ya están unidos"
     },
     "stances": {
       "aggressive": "Agresivo",
@@ -370,7 +370,7 @@
     "toolTips": {
       "foundation": "Los edificios sobre ellos se construyen el doble de rápido y permiten construir en la arena. Se ponen también bajo tus edificios y en lugar de tu carretera. Las explosiones los rompen. Arrastra un rectángulo con el ratón",
       "road": "Las unidades terrestres van más rápido; sobre pantano es un puente a {bridge} por casilla. En la carretera no se construye; puede sustituir tus cimientos. Arrastra una línea con el ratón",
-      "pipe": "Une los edificios separados (pegados ya están unidos sin tubería): por las tuberías van la carga y la energía, y amplían la zona. Corta el paso: bajo un cruce usa pozos. No necesita zona propia. Arrastra una línea con el ratón",
+      "pipe": "Une los edificios separados (los del mismo tipo pegados ya están unidos sin tubería): por las tuberías van la carga y la energía, y amplían la zona. Corta el paso: bajo un cruce usa pozos. No necesita zona propia. Arrastra una línea con el ratón",
       "well": "Los pozos son los extremos de una tubería subterránea: un clic coloca uno (se une con un pozo en línea recta), al arrastrar, un par, hasta {reach} casillas. Sobre ella se circula y se construye; solo los pozos son vulnerables. No necesita zona propia",
       "peak": "Los constructores arrasan la montaña entera y queda roca en su lugar. {cost} por casilla de montaña. Arrastra un rectángulo sobre la montaña",
       "cliff": "Los constructores suavizan el borde del acantilado: el pie bajo él queda transitable para vehículos. {cost} por casilla de borde. Arrastra un rectángulo a lo largo del acantilado"
@@ -720,9 +720,13 @@
         "title": "Pon una mina en mineral de metal",
         "tip": "Pulsa Mostrar: la cámara irá al yacimiento de metal hallado más cercano, marcado en el mapa. Constructor → Economía → Mina: haz clic justo encima. Si aún no hay ninguno, explora con buggies."
       },
+      "truck": {
+        "title": "Pide un camión",
+        "tip": "Selecciona el Centro de mando y pulsa Camión en la cuadrícula de la derecha. Los camiones llevan mineral de las minas a los laboratorios y al refino, y lo ya hecho a los almacenes; además toman solos los pedidos de las redes."
+      },
       "lab": {
         "title": "Construye un laboratorio junto a la mina",
-        "tip": "Constructor → Economía → Laboratorio, pegado a la mina: los edificios pegados forman una sola red y el laboratorio toma el mineral de la mina por sí solo. La investigación desbloquea casi todo."
+        "tip": "Constructor → Economía → Laboratorio — junto a la mina: los camiones le llevarán el mineral. La investigación desbloquea casi todo."
       },
       "metalOre": {
         "title": "Investiga Fundición de metal",
@@ -730,15 +734,15 @@
       },
       "smelter": {
         "title": "Construye una fundición junto a la mina",
-        "tip": "Constructor → Refinado → Fundición, pegada a la mina o al laboratorio de al lado: el mineral entrará solo y saldrá metal."
+        "tip": "Constructor → Refinado → Fundición — junto a la mina: los camiones le llevarán el mineral y de él saldrá metal."
       },
       "metalYard": {
         "title": "Construye un depósito de metal junto a la fundición",
-        "tip": "Constructor → Almacenes → Depósito de metal, pegado a la fundición. Sin él la fundición se llena de metal y se para; las obras y la venta también toman el metal de aquí."
+        "tip": "Constructor → Almacenes → Depósito de metal — junto a la fundición: los camiones llevarán allí el metal. Sin él la fundición se llena de metal y se para; las obras y la venta también toman el metal de aquí."
       },
       "spaceport": {
         "title": "Construye un puerto espacial",
-        "tip": "Constructor → Economía → Puerto espacial, mejor pegado al depósito de metal. Necesita 20 de metal: el constructor lo traerá del depósito él mismo."
+        "tip": "Constructor → Economía → Puerto espacial, mejor junto al depósito de metal. Necesita 20 de metal: el constructor lo traerá del depósito él mismo."
       },
       "sale": {
         "title": "Vende metal",
@@ -832,7 +836,7 @@
     "siege": "Artillería y portador",
     "atom": "Reactor: seis centrales en un solo lugar, quema barras",
     "warheads": "Silo de misiles: un ataque nuclear en cualquier punto del mapa",
-    "pipes": "Las tuberías unen los edificios separados en una red que lleva carga y energía. Los edificios pegados ya están unidos sin tuberías",
+    "pipes": "Las tuberías unen los edificios separados en una red que lleva carga y energía. Los edificios del mismo tipo pegados ya están unidos sin tuberías",
     "walls": "Barrera barata y resistente: corta el paso y protege del fuego",
     "radar": "El radar ve lejos y explora con pulsos; tras él vienen el ejército y las torretas",
     "roads": "Los caminos aceleran a las unidades",
