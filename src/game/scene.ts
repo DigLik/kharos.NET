@@ -1,7 +1,7 @@
 import type { Alerts } from './alerts'
 import type { Entity } from '../ecs'
 import type { MapSettings } from '../map/settings'
-import type { BuildingType, DepositKind, DigKind, PaveKind, Sim, Weather } from '../sim'
+import type { BuildingType, DepositKind, DigKind, Good, PaveKind, Sim, Weather } from '../sim'
 import type { Camera } from './camera'
 
 /** Прямоугольник в тайлах, заданный двумя противоположными углами. */
@@ -16,6 +16,9 @@ export interface Box {
 export interface SelectionBox extends Box {
   hits: Entity[]
 }
+
+/** Ручной приказ грузовикам, который игрок набирает: 'source' — откуда взять; иначе — что и откуда везти; null — ничего. */
+export type CarryPick = 'source' | { from: number; resource: Good; amount: number } | null
 
 /**
  * Состояние клиента, общее для проходов отрисовки и управления.
@@ -48,6 +51,13 @@ export interface Scene {
   routing: Entity[] | null
   /** Здания, которые игрок сейчас отмечает щелчками, чтобы выбранные грузовики их обслуживали; null — не отмечает. */
   serving: Entity[] | null
+  /**
+   * Ручной приказ выбранным грузовикам: 'source' — игрок выбирает щелчком, откуда взять; иначе — куда отвезти amount
+   * груза resource со склада from. null — не выбирает. См. carrying.ts.
+   */
+  carrying: CarryPick
+  /** Здание, по которому открыто окно приказа выбранным грузовикам (правый щелчок); null — окна нет. */
+  truckMenu: Entity | null
   /** Игрок выбирает точку патруля выбранным бойцам: щелчок — патруль до неё, Shift+щелчок — ещё точка к патрулю. */
   patrolling: boolean
   /** Шахта, чью готовую боеголовку игрок наводит: щелчок по карте — пуск туда; null — не наводит. */

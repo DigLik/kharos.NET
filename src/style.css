@@ -2691,3 +2691,82 @@ body {
     display: none;
   }
 }
+
+/* Окно приказа грузовикам: по правому щелчку по зданию. Затемнение вокруг закрывает его щелчком. */
+.truck-menu__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 16;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgb(0 0 0 / 0.35);
+}
+
+.truck-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(440px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 12px 14px;
+  overflow: auto;
+}
+
+.truck-menu header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.truck-menu header strong {
+  flex: 1;
+  font-family: var(--font-title);
+  font-size: 16px;
+  font-weight: normal;
+  color: var(--text-bright);
+}
+
+.hud .truck-menu button {
+  min-height: 36px;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.hud .truck-menu .truck-menu__close {
+  text-align: center;
+}
+
+.truck-menu__part {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.truck-menu__part small {
+  color: var(--text-soft);
+}
+
+.truck-menu__goods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.truck-menu__amount {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.truck-menu__amount b {
+  min-width: 56px;
+  text-align: center;
+  font-weight: normal;
+}
+
+.truck-menu__empty {
+  margin: 0;
+  color: var(--text-soft);
+}

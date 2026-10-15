@@ -57,6 +57,7 @@ export function setRoute(sim: Sim, player: number, units: Entity[], stops: Entit
     // Прежние приказы снимаются, как в releaseHauler: иначе, когда маршрут кончится, грузовик вернётся к ним.
     hauler.mine = hauler.pickup = hauler.supply = hauler.from = hauler.to = NONE
     hauler.serve = []
+    hauler.order = null
     hauler.amount = 0
     hauler.full = hauler.loading = hauler.waiting = false
     hauler.route = route.length > 1 ? [...route] : []

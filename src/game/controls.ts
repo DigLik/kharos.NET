@@ -1,5 +1,5 @@
 import type { Entity } from '../ecs'
-import { type BuildingType, Building, Site, Producer, Hauler, type UnitType, Owner, Position, isOwn, UNITS, Unit, canFight, isStop, siteAt, BUILDINGS, BRIDGE_COST, CLIFF_COST, FOUNDATION_COST, PEAK_COST, ROAD_COST, Silo, canSendDeploy, creditsOf, type DigKind } from '../sim'
+import { type BuildingType, Building, Site, Producer, Hauler, Inventory, isCarrySource, isCarryTarget, type UnitType, Owner, Position, isOwn, UNITS, Unit, canFight, isStop, siteAt, BUILDINGS, BRIDGE_COST, CLIFF_COST, FOUNDATION_COST, PEAK_COST, ROAD_COST, Silo, canSendDeploy, creditsOf, type DigKind } from '../sim'
 import type { CameraMotion } from './cameraMotion'
 import { DENIED } from './interfaceSounds'
 import { paveStrokeOf, placementOf } from './placing'
@@ -213,6 +213,19 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
         if (!event.shiftKey) scene.patrolling = false
       }
       if (button === RIGHT && !dragged) scene.patrolling = false
+    } else if (scene.carrying) {
+      // Ручной приказ грузовикам: щелчок любой кнопкой — по складу, откуда взять (откроется окно приказа), или по
+      // получателю. Правый щелчок мимо — отмена, левый — отказ.
+      if (!dragged && (button === LEFT || button === RIGHT)) {
+        const target = storeAt(point.x, point.y)
+        const pick = scene.carrying
+        if (pick === 'source' ? target !== undefined && isCarrySource(scene.sim, scene.player, target) : target !== undefined && target !== pick.from && isCarryTarget(scene.sim, scene.player, target, pick.resource)) {
+          if (pick === 'source') scene.truckMenu = target!
+          else scene.sim.send(scene.player, { type: 'carry', units: trucksSelected(), from: pick.from, to: target!, resource: pick.resource, amount: pick.amount })
+          scene.carrying = null
+        } else if (button === RIGHT) scene.carrying = null
+        else window.dispatchEvent(new Event(DENIED))
+      }
     } else if (scene.routing) {
       // Левый щелчок по своему зданию со складом — ещё остановка; правый — маршрут готов.
       if (button === LEFT && !dragged) {
@@ -301,6 +314,9 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
     } else if (button === RIGHT && !dragged && rallying()) {
       // Выбраны свои производящие здания: правый щелчок ставит им точку сбора.
       for (const building of scene.selection) scene.sim.send(scene.player, { type: 'rally', building, x: Math.floor(point.x), y: Math.floor(point.y) })
+    } else if (button === RIGHT && !dragged && !event.shiftKey && trucksSelected().length === scene.selection.size && scene.selection.size && isCarrySource(scene.sim, scene.player, storeAt(point.x, point.y) ?? (-1 as Entity))) {
+      // Выбраны одни грузовики, щелчок по своему зданию со складом — окно приказа: что взять, выгрузить, возить, обеспечить.
+      scene.truckMenu = storeAt(point.x, point.y)!
     } else if (button === RIGHT && !dragged && scene.selection.size) {
       // С Shift приказ встаёт в очередь: юниты возьмутся за него, когда закончат нынешнее.
       scene.sim.send(scene.player, { type: 'order', units: [...scene.selection], x: point.x, y: point.y, queue: event.shiftKey })
@@ -360,9 +376,19 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
       else onMenu()
     }
   }
+  /** Свои выбранные грузовики. */
+  const trucksSelected = () => [...scene.selection].filter((entity) => scene.sim.world.has(entity, Hauler) && isOwn(scene.sim, scene.player, entity))
+  /** Склад под точкой: своё здание или стройка, а то и свой юнит со складом, кроме грузовиков; undefined — ничего. */
+  const storeAt = (x: number, y: number): Entity | undefined => {
+    const unit = unitAt(x, y)
+    if (unit !== undefined && scene.sim.world.has(unit, Inventory) && !scene.sim.world.has(unit, Hauler)) return unit
+    return scene.sim.occupancy.at(Math.floor(x), Math.floor(y)) ?? siteAt(scene.sim, Math.floor(x), Math.floor(y))
+  }
   /** Выходит из режима наведения, ничего не отдавая; false — режима не было. Порядок тот же, что у полосы режима, см. hud.ts. */
   const cancelMode = () => {
-    if (scene.aiming !== null) scene.aiming = null
+    if (scene.truckMenu !== null) scene.truckMenu = null
+    else if (scene.carrying) scene.carrying = null
+    else if (scene.aiming !== null) scene.aiming = null
     else if (scene.deploying !== null) scene.deploying = null
     else if (scene.patrolling) scene.patrolling = false
     else if (scene.routing) scene.routing = null
@@ -508,6 +534,10 @@ export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: 
       for (const entity of scene.selection) trucks ||= scene.sim.world.has(entity, Hauler)
       if (!trucks) scene.serving = null
     }
+    // Приказ — выбранным грузовикам: без них окно закрывается и выбор кончается, как и без самого склада.
+    if ((scene.carrying || scene.truckMenu !== null) && !trucksSelected().length) scene.carrying = scene.truckMenu = null
+    if (scene.truckMenu !== null && !scene.sim.world.alive(scene.truckMenu)) scene.truckMenu = null
+    if (scene.carrying && scene.carrying !== 'source' && !scene.sim.world.alive(scene.carrying.from as Entity)) scene.carrying = null
     // Покрытие кладут и снимают строители.
     if (scene.paving) {
       let builders = false

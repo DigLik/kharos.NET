@@ -391,16 +391,13 @@
     "patrolTip": "P, then click the map — units walk between their spot and the point; Shift+click adds another patrol point",
     "route": "Route",
     "routeStops": "Route: {stops}",
-    "routeTip": "Click your buildings with a store in order; right button or Enter — done, Esc — cancel",
-    "dropRoute": "Clear route",
-    "backToRequests": "Trucks go back to zone requests",
-    "filter": "Filter",
-    "filterCount": "Filter: {count}",
-    "filterTip": "Which goods to carry on requests and routes",
+    "routeTip": "Drive in a loop: click your buildings with a store in order — at each stop the truck unloads what is accepted and loads for the next. Right button or Enter — done, Esc — cancel",
+    "filter": "What to carry",
+    "filterCount": "What to carry: {count}",
+    "filterTip": "Which goods the truck takes in Auto and Route; nothing marked — any",
     "serve": "Serve",
     "serveCount": "Serve: {count}",
-    "serveTip": "Click your buildings: trucks will carry only for their requests, picking goods up in any zone of yours. Right button or Enter — done, Esc — cancel",
-    "dropServe": "Clear assignment",
+    "serveTip": "Carry only for chosen buildings: click them — trucks bring them what they lack from any of your stores. Right button or Enter — done, Esc — cancel",
     "carryOrNot": "Carry it or not",
     "ore": "Ore",
     "oreTip": "Carry ore or not",
@@ -481,7 +478,11 @@
     "abortLaunchTip": "The missile does not lift off, the warhead stays in the silo",
     "techTree": "Research",
     "techTreeTip": "Open the tech tree (R)",
-    "armyLimit": "Army limit: {used} of {limit} taken, this unit needs {supply}"
+    "armyLimit": "Army limit: {used} of {limit} taken, this unit needs {supply}",
+    "truckAuto": "Auto",
+    "truckAutoTip": "Works on its own: carries what buildings order, following “What to carry”. Clears orders, routes and serving",
+    "carry": "Transport",
+    "carryTip": "Take goods here and bring them there: click a store, pick the goods and amount, then click the receiver. Faster: right-click a building with trucks selected"
   },
   "hud": {
     "players": "Players",
@@ -596,11 +597,6 @@
     "materials": "Materials",
     "materialsWaiting": " — waiting for delivery: by pipe, by truck or by its builder from a store",
     "cargo": "Cargo: {items} of {capacity}. ",
-    "haulsOre": "Hauling ore from a mine to be refined",
-    "serves": "Serving assigned buildings: carries only for their requests, picking goods up in any zone of yours",
-    "onRoute": "Running a route: at each stop it unloads what is accepted there and loads for the next one",
-    "onRequest": "Carrying for a zone request",
-    "free": "Free: takes zone requests on its own. Right-click a mine to haul only from it",
     "fetchGoing": "Going for material for its site: nobody else is bringing it",
     "fetchToSite": "Carrying material to its site",
     "fetchToStore": "Taking the leftover back to a store",
@@ -653,7 +649,18 @@
     "groups": "Groups",
     "groupTip": "Group {digit}: select, again to move the camera to it, Shift to add to selection. Right-click or long press puts the selection here; with this group selected, it clears the slot. Key {digit}",
     "groupPutTip": "Slot {digit}: click to put the selection here. Same as Ctrl+{digit}",
-    "groupEmptyTip": "Slot {digit} is empty: select units and click it or press Ctrl+{digit}"
+    "groupEmptyTip": "Slot {digit} is empty: select units and click it or press Ctrl+{digit}",
+    "job": {
+      "auto": "Job: auto — carries what buildings order. Right-click a building to give an order",
+      "carry": "Job: carrying {name:lower} from {from} to {to}, {left} left",
+      "unload": "Job: bringing {name:lower} to {to}, {left} left",
+      "route": "Job: route {stops}",
+      "serve": "Job: carries only for: {list}",
+      "mine": "Job: hauls ore from the mine to refining",
+      "supply": "Job: supplying {name} — brings what it lacks",
+      "pickup": "Job: clearing goods off the ground",
+      "mixed": "The selected trucks have different jobs"
+    }
   },
   "mode": {
     "placing": "Building: {name}",
@@ -677,8 +684,12 @@
       "serving": "Click your buildings, click again to remove; marked: {count}",
       "patrolling": "Click how far to patrol; with Shift — another point",
       "aiming": "Click on the map — the strike lands there",
-      "deploying": "Click where to deploy: green means yes, the MCV drives there itself"
-    }
+      "deploying": "Click where to deploy: green means yes, the MCV drives there itself",
+      "carrySource": "Click the building to take goods from",
+      "carryTarget": "Click the building to bring it to: {name:lower} ×{amount}"
+    },
+    "carrySource": "Transport: from",
+    "carryTarget": "Transport: to"
   },
   "steps": {
     "title": "First steps",
@@ -1183,5 +1194,16 @@
     "lost": "Connection to the server was lost",
     "cannotConnect": "Could not connect to server {url}",
     "insecure": "The page is open over https while the server uses insecure ws://, and the browser blocks such a connection. Allow it: the icon to the left of the address → “Site settings” → “Insecure content” → “Allow”, then reload the tab. Or connect to the server over wss://."
+  },
+  "truck": {
+    "title": "Truck order: {name}",
+    "closeTip": "Close (Esc)",
+    "take": "Take from here — pick goods and amount:",
+    "where": "Where to →",
+    "whereTip": "Then click the receiving building. The trucks make trips — {capacity} at a time — until all is moved",
+    "unload": "Unload here from the trucks:",
+    "mine": "Haul ore from here to refining",
+    "supply": "Supply: bring here what it lacks",
+    "nothing": "Nothing to take here and nothing to unload"
   }
 }

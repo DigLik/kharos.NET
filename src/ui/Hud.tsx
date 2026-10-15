@@ -1,11 +1,11 @@
 import { complete, quoteName } from '../net/chatCommands'
 import type { ComponentChildren } from 'preact'
-import { GROUP_DIGITS, type GridState, type HudState, type ModeState, type Stack, type TopicView } from '../game/hud'
+import { GROUP_DIGITS, type GridState, type HudState, type ModeState, type Stack, type TopicView, type TruckJob } from '../game/hud'
 import { GRID_PRESS, type GridPress } from '../game/interfaceSounds'
 import type { Minimap } from '../game/minimap'
 import { prefs, setPrefs } from '../game/prefs'
 import { STEPS } from '../game/firstSteps'
-import type { PaveTool } from '../game/scene'
+import type { CarryPick, PaveTool } from '../game/scene'
 import { buildingPortrait, pavePortrait, unitPortrait } from '../game/portraits'
 import { goodIcon } from '../game/goodIcons'
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
@@ -30,6 +30,10 @@ interface HudProps {
   route: (start: boolean) => void
   /** Начать выбор зданий, которые обслуживают грузовики; false — отменить. */
   serve: (start: boolean) => void
+  /** Ручной приказ грузовикам: выбрать, откуда взять ('source'), куда отвезти выбранное (груз со склада), или отменить (null). */
+  carry: (pick: CarryPick) => void
+  /** Закрыть окно приказа грузовикам (null) или открыть его по зданию. */
+  truckMenu: (building: number | null) => void
   /** Начать набор точек патруля бойцам; false — отменить. */
   patrol: (start: boolean) => void
   /** Начать наводку ядерного удара шахтой или бросить её (null). */
@@ -832,15 +836,7 @@ function Info({ state, lookAtSelection, narrow, deal, ferry, setAmount, confirm 
               items: state.cargo.items.length ? <Stacks items={state.cargo.items} /> : t('common.empty'),
               capacity: state.cargo.capacity,
             })}
-            {state.cargo.bound > 0
-              ? t('hud.haulsOre')
-              : state.haul && state.haul.served > 0
-                ? t('hud.serves')
-              : state.haul && state.haul.routed > 0
-                ? t('hud.onRoute')
-              : state.cargo.busy > 0
-                ? t('hud.onRequest')
-                : t('hud.free')}
+            {state.haul && jobText(state.haul.job)}
           </div>
         )}
         {state.carry && (
@@ -1071,9 +1067,106 @@ function FirstSteps({ done, target, lookAt }: { done: boolean[]; target: HudStat
 /** Как называется инструмент протяжки: у стены и ворот — как здание, у разбора — как его кнопка. */
 const toolName = (tool: PaveTool) => (tool === 'remove' ? t('grid.remove') : tool === 'wall' || tool === 'gate' ? t(`buildings.${tool}`) : t(`grid.tools.${tool}`))
 
+/** Чем заняты выбранные грузовики — словами, с названиями зданий, см. TruckJob. */
+function jobText(job: TruckJob) {
+  const names = job.buildings.map((type) => t(`buildings.${type}`))
+  const good = job.resource ? t(`goods.${job.resource}`) : ''
+  switch (job.kind) {
+    case 'carry':
+      return names.length > 1 ? t('hud.job.carry', { name: good, from: names[0], to: names[1], left: job.left }) : t('hud.job.unload', { name: good, to: names[0] ?? '', left: job.left })
+    case 'route': return t('hud.job.route', { stops: names.join(' → ') })
+    case 'serve': return t('hud.job.serve', { list: names.join(', ') })
+    case 'supply': return t('hud.job.supply', { name: names[0] ?? '' })
+    default: return t(`hud.job.${job.kind}`)
+  }
+}
+
+/** Шаг, на который меняется количество в окне приказа грузовикам. */
+const CARRY_STEP = 10
+
+/**
+ * Окно приказа выбранным грузовикам по зданию — открывается правым щелчком по нему. Взять отсюда: груз и сколько
+ * (сначала — всё, что лежит), потом щелчок по получателю на карте. Выгрузить сюда — то, что уже в кузовах. Для шахты —
+ * возить её руду на переработку, для здания, которому нужен груз, — обеспечивать его. Щелчок мимо окна закрывает его.
+ */
+function TruckMenu({ menu, units, send, carry, close }: { menu: NonNullable<HudState['truckMenu']>; units: number[]; send: (command: Command) => void; carry: (pick: CarryPick) => void; close: () => void }) {
+  const [picked, setPicked] = useState<{ resource: Good; amount: number } | null>(null)
+  useEffect(() => setPicked(null), [menu.building])
+  const available = picked ? (menu.take.find(({ resource }) => resource === picked.resource)?.amount ?? 0) : 0
+  const amount = picked ? Math.max(1, Math.min(available, picked.amount)) : 0
+  const name = menu.type ? t(`buildings.${menu.type}`) : ''
+  const order = (command: Command) => {
+    send(command)
+    close()
+  }
+  return (
+    <div class="truck-menu__backdrop" onClick={close}>
+      <section class="hud truck-menu" role="dialog" aria-label={t('truck.title', { name })} onClick={(event) => event.stopPropagation()}>
+        <header>
+          <strong>{t('truck.title', { name })}</strong>
+          <button class="truck-menu__close" data-tip={t('truck.closeTip')} onClick={close}>
+            ✕
+          </button>
+        </header>
+        {menu.take.length > 0 && (
+          <div class="truck-menu__part">
+            <small>{t('truck.take')}</small>
+            <div class="truck-menu__goods">
+              {menu.take.map(({ resource, amount: have }) => (
+                <button key={resource} class={picked?.resource === resource ? 'is-active' : undefined} onClick={() => setPicked({ resource, amount: have })}>
+                  <Res resource={resource} amount={have} /> {t(`goods.${resource}`)}
+                </button>
+              ))}
+            </div>
+            {picked && available >= 1 && (
+              <div class="truck-menu__amount">
+                <button disabled={amount <= 1} onClick={() => setPicked({ ...picked, amount: Math.max(1, amount - CARRY_STEP) })}>
+                  −{CARRY_STEP}
+                </button>
+                <b>
+                  <Res resource={picked.resource} amount={amount} />
+                </b>
+                <button disabled={amount >= available} onClick={() => setPicked({ ...picked, amount: Math.min(available, amount + CARRY_STEP) })}>
+                  +{CARRY_STEP}
+                </button>
+                <button class={amount >= available ? 'is-active' : undefined} onClick={() => setPicked({ ...picked, amount: available })}>
+                  {t('grid.all')}
+                </button>
+                <button class="menu__primary" data-tip={t('truck.whereTip', { capacity: menu.capacity })} onClick={() => carry({ from: menu.building, resource: picked.resource, amount })}>
+                  {t('truck.where')}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        {menu.unload.length > 0 && (
+          <div class="truck-menu__part">
+            <small>{t('truck.unload')}</small>
+            <div class="truck-menu__goods">
+              {menu.unload.map(({ resource, amount: have }) => (
+                <button key={resource} onClick={() => order({ type: 'carry', units, from: -1, to: menu.building, resource, amount: have })}>
+                  <Res resource={resource} amount={have} /> {t(`goods.${resource}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {(menu.mine || menu.supply) && (
+          <div class="truck-menu__part">
+            {menu.mine && <button onClick={() => order({ type: 'haul', units, mine: menu.building })}>{t('truck.mine')}</button>}
+            {menu.supply && <button onClick={() => order({ type: 'supply', units, target: menu.building })}>{t('truck.supply')}</button>}
+          </div>
+        )}
+        {!menu.take.length && !menu.unload.length && !menu.mine && !menu.supply && <p class="truck-menu__empty">{t('truck.nothing')}</p>}
+      </section>
+    </div>
+  )
+}
+
 /** Что делать в режиме дальше. */
 function modeTip(mode: NonNullable<ModeState>) {
   switch (mode.kind) {
+    case 'carryTarget': return t('mode.tips.carryTarget', { amount: mode.amount, name: t(`goods.${mode.resource}`) })
     case 'placing': return t('mode.tips.placing')
     case 'paving':
       if (mode.tool === 'remove') return t('mode.tips.remove')
@@ -1112,7 +1205,7 @@ function ModeBar({ mode, cancel, finish }: { mode: NonNullable<ModeState>; cance
 }
 
 /** Интерфейс игрока: верхняя полоса со счётом и нижняя панель — мини-карта, выбранное, сетка команд. */
-export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim, deploy, minimap, lookAt, flyTo, lookAtSelection, selectGroup, assignGroup, clearGroup, cancelMode, finishMode, narrow, moveSelected, say, menu }: HudProps) {
+export function Hud({ state, send, place, pave, zones, route, serve, carry, truckMenu, patrol, aim, deploy, minimap, lookAt, flyTo, lookAtSelection, selectGroup, assignGroup, clearGroup, cancelMode, finishMode, narrow, moveSelected, say, menu }: HudProps) {
   const selected = state.units.length > 0 || state.building !== null
   const fresh = useNewRewards(state.rewards, state.loaded)
   const learned = useNewTopics(state.tech.topics, state.loaded)
@@ -1134,7 +1227,7 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
   const self = state.players.find(({ own }) => own)
   const dealing = trade && !trade.order && deal && (page === 'sell' || page === 'buy') ? dealOf(trade, state.credits, page === 'buy', deal) : null
 
-  const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, patrol, aim, deploy, open: setPage, pick: setDeal, draft: setFerry, tech: () => setTech(true) }, deal, ferry) : []
+  const slots = selected ? commandsOf(state, page, { send, place, pave, route, serve, carry, patrol, aim, deploy, open: setPage, pick: setDeal, draft: setFerry, tech: () => setTech(true) }, deal, ferry) : []
 
   // Клавиши сетки. Читаются из ref, чтобы не переподписываться на каждое обновление.
   const slotsRef = useRef(slots)
@@ -1312,6 +1405,7 @@ export function Hud({ state, send, place, pave, zones, route, serve, patrol, aim
       )}
 
       {tech && !state.editor && <TechTree tech={state.tech} send={send} close={() => setTech(false)} />}
+      {state.truckMenu && state.haul && <TruckMenu menu={state.truckMenu} units={state.haul.units} send={send} carry={carry} close={() => truckMenu(null)} />}
 
       <Tip />
       {state.chat && <Chat

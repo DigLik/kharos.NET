@@ -15,6 +15,7 @@ import { orderDigs, type DigKind } from './earthworks'
 import { orderPipes, orderWells } from './piping'
 import { cancelUnit, orderUnit } from './production'
 import { setFilter, setRoute, setServe } from './routes'
+import { setCarry } from './carrying'
 import { scuttle, surrender } from './defeat'
 import { cancelResearch, dequeueResearch, planResearch } from './research'
 import { abortLaunch, cancelWarhead, orderLaunch, startWarhead } from './silos'
@@ -126,6 +127,8 @@ export type Command = (
   | { type: 'serve'; units: number[]; buildings: number[] }
   /** Какие грузы возить своим грузовикам; пусто — любые. */
   | { type: 'filter'; units: number[]; goods: Good[] }
+  /** Перевезти amount груза resource из from в to; from = -1 — то, что уже в кузове. См. carrying.ts. */
+  | { type: 'carry'; units: number[]; from: number; to: number; resource: Good; amount: number }
   /** Резерв своих хранилищ: столько груза они не выдают никому, кроме продажи; ноль — снять. */
   | { type: 'reserve'; buildings: number[]; amount: number }
   /** Заказ своих станций запроса: сколько груза resource держать; ноль — не заказывать. */
@@ -318,6 +321,8 @@ function run(sim: Sim, player: number, command: Command): boolean {
       return Array.isArray(command.units) && Array.isArray(command.stops) && setRoute(sim, player, command.units as Entity[], command.stops as Entity[])
     case 'serve':
       return Array.isArray(command.units) && Array.isArray(command.buildings) && setServe(sim, player, command.units as Entity[], command.buildings as Entity[])
+    case 'carry':
+      return Array.isArray(command.units) && setCarry(sim, player, command.units as Entity[], command.from as Entity, command.to as Entity, command.resource, command.amount)
     case 'filter':
       return Array.isArray(command.units) && Array.isArray(command.goods) && setFilter(sim, player, command.units as Entity[], command.goods)
     case 'reserve':

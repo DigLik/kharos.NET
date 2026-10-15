@@ -97,6 +97,8 @@ interface Actions {
   pave: (tool: PaveTool | null) => void
   route: (start: boolean) => void
   serve: (start: boolean) => void
+  /** Ручной приказ грузовикам: начать выбор, откуда взять ('source'), или бросить его (null). */
+  carry: (pick: 'source' | null) => void
   patrol: (start: boolean) => void
   /** Начать наводку ядерного удара шахтой или бросить её (null). */
   aim: (silo: number | null) => void
@@ -186,7 +188,7 @@ export function dealOf(trade: NonNullable<HudState['trade']>, credits: number, b
 export function commandsOf(
   state: HudState,
   page: Page,
-  { send, place, pave, route, serve, patrol, aim, deploy, open, pick, draft, tech }: Actions,
+  { send, place, pave, route, serve, carry, patrol, aim, deploy, open, pick, draft, tech }: Actions,
   deal: Deal | null = null,
   ferry: FerryDraft | null = null,
 ): (Slot | null)[] {
@@ -385,34 +387,41 @@ export function commandsOf(
 
   const { haul } = state
   if (haul && !construction) {
-    const { units, filter } = haul
+    const { units, filter, job } = haul
     if (page === 'root') {
+      // Верхний ряд — режим работы: грузовик работает в одном, он и подсвечен. «Сам» снимает остальные.
       slots[0] = {
+        label: t('grid.truckAuto'),
+        active: job.kind === 'auto',
+        title: t('grid.truckAutoTip'),
+        run: () => send({ type: 'serve', units, buildings: [] }),
+      }
+      slots[1] = {
+        label: t('grid.carry'),
+        active: job.kind === 'carry' || haul.carrying,
+        title: t('grid.carryTip'),
+        run: () => carry(haul.carrying ? null : 'source'),
+      }
+      slots[2] = {
         label: haul.routing === null ? t('grid.route') : t('grid.routeStops', { stops: haul.routing }),
-        active: haul.routing !== null,
+        active: job.kind === 'route' || haul.routing !== null,
         title: t('grid.routeTip'),
         run: () => route(haul.routing === null),
       }
-      if (haul.routed > 0) {
-        slots[1] = { label: t('grid.dropRoute'), title: t('grid.backToRequests'), run: () => send({ type: 'route', units, stops: [] }) }
+      slots[3] = {
+        label: haul.serving === null ? t('grid.serve') : t('grid.serveCount', { count: haul.serving }),
+        active: job.kind === 'serve' || haul.serving !== null,
+        title: t('grid.serveTip'),
+        run: () => serve(haul.serving === null),
       }
-      slots[2] = {
+      // Ниже — что возить: настройка «Сама» и маршрута, а не режим. Сбросить её — рядом: на странице грузов места нет.
+      slots[4] = {
         label: filter.length ? t('grid.filterCount', { count: filter.length }) : t('grid.filter'),
         active: filter.length > 0,
         title: t('grid.filterTip'),
         run: () => open('filter'),
       }
-      slots[3] = {
-        label: haul.serving === null ? t('grid.serve') : t('grid.serveCount', { count: haul.serving }),
-        active: haul.serving !== null,
-        title: t('grid.serveTip'),
-        run: () => serve(haul.serving === null),
-      }
-      if (haul.served > 0) {
-        slots[4] = { label: t('grid.dropServe'), title: t('grid.backToRequests'), run: () => send({ type: 'serve', units, buildings: [] }) }
-      }
-      // Под фильтром — сбросить его: на странице фильтра для этой кнопки места нет.
-      if (filter.length) slots[6] = { label: t('grid.all'), title: t('grid.allTip'), run: () => send({ type: 'filter', units, goods: [] }) }
+      if (filter.length) slots[5] = { label: t('grid.all'), title: t('grid.allTip'), run: () => send({ type: 'filter', units, goods: [] }) }
     } else if (page === 'filter') {
       /** Руда в фильтре — вся сразу: по видам её различает месторождение, а не игрок. */
       const has = (goods: readonly Good[]) => goods.every((good) => filter.includes(good))

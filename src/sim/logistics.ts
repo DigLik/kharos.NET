@@ -90,6 +90,14 @@ export function flowsOf(sim: Sim, except = NONE as Entity): Flows {
     if (hauler.to !== NONE) add(flows.incoming, hauler.to as Entity, hauler.resource, hauler.full ? carried : Math.max(carried, hauler.amount))
     if (hauler.from !== NONE && !hauler.full) add(flows.outgoing, hauler.from as Entity, hauler.resource, hauler.amount - carried)
   }
+  // Грузовики с ручным приказом: везут в to, а ещё не набравшие обещали забрать из from, см. carrying.ts.
+  for (const [truck, hauler, cargo] of sim.world.query(Hauler, Inventory)) {
+    const order = hauler.order
+    if (!order || truck === except) continue
+    const carried = amountOf(cargo, order.resource)
+    add(flows.incoming, order.to as Entity, order.resource, order.full ? carried : Math.max(carried, Math.min(order.left, cargo.capacity)))
+    if (order.from !== NONE && !order.full) add(flows.outgoing, order.from as Entity, order.resource, Math.min(order.left, cargo.capacity) - carried)
+  }
   // Строители, которые сами везут материал на стройку, см. fetching.ts.
   for (const [builder, fetch, cargo] of sim.world.query(Fetch, Inventory)) {
     if (builder === except) continue
@@ -532,7 +540,7 @@ const isIdle = (sim: Sim, truck: Entity) => {
   const { world } = sim
   const hauler = world.get(truck, Hauler)!
   const cargo = world.get(truck, Inventory)
-  return !hauler.route.length && hauler.mine === NONE && hauler.pickup === NONE && hauler.from === NONE && hauler.to === NONE && (!cargo || loadOf(cargo) <= 1e-9) && !world.has(truck, Path) && !world.has(truck, Converting)
+  return !hauler.route.length && !hauler.order && hauler.mine === NONE && hauler.pickup === NONE && hauler.from === NONE && hauler.to === NONE && (!cargo || loadOf(cargo) <= 1e-9) && !world.has(truck, Path) && !world.has(truck, Converting)
 }
 
 /**

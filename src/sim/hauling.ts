@@ -12,6 +12,7 @@ import { UNITS } from './units'
 import { networkOf } from './zones'
 import { SEARCH_LIMIT, searchedTiles, withSearchQuota } from './path'
 import { runRoutes } from './routes'
+import { runCarry } from './carrying'
 import { dropItems, sweepDrops } from './drops'
 
 /** Сколько ресурсов помещается в грузовик. */
@@ -128,6 +129,7 @@ export function releaseHauler(sim: Sim, truck: Entity) {
   hauler.supply = NONE
   hauler.route = []
   hauler.stop = 0
+  hauler.order = null
   dropJob(sim, truck)
 }
 
@@ -305,8 +307,8 @@ export function haul(sim: Sim) {
 
   for (const [entity, hauler, owner, cargo] of world.query(Hauler, Owner, Inventory)) {
     hauler.loading = false
-    // Грузовик с маршрутом ездит по нему сам: см. routes.ts.
-    if (hauler.route.length) continue
+    // Грузовик с маршрутом ездит по нему сам, с ручным приказом — по приказу: см. routes.ts и carrying.ts.
+    if (hauler.route.length || hauler.order) continue
     if (hauler.mine !== NONE && !canHaul(sim, owner.player, hauler.mine as Entity)) {
       // Шахты больше нет: грузовик свободен. Груз остаётся в кузове.
       released.push(entity)
@@ -458,6 +460,7 @@ export function haul(sim: Sim) {
   }
 
   runRoutes(sim)
+  runCarry(sim)
   sweepDrops(sim)
   if (time.tick % DISPATCH_TICKS === 0) dispatch(sim)
   for (const { truck, building, toBuilding } of seeking) seek(sim, truck, building, toBuilding)

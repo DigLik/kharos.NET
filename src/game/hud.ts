@@ -10,7 +10,7 @@ import {
   Research, TOPICS, PAVE_RESEARCH, DIG_KINDS, DIG_RESEARCH, type DigKind, RESEARCH_FOR, hasResearch, isLab, isTrigger, levelTopic, missingResearch, pickTopic, planOf, progressOf, researchOf, tierOf, topicPrice, topicSpec, topicsBefore, unlockedBy, type LabLack, type Topic, type TopicPrice, type Trigger,
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   type Economy, Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
-  Accumulator, Wanted, Fetch, Repair, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, ammoOf, isEmpty, magazineOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
+  Accumulator, Wanted, Fetch, Repair, canHaul, canSupply, isCarryTarget, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, ammoOf, isEmpty, magazineOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
 } from '../sim'
 import { currentStep, stepTarget, stepsDone, type StepTarget } from './firstSteps'
 import { paveStrokeOf } from './placing'
@@ -47,8 +47,23 @@ export type ModeState =
   | { kind: 'paving'; tool: PaveTool; cost: number; tiles: number; short: number }
   | { kind: 'routing'; stops: number }
   | { kind: 'serving'; count: number }
+  /** Ручной приказ грузовикам: откуда взять — или куда отвезти amount груза resource. */
+  | { kind: 'carrySource' }
+  | { kind: 'carryTarget'; resource: Good; amount: number }
   | { kind: 'patrolling' | 'aiming' | 'deploying' }
   | null
+
+/**
+ * Чем заняты выбранные грузовики — одной строкой в панели: kind — режим работы (у всех один, иначе mixed); buildings —
+ * о каких зданиях речь, по порядку (остановки маршрута, кого обслуживают, откуда и куда везут); resource и left — что
+ * и сколько ещё везут по ручному приказу.
+ */
+export interface TruckJob {
+  kind: 'auto' | 'carry' | 'route' | 'serve' | 'mine' | 'supply' | 'pickup' | 'mixed'
+  buildings: BuildingType[]
+  resource: Good | null
+  left: number
+}
 
 export interface HudState {
   credits: number
@@ -86,6 +101,20 @@ export interface HudState {
   editor: boolean
   /** Игрок набирает маршрут или список обслуживания: Enter сейчас завершает его, а не открывает чат. */
   picking: boolean
+  /**
+   * Окно приказа выбранным грузовикам по зданию (правый щелчок): building — по чему; take — что оттуда можно взять
+   * и сколько; unload — что из кузовов туда поместится; mine — можно привязать к шахте; supply — зданию нужен груз,
+   * его можно обеспечивать; capacity — сколько вмещают кузова вместе. null — окна нет.
+   */
+  truckMenu: {
+    building: number
+    type: BuildingType | null
+    take: Stack[]
+    unload: Stack[]
+    mine: boolean
+    supply: boolean
+    capacity: number
+  } | null
   /** Режим, в котором щелчок по карте значит не выбор, а действие: его показывает полоса над полем. null — обычный. */
   mode: ModeState
   /** Первые шаги новичка: пройден ли каждый, см. firstSteps.ts. null — в редакторе, там их нет. */
@@ -239,7 +268,7 @@ export interface HudState {
    * Выбранные грузовики (не харвестеры): кому слать маршрут и фильтр. routed — сколько из них ездят по маршруту,
    * filter — фильтр первого из них, routing — сколько остановок игрок уже набрал, null — не набирает.
    */
-  haul: { units: number[]; routed: number; served: number; filter: Good[]; routing: number | null; serving: number | null } | null
+  haul: { units: number[]; routed: number; served: number; filter: Good[]; routing: number | null; serving: number | null; carrying: boolean; job: TruckJob } | null
   /** Стройка, если выбранное здание ещё не достроено. */
   site: {
     entity: number
@@ -658,7 +687,10 @@ export function readHud(scene: Scene): HudState {
       cargo.capacity += inventory.capacity
       if (hauler.mine >= 0) cargo.bound++
       else if (hauler.from >= 0 || hauler.to >= 0 || hauler.route.length || hauler.serve.length) cargo.busy++
-      haul ??= { units: [], routed: 0, served: 0, filter: [...hauler.filter], routing: scene.routing ? scene.routing.length : null, serving: scene.serving ? scene.serving.length : null }
+      const job = jobOf(sim, hauler)
+      haul ??= { units: [], routed: 0, served: 0, filter: [...hauler.filter], routing: scene.routing ? scene.routing.length : null, serving: scene.serving ? scene.serving.length : null, carrying: !!scene.carrying, job }
+      if (haul.job.kind !== job.kind) haul.job = { kind: 'mixed', buildings: [], resource: null, left: 0 }
+      else if (job.kind === 'carry' && haul.units.length) haul.job.left += job.left
       haul.units.push(entity)
       if (hauler.route.length) haul.routed++
       if (hauler.trapped && isOwn(sim, player, entity)) walled++
@@ -897,6 +929,7 @@ export function readHud(scene: Scene): HudState {
     admin: 'admin' in sim && (sim as Replica).admin,
     editor: 'editor' in sim && (sim as Replica).editor,
     picking: !!(scene.routing || scene.serving),
+    truckMenu: truckMenuOf(scene),
     mode: modeOf(scene, paving),
     steps,
     stepTarget: (step && stepTarget(sim, player, step.key)) ?? null,
@@ -1023,8 +1056,61 @@ export function readHud(scene: Scene): HudState {
   return state
 }
 
+/** Чем занят грузовик, см. TruckJob. */
+function jobOf(sim: Sim, hauler: ReturnType<typeof readHauler>): TruckJob {
+  const typeOf = (entity: number) => sim.world.get(entity as Entity, Building)?.type ?? sim.world.get(entity as Entity, Site)?.type
+  const named = (entities: readonly number[]) => entities.map(typeOf).filter((type): type is BuildingType => type !== undefined)
+  const job = (kind: TruckJob['kind'], buildings: readonly number[] = [], resource: Good | null = null, left = 0): TruckJob => ({ kind, buildings: named(buildings), resource, left })
+  if (hauler.order) return job('carry', hauler.order.from >= 0 ? [hauler.order.from, hauler.order.to] : [hauler.order.to], hauler.order.resource, Math.ceil(hauler.order.left - 1e-6))
+  if (hauler.route.length) return job('route', hauler.route)
+  if (hauler.serve.length) return job('serve', hauler.serve)
+  if (hauler.mine >= 0) return job('mine', [hauler.mine])
+  if (hauler.supply >= 0) return job('supply', [hauler.supply])
+  if (hauler.pickup >= 0) return job('pickup')
+  return job('auto')
+}
+const readHauler = (sim: Sim, entity: Entity) => sim.world.get(entity, Hauler)!
+
+/** Окно приказа выбранным грузовикам, см. HudState.truckMenu. */
+function truckMenuOf(scene: Scene): HudState['truckMenu'] {
+  const { sim, player } = scene
+  const building = scene.truckMenu
+  if (building === null || !sim.world.alive(building)) return null
+  const { world } = sim
+  const trucks = [...scene.selection].filter((entity) => world.has(entity, Hauler) && isOwn(sim, player, entity))
+  const inventory = world.get(building, Inventory)
+  if (!trucks.length || !inventory) return null
+  const take: Amounts = {}
+  for (const good of GOODS) {
+    const amount = Math.floor(spareOf(sim, building, good) + 1e-9)
+    if (amount >= 1) take[good] = amount
+  }
+  const unload: Amounts = {}
+  let capacity = 0
+  for (const truck of trucks) {
+    const cargo = world.get(truck, Inventory)
+    if (!cargo) continue
+    capacity += cargo.capacity
+    for (const good of GOODS) {
+      const amount = amountOf(cargo, good)
+      if (amount > 1e-9 && isCarryTarget(sim, player, building, good)) unload[good] = (unload[good] ?? 0) + amount
+    }
+  }
+  return {
+    building,
+    type: world.get(building, Building)?.type ?? world.get(building, Site)?.type ?? null,
+    take: stacksOf(take),
+    unload: stacksOf(unload),
+    mine: canHaul(sim, player, building),
+    supply: canSupply(sim, player, building),
+    capacity,
+  }
+}
+
 /** Режим наведения — в том же порядке, в каком их снимает Esc, см. controls.ts. */
 function modeOf(scene: Scene, paving: NonNullable<HudState['construction']>['paving']): ModeState {
+  if (scene.carrying === 'source') return { kind: 'carrySource' }
+  if (scene.carrying) return { kind: 'carryTarget', resource: scene.carrying.resource, amount: scene.carrying.amount }
   if (scene.aiming !== null) return { kind: 'aiming' }
   if (scene.deploying !== null) return { kind: 'deploying' }
   if (scene.patrolling) return { kind: 'patrolling' }

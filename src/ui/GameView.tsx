@@ -112,6 +112,8 @@ export function GameView({ launch, settings, exit }: GameViewProps) {
           zones={(shown) => gameRef.current?.zones(shown)}
           route={(start) => gameRef.current?.route(start)}
           serve={(start) => gameRef.current?.serve(start)}
+          carry={(pick) => gameRef.current?.carry(pick)}
+          truckMenu={(building) => gameRef.current?.truckMenu(building)}
           patrol={(start) => gameRef.current?.patrol(start)}
           aim={(silo) => gameRef.current?.aim(silo)}
           deploy={(mcv) => gameRef.current?.deploy(mcv)}

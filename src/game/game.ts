@@ -33,7 +33,7 @@ import { createFlowPass } from './flowPass'
 import { startFrames } from './frames'
 import { readHud, type HudState } from './hud'
 import { createMinimap, type Minimap } from './minimap'
-import type { PaveTool, Scene } from './scene'
+import type { CarryPick, PaveTool, Scene } from './scene'
 import { createPowerPass } from './powerPass'
 import { createSelectionPass } from './selectionPass'
 import { loadCamera, storeCamera } from './storage'
@@ -95,6 +95,13 @@ export interface Game {
   route(start: boolean): void
   /** Начинает выбор зданий, которые будут обслуживать выбранные грузовики; false — отменяет. */
   serve(start: boolean): void
+  /**
+   * Ручной приказ выбранным грузовикам: 'source' — выбрать щелчком, откуда взять; груз со склада — выбрать, куда его
+   * отвезти; null — отменить. См. Scene.carrying.
+   */
+  carry(pick: CarryPick): void
+  /** Открывает окно приказа выбранным грузовикам по зданию; null — закрывает. */
+  truckMenu(building: number | null): void
   /** Проигравший начинает заново: на сервере — новый стартовый набор в новом месте, в локальной игре — новый мир. */
   respawn(): void
   /** Написать в чат сетевой игры. */
@@ -158,6 +165,8 @@ export function createScene(sim: Sim, player: number, settings: MapSettings, cam
     paveFrom: null,
     routing: null,
     serving: null,
+    carrying: null,
+    truckMenu: null,
     patrolling: false,
     aiming: null,
     deploying: null,
@@ -488,11 +497,19 @@ export function createGame(
     },
     route(start) {
       scene.routing = start ? [] : null
-      if (start) scene.placing = scene.paving = scene.serving = scene.deploying = null
+      if (start) scene.placing = scene.paving = scene.serving = scene.deploying = scene.carrying = null
     },
     serve(start) {
       scene.serving = start ? [] : null
-      if (start) scene.placing = scene.paving = scene.routing = scene.deploying = null
+      if (start) scene.placing = scene.paving = scene.routing = scene.deploying = scene.carrying = null
+    },
+    carry(pick) {
+      scene.carrying = pick
+      scene.truckMenu = null
+      if (pick) scene.placing = scene.paving = scene.routing = scene.serving = scene.deploying = null
+    },
+    truckMenu(building) {
+      scene.truckMenu = building as Entity | null
     },
     pave(tool) {
       scene.paving = tool

@@ -391,16 +391,13 @@
     "patrolTip": "P, dann Klick auf die Karte — die Einheiten pendeln zwischen ihrem Platz und dem Punkt; Umschalt+Klick fügt einen Punkt hinzu",
     "route": "Route",
     "routeStops": "Route: {stops}",
-    "routeTip": "Klicke der Reihe nach auf deine Gebäude mit Lager; rechte Taste oder Enter — fertig, Esc — abbrechen",
-    "dropRoute": "Route aufheben",
-    "backToRequests": "Die Lastwagen kehren zu den Anforderungen der Zonen zurück",
-    "filter": "Filter",
-    "filterCount": "Filter: {count}",
-    "filterTip": "Welche Fracht auf Anforderung und auf der Route gefahren wird",
+    "routeTip": "Im Kreis fahren: eigene Gebäude mit Lager der Reihe nach anklicken — an jedem Halt lädt der Lastwagen ab, was angenommen wird, und lädt für den nächsten. Rechte Taste oder Enter — fertig, Esc — abbrechen",
+    "filter": "Was fahren",
+    "filterCount": "Was fahren: {count}",
+    "filterTip": "Welche Fracht der Lastwagen in „Automatik“ und „Route“ nimmt; nichts markiert — jede",
     "serve": "Bedienen",
     "serveCount": "Bedienen: {count}",
-    "serveTip": "Klicke auf deine Gebäude: Die Lastwagen fahren nur für deren Anforderungen und laden in jeder deiner Zonen. Rechte Taste oder Enter — fertig, Esc — abbrechen",
-    "dropServe": "Zuweisung aufheben",
+    "serveTip": "Nur für gewählte Gebäude fahren: anklicken — Lastwagen bringen ihnen, was fehlt, aus jedem deiner Lager. Rechte Taste oder Enter — fertig, Esc — abbrechen",
     "carryOrNot": "Fahren oder nicht",
     "ore": "Erz",
     "oreTip": "Erz fahren oder nicht",
@@ -481,7 +478,11 @@
     "abortLaunchTip": "Die Rakete hebt nicht ab, der Sprengkopf bleibt im Silo",
     "techTree": "Forschung",
     "techTreeTip": "Technologiebaum öffnen (R)",
-    "armyLimit": "Armeelimit: {used} von {limit} belegt, diese Einheit braucht {supply}"
+    "armyLimit": "Armeelimit: {used} von {limit} belegt, diese Einheit braucht {supply}",
+    "truckAuto": "Automatik",
+    "truckAutoTip": "Arbeitet selbst: fährt, was Gebäude anfordern, nach „Was fahren“. Hebt Auftrag, Route und Bedienung auf",
+    "carry": "Transportieren",
+    "carryTip": "Fracht hier nehmen und dorthin bringen: Lager anklicken, Fracht und Menge wählen, dann den Empfänger. Schneller: mit Lastwagen Rechtsklick auf ein Gebäude"
   },
   "hud": {
     "players": "Spieler",
@@ -596,11 +597,6 @@
     "materials": "Material",
     "materialsWaiting": " — wartet auf Lieferung: per Rohr, per Lkw oder durch seinen Bauarbeiter aus einem Lager",
     "cargo": "Fracht: {items} von {capacity}. ",
-    "haulsOre": "Fährt Erz aus der Mine zur Verarbeitung",
-    "serves": "Bedient die zugewiesenen Gebäude: fährt nur für deren Anforderungen und lädt in jeder deiner Zonen",
-    "onRoute": "Fährt die Route: lädt an jedem Halt ab, was dort angenommen wird, und lädt für den nächsten",
-    "onRequest": "Fährt für eine Anforderung der Zone",
-    "free": "Frei: nimmt selbst Anforderungen der Zonen an. Rechtsklick auf eine Mine — nur von dort fahren",
     "fetchGoing": "Holt Material für seine Baustelle: sonst bringt es niemand",
     "fetchToSite": "Bringt Material zu seiner Baustelle",
     "fetchToStore": "Bringt den Rest zurück ins Lager",
@@ -653,7 +649,18 @@
     "groups": "Gruppen",
     "groupTip": "Gruppe {digit}: auswählen, erneut — Kamera dorthin, mit Shift — zur Auswahl hinzufügen. Rechtsklick oder langes Drücken legt die Auswahl hier ab; ist diese Gruppe ausgewählt, wird der Platz geleert. Taste {digit}",
     "groupPutTip": "Platz {digit}: klicken, um die Auswahl hier abzulegen. Wie Strg+{digit}",
-    "groupEmptyTip": "Platz {digit} ist leer: Einheiten auswählen und anklicken oder Strg+{digit}"
+    "groupEmptyTip": "Platz {digit} ist leer: Einheiten auswählen und anklicken oder Strg+{digit}",
+    "job": {
+      "auto": "Arbeit: Automatik — fährt, was Gebäude anfordern. Rechtsklick auf ein Gebäude — Auftrag",
+      "carry": "Arbeit: transportiert {name} von „{from}“ nach „{to}“, noch {left}",
+      "unload": "Arbeit: bringt {name} nach „{to}“, noch {left}",
+      "route": "Arbeit: Route {stops}",
+      "serve": "Arbeit: fährt nur für: {list}",
+      "mine": "Arbeit: fährt Erz aus der Mine zur Verarbeitung",
+      "supply": "Arbeit: versorgt „{name}“ — bringt, was fehlt",
+      "pickup": "Arbeit: räumt Fracht vom Boden",
+      "mixed": "Die gewählten Lastwagen haben verschiedene Arbeit"
+    }
   },
   "mode": {
     "placing": "Bau: {name}",
@@ -677,8 +684,12 @@
       "serving": "Klicke auf deine Gebäude, erneuter Klick entfernt; markiert: {count}",
       "patrolling": "Klicke, bis wohin patrouilliert wird; mit Shift — ein weiterer Punkt",
       "aiming": "Klicke auf die Karte — dort schlägt es ein",
-      "deploying": "Klicke, wo aufgebaut wird: grün heißt ja, das MCV fährt selbst hin"
-    }
+      "deploying": "Klicke, wo aufgebaut wird: grün heißt ja, das MCV fährt selbst hin",
+      "carrySource": "Klicke auf das Gebäude, aus dem Fracht genommen wird",
+      "carryTarget": "Klicke auf das Gebäude, wohin: {name} ×{amount}"
+    },
+    "carrySource": "Transport: woher",
+    "carryTarget": "Transport: wohin"
   },
   "steps": {
     "title": "Erste Schritte",
@@ -1183,5 +1194,16 @@
     "lost": "Die Verbindung zum Server ging verloren",
     "cannotConnect": "Verbindung zum Server {url} fehlgeschlagen",
     "insecure": "Die Seite ist über https geöffnet, der Server nutzt aber ungesichertes ws://, und der Browser blockiert eine solche Verbindung. Erlaube sie: Symbol links neben der Adresse → „Website-Einstellungen“ → „Unsichere Inhalte“ → „Zulassen“, dann den Tab neu laden. Oder verbinde dich über wss:// mit dem Server."
+  },
+  "truck": {
+    "title": "Lastwagenauftrag: {name}",
+    "closeTip": "Schließen (Esc)",
+    "take": "Hier nehmen — Fracht und Menge wählen:",
+    "where": "Wohin →",
+    "whereTip": "Dann auf das Empfängergebäude klicken. Die Lastwagen fahren — je {capacity} auf einmal —, bis alles da ist",
+    "unload": "Hier aus den Lastwagen abladen:",
+    "mine": "Erz von hier zur Verarbeitung fahren",
+    "supply": "Versorgen: herbringen, was fehlt",
+    "nothing": "Hier gibt es nichts zu nehmen und nichts abzuladen"
   }
 }

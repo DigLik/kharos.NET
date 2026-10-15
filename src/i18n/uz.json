@@ -391,16 +391,13 @@
     "patrolTip": "P, so‘ng xaritaga bosish — jangchilar o‘z o‘rni bilan nuqta orasida yuradi; Shift+bosish — patrulga yana nuqta qo‘shadi",
     "route": "Yo‘nalish",
     "routeStops": "Yo‘nalish: {stops}",
-    "routeTip": "Ombori bor binolaringizni ketma-ket bosing; o‘ng tugma yoki Enter — tayyor, Esc — bekor qilish",
-    "dropRoute": "Yo‘nalishni bekor qilish",
-    "backToRequests": "Yuk mashinalari zonalar buyurtmalariga qaytadi",
-    "filter": "Filtr",
-    "filterCount": "Filtr: {count}",
-    "filterTip": "Buyurtmalar va yo‘nalish bo‘yicha qaysi yuklar tashilsin",
+    "routeTip": "Aylana bo‘ylab tashish: omborli binolaringizga tartib bilan bosing — har bir bekatda yuk mashinasi qabul qilinadiganini tushiradi va keyingisiga yuklaydi. O‘ng tugma yoki Enter — tayyor, Esc — bekor",
+    "filter": "Nima tashish",
+    "filterCount": "Nima tashish: {count}",
+    "filterTip": "«Avto» va «Marshrut» rejimlarida yuk mashinasi qaysi yuklarni oladi; hech narsa belgilanmagan — istalgani",
     "serve": "Xizmat ko‘rsatish",
     "serveCount": "Xizmat ko‘rsatish: {count}",
-    "serveTip": "Binolaringizni bosing: yuk mashinalari faqat ularning buyurtmalari bo‘yicha tashiydi, yukni esa o‘zingizning istalgan zonangizdan oladi. O‘ng tugma yoki Enter — tayyor, Esc — bekor qilish",
-    "dropServe": "Tayinlovni bekor qilish",
+    "serveTip": "Faqat tanlangan binolar uchun tashish: ularga bosing — yuk mashinalari yetishmaganini istalgan omboringizdan olib keladi. O‘ng tugma yoki Enter — tayyor, Esc — bekor",
     "carryOrNot": "Tashilsinmi yoki yo‘qmi",
     "ore": "Ruda",
     "oreTip": "Ruda tashilsinmi yoki yo‘qmi",
@@ -481,7 +478,11 @@
     "abortLaunchTip": "Raketa ko‘tarilmaydi, jangovar kallak shaxtada qoladi",
     "techTree": "Tadqiqotlar",
     "techTreeTip": "Texnologiyalar daraxtini ochish (R)",
-    "armyLimit": "Qo‘shin chegarasi: {limit} dan {used} band, bu bo‘linmaga {supply} kerak"
+    "armyLimit": "Qo‘shin chegarasi: {limit} dan {used} band, bu bo‘linmaga {supply} kerak",
+    "truckAuto": "Avto",
+    "truckAutoTip": "O‘zi ishlaydi: binolar buyurtma qilganini «Nima tashish» bo‘yicha tashiydi. Buyruq, marshrut va xizmatni bekor qiladi",
+    "carry": "Tashish",
+    "carryTip": "Yukni shu yerdan olib u yerga eltish: omborga bosing, yuk va miqdorni tanlang, keyin qabul qiluvchiga bosing. Tezroq — yuk mashinalari bilan binoga o‘ng tugma"
   },
   "hud": {
     "players": "O‘yinchilar",
@@ -596,11 +597,6 @@
     "materials": "Materiallar",
     "materialsWaiting": " — yetkazib berishni kutmoqda: quvur, yuk mashinasi yoki o‘z quruvchisi ombordan olib keladi",
     "cargo": "Yuk: {capacity} dan {items}. ",
-    "haulsOre": "Rudani shaxtadan qayta ishlashga tashimoqda",
-    "serves": "Tayinlangan binolarga xizmat ko‘rsatmoqda: faqat ularning buyurtmalari bo‘yicha tashiydi, yukni esa o‘zingizning istalgan zonangizdan oladi",
-    "onRoute": "Yo‘nalish bo‘yicha qatnamoqda: har bir bekatda qabul qilinadigan yukni tushiradi va keyingisi uchun yuklaydi",
-    "onRequest": "Zona buyurtmasi bo‘yicha tashimoqda",
-    "free": "Bo‘sh: zona buyurtmalarini o‘zi oladi. Faqat shaxtadan tashish uchun unga o‘ng tugmani bosing",
     "fetchGoing": "O‘z qurilishi uchun material olib kelgani ketmoqda: uni hech kim olib kelmayapti",
     "fetchToSite": "Materialni o‘z qurilishiga olib bormoqda",
     "fetchToStore": "Qoldiqni omborga qaytarmoqda",
@@ -653,7 +649,18 @@
     "groups": "Guruhlar",
     "groupTip": "{digit}-guruh: tanlash, yana bir bor — kamera unga, Shift bilan — tanlanganlarga qo‘shish. O‘ng tugma yoki uzoq bosish tanlanganlarni shu yerga qo‘yadi, shu guruh tanlangan bo‘lsa — katakni tozalaydi. {digit} tugmasi",
     "groupPutTip": "{digit}-katak: tanlanganlarni shu yerga qo‘yish uchun bosing. Ctrl+{digit} bilan bir xil",
-    "groupEmptyTip": "{digit}-katak bo‘sh: birliklarni tanlab, uni bosing yoki Ctrl+{digit}"
+    "groupEmptyTip": "{digit}-katak bo‘sh: birliklarni tanlab, uni bosing yoki Ctrl+{digit}",
+    "job": {
+      "auto": "Ish: avto — binolar buyurtma qilganini tashiydi. Binoga o‘ng tugma — buyruq",
+      "carry": "Ish: {name:lower}ni «{from}»dan «{to}»ga tashimoqda, qoldi {left}",
+      "unload": "Ish: {name:lower}ni «{to}»ga olib bormoqda, qoldi {left}",
+      "route": "Ish: marshrut {stops}",
+      "serve": "Ish: faqat ular uchun tashiydi: {list}",
+      "mine": "Ish: rudani shaxtadan qayta ishlashga tashiydi",
+      "supply": "Ish: «{name}»ni ta’minlaydi — yetishmaganini olib keladi",
+      "pickup": "Ish: yerdagi yukni olib ketmoqda",
+      "mixed": "Tanlangan yuk mashinalarining ishi har xil"
+    }
   },
   "mode": {
     "placing": "Qurilish: {name}",
@@ -677,8 +684,12 @@
       "serving": "Binolaringizni bosing, qayta bosish olib tashlaydi; belgilangan: {count}",
       "patrolling": "Qayergacha patrul qilishni bosing; Shift bilan — yana bir nuqta",
       "aiming": "Xaritani bosing — zarba o‘sha yerga tushadi",
-      "deploying": "Qayerda yoyishni bosing: yashil — mumkin, MCV o‘zi boradi"
-    }
+      "deploying": "Qayerda yoyishni bosing: yashil — mumkin, MCV o‘zi boradi",
+      "carrySource": "Yukni qaysi binodan olishni bosing",
+      "carryTarget": "Qayerga eltishni bosing: {name:lower} ×{amount}"
+    },
+    "carrySource": "Tashish: qayerdan",
+    "carryTarget": "Tashish: qayerga"
   },
   "steps": {
     "title": "Birinchi qadamlar",
@@ -1183,5 +1194,16 @@
     "lost": "Server bilan aloqa uzildi",
     "cannotConnect": "{url} serveriga ulanib bo‘lmadi",
     "insecure": "Sahifa https orqali ochilgan, server esa himoyalanmagan ws:// orqali ishlamoqda va brauzer bunday ulanishni bloklamoqda. Ruxsat bering: manzil chapidagi belgi → «Sayt sozlamalari» → «Xavfsiz bo‘lmagan kontent» → «Ruxsat berish», so‘ng yorliqni qayta yuklang. Yoki serverga wss:// orqali ulaning."
+  },
+  "truck": {
+    "title": "Yuk mashinalariga buyruq: {name}",
+    "closeTip": "Yopish (Esc)",
+    "take": "Bu yerdan olish — yuk va miqdorni tanlang:",
+    "where": "Qayerga →",
+    "whereTip": "Keyin qabul qiluvchi binoga bosing. Yuk mashinalari hammasini tashib bo‘lguncha bir martada {capacity} tadan qatnaydi",
+    "unload": "Kuzovdan shu yerga tushirish:",
+    "mine": "Rudani bu yerdan qayta ishlashga tashish",
+    "supply": "Ta’minlash: yetishmaganini shu yerga tashish",
+    "nothing": "Bu yerda olinadigan ham, tushiriladigan ham narsa yo‘q"
   }
 }

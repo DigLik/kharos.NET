@@ -391,16 +391,13 @@
     "patrolTip": "P y luego clic en el mapa: las unidades van entre su sitio y el punto; Mayús+clic añade otro punto",
     "route": "Ruta",
     "routeStops": "Ruta: {stops}",
-    "routeTip": "Haz clic en tus edificios con almacén por orden; botón derecho o Enter — listo, Esc — cancelar",
-    "dropRoute": "Quitar ruta",
-    "backToRequests": "Los camiones vuelven a las solicitudes de las zonas",
-    "filter": "Filtro",
-    "filterCount": "Filtro: {count}",
-    "filterTip": "Qué cargas llevar por solicitudes y rutas",
+    "routeTip": "Ir en círculo: haz clic en tus edificios con almacén por orden; en cada parada el camión descarga lo que acepten y carga para la siguiente. Botón derecho o Enter — listo, Esc — cancelar",
+    "filter": "Qué llevar",
+    "filterCount": "Qué llevar: {count}",
+    "filterTip": "Qué carga toma el camión en «Auto» y «Ruta»; nada marcado — cualquiera",
     "serve": "Atender",
     "serveCount": "Atender: {count}",
-    "serveTip": "Haz clic en tus edificios: los camiones llevarán carga solo para sus solicitudes y la recogerán en cualquier zona tuya. Botón derecho o Enter — listo, Esc — cancelar",
-    "dropServe": "Quitar asignación",
+    "serveTip": "Llevar solo para los edificios elegidos: haz clic en ellos y los camiones les traerán lo que falte desde cualquier almacén tuyo. Botón derecho o Enter — listo, Esc — cancelar",
     "carryOrNot": "Llevarlo o no",
     "ore": "Mineral",
     "oreTip": "Llevar mineral o no",
@@ -481,7 +478,11 @@
     "abortLaunchTip": "El misil no despega y la ojiva se queda en el silo",
     "techTree": "Investigación",
     "techTreeTip": "Abrir el árbol tecnológico (R)",
-    "armyLimit": "Límite de ejército: ocupado {used} de {limit}, esta unidad necesita {supply}"
+    "armyLimit": "Límite de ejército: ocupado {used} de {limit}, esta unidad necesita {supply}",
+    "truckAuto": "Auto",
+    "truckAutoTip": "Trabaja solo: lleva lo que piden los edificios, según «Qué llevar». Quita órdenes, rutas y servicio",
+    "carry": "Transportar",
+    "carryTip": "Tomar carga aquí y llevarla allá: clic en un almacén, elige carga y cantidad, luego clic en el destino. Más rápido: clic derecho en un edificio con camiones"
   },
   "hud": {
     "players": "Jugadores",
@@ -596,11 +597,6 @@
     "materials": "Materiales",
     "materialsWaiting": " — espera suministro: por tubería, en camión o por su constructor desde un almacén",
     "cargo": "Carga: {items} de {capacity}. ",
-    "haulsOre": "Lleva mineral de la mina a refinar",
-    "serves": "Atiende los edificios asignados: lleva carga solo para sus solicitudes y la recoge en cualquier zona tuya",
-    "onRoute": "Recorre la ruta: en cada parada descarga lo que allí se acepta y carga para la siguiente",
-    "onRequest": "Lleva carga por una solicitud de la zona",
-    "free": "Libre: toma por sí mismo las solicitudes de las zonas. Clic derecho sobre una mina — llevar solo desde ella",
     "fetchGoing": "Va por material para su obra: nadie más lo trae",
     "fetchToSite": "Lleva material a su obra",
     "fetchToStore": "Devuelve el sobrante a un almacén",
@@ -653,7 +649,18 @@
     "groups": "Grupos",
     "groupTip": "Grupo {digit}: seleccionar, otra vez para llevar la cámara, con Shift para añadir a la selección. Clic derecho o pulsación larga pone aquí la selección; con este grupo seleccionado, vacía la casilla. Tecla {digit}",
     "groupPutTip": "Casilla {digit}: pulsa para poner aquí la selección. Igual que Ctrl+{digit}",
-    "groupEmptyTip": "Casilla {digit} vacía: selecciona unidades y púlsala o usa Ctrl+{digit}"
+    "groupEmptyTip": "Casilla {digit} vacía: selecciona unidades y púlsala o usa Ctrl+{digit}",
+    "job": {
+      "auto": "Trabajo: auto — lleva lo que piden los edificios. Clic derecho en un edificio — orden",
+      "carry": "Trabajo: lleva {name:lower} de «{from}» a «{to}», faltan {left}",
+      "unload": "Trabajo: lleva {name:lower} a «{to}», faltan {left}",
+      "route": "Trabajo: ruta {stops}",
+      "serve": "Trabajo: lleva solo para: {list}",
+      "mine": "Trabajo: lleva mineral de la mina al refinado",
+      "supply": "Trabajo: abastece «{name}»: le lleva lo que falta",
+      "pickup": "Trabajo: recoge carga del suelo",
+      "mixed": "Los camiones elegidos tienen trabajos distintos"
+    }
   },
   "mode": {
     "placing": "Construcción: {name}",
@@ -677,8 +684,12 @@
       "serving": "Haz clic en tus edificios, otro clic lo quita; marcados: {count}",
       "patrolling": "Haz clic hasta dónde patrullar; con Shift — otro punto",
       "aiming": "Haz clic en el mapa — el ataque caerá allí",
-      "deploying": "Haz clic donde desplegar: en verde se puede, el MCV irá solo"
-    }
+      "deploying": "Haz clic donde desplegar: en verde se puede, el MCV irá solo",
+      "carrySource": "Haz clic en el edificio del que tomar la carga",
+      "carryTarget": "Haz clic en el edificio de destino: {name:lower} ×{amount}"
+    },
+    "carrySource": "Transportar: desde",
+    "carryTarget": "Transportar: adónde"
   },
   "steps": {
     "title": "Primeros pasos",
@@ -1183,5 +1194,16 @@
     "lost": "Se perdió la conexión con el servidor",
     "cannotConnect": "No se pudo conectar con el servidor {url}",
     "insecure": "La página está abierta por https y el servidor usa ws:// sin cifrar, así que el navegador bloquea la conexión. Permítela: icono a la izquierda de la dirección → «Configuración de sitios» → «Contenido no seguro» → «Permitir», y recarga la pestaña. O conéctate al servidor por wss://."
+  },
+  "truck": {
+    "title": "Orden a camiones: {name}",
+    "closeTip": "Cerrar (Esc)",
+    "take": "Tomar de aquí: elige carga y cantidad:",
+    "where": "Adónde →",
+    "whereTip": "Luego haz clic en el edificio destino. Los camiones hacen viajes —{capacity} cada vez— hasta llevarlo todo",
+    "unload": "Descargar aquí desde los camiones:",
+    "mine": "Llevar mineral de aquí al refinado",
+    "supply": "Abastecer: traer aquí lo que falte",
+    "nothing": "Aquí no hay nada que tomar ni que descargar"
   }
 }
