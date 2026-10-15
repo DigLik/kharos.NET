@@ -7,7 +7,7 @@ test('сделка космопорта: ресурс, потом количес
   const trade: HudState['trade'] = {
     port: 7,
     order: null,
-    offers: [{ resource: 'metal', available: 130, price: 10 }],
+    offers: [{ resource: 'metal', available: 130, here: 130, price: 10 }],
     purchases: [{ resource: 'metal', price: 30, room: 200 }, { resource: 'fuel', price: 36, room: 0 }],
   }
   const state = { trade, credits: 1000, units: [], building: 'spaceport' } as unknown as HudState

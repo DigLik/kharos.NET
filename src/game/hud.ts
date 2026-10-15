@@ -199,13 +199,14 @@ export interface HudState {
    */
   materials: { items: { resource: Good; have: number; need: number }[]; waiting: boolean } | null
   /**
-   * Продажа, если выбран свой готовый космопорт. offers — что лежит в хранилищах его зоны и почём.
+   * Продажа, если выбран свой готовый космопорт. offers — что лежит во всех хранилищах игрока и почём; here — сколько
+   * из этого в сети самого космопорта: остальное к нему везут грузовики.
    * order — открытая заявка: что и сколько продаётся, сколько уже привезли; flight — готовность полёта от 0 до 1,
    * null — корабль ещё грузится.
    */
   trade: {
     port: number
-    offers: { resource: Resource; available: number; price: number }[]
+    offers: { resource: Resource; available: number; here: number; price: number }[]
     /** Закупка с орбиты: почём каждый ресурс и сколько единиц влезет в склад космопорта. */
     /** research — тема, без которой ресурс не купить; null — купить можно. */
     purchases: { resource: Resource; price: number; room: number; research: Topic | null }[]
@@ -793,11 +794,13 @@ export function readHud(scene: Scene): HudState {
     if (ready && buildingSpec(built!.type).trades && isOwn(sim, player, entity)) {
       const zone = zoneWith(sim, player, entity)
       const order = world.get(entity, Trade)
-      const items = zone ? stockOfZone(sim, zone).items : {}
+      // Продать можно весь запас игрока: чего нет в сети космопорта, привезут грузовики, см. sell в trade.ts.
+      const near = zone ? stockOfZone(sim, zone).items : {}
+      const items = stockOf(sim, player).items
       const ferry = world.get(entity, Transfer)
       trade = {
         port: entity,
-        offers: resourceStacksOf(items).map(({ resource, amount }) => ({ resource, available: amount, price: RESOURCE_SPECS[resource].price })),
+        offers: resourceStacksOf(items).map(({ resource, amount }) => ({ resource, available: amount, here: Math.floor(near[resource] ?? 0), price: RESOURCE_SPECS[resource].price })),
         purchases: RESOURCES.filter(isOrbital).map((resource) => ({
           resource,
           price: buyPrice(resource),

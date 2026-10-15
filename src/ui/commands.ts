@@ -702,7 +702,9 @@ export function commandsOf(
               good: resource,
               disabled: limit.max < 1 || !!research,
               title: research ? t('grid.needsResearch', { name: t(`research.${research}`) })
-                : limit.max >= 1 ? t(buying ? 'grid.buyPrice' : 'grid.sellPrice', { price }) : limit.room < 1 ? t('grid.noRoom') : t('grid.noCredits'),
+                : limit.max >= 1 ? buying ? t('grid.buyPrice', { price })
+                  : 'here' in item && item.here < limit.max ? t('grid.sellFar', { price, here: item.here }) : t('grid.sellPrice', { price })
+                : limit.room < 1 ? t('grid.noRoom') : t('grid.noCredits'),
               run: () => pick({ resource, amount: limit.amount }),
             }
           }),

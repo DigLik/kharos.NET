@@ -438,3 +438,17 @@ test('продажа добирает заявку до конца, когда �
   run(sim, 400)
   expect(sim.world.get(port, Trade)!.total).toBeGreaterThan(0)
 })
+
+test('металл на продажу грузовик везёт и из другой сети: космопорт без трубы к складу продаёт весь запас', () => {
+  const sim = createSim(options)
+  const { x, y } = rock(sim, 30, 10)
+  const yard = placeBuilding(sim.world, 'metalYard', x, y + 6, 1)
+  const port = placeBuilding(sim.world, 'spaceport', x + 15, y + 5, 1)
+  put(sim.world.get(yard, Inventory)!, 'metal', 30)
+  spawnUnit(sim, 'truck', 1, x + 10, y + 9)
+  expect(networkOf(sim, port)).not.toBe(networkOf(sim, yard))
+  expect(apply(sim, 1, { type: 'sell', port, resource: 'metal', amount: 30 })).toBe(true)
+  run(sim, 1200)
+  expect(amountOf(sim.world.get(yard, Inventory)!, 'metal')).toBeCloseTo(0, 3)
+  expect(sim.world.get(port, Trade)?.total ?? 1).toBeGreaterThan(0)
+})
