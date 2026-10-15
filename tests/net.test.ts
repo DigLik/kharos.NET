@@ -5,7 +5,8 @@ import { FACING, MOTION_FIELDS, POSITION, SPAN_MOST, decodeDelta, encodeDelta } 
 import { decodeServer } from '../src/net/protocol'
 import type { WeaponType } from '../src/sim/weapons'
 import { createReplica, type Replica } from '../src/net/replica'
-import { Armed, Building, Ghost, Health, Inventory, NO_PAVE, Owner, Path, Player, Position, Producer, Unit, canDeploy, createSim, isWalkable, paveCode, shownTo } from '../src/sim'
+import { Armed, Building, Ghost, Health, Inventory, NO_PAVE, Owner, Path, Player, Position, Producer, Unit, canDeploy, createSim, creditsOf, isWalkable, paveCode, shownTo } from '../src/sim'
+import { STARTING_CREDITS } from '../src/sim/economy'
 import { SAVED, Scan } from '../src/sim/components'
 import { connectAll } from '../src/sim/piping'
 import { wireOf } from '../src/net/wire'
@@ -140,6 +141,9 @@ test('вернувшийся игрок получает прежние юнит
   const again = join(host, first.id)
   expect(again.peer.player).toBe(1)
   expect(again.id).toBe(first.id)
+  // Счёт приходит и вернувшемуся: кредиты на полосе — из копии мира, а не с хоста.
+  again.sim.advance(0)
+  expect(creditsOf(again.sim as never, 1)).toBe(STARTING_CREDITS)
   expect(host.sim.world.size).toBe(size)
   // Чужой id хост не знает: это новый игрок со своим id.
   const stranger = join(host, 'выдуманный')
@@ -350,6 +354,7 @@ test('сдавшийся на сервере начинает заново: но
   // Клиент получил новое приветствие: туман и камера — как в новом мире, а юниты нового набора у него есть.
   expect(sim.generation).toBe(generation + 1)
   expect(unitsOf(sim, 1).length).toBe(before)
+  expect(creditsOf(sim as never, 1)).toBe(STARTING_CREDITS)
 })
 
 test('склад, очередь производства и цель стрелка видны только хозяину', () => {
