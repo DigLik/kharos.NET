@@ -232,24 +232,6 @@ export function neighbours(sim: Sim, entity: Entity, position: { x: number; y: n
 }
 
 /**
- * Стыки сети: пары зданий, связанных тем, что стоят вплотную, без трубы между ними, — a, b подряд. Их клиент рисует
- * перемычкой на общей стороне.
- */
-export function joints(sim: Sim, zone: Zone): Entity[] {
-  const { world } = sim
-  const pairs: Entity[] = []
-  for (let i = 0; i < zone.edges.length; i += 3) {
-    const a = zone.edges[i] as Entity
-    const b = zone.edges[i + 1] as Entity
-    const one = world.get(a, Building)?.type
-    const two = world.get(b, Building)?.type
-    if (one === undefined || two === undefined || buildingSpec(one).pipe || buildingSpec(two).pipe || world.has(a, Site) || world.has(b, Site)) continue
-    pairs.push(a, b)
-  }
-  return pairs
-}
-
-/**
  * Энергосети всех игроков: сети труб, слитые по касанию — основание здания или трубы одной сети задевает круг другой.
  * Энергия и доход считаются по энергосети: трубы расширяют зону, и энергия идёт по всей зоне, а ресурсы — только по
  * трубам своей сети. В энергосети buildings — все её здания и трубы, главное здание первым; edges пусты.

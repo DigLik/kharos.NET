@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import type { Entity } from '../src/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, terrainAt } from '../src/map/terrain'
 import { Assembly, BUILDINGS, Batch, Building, Builds, Inventory, Orders, Site, Trade, createSim, refundOf, type Sim } from '../src/sim'
@@ -6,7 +7,7 @@ import { placeBuilding, siteAt } from '../src/sim/buildings'
 import { amountOf, put } from '../src/sim/inventory'
 import { powerSupply } from '../src/sim/income'
 import { BATCH } from '../src/sim/pipes'
-import { joints, networkOf, zonesOf } from '../src/sim/zones'
+import { networkOf, type Zone } from '../src/sim/zones'
 import { pipeStroke, pipeSwap, wellPartners } from '../src/sim/piping'
 import { addCredits, creditsOf } from '../src/sim/economy'
 import { freeCredits } from '../src/sim/construction'
@@ -39,13 +40,23 @@ const lay = (sim: Sim, x: number, y: number, length: number, player = 1) => {
   return pipes
 }
 
+/** Есть ли в сети ребро между парой зданий: вплотную — ребро стыка, поодаль — через трубу. */
+const joined = (zone: Zone, a: Entity, b: Entity) => {
+  for (let i = 0; i < zone.edges.length; i += 3) {
+    const one = zone.edges[i]
+    const two = zone.edges[i + 1]
+    if ((one === a && two === b) || (one === b && two === a)) return true
+  }
+  return false
+}
+
 test('здания вплотную — одна сеть и без трубы; по углу и через тайл — разные, труба их соединяет', () => {
   const sim = createSim(options)
   const { x, y } = rock(sim, 14, 6)
   const generator = placeBuilding(sim.world, 'generator', x, y, 1)
   const matter = placeBuilding(sim.world, 'matter', x + 2, y, 1)
   expect(networkOf(sim, generator)).toBe(networkOf(sim, matter))
-  expect(joints(sim, networkOf(sim, generator)!)).toEqual([generator, matter])
+  expect(joined(networkOf(sim, generator)!, generator, matter)).toBe(true)
   // По углу — не соседи.
   const corner = placeBuilding(sim.world, 'radar', x + 2 + 2, y + 2, 1)
   expect(networkOf(sim, corner)).not.toBe(networkOf(sim, generator))
@@ -54,7 +65,7 @@ test('здания вплотную — одна сеть и без трубы; 
   expect(networkOf(sim, gap)).not.toBe(networkOf(sim, matter))
   lay(sim, x + 4, y, 3)
   expect(networkOf(sim, gap)).toBe(networkOf(sim, matter))
-  expect(joints(sim, networkOf(sim, gap)!)).toEqual([generator, matter])
+  expect(joined(networkOf(sim, gap)!, generator, matter)).toBe(true)
   // Чужое здание вплотную в сеть не входит.
   const foreign = placeBuilding(sim.world, 'radar', x, y - 2, 2)
   expect(networkOf(sim, foreign)).not.toBe(networkOf(sim, generator))

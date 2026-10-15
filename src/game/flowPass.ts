@@ -2,22 +2,13 @@ import type { Entity } from '../ecs'
 import { setBlend } from '../gl'
 import type { Pass } from '../render/renderer'
 import { createLineProgram, createLines } from '../render/lines'
-import { BUILDINGS, Batch, Building, Owner, Position, Site, allZones, isPipe, joints, zonesOf } from '../sim'
+import { BUILDINGS, Batch, Building, Owner, Position, Site, isPipe, zonesOf } from '../sim'
 import { GOOD_COLORS } from './resourceColors'
 import type { Scene } from './scene'
 
 /** Сторона метки пачки в тайлах и толщина её тёмной обводки. */
 const MARK = 0.3
 const OUTLINE = 0.08
-/** Стык зданий вплотную: длина перемычки поперёк общей стороны и её толщина, в тайлах — в пикселях спрайтов, 1/16 тайла. */
-const JOINT_LENGTH = 12 / 16
-const JOINT_WIDTH = 6 / 16
-const JOINT_EDGE = 1 / 16
-/** Цвета перемычки: обводка, тело и блик — тона стали чертежей зданий (см. buildingArt.ts). */
-const rgb = (color: number) => [((color >> 16) & 255) / 255, ((color >> 8) & 255) / 255, (color & 255) / 255] as const
-const JOINT_INK = rgb(0x0b111b)
-const JOINT_BODY = rgb(0x41617f)
-const JOINT_LIGHT = rgb(0x9bb9d1)
 
 /**
  * Проход потока: что идёт по трубам — бегущие метки цвета груза. Пачка известна клиенту целиком с отправки
@@ -70,45 +61,6 @@ export function createFlowPass(gl: WebGL2RenderingContext, scene: Scene): Pass {
     }
   }
 
-  /**
-   * Стыки зданий вплотную (см. joints в zones.ts): перемычка поперёк середины общей стороны — так видно, что здания
-   * связаны в сеть и без трубы. Рисуются у всех, кого клиент знает: стык — такая же постройка, как труба.
-   */
-  const drawJoints = (camera: { x: number; y: number }, halfWidth: number, halfHeight: number) => {
-    const { world } = scene.sim
-    const base = (entity: Entity) => {
-      const position = world.get(entity, Position)!
-      const { width, height } = BUILDINGS[world.get(entity, Building)!.type]
-      return { x: position.x, y: position.y, width, height }
-    }
-    for (const zones of allZones(scene.sim).values()) {
-      for (const zone of zones) {
-        const pairs = joints(scene.sim, zone)
-        for (let i = 0; i < pairs.length; i += 2) {
-          const a = base(pairs[i] as Entity)
-          const b = base(pairs[i + 1] as Entity)
-          // Общая сторона: вертикальная, если основания сходятся по x, иначе горизонтальная.
-          const vertical = a.x + a.width === b.x || b.x + b.width === a.x
-          const x = vertical ? (a.x + a.width === b.x ? b.x : a.x) : (Math.max(a.x, b.x) + Math.min(a.x + a.width, b.x + b.width)) / 2
-          const y = vertical ? (Math.max(a.y, b.y) + Math.min(a.y + a.height, b.y + b.height)) / 2 : a.y + a.height === b.y ? b.y : a.y
-          const cx = x - camera.x
-          const cy = y - camera.y
-          if (Math.abs(cx) > halfWidth || Math.abs(cy) > halfHeight) continue
-          const dx = vertical ? JOINT_LENGTH / 2 : 0
-          const dy = vertical ? 0 : JOINT_LENGTH / 2
-          const edge = JOINT_EDGE * 2
-          lines.push(cx - dx - (vertical ? JOINT_EDGE : 0), cy - dy - (vertical ? 0 : JOINT_EDGE), cx + dx + (vertical ? JOINT_EDGE : 0), cy + dy + (vertical ? 0 : JOINT_EDGE), JOINT_WIDTH + edge, ...JOINT_INK, 1)
-          lines.push(cx - dx, cy - dy, cx + dx, cy + dy, JOINT_WIDTH, ...JOINT_BODY, 1)
-          // Блик по верхней или левой кромке и хомут посередине — тёмной полосой поперёк.
-          const shift = (JOINT_WIDTH - JOINT_EDGE) / 2
-          lines.push(cx - dx - (vertical ? 0 : shift), cy - dy - (vertical ? shift : 0), cx + dx - (vertical ? 0 : shift), cy + dy - (vertical ? shift : 0), JOINT_EDGE, ...JOINT_LIGHT, 1)
-          const collar = (JOINT_WIDTH + edge) / 2
-          lines.push(cx - (vertical ? 0 : collar), cy - (vertical ? collar : 0), cx + (vertical ? 0 : collar), cy + (vertical ? collar : 0), edge, ...JOINT_INK, 1)
-        }
-      }
-    }
-  }
-
   return {
     draw({ camera, width, height, view }) {
       const { world, time } = scene.sim
@@ -116,7 +68,6 @@ export function createFlowPass(gl: WebGL2RenderingContext, scene: Scene): Pass {
       const halfWidth = width / 2 / camera.zoom + 1
       const halfHeight = height / 2 / camera.zoom + 1
       lines.clear()
-      drawJoints(camera, halfWidth, halfHeight)
       for (const [, batch] of world.query(Batch)) {
         const share = (now - batch.sent) / Math.max(1, batch.arrive - batch.sent)
         if (share < 0 || share > 1) continue
