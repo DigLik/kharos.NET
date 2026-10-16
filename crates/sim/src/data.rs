@@ -19,6 +19,17 @@ pub struct BuildingSpec {
   pub sight: Option<f64>,
   #[serde(default)]
   pub mounts: Vec<Mount>,
+  /// Ворота: см. systems/gates.rs.
+  #[serde(default)]
+  pub gate: bool,
+  /// Реактор: что жжёт и сколько секунд горит единица.
+  pub burns: Option<Burns>,
+}
+
+#[derive(Deserialize)]
+pub struct Burns {
+  pub good: String,
+  pub seconds: f64,
 }
 
 #[derive(Deserialize)]
