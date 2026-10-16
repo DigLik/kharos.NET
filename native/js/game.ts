@@ -66,6 +66,7 @@ const fail = (error: unknown) => console.error('кадр не нарисовал
 function checkFrame(canvas: HTMLCanvasElement) {
   let frames = 0
   let since: number | undefined
+  let checked = false
   const read = (milliseconds: number) => {
     since ??= milliseconds
     if (++frames < CHECK_FRAME) {
@@ -74,15 +75,22 @@ function checkFrame(canvas: HTMLCanvasElement) {
     }
     const gl = canvas.getContext('webgl2')
     if (!gl) return
-    const pixel = new Uint8Array(4)
     const width = gl.drawingBufferWidth
     const height = gl.drawingBufferHeight
-    gl.readPixels(width >> 1, height >> 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel)
     // Ход кадров — за последние CHECK_FRAME кадров, и печатается раз в столько же: журнал не тонет в строках.
     const pace = Math.round(frames / ((milliseconds - since) / 1000))
     frames = 0
     since = milliseconds
-    console.log(`центр кадра: ${pixel[0]}, ${pixel[1]}, ${pixel[2]} (окно ${width}×${height}, ${pace} кадров/с)`)
+    // Цвет читается один раз: чтение с драйвера ждёт, пока видеокарта дорисует всё отправленное, и каждый раз
+    // стоило бы рывка в кадре. Дальше в журнале только ход кадров.
+    if (checked) {
+      console.log(`ход кадров: ${pace} кадров/с (окно ${width}×${height})`)
+    } else {
+      const pixel = new Uint8Array(4)
+      gl.readPixels(width >> 1, height >> 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel)
+      console.log(`центр кадра: ${pixel[0]}, ${pixel[1]}, ${pixel[2]} (окно ${width}×${height}, ${pace} кадров/с)`)
+      checked = true
+    }
     requestAnimationFrame(read)
   }
   requestAnimationFrame(read)

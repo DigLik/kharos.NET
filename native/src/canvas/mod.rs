@@ -1,5 +1,5 @@
 //! Привязки двумерного холста — Canvas 2D API. Им игра рисует картинки кодом (скины, значки, портреты, мини-карту), а
-//! интерфейс рисует себя целиком (пункт 10.4 плана): в браузере это родной холст, здесь — `tiny-skia` и свой текст.
+//! интерфейс рисует себя целиком (пункт 10.4 плана): в браузере это родной холст, здесь — Skia и свой текст.
 //!
 //! Устройство то же, что у привязок GL: игра видит холст числом, а Rust держит за ним пиксели. Обёртка
 //! (`js/prelude.js`) ведёт браузерную сторону — цвета, пути, состояние и его стек (`save`/`restore`), — и присылает с
@@ -8,15 +8,16 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 use deno_core::op2;
-use tiny_skia::{Mask, Rect};
+use skia_safe::Rect;
 
 mod png;
 mod sheet;
 pub mod text;
 
-use sheet::{Sheet, State};
+use sheet::{Mask, Sheet, State};
 
 thread_local! {
   /// Холсты игры: у каждого свои пиксели.
@@ -25,7 +26,24 @@ thread_local! {
   static MASKS: RefCell<HashMap<u32, Mask>> = RefCell::new(HashMap::new());
   /// Следующий номер холста или маски. Номера не переиспользуются: старый номер даст «ничего», а не чужое.
   static NEXT: Cell<u32> = const { Cell::new(1) };
+  /// Время рисования по холстам с прошлого замера. None — не замеряется (см. `profile.rs`).
+  static COSTS: RefCell<Option<Costs>> = const { RefCell::new(None) };
 }
+
+/// Включает замер времени рисования по холстам.
+pub fn measure_costs() {
+  COSTS.with(|costs| *costs.borrow_mut() = Some(HashMap::new()));
+}
+
+/// Время рисования по холстам с прошлого вызова: номер, ширина, высота, время.
+pub fn take_costs() -> Vec<(u32, u32, u32, Duration)> {
+  COSTS.with(|costs| {
+    costs.borrow_mut().as_mut().map_or_else(Vec::new, |costs| costs.drain().map(|(id, (width, height, time))| (id, width, height, time)).collect())
+  })
+}
+
+/// Время рисования по холстам: номер — ширина, высота и сумма за срок замера.
+type Costs = HashMap<u32, (u32, u32, Duration)>;
 
 fn next() -> u32 {
   NEXT.with(|next| {
@@ -40,7 +58,24 @@ fn with<R>(id: u32, state: &State, f: impl FnOnce(&mut Sheet, Option<&Mask>) -> 
   MASKS.with(|masks| {
     let masks = masks.borrow();
     let mask = if state.mask > 0 { masks.get(&state.mask) } else { None };
-    SHEETS.with(|sheets| sheets.borrow_mut().get_mut(&id).map(|sheet| f(sheet, mask)))
+    SHEETS.with(|sheets| {
+      let mut sheets = sheets.borrow_mut();
+      let sheet = sheets.get_mut(&id)?;
+      let measured = COSTS.with(|costs| costs.borrow().is_some());
+      if !measured {
+        return Some(f(sheet, mask));
+      }
+      let begun = Instant::now();
+      let (width, height) = (sheet.width, sheet.height);
+      let result = f(sheet, mask);
+      COSTS.with(|costs| {
+        if let Some(costs) = costs.borrow_mut().as_mut() {
+          let cost = costs.entry(id).or_insert((width, height, Duration::ZERO));
+          *cost = (width, height, cost.2 + begun.elapsed());
+        }
+      });
+      Some(result)
+    })
   })
 }
 
@@ -48,12 +83,14 @@ fn with<R>(id: u32, state: &State, f: impl FnOnce(&mut Sheet, Option<&Mask>) -> 
 /// premultiplied — с цветом, умноженным на альфу (так их и держит холст), иначе — как в `ImageData`.
 pub fn with_pixels<R>(id: u32, premultiplied: bool, f: impl FnOnce(u32, u32, &[u8]) -> R) -> Option<R> {
   SHEETS.with(|sheets| {
-    let sheets = sheets.borrow();
-    let sheet = sheets.get(&id)?;
-    match (&sheet.pixmap, premultiplied) {
-      (Some(pixmap), true) => Some(f(sheet.width, sheet.height, pixmap.data())),
-      _ => Some(f(sheet.width, sheet.height, &sheet.pixels())),
+    let mut sheets = sheets.borrow_mut();
+    let sheet = sheets.get_mut(&id)?;
+    let (width, height) = (sheet.width, sheet.height);
+    if premultiplied {
+      // С умноженным на альфу цветом пиксели отдаются как есть: это память самой поверхности, копии нет.
+      return sheet.premultiplied().map(|pixels| f(width, height, pixels));
     }
+    Some(f(width, height, &sheet.pixels()))
   })
 }
 
@@ -97,12 +134,17 @@ pub fn op_canvas_stroke(id: u32, #[buffer] path: &[u8], #[buffer] values: &[u8],
   with(id, &state, |sheet, mask| sheet.stroke(&path, color, &state, mask));
 }
 
-/// Стирает прямоугольник: `clearRect`.
+/// Стирает прямоугольник: `clearRect`. Пустой или вывернутый прямоугольник стирать нечего — как и у страницы.
 #[op2(fast)]
 pub fn op_canvas_clear(id: u32, x: f64, y: f64, width: f64, height: f64, #[buffer] values: &[u8]) {
-  let Some(rect) = Rect::from_xywh(x as f32, y as f32, width as f32, height as f32) else { return };
+  let (x, y, width, height) = (x as f32, y as f32, width as f32, height as f32);
+  // Сравнением, а не `<= 0.0`: так и NaN в размерах стирает пусто.
+  let positive = width > 0.0 && height > 0.0;
+  if !positive || !x.is_finite() || !y.is_finite() {
+    return;
+  }
   let state = state(values);
-  with(id, &state, |sheet, mask| sheet.clear(rect, &state, mask));
+  with(id, &state, |sheet, mask| sheet.clear(Rect::from_xywh(x, y, width, height), &state, mask));
 }
 
 /// Обрезка по пути: новая маска — пересечение прежней (из состояния) с путём. Отдаёт номер маски для состояния.
@@ -111,7 +153,7 @@ pub fn op_canvas_clip(id: u32, #[buffer] path: &[u8], #[buffer] values: &[u8], e
   let state = state(values);
   let Some(path) = sheet::path(&floats32(path)) else {
     // Пустой путь обрезает всё: маска без единого видимого пикселя.
-    let mask = SHEETS.with(|sheets| sheets.borrow().get(&id).and_then(|sheet| Mask::new(sheet.width.max(1), sheet.height.max(1))));
+    let mask = SHEETS.with(|sheets| sheets.borrow().get(&id).and_then(|sheet| Mask::hidden(sheet.width.max(1), sheet.height.max(1))));
     return mask.map_or(0, |mask| {
       let mask_id = next();
       MASKS.with(|masks| masks.borrow_mut().insert(mask_id, mask));
@@ -132,23 +174,29 @@ pub fn op_canvas_unclip(mask: u32) {
   MASKS.with(|masks| masks.borrow_mut().remove(&mask));
 }
 
-/// Переносит часть одного холста на другой: `drawImage`. Источник берётся из реестра на время переноса: так два
-/// холста не приходится держать взаймы сразу. Холст на самого себя рисуется через копию.
+/// Переносит часть одного холста на другой: `drawImage`. Источник берётся снимком: снимок сам держит пиксели, поэтому
+/// холст не приходится держать взаймы всё время рисования. Холст на самого себя тоже идёт снимком.
 #[op2(fast)]
 #[allow(clippy::too_many_arguments)]
 pub fn op_canvas_draw_image(id: u32, source: u32, sx: f64, sy: f64, sw: f64, sh: f64, dx: f64, dy: f64, dw: f64, dh: f64, #[buffer] values: &[u8]) {
   let state = state(values);
   let (sx, sy, sw, sh, dx, dy, dw, dh) = (sx as f32, sy as f32, sw as f32, sh as f32, dx as f32, dy as f32, dw as f32, dh as f32);
   if source == id {
-    let copy = SHEETS.with(|sheets| sheets.borrow().get(&id).map(|sheet| Sheet { width: sheet.width, height: sheet.height, pixmap: sheet.pixmap.clone() }));
-    if let Some(copy) = copy {
-      with(id, &state, |target, mask| target.draw(&copy, sx, sy, sw, sh, dx, dy, dw, dh, &state, mask));
+    let snapshot = SHEETS.with(|sheets| sheets.borrow_mut().get_mut(&id).and_then(|sheet| sheet.snapshot()));
+    if let Some(image) = snapshot {
+      with(id, &state, |target, mask| target.draw_image(&image, sx, sy, sw, sh, dx, dy, dw, dh, &state, mask));
     }
     return;
   }
-  let Some(image) = SHEETS.with(|sheets| sheets.borrow_mut().remove(&source)) else { return };
-  with(id, &state, |target, mask| target.draw(&image, sx, sy, sw, sh, dx, dy, dw, dh, &state, mask));
-  SHEETS.with(|sheets| sheets.borrow_mut().insert(source, image));
+  let snapshot = SHEETS.with(|sheets| {
+    let mut sheets = sheets.borrow_mut();
+    let mut taken = sheets.remove(&source)?;
+    let image = taken.snapshot();
+    sheets.insert(source, taken);
+    image
+  });
+  let Some(image) = snapshot else { return };
+  with(id, &state, |target, mask| target.draw_image(&image, sx, sy, sw, sh, dx, dy, dw, dh, &state, mask));
 }
 
 /// Кладёт пиксели `ImageData` в холст: `putImageData`.
@@ -167,7 +215,7 @@ pub fn op_canvas_put_image_data(id: u32, x: i32, y: i32, width: u32, height: u32
 pub fn op_canvas_get_image_data(id: u32, x: i32, y: i32, width: u32, height: u32) -> Vec<u8> {
   let (width, height) = (width as usize, height as usize);
   SHEETS
-    .with(|sheets| sheets.borrow().get(&id).map(|sheet| sheet.get_image_data(x as i64, y as i64, width, height)))
+    .with(|sheets| sheets.borrow_mut().get_mut(&id).map(|sheet| sheet.get_image_data(x as i64, y as i64, width, height)))
     .unwrap_or_else(|| vec![0; width * height * 4])
 }
 
@@ -191,7 +239,7 @@ pub fn op_canvas_text(id: u32, #[string] text: &str, #[string] font: &str, x: f6
       4 | 5 => -line.descent,
       _ => 0.0,
     };
-  let Some(path) = text::outline(&line, x, y) else { return };
+  let path = text::outline(&line, x, y);
   with(id, &state, |sheet, mask| {
     if stroke {
       sheet.stroke(&path, color, &state, mask)
@@ -214,7 +262,7 @@ pub fn op_canvas_measure(#[string] font: &str, #[string] text: &str) -> Vec<u8> 
 #[string]
 pub fn op_canvas_png(id: u32) -> String {
   SHEETS
-    .with(|sheets| sheets.borrow().get(&id).map(|sheet| png::base64(&png::png(sheet.width as usize, sheet.height as usize, &sheet.pixels()))))
+    .with(|sheets| sheets.borrow_mut().get_mut(&id).map(|sheet| png::base64(&png::png(sheet.width as usize, sheet.height as usize, &sheet.pixels()))))
     .unwrap_or_default()
 }
 
@@ -234,16 +282,20 @@ pub fn op_canvas_load_image(#[string] src: &str) -> Vec<u32> {
     return Vec::new();
   }
   let file = public_dir().join(path);
-  let pixmap = match std::fs::read(&file).map_err(|error| error.to_string()).and_then(|bytes| tiny_skia::Pixmap::decode_png(&bytes).map_err(|error| error.to_string())) {
-    Ok(pixmap) => pixmap,
+  let bytes = match std::fs::read(&file) {
+    Ok(bytes) => bytes,
     Err(error) => {
       eprintln!("картинка {} не прочитана: {error}", file.display());
       return Vec::new();
     }
   };
-  let (width, height) = (pixmap.width(), pixmap.height());
+  let Some(image) = skia_safe::Image::from_encoded(skia_safe::Data::new_copy(&bytes)) else {
+    eprintln!("картинка {} не разобрана: это не PNG или файл испорчен", file.display());
+    return Vec::new();
+  };
+  let (width, height) = (image.width() as u32, image.height() as u32);
   let id = next();
-  SHEETS.with(|sheets| sheets.borrow_mut().insert(id, Sheet { width, height, pixmap: Some(pixmap) }));
+  SHEETS.with(|sheets| sheets.borrow_mut().insert(id, Sheet::from_image(&image, width, height)));
   vec![id, width, height]
 }
 

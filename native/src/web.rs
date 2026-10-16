@@ -1,10 +1,12 @@
-//! Привязки того, что в браузере даёт движок, а не страница: перевод текста в байты и обратно и сжатие.
+//! Привязки того, что в браузере даёт движок, а не страница: перевод текста в байты и обратно, сжатие и часы.
 //!
 //! `TextEncoder` и `TextDecoder` — не часть языка JavaScript: их даёт окружение, и у голого V8 их нет. Но сам перевод
 //! UTF-8 в строку и обратно V8 умеет, поэтому на JS он здесь не повторяется: операция берёт строку у движка или
 //! отдаёт её ему. Дальше сюда попадёт всё, что в браузере делает движок: сжатие, разбор адреса, криптография.
 
 use std::io::Write;
+use std::sync::OnceLock;
+use std::time::Instant;
 
 use deno_core::op2;
 use deno_error::JsErrorBox;
@@ -53,4 +55,18 @@ pub fn op_compress(#[buffer] bytes: &[u8], #[string] format: &str, inflate: bool
   Ok(out)
 }
 
-deno_core::extension!(kharos_web, ops = [op_text_decode, op_text_encode, op_compress]);
+/// Начало часов окна: от него идут и `performance.now()`, и время кадров (см. `src/pace.rs`) — одни часы на обоих.
+static START: OnceLock<Instant> = OnceLock::new();
+
+/// Миллисекунды с начала часов окна — монотонные и точнее миллисекунды, как `performance.now()` у страницы.
+pub fn now_ms() -> f64 {
+  START.get_or_init(Instant::now).elapsed().as_secs_f64() * 1000.0
+}
+
+/// `performance.now()`.
+#[op2(fast)]
+pub fn op_time_now() -> f64 {
+  now_ms()
+}
+
+deno_core::extension!(kharos_web, ops = [op_text_decode, op_text_encode, op_compress, op_time_now]);

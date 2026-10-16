@@ -6,7 +6,7 @@
 //! каждой букве, как у браузера: первый в списке, где буква есть. Чего нет нигде, рисует Unifont — он в конце всегда.
 //!
 //! Глифы собирает `rustybuzz` (вязь, лигатуры, направление письма), контуры даёт `ttf-parser`, а заливает их сам холст
-//! (`tiny-skia`): у пиксельного шрифта в родном кегле контуры лежат на сетке, и края выходят ровными.
+//! (Skia): у пиксельного шрифта в родном кегле контуры лежат на сетке, и края выходят ровными.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ use std::path::PathBuf;
 
 use rustybuzz::ttf_parser::{GlyphId, OutlineBuilder};
 use rustybuzz::{Face, UnicodeBuffer};
-use tiny_skia::{Path, PathBuilder};
+use skia_safe::{Path, PathBuilder};
 
 /// Семейства по имени (без кавычек и регистра): файл шрифта и во сколько раз его кегль больше заданного.
 const FAMILIES: [(&str, &str, f32); 4] = [
@@ -199,19 +199,19 @@ impl Outline<'_> {
 impl OutlineBuilder for Outline<'_> {
   fn move_to(&mut self, x: f32, y: f32) {
     let (x, y) = self.at(x, y);
-    self.builder.move_to(x, y);
+    self.builder.move_to((x, y));
   }
   fn line_to(&mut self, x: f32, y: f32) {
     let (x, y) = self.at(x, y);
-    self.builder.line_to(x, y);
+    self.builder.line_to((x, y));
   }
   fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
     let ((x1, y1), (x, y)) = (self.at(x1, y1), self.at(x, y));
-    self.builder.quad_to(x1, y1, x, y);
+    self.builder.quad_to((x1, y1), (x, y));
   }
   fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
     let ((x1, y1), (x2, y2), (x, y)) = (self.at(x1, y1), self.at(x2, y2), self.at(x, y));
-    self.builder.cubic_to(x1, y1, x2, y2, x, y);
+    self.builder.cubic_to((x1, y1), (x2, y2), (x, y));
   }
   fn close(&mut self) {
     self.builder.close();
@@ -219,13 +219,13 @@ impl OutlineBuilder for Outline<'_> {
 }
 
 /// Путь всей строки от точки письма (x, y) на базовой линии. Точка округляется до пикселя: пиксельный шрифт на
-/// дробной точке размылся бы.
-pub fn outline(line: &Line, x: f32, y: f32) -> Option<Path> {
+/// дробной точке размылся бы. Пустая строка даёт пустой путь — по нему рисовать нечего, и это не ошибка.
+pub fn outline(line: &Line, x: f32, y: f32) -> Path {
   let mut builder = PathBuilder::new();
   let (x, y) = (x.round(), y.round());
   for placed in &line.glyphs {
     let mut outline = Outline { builder: &mut builder, x: x + placed.x, y: y + placed.y, scale: placed.scale };
     placed.font.face.outline_glyph(placed.glyph, &mut outline);
   }
-  builder.finish()
+  builder.detach()
 }

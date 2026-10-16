@@ -11,6 +11,8 @@ mod engine;
 mod gl;
 mod icon;
 mod modules;
+mod pace;
+mod profile;
 mod record;
 mod web;
 
@@ -95,9 +97,12 @@ struct App {
   engine: Option<engine::Engine>,
   /// Запись ролика: с ней время ведёт окно, а кадры уходят в кодировщик (см. `record.rs`).
   recorder: Option<record::Recorder>,
-  started: Option<Instant>,
   /// Ошибка, случившаяся уже во время работы: кадры после неё не идут, а сборка сообщает о ней на выходе.
   error: Option<anyhow::Error>,
+  /// Замер кадров (`KHAROS_PROFILE`, см. `profile.rs`).
+  profile: Option<profile::Profile>,
+  /// Часы кадров по смене экрана (см. `pace.rs`); до окна их нет.
+  pace: Option<pace::Pace>,
 }
 
 impl App {
@@ -170,21 +175,30 @@ impl App {
     self.surface = Some(surface);
     self.context = Some(context);
     self.engine = Some(engine);
-    self.started = Some(Instant::now());
+    let hertz = self.window.as_ref().and_then(|window| window.current_monitor()).and_then(|monitor| monitor.refresh_rate_millihertz());
+    let hertz = hertz.map_or(0.0, |millihertz| millihertz as f64 / 1000.0);
+    self.profile = profile::Profile::from_env(hertz);
+    self.pace = Some(pace::Pace::new(hertz));
     Ok(())
   }
 
   /// Один кадр: игра считает свой кадр, Rust показывает нарисованное. При записи кадр ещё и уходит в ролик;
   /// true — ролик набран целиком.
   fn redraw(&mut self) -> Result<bool> {
-    let (Some(engine), Some(surface), Some(context), Some(started)) =
-      (self.engine.as_mut(), self.surface.as_ref(), self.context.as_ref(), self.started.as_ref())
+    let (Some(engine), Some(surface), Some(context), Some(pace)) =
+      (self.engine.as_mut(), self.surface.as_ref(), self.context.as_ref(), self.pace.as_mut())
     else {
       return Ok(false);
     };
     let Some(recorder) = self.recorder.as_mut() else {
-      engine.frame(started.elapsed().as_secs_f64() * 1000.0)?;
+      let begun = Instant::now();
+      let clock = pace.next(web::now_ms());
+      engine.frame(clock)?;
+      let drawn = Instant::now();
       surface.swap_buffers(context)?;
+      if let Some(profile) = self.profile.as_mut() {
+        profile.frame(begun, drawn, Instant::now(), clock);
+      }
       return Ok(false);
     };
     engine.frame(recorder.next_clock())?;
