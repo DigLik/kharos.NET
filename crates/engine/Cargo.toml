@@ -6,6 +6,7 @@ license = "MPL-2.0"
 description = "Движок симуляции Kharos: хранилище мира, журнал, позже — сетки, пути, ход и обзор (docs/engine.md)"
 
 [dependencies]
+serde = { version = "1", features = ["derive"] }
 # preserve_order: поля компонентов идут в том порядке, в каком их записал TS, — хост сравнивает JSON компонентов текстом.
 # float_roundtrip: дробное читается точно до последнего знака, как в JS; без него парсер ошибается на единицу младшего.
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }

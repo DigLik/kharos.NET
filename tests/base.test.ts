@@ -9,6 +9,7 @@ import products from '@kharos/base/products.json'
 import research from '@kharos/base/research.json'
 import deposits from '@kharos/base/deposits.json'
 import rewards from '@kharos/base/rewards.json'
+import layers from '@kharos/base/layers.json'
 import { PIPE_REACH } from '@kharos/sim-ts/buildings'
 import { stockedFor, type Product } from '@kharos/sim-ts/resources'
 
@@ -25,6 +26,7 @@ type Field =
   | { oneOf: readonly string[] }
   | { list: Field }
   | { record: readonly string[]; of: Field }
+  | { map: Field }
   | { shape: Record<string, Field>; optional?: readonly string[] }
 
 const names = (table: object) => Object.keys(table)
@@ -32,6 +34,7 @@ const GOODS = [...names(resources), ...names(products), ...names(ores)]
 const WARES = [...names(resources), ...names(products)]
 const ARMOR = ['infantry', 'vehicle', 'heavy', 'air', 'building']
 const amounts = (of: readonly string[] = GOODS): Field => ({ record: of, of: 'number' })
+const CHANNEL: Field = { oneOf: ['u8', 'u16', 'u32', 'f32', 'f64'] }
 const beam: Field = { shape: { radius: 'number', rate: 'number', give: 'boolean', take: 'boolean' }, optional: ['give', 'take'] }
 const mounts: Field = { list: { shape: { turret: { oneOf: names(turrets) }, along: 'number', across: 'number' } } }
 
@@ -69,12 +72,18 @@ const SCHEMA: Record<string, [object, Record<string, Field>]> = {
   }],
   deposits: [deposits, { min: 'number', max: 'number', rate: 'number', biomes: { record: ['erg', 'saltFlats', 'redWastes', 'marsh'], of: 'number' } }],
   rewards: [rewards, { credits: 'number' }],
+  // Слои (docs/layers.md); их же разбирает и проверяет крейт движка, LayerSpec::parse_all.
+  layers: [layers, {
+    scope: { oneOf: ['world', 'player'] }, shape: { oneOf: ['grid', 'items'] }, 'channels?': { list: CHANNEL }, 'cell?': 'number', 'fields?': { map: CHANNEL },
+    'save?': 'boolean', 'send?': 'boolean', 'remember?': 'boolean', 'allies?': 'boolean',
+  }],
 }
 
 /** Что не так со значением: пустой список — всё так. */
 function problems(value: unknown, field: Field, at: string): string[] {
   if (typeof field === 'string') return typeof value === field && (field !== 'number' || Number.isFinite(value)) ? [] : [`${at}: не ${field}`]
   if ('oneOf' in field) return field.oneOf.includes(value as string) ? [] : [`${at}: ${JSON.stringify(value)} — нет такого`]
+  if ('map' in field) return value && typeof value === 'object' && !Array.isArray(value) ? Object.entries(value).flatMap(([key, item]) => problems(item, field.map, `${at}.${key}`)) : [`${at}: не объект`]
   if ('list' in field) return Array.isArray(value) ? value.flatMap((item, i) => problems(item, field.list, `${at}[${i}]`)) : [`${at}: не список`]
   if (!value || typeof value !== 'object' || Array.isArray(value)) return [`${at}: не объект`]
   if ('record' in field) return Object.entries(value).flatMap(([key, item]) => [...(field.record.includes(key) ? [] : [`${at}.${key}: нет такого`]), ...problems(item, field.of, `${at}.${key}`)])
