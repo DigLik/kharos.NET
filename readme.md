@@ -29,12 +29,45 @@
 
 ## Запуск
 
+Нужен [Bun](https://bun.sh): он ставит зависимости, запускает сервер, тесты и инструменты.
+
 ```bash
-npm install
-npm run dev      # клиент: http://localhost:5173
-npm run server   # пробный сервер для сетевой игры, ws://localhost:8787
-bun test         # тесты
+bun install
+bun run dev        # клиент: http://localhost:5173
+bun run server     # сервер для сетевой игры: ws://localhost:8787
+bun test           # тесты
 ```
+
+Остальные команды:
+
+```bash
+bun run typecheck      # проверка типов во всех пакетах
+bun run build          # проверка типов и сборка страницы в apps/web/dist
+bun run preview        # собранная страница: http://localhost:4173
+bun run balance        # баланс: боевые числа юнитов, бои отрядов, экономика, осада
+bun run stress         # нагрузка: время тика в бою двух армий
+tools/smoke/all.sh     # всё разом: тесты, сборки как в CI, игра в headless Chrome (нужен Chrome), сервер с модом
+```
+
+Нативная оболочка (окно на Rust вместо браузера) собирается отдельно, см. [native/README.md](native/README.md):
+
+```bash
+bun run bundle:native  # сборка игры для окна
+cd native && cargo run
+```
+
+### Устройство репозитория
+
+Монорепа на рабочих пространствах Bun. Пакеты — в `packages/`, приложения — в `apps/`:
+
+- `apps/web` — страница игры, `apps/server` — сервер;
+- `packages/client` — клиент: игра, интерфейс, рендер, звук;
+- `packages/sim-ts` — симуляция, `packages/ecs` — ECS, `packages/host` — хост и локальная игра;
+- `packages/protocol` — протокол и файл сохранения, `packages/shared` — генератор земли и настройки карты,
+  `packages/data` — правила мира, `packages/i18n` — переводы;
+- `packages/mods` — машина Luau и набор мододела, `packages/tsconfig` — общие настройки TypeScript.
+
+Подробнее — в [docs/engine.md](docs/engine.md).
 
 ## Сервер
 
@@ -75,7 +108,8 @@ Bun не умеет менять сертификат у работающего 
 
 ## Стек
 
-TypeScript, Vite, Preact, собственный ECS и собственный рендер на WebGL 2. Сервер работает на Bun.
+TypeScript, Vite, собственный ECS, собственный рендер на WebGL 2 и интерфейс на Canvas 2D. Bun — пакеты, тесты и
+сервер. Моды — на Luau. Нативная оболочка — Rust (V8, OpenGL, Skia).
 
 ## Документация
 
