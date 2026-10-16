@@ -44,6 +44,12 @@ pub unsafe extern "C" fn dealloc(ptr: *mut u8, len: usize) {
   drop(Vec::from_raw_parts(ptr, 0, len));
 }
 
+/// Начало последнего ответа: так его читают функции, что отвечают кодом, а текст оставляют в буфере (`sim_apply`).
+#[no_mangle]
+pub extern "C" fn out_ptr() -> *const u8 {
+  STATE.with_borrow(|state| state.out.as_ptr())
+}
+
 /// Длина последнего ответа.
 #[no_mangle]
 pub extern "C" fn out_len() -> usize {
@@ -114,5 +120,17 @@ pub extern "C" fn sim_journal(id: u32) -> *const u8 {
 #[no_mangle]
 pub extern "C" fn sim_snapshot(id: u32) -> *const u8 {
   let json = with_sim(id, |world| world.snapshot().to_string()).unwrap_or_default();
+  STATE.with_borrow_mut(|state| answer(state, json.into_bytes()))
+}
+
+/// Порядок сущностей в хранилище компонента (ключ — UTF-8 в буфере от `alloc`): JSON-список номеров. По нему проверка
+/// сверяет, что Rust обойдёт хранилище так же, как TS.
+///
+/// # Safety
+/// ptr и len — буфер от `alloc` с UTF-8 внутри.
+#[no_mangle]
+pub unsafe extern "C" fn sim_order(id: u32, ptr: *const u8, len: usize) -> *const u8 {
+  let key = std::str::from_utf8(std::slice::from_raw_parts(ptr, len)).unwrap_or_default();
+  let json = with_sim(id, |world| Value::from(world.query(&[key])).to_string()).unwrap_or_default();
   STATE.with_borrow_mut(|state| answer(state, json.into_bytes()))
 }

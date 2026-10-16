@@ -7,4 +7,5 @@ description = "Движок симуляции Kharos: хранилище мир
 
 [dependencies]
 # preserve_order: поля компонентов идут в том порядке, в каком их записал TS, — хост сравнивает JSON компонентов текстом.
-serde_json = { version = "1", features = ["preserve_order"] }
+# float_roundtrip: дробное читается точно до последнего знака, как в JS; без него парсер ошибается на единицу младшего.
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }

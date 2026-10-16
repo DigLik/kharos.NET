@@ -19,6 +19,10 @@ out=$(bun run bundle:native 2>&1) && ok native-bundle || bad native-bundle "$out
 out=$(cargo check -p kharos-native 2>&1) && ok cargo-check || bad cargo-check "$out"
 out=$(cargo test -p kharos-engine 2>&1) && ok cargo-test || bad cargo-test "$out"
 out=$(bun run build:wasm 2>&1) && ok sim-wasm || bad sim-wasm "$out"
+# Те же тесты против Rust-симуляции: обёртка сверяет Rust с TS после каждого advance (docs/boundary.md).
+out=$(KHAROS_SIM=rust bun test --timeout 60000 2>&1)
+echo "$out" | grep -E "^ *[0-9]+ (pass|fail)$" | tr '\n' ' '; echo
+echo "$out" | grep -q "^ 0 fail" && ok test-rust || bad test-rust "$out"
 
 pkill -f "vite apps/web --port 5199"; pkill -f "vite preview apps/web --port 5200"; sleep 0.5
 (npx vite apps/web --port 5199 --strictPort > $OUT/vite.log 2>&1 &)

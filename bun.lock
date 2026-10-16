@@ -14,6 +14,7 @@
         "@kharos/mods": "*",
         "@kharos/protocol": "*",
         "@kharos/shared": "*",
+        "@kharos/sim-rust": "*",
         "@kharos/sim-ts": "*",
         "acme-client": "^5.4.0",
       },
@@ -109,6 +110,14 @@
         "@kharos/data": "*",
       },
     },
+    "packages/sim-rust": {
+      "name": "@kharos/sim-rust",
+      "version": "0.1.0",
+      "dependencies": {
+        "@kharos/ecs": "*",
+        "@kharos/sim-ts": "*",
+      },
+    },
     "packages/sim-ts": {
       "name": "@kharos/sim-ts",
       "version": "0.1.0",
@@ -144,6 +153,8 @@
     "@kharos/server": ["@kharos/server@workspace:apps/server"],
 
     "@kharos/shared": ["@kharos/shared@workspace:packages/shared"],
+
+    "@kharos/sim-rust": ["@kharos/sim-rust@workspace:packages/sim-rust"],
 
     "@kharos/sim-ts": ["@kharos/sim-ts@workspace:packages/sim-ts"],
 

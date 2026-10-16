@@ -37,6 +37,7 @@
     "@kharos/base": "*",
     "@kharos/protocol": "*",
     "@kharos/host": "*",
+    "@kharos/sim-rust": "*",
     "@kharos/client": "*"
   }
 }

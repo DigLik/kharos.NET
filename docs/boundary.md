@@ -94,7 +94,9 @@ TS-компонентов. Тесты, которые зовут TS-функци
 - [x] Г2. Cargo workspace в корне, `native/` → `apps/native` (`docs/engine.md`, 9.2а); крейты `engine` (хранилище,
       повторяющее TS-мир: номера, плотные массивы, удаление перестановкой, обход от меньшего, журнал) и `sim-wasm`
       (плоские функции: `sim_new`, `sim_apply`, `sim_journal`, `sim_snapshot`). Сборка wasm — `bun run build:wasm`.
-- [ ] Г3. `packages/sim-rust`: `RustSim` — зеркало мира, загрузка и сохранение, смешанный прогон с нулём систем в Rust;
-      `KHAROS_SIM=rust bun test` — 596 из 596.
+- [x] Г3. `packages/sim-rust`: `createRustSim` — внутри sim-ts, Rust-мир догоняет её после каждого `advance` (состав —
+      журналом, данные — сверкой JSON с тем, что Rust знает); режим `check` сверяет снимок и порядок каждого хранилища.
+      `KHAROS_SIM=rust bun test --timeout 60000` — 598 из 598, он же в `tools/smoke/all.sh`. Дробные `serde_json` читает
+      с `float_roundtrip`: без него расходится последний знак.
 - [ ] Г4. Переключатель в хосте и сверка снимков.
 - [ ] Дальше — `docs/engine.md`, 9.5 и 9.6: слои и системы по одной.

@@ -1,0 +1,16 @@
+{
+  "name": "@kharos/sim-rust",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@kharos/ecs": "*",
+    "@kharos/sim-ts": "*"
+  }
+}
