@@ -58,3 +58,20 @@ test('вне карты править нельзя', () => {
   setTile(land, 500, 500, { terrain: Terrain.Rock, biome: 0, tier: 1, cliff: false })
   expect(land.revision).toBe(0)
 })
+
+test('выводимое у чанков не зависит от порядка сборки и не меняется после загрузки', () => {
+  // Сид 3: здесь у гор на стыке чанков выводимые биты зависели от того, собран ли сосед (баг, docs/bugs.md).
+  const config = { ...DEFAULT_CONFIG, seed: 3 }
+  const area = areaOf({ left: -256, top: -256, right: 256, bottom: 256 })
+  const chunks: [number, number][] = []
+  for (let y = 0; y < area.height; y++) for (let x = 0; x < area.width; x++) chunks.push([area.left + x, area.top + y])
+  const forward = createLand(config, area)
+  const backward = createLand(config, area)
+  for (const [x, y] of chunks) getChunk(forward, x, y)
+  for (const [x, y] of [...chunks].reverse()) getChunk(backward, x, y)
+  const loaded = loadLand(config, saveLand(forward))
+  for (const [x, y] of chunks) {
+    expect(getChunk(backward, x, y)).toEqual(getChunk(forward, x, y))
+    expect(getChunk(loaded, x, y)).toEqual(getChunk(forward, x, y))
+  }
+})

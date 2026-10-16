@@ -472,11 +472,29 @@ const SAND_REACH = 8
 const DERIVE_MARGIN = Math.max(SAND_REACH, STEP_UP, STEP_DOWN, STEP_SIDE)
 
 /**
+ * Тип, ярус и обрывистость кромки тайла ровно таким, каким его соберёт generateChunk, — вместе с горами (у гор ярус -1).
+ * peaks — вершины по клеткам, собранные за этот пересчёт: соседние тайлы спрашивают об одних и тех же клетках.
+ */
+function generatedTile(config: GeneratorConfig, x: number, y: number, peaks: Map<number, Peak[]>): [Terrain, number, boolean] {
+  const [terrain, tier] = baseTile(config, x, y)
+  if (!config.blank) {
+    const cellX = Math.floor(x / PEAK_CELL)
+    const cellY = Math.floor(y / PEAK_CELL)
+    const key = tileKey(cellX, cellY)
+    let cell = peaks.get(key)
+    if (!cell) peaks.set(key, (cell = peaksInCell(cellX, cellY, config)))
+    for (const peak of cell) if (Math.hypot(peak.x - (x + 0.5), peak.y - (y + 0.5)) < peak.radius + TILE_REACH) return [Terrain.Mountain, -1, false]
+  }
+  return [terrain, tier, tier > 0 && isCliff(x, y, config)]
+}
+
+/**
  * Тип, ярус и обрывистость кромки соседа (у гор ярус -1: их байт рельефа занят вершиной). Из карты, если его чанк собран, из chunk —
- * если сосед в самом досчитываемом чанке, иначе из генератора: несобранный чанк карты ещё совпадает с ним.
+ * если сосед в самом досчитываемом чанке, иначе из генератора: несобранный чанк карты ещё совпадает с ним. Из генератора —
+ * вместе с горами: иначе выводимое у гор на стыке чанков зависело бы от того, какой чанк собран первым.
  * За краем карты для её чанков — ближайший тайл карты: так из сохранения выходит то же при любом генераторе.
  */
-function neighbor(land: Land, x: number, y: number, chunk: Uint8Array, chunkX: number, chunkY: number): [Terrain, number, boolean] {
+function neighbor(land: Land, x: number, y: number, chunk: Uint8Array, chunkX: number, chunkY: number, peaks: Map<number, Peak[]>): [Terrain, number, boolean] {
   // Карта мира самодостаточна: за её краем для неё продолжается крайний тайл, а не генератор.
   const area = land.area
   if (area && ownedIndex(land, chunkX, chunkY) >= 0) {
@@ -486,10 +504,7 @@ function neighbor(land: Land, x: number, y: number, chunk: Uint8Array, chunkX: n
   const cx = Math.floor(x / CHUNK_SIZE)
   const cy = Math.floor(y / CHUNK_SIZE)
   const tiles = cx === chunkX && cy === chunkY ? chunk : land.owned[ownedIndex(land, cx, cy)]
-  if (!tiles) {
-    const [terrain, tier] = baseTile(land.config, x, y)
-    return [terrain, tier, tier > 0 && isCliff(x, y, land.config)]
-  }
+  if (!tiles) return generatedTile(land.config, x, y, peaks)
   const index = ((y - cy * CHUNK_SIZE) * CHUNK_SIZE + x - cx * CHUNK_SIZE) * TILE_BYTES
   const terrain = tiles[index] as Terrain
   if (terrain === Terrain.Mountain) return [terrain, -1, false]
@@ -505,9 +520,10 @@ function deriveChunk(land: Land, chunk: Uint8Array, chunkX: number, chunkY: numb
   const types = new Uint8Array(span * span)
   const tiers = new Int8Array(span * span)
   const cliffs = new Uint8Array(span * span)
+  const peaks = new Map<number, Peak[]>()
   for (let y = 0; y < span; y++) {
     for (let x = 0; x < span; x++) {
-      const [terrain, tier, cliff] = neighbor(land, chunkX * CHUNK_SIZE + x - DERIVE_MARGIN, chunkY * CHUNK_SIZE + y - DERIVE_MARGIN, chunk, chunkX, chunkY)
+      const [terrain, tier, cliff] = neighbor(land, chunkX * CHUNK_SIZE + x - DERIVE_MARGIN, chunkY * CHUNK_SIZE + y - DERIVE_MARGIN, chunk, chunkX, chunkY, peaks)
       types[y * span + x] = terrain
       tiers[y * span + x] = tier
       cliffs[y * span + x] = cliff ? 1 : 0
