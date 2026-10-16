@@ -93,6 +93,8 @@ mods/, docs/, tools/, tests/ — как сейчас
 - игра: страница с Vite в headless Chrome — меню, новая игра, `?sandbox` идёт, кадр снят;
 - сервер: запуск, подключение реплики, мир приходит, команда проходит.
 
+Всё это разом — `tools/smoke/all.sh` (кадры и журналы — в `.cache/smoke`).
+
 Окно оболочки запускается только по согласию (оно на экране пользователя). Что ещё держится за пути `src/`:
 обе схемы CI (в схеме сервера `grep` по `src/net/protocol.ts` и лицензия `src/mods/luau.LICENSE.txt`),
 `tsconfig*.json`, `bunfig.toml` (`tests/setup.ts`), `native/vite.config.ts` и `native/js`, инструменты в `tools/`,
