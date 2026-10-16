@@ -1,5 +1,5 @@
 import type { Entity } from '@kharos/ecs'
-import type { ViewBox } from '../net/protocol'
+import type { ViewBox } from '@kharos/protocol'
 import type { EditOp } from '@kharos/sim-ts/editOps'
 import { createAudio } from '../audio/audio'
 import { createLandWindow, minZoom, type LandWindow } from '../map/landWindow'

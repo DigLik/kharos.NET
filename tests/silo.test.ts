@@ -10,7 +10,7 @@ import { buildingHp } from '@kharos/sim-ts/combat'
 import { addCredits } from '@kharos/sim-ts/economy'
 import type { Amounts, Ware } from '@kharos/sim-ts/resources'
 import { spawnUnit } from '@kharos/sim-ts/units'
-import { wireOf } from '../src/net/wire'
+import { wireOf } from '@kharos/protocol/wire'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { protection: 0, techTree: false } }

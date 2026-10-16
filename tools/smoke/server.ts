@@ -10,7 +10,7 @@ import { spawn } from 'node:child_process'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Owner, Position, Unit } from '@kharos/sim-ts/components'
-import { decodeServer, PROTOCOL_VERSION } from '../../src/net/protocol'
+import { decodeServer, PROTOCOL_VERSION } from '@kharos/protocol'
 import { createReplica, type Replica } from '../../src/net/replica'
 
 const [command, ...args] = process.argv.slice(2)
@@ -36,7 +36,9 @@ const fail = (why: string): never => {
   server.kill()
   process.exit(1)
 }
-await sleep(1500)
+// Ждать строку готовности сервера, а не срок: бинарник под нагрузкой поднимается дольше бандла.
+for (let i = 0; i < 100 && !log.includes('Kharos слушает'); i++) await sleep(100)
+if (!log.includes('Kharos слушает')) fail('сервер не поднялся за 10 с')
 
 const url = new URL(`ws://127.0.0.1:${PORT}/`)
 url.searchParams.set('id', `smoke-${Date.now()}`)

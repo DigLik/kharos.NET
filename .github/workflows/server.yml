@@ -40,7 +40,7 @@ jobs:
       # Версия протокола в имени релиза: по ней видно, к каким клиентам сервер подходит.
       - id: version
         run: |
-          protocol=$(grep -oP 'PROTOCOL_VERSION = \K\d+' src/net/protocol.ts)
+          protocol=$(grep -oP 'PROTOCOL_VERSION = \K\d+' packages/protocol/src/protocol.ts)
           echo "protocol=$protocol" >> "$GITHUB_OUTPUT"
           echo "tag=server-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
       - uses: softprops/action-gh-release@v2

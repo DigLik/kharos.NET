@@ -2,7 +2,7 @@ import type { SimSave } from '@kharos/sim-ts'
 
 /**
  * Сохранение, пропущенное через JSON, — проверка, что данные переживают диск и сеть. Карта мира двоичная (в файле
- * она — свой раздел, см. src/save/file.ts), её не трогаем.
+ * она — свой раздел, см. packages/protocol/src/save.ts), её не трогаем.
  */
 export function throughJson<T extends SimSave | { sim: SimSave }>(save: T): T {
   const sim = 'sim' in save ? save.sim : save

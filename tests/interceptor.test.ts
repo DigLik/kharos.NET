@@ -7,7 +7,7 @@ import {
 import { placeBuilding, storeFor } from '@kharos/sim-ts/buildings'
 import { addCredits } from '@kharos/sim-ts/economy'
 import type { Amounts, Ware } from '@kharos/sim-ts/resources'
-import { wireOf } from '../src/net/wire'
+import { wireOf } from '@kharos/protocol/wire'
 import { throughJson } from './throughJson'
 import type { Entity } from '@kharos/ecs'
 

@@ -2,7 +2,7 @@ import { simOptions } from '../game/game'
 import { listSaves, loadSave, storeSave, type SaveSlot } from '../game/storage'
 import type { MapSettings } from '@kharos/shared/settings'
 import { connect, connectLocal, type Session } from '../net/connect'
-import { DEFAULT_PORT } from '../net/protocol'
+import { DEFAULT_PORT } from '@kharos/protocol'
 
 /**
  * Во что играть: локальная игра в слоте сохранений, показательный бой или тестовая карта (они сохранение не

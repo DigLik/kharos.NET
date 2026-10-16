@@ -1,12 +1,12 @@
 import type { GeneratorConfig } from '@kharos/shared/terrain'
 import type { SimSave, WeatherOptions } from '@kharos/sim-ts'
-import { decodeSave, encodeSave, readJson } from '../save/file'
+import { decodeSave, encodeSave, readJson } from '@kharos/protocol/save'
 import { t } from '@kharos/i18n'
 
 /**
  * Сохранения локальной игры в браузере. Их несколько, у каждого своё место (слот): список с названиями и
  * временем лежит в localStorage отдельно от самих миров, чтобы меню не разбирало их целиком; миры — двоичными
- * файлами (см. src/save/file.ts) в IndexedDB. Камера помнится для каждого слота.
+ * файлами (см. packages/protocol/src/save.ts) в IndexedDB. Камера помнится для каждого слота.
  */
 export interface SaveSlot {
   id: string

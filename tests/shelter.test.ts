@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { createHost } from '../src/net/host'
-import { decodeServer, type PlayerInfo } from '../src/net/protocol'
+import { decodeServer, type PlayerInfo } from '@kharos/protocol'
 import { Armed, Health, canAttack, createSim, isWalkable, protect, protectionLeft, resolveOrder, type Sim } from '@kharos/sim-ts'
 import { addCredits } from '@kharos/sim-ts/economy'
 import { spawnUnit } from '@kharos/sim-ts/units'

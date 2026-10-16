@@ -1,4 +1,4 @@
-import type { CommandInfo } from '../net/chatCommands'
+import type { CommandInfo } from '@kharos/protocol/chatCommands'
 import type { AlertKind, AlertText } from './alerts'
 import type { Replica } from '../net/replica'
 import { knownReserve } from './knownReserve'

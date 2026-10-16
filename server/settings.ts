@@ -2,7 +2,7 @@ import { DEFAULT_CONFIG, type GeneratorConfig } from '@kharos/shared/terrain'
 import { DEFAULT_LIMITS, type ConnectLimits } from '../src/net/limits'
 import type { Lang } from '@kharos/i18n'
 import { DEFAULT_SEND_RATE } from '../src/net/host'
-import { DEFAULT_PORT } from '../src/net/protocol'
+import { DEFAULT_PORT } from '@kharos/protocol'
 import { DEFAULT_RULES, type Rules } from '@kharos/sim-ts'
 import { DEFAULT_WEATHER, type WeatherOptions } from '@kharos/sim-ts/weather'
 import { DEFAULT_TLS, type TlsSettings } from './tls'
@@ -16,7 +16,7 @@ export interface ServerSettings {
   password: string
   /** Пароль режима администратора, /admin в чате; пустой — режима нет. */
   admin: string
-  /** Файл сохранения мира, двоичный, см. src/save/file.ts. */
+  /** Файл сохранения мира, двоичный, см. packages/protocol/src/save.ts. */
   save: string
   /**
    * Сторона карты в тайлах. Как и generator, fog и weather, действует только на новый мир. Меньше 1024 при правилах

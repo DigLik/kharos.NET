@@ -9,6 +9,7 @@
         "@kharos/ecs": "workspace:*",
         "@kharos/i18n": "workspace:*",
         "@kharos/mods": "workspace:*",
+        "@kharos/protocol": "workspace:*",
         "@kharos/shared": "workspace:*",
         "@kharos/sim-ts": "workspace:*",
         "acme-client": "^5.4.0",
@@ -38,6 +39,15 @@
         "@kharos/sim-ts": "workspace:*",
       },
     },
+    "packages/protocol": {
+      "name": "@kharos/protocol",
+      "version": "0.1.0",
+      "dependencies": {
+        "@kharos/ecs": "workspace:*",
+        "@kharos/i18n": "workspace:*",
+        "@kharos/sim-ts": "workspace:*",
+      },
+    },
     "packages/shared": {
       "name": "@kharos/shared",
       "version": "0.1.0",
@@ -63,6 +73,8 @@
     "@kharos/i18n": ["@kharos/i18n@workspace:packages/i18n"],
 
     "@kharos/mods": ["@kharos/mods@workspace:packages/mods"],
+
+    "@kharos/protocol": ["@kharos/protocol@workspace:packages/protocol"],
 
     "@kharos/shared": ["@kharos/shared@workspace:packages/shared"],
 

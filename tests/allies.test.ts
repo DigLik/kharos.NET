@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
 import { createHost, type Host } from '../src/net/host'
-import { decodeServer } from '../src/net/protocol'
+import { decodeServer } from '@kharos/protocol'
 import { createReplica, type Replica } from '../src/net/replica'
 import { Armed, Batch, Health, Mark, Owner, PING_LIMIT, PING_SECONDS, PING_WINDOW, Path, Player, Position, Unit, allied, alliesOf, allyHeadOf, breakAlliance, canAttack, createSim, exitAlliance, isOpenGate, offerAlliance, wipePlayer, type Sim } from '@kharos/sim-ts'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
 import { Repair } from '@kharos/sim-ts/components'
 import { addCredits } from '@kharos/sim-ts/economy'
 import { spawnUnit } from '@kharos/sim-ts/units'
-import { pathOf, wireOf } from '../src/net/wire'
+import { pathOf, wireOf } from '@kharos/protocol/wire'
 
 const STEP = 1 / 20
 const random = Math.random

@@ -3,7 +3,7 @@
 // Над строкой — подсказки дополнения команд и ников: Tab подставляет, стрелки выбирают.
 
 import type { HudState } from '../game/hud'
-import { complete } from '../net/chatCommands'
+import { complete } from '@kharos/protocol/chatCommands'
 import { t } from '@kharos/i18n'
 import type { Ui } from './ui'
 
