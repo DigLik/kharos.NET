@@ -153,8 +153,17 @@ export function boundsOf(size: number, height = size): Bounds {
   return { left: -halfX, top: -halfY, right: size - halfX, bottom: height - halfY }
 }
 
+/** Система тика под своим именем: по имени её находят и подменяют, см. SimHooks. */
+export type SimSystem = [name: string, system: System]
+
+/** Как встроиться в симуляцию снаружи, не меняя её: так поверх неё работает Rust-симуляция, см. docs/boundary.md. */
+export interface SimHooks {
+  /** Получает системы тика по порядку и возвращает те, что пойдут в тик: часть можно заменить своими. */
+  systems?: (systems: readonly SimSystem[]) => readonly SimSystem[]
+}
+
 /** Создаёт симуляцию: новую или, если передано сохранение, продолжает его. */
-export function createSim(source: SimOptions | SimSave): Sim {
+export function createSim(source: SimOptions | SimSave, hooks: SimHooks = {}): Sim {
   const rules: Rules = { ...DEFAULT_RULES, ...source.rules }
   // Правила в сохранение попадают такими, какие они на момент сохранения.
   const options: SimOptions = { generator: source.generator, size: source.size, ...(source.height && source.height !== source.size && { height: source.height }), rules, ...(source.fog === false && { fog: false }), ...(source.weather && { weather: source.weather }) }
@@ -170,72 +179,73 @@ export function createSim(source: SimOptions | SimSave): Sim {
   }
 
   // Порядок систем — порядок событий внутри тика. Новые системы симуляции добавляются сюда.
+  const systems: SimSystem[] = [
+    ['commands', commands],
+    // До превращений: доехавший MCV начинает разворачиваться в этот же тик.
+    ['deployOrders', () => deployOrders(sim)],
+    ['convert', () => convert(sim)],
+    // До энергии зон: реакторы берут стержни, и горящий уже даёт энергию в этот тик.
+    ['burnFuel', () => burnFuel(sim)],
+    // До энергии зон: кто из потребителей занят делом, тот просит её всю, см. busy.ts.
+    ['markBusy', () => markBusy(sim)],
+    // До всех потребителей энергии: накопители решают, сколько отдают зоне в этот тик.
+    ['storeEnergy', () => storeEnergy(sim)],
+    // Хозяйства зон дальше в тике считаются раз, см. openBooks.
+    ['openBooks', () => openBooks(sim)],
+    ['produceUnits', (_, time) => produceUnits(sim, time)],
+    // После производства и до движения: переработка превращает привезённую руду в готовое, грузовики развезут его.
+    ['refine', (_, time) => refine(sim, time)],
+    // Цеха собирают изделия из привезённого сырья.
+    ['assemble', (_, time) => assemble(sim, time)],
+    ['research', (_, time) => research(sim, time)],
+    ['triggers', (_, time) => triggers(sim, time)],
+    ['scan', (_, time) => scan(sim, time)],
+    // До движения: закрывшиеся ворота уже не пропустят.
+    ['gates', (_, time) => gates(sim, time)],
+    // До движения: едущие к цели напрямую получают пути, сколько успеет поиск за тик.
+    ['planPaths', () => planPaths(sim)],
+    ['moveUnits', (_, time) => moveUnits(sim, time)],
+    // Турели встают на носители, уже сдвинувшиеся за этот тик.
+    ['followCarriers', () => followCarriers(sim)],
+    // После движения: работающий строитель поворачивается к стройке, и поворот сглаживается, как у идущих.
+    ['construct', () => construct(sim)],
+    // До грузовиков: что идёт по трубам, грузовики уже не везут.
+    ['pipeFlow', () => pipeFlow(sim)],
+    ['haul', () => haul(sim)],
+    // После грузовиков: лучи уже забыли прошлый тик, и что везут грузовики, строители не повезут.
+    ['fetchMaterials', () => fetchMaterials(sim)],
+    ['trade', () => trade(sim)],
+    // Тут же: корабли с подарками союзникам летят по тем же правилам, что рейсы космопорта.
+    ['ferry', () => ferry(sim)],
+    // До боя: взрыв долетевшей ракеты бьёт в этот же бой.
+    ['launchMissiles', () => launchMissiles(sim)],
+    // После движения и работ: стреляющий юнит поворачивается к цели, и погибшие в этот тик уже ничего не делают.
+    ['fight', () => fight(sim)],
+    // После боя: вставшие без цели продолжают патруль или возвращаются на место.
+    ['patrol', () => patrol(sim)],
+    // После боя: потратившие магазин пополняют его в своей сети, пустые идут за боеприпасами.
+    ['supply', () => supply(sim)],
+    // После всех дел тика: освободившиеся берут следующий приказ из очереди.
+    ['followOrders', () => followOrders(sim)],
+    // После работ и боя: кому не досталось ни того, ни другого, — те турели разворачиваются по корпусу.
+    ['restTurrets', () => restTurrets(sim)],
+    ['recover', () => recover(sim)],
+    ['chargeShields', () => chargeShields(sim)],
+    ['earn', () => earn(sim)],
+    ['traces', () => sim.traces.update()],
+    ['vision', () => sim.vision.update()],
+    // После обзора: игроки узнают правки карты, которые теперь видят.
+    ['updateLandMemory', () => updateLandMemory(sim)],
+    // Тоже после обзора: новые месторождения находят, ушедшие забывают те, кто видит их место.
+    ['renewDeposits', () => renewDeposits(sim)],
+    ['updatePaveMemory', () => updatePaveMemory(sim)],
+    ['updateBuildMemory', () => updateBuildMemory(sim)],
+    ['closeBooks', () => closeBooks(sim)],
+  ]
   const loop = new Loop({
     world,
     tick: 'tick' in source ? source.tick : 0,
-    update: [
-      commands,
-      // До превращений: доехавший MCV начинает разворачиваться в этот же тик.
-      () => deployOrders(sim),
-      () => convert(sim),
-      // До энергии зон: реакторы берут стержни, и горящий уже даёт энергию в этот тик.
-      () => burnFuel(sim),
-      // До энергии зон: кто из потребителей занят делом, тот просит её всю, см. busy.ts.
-      () => markBusy(sim),
-      // До всех потребителей энергии: накопители решают, сколько отдают зоне в этот тик.
-      () => storeEnergy(sim),
-      // Хозяйства зон дальше в тике считаются раз, см. openBooks.
-      () => openBooks(sim),
-      (_, time) => produceUnits(sim, time),
-      // После производства и до движения: переработка превращает привезённую руду в готовое, грузовики развезут его.
-      (_, time) => refine(sim, time),
-      // Цеха собирают изделия из привезённого сырья.
-      (_, time) => assemble(sim, time),
-      (_, time) => research(sim, time),
-      (_, time) => triggers(sim, time),
-      (_, time) => scan(sim, time),
-      // До движения: закрывшиеся ворота уже не пропустят.
-      (_, time) => gates(sim, time),
-      // До движения: едущие к цели напрямую получают пути, сколько успеет поиск за тик.
-      () => planPaths(sim),
-      (_, time) => moveUnits(sim, time),
-      // Турели встают на носители, уже сдвинувшиеся за этот тик.
-      () => followCarriers(sim),
-      // После движения: работающий строитель поворачивается к стройке, и поворот сглаживается, как у идущих.
-      () => construct(sim),
-      // До грузовиков: что идёт по трубам, грузовики уже не везут.
-      () => pipeFlow(sim),
-      () => haul(sim),
-      // После грузовиков: лучи уже забыли прошлый тик, и что везут грузовики, строители не повезут.
-      () => fetchMaterials(sim),
-      () => trade(sim),
-      // Тут же: корабли с подарками союзникам летят по тем же правилам, что рейсы космопорта.
-      () => ferry(sim),
-      // До боя: взрыв долетевшей ракеты бьёт в этот же бой.
-      () => launchMissiles(sim),
-      // После движения и работ: стреляющий юнит поворачивается к цели, и погибшие в этот тик уже ничего не делают.
-      () => fight(sim),
-      // После боя: вставшие без цели продолжают патруль или возвращаются на место.
-      () => patrol(sim),
-      // После боя: потратившие магазин пополняют его в своей сети, пустые идут за боеприпасами.
-      () => supply(sim),
-      // После всех дел тика: освободившиеся берут следующий приказ из очереди.
-      () => followOrders(sim),
-      // После работ и боя: кому не досталось ни того, ни другого, — те турели разворачиваются по корпусу.
-      () => restTurrets(sim),
-      () => recover(sim),
-      () => chargeShields(sim),
-      () => earn(sim),
-      () => sim.traces.update(),
-      () => sim.vision.update(),
-      // После обзора: игроки узнают правки карты, которые теперь видят.
-      () => updateLandMemory(sim),
-      // Тоже после обзора: новые месторождения находят, ушедшие забывают те, кто видит их место.
-      () => renewDeposits(sim),
-      () => updatePaveMemory(sim),
-      () => updateBuildMemory(sim),
-      () => closeBooks(sim),
-    ],
+    update: (hooks.systems?.(systems) ?? systems).map(([, system]) => system),
   })
   /**
    * Карта для сохранения: пока её не правили, отдаётся та же, что в прошлый раз. Она в мегабайтах, а сохранение идёт

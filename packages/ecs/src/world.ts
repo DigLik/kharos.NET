@@ -18,6 +18,18 @@ export interface WorldSnapshot {
   entities: [id: number, components: Record<string, object>][]
 }
 
+/**
+ * Операция над миром в журнале (World.journal): создание и уничтожение сущности, добавление, изменение и снятие
+ * компонента, сдвиг номера следующей сущности. Данные — JSON, снятый в момент операции: у set — только изменённые поля.
+ */
+export type JournalOp =
+  | [op: 'spawn', entity: number]
+  | [op: 'destroy', entity: number]
+  | [op: 'add', entity: number, key: string, data: string]
+  | [op: 'set', entity: number, key: string, patch: string]
+  | [op: 'remove', entity: number, key: string]
+  | [op: 'next', next: number]
+
 /** Копия данных компонента. Данные сохраняемых компонентов обязаны переживать JSON. */
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value))
 
@@ -86,6 +98,12 @@ export class World {
   /** Сколько запросов сейчас обходится. Пока идёт обход, состав сущностей не меняется. */
   private iterating = 0
   private deferred: (() => void)[] = []
+  /**
+   * Журнал: получает каждую операцию над хранилищами в том порядке, в каком она применена. Кто повторит их в том же
+   * порядке, получит тот же мир и тот же порядок обхода запросов, — так зеркалится мир другой симуляции, см.
+   * docs/boundary.md. Правку данных на месте, в обход set(), журнал не видит.
+   */
+  journal?: (op: JournalOp) => void
 
   /** Все живые сущности. Только читать: менять — через spawn() и destroy(). */
   get all(): ReadonlySet<Entity> {
@@ -100,6 +118,7 @@ export class World {
   spawn(...inputs: ComponentInput<any>[]): Entity {
     const entity = this.nextEntity++ as Entity
     this.entities.add(entity)
+    this.journal?.(['spawn', entity])
     for (const input of inputs) this.add(entity, input)
     return entity
   }
@@ -117,6 +136,7 @@ export class World {
     if (!this.entities.has(entity)) return
     for (const store of this.stores) if (store?.has(entity)) this.remove(entity, store.component)
     this.entities.delete(entity)
+    this.journal?.(['destroy', entity])
   }
 
   /**
@@ -137,7 +157,9 @@ export class World {
       if (init) this.set(entity, component, init)
       return
     }
-    store.insert(entity, component.create(init))
+    const data = component.create(init)
+    store.insert(entity, data)
+    this.journal?.(['add', entity, component.key, JSON.stringify(data)])
     this.mark(entity, component)
 
     const observers = this.observers[component.id]
@@ -163,6 +185,7 @@ export class World {
       }
     }
     store.remove(entity)
+    this.journal?.(['remove', entity, component.key])
     this.mark(entity, component)
   }
 
@@ -201,12 +224,16 @@ export class World {
 
     if (component.tracked) store.replace(entity, Object.freeze({ ...current, ...patch }))
     else Object.assign(current, patch)
+    this.journal?.(['set', entity, component.key, JSON.stringify(patch)])
     this.mark(entity, component)
   }
 
   /** Сообщает подписчикам, что данные компонента поменяли на месте, в обход set(). */
   touch(entity: Entity, component: Component<any>) {
-    if (this.has(entity, component)) this.mark(entity, component)
+    if (!this.has(entity, component)) return
+    // Журналу — всё значение: что именно поменяли на месте, мир не знает.
+    this.journal?.(['set', entity, component.key, JSON.stringify(this.get(entity, component))])
+    this.mark(entity, component)
   }
 
   /** Сколько сущностей с этим компонентом. */
@@ -334,7 +361,10 @@ export class World {
     this.clear()
     const byKey = new Map(components.map((component) => [component.key, component]))
     for (const [id, data] of snapshot.entities) this.insert(id, data, byKey)
-    if (snapshot.next > this.nextEntity) this.nextEntity = snapshot.next
+    if (snapshot.next > this.nextEntity) {
+      this.nextEntity = snapshot.next
+      this.journal?.(['next', snapshot.next])
+    }
   }
 
   /**
@@ -346,11 +376,43 @@ export class World {
     const byKey = components instanceof Map ? components : new Map(components.map((component) => [component.key, component]))
     const entity = id as Entity
     this.entities.add(entity)
+    this.journal?.(['spawn', entity])
     for (const key in data) {
       const component = byKey.get(key)
       if (component) this.add(entity, component(copy(data[key])))
     }
     if (id >= this.nextEntity) this.nextEntity = id + 1
+  }
+
+  /**
+   * Повторяет операцию чужого журнала (см. journal): так зеркало повторяет мир другой симуляции в том же порядке.
+   * components — компоненты по именам; операции с незнакомым компонентом пропускаются.
+   */
+  replay(op: JournalOp, components: ReadonlyMap<string, Component<any>>) {
+    switch (op[0]) {
+      case 'spawn': {
+        const entity = op[1] as Entity
+        if (this.entities.has(entity)) return
+        this.entities.add(entity)
+        this.journal?.(['spawn', entity])
+        if (entity >= this.nextEntity) this.nextEntity = entity + 1
+        return
+      }
+      case 'destroy':
+        return this.destroy(op[1] as Entity)
+      case 'next':
+        if (op[1] > this.nextEntity) {
+          this.nextEntity = op[1]
+          this.journal?.(['next', op[1]])
+        }
+        return
+    }
+    const component = components.get(op[2])
+    if (!component) return
+    const entity = op[1] as Entity
+    if (op[0] === 'add') this.add(entity, component(JSON.parse(op[3])))
+    else if (op[0] === 'set') this.set(entity, component, JSON.parse(op[3]))
+    else this.remove(entity, component)
   }
 
   private mark(entity: Entity, component: Component<any>) {

@@ -51,7 +51,7 @@ export { IDLE_SHARE, OVERLOAD_DAMAGE, RELIEF_BELOW, RELIEF_INCOME, coreless, eco
 export { BUSY_TICKS } from './busy'
 export type { Economy, PowerState } from './income'
 export { QUEUE_LIMIT, armyOf, overLimit, buildTicks, missingRequirements, missingResearch, isPacked, producibleBy } from './production'
-export { DEFAULT_RULES, SAVE_VERSION, boundsOf, createSim } from './sim'
+export { DEFAULT_RULES, SAVE_VERSION, boundsOf, createSim, type SimHooks, type SimSystem } from './sim'
 export type { Bounds, Rules, Sim, SimOptions, SimSave } from './sim'
 export { INFANTRY_REGEN, SUPPLY, UNITS, UNIT_TYPES, unitSpec, isFighter, flies, isWalkable, notWalledIn, openSpawn, spawnStartingUnits } from './units'
 export { WEAPONS } from './weapons'

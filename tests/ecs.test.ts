@@ -233,3 +233,54 @@ describe('onChange', () => {
     expect(calls).toBe(2)
   })
 })
+
+describe('журнал', () => {
+  const Position = component('Position', { x: 0, y: 0 })
+  const Velocity = component('Velocity', { x: 0, y: 0 })
+  const Name = component('Name', { value: '' }, { tracked: true })
+  const byKey = new Map([Position, Velocity, Name].map((c) => [c.key, c] as const))
+
+  test('повтор журнала даёт тот же мир и тот же порядок обхода', () => {
+    const world = new World()
+    const ops: Parameters<NonNullable<World['journal']>>[0][] = []
+    world.journal = (op) => ops.push(op)
+    // Простой детерминированный разброс: добавления, снятия и уничтожения вперемешку, в том числе во время обхода.
+    let seed = 7
+    const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+    const alive: Entity[] = []
+    for (let step = 0; step < 400; step++) {
+      const pick = random()
+      if (pick < 0.3 || !alive.length) alive.push(world.spawn(Position({ x: step }), ...(random() < 0.5 ? [Velocity({ x: 1 })] : [])))
+      else {
+        const entity = alive[Math.floor(random() * alive.length)]
+        if (pick < 0.45) world.add(entity, Velocity({ y: step }))
+        else if (pick < 0.6) world.remove(entity, Velocity)
+        else if (pick < 0.75) world.set(entity, Name, { value: `n${step}` })
+        else if (pick < 0.85) world.set(entity, Position, { y: step })
+        else if (pick < 0.92) for (const [other] of world.query(Position, Velocity)) if (other === entity) world.remove(other, Velocity)
+        else {
+          world.destroy(entity)
+          alive.splice(alive.indexOf(entity), 1)
+        }
+      }
+    }
+    const copy = new World()
+    for (const op of ops) copy.replay(op, byKey)
+    const all = [Position, Velocity, Name]
+    expect(copy.snapshot(all)).toEqual(world.snapshot(all))
+    for (const query of [[Position], [Velocity], [Position, Velocity], [Name, Position]] as const)
+      expect([...copy.query(...query)].map(([entity]) => entity)).toEqual([...world.query(...query)].map(([entity]) => entity))
+    expect(copy.spawn()).toBe(world.spawn())
+  })
+
+  test('без журнала — ничего; правка на месте журналу не видна, touch — видна целиком', () => {
+    const world = new World()
+    const entity = world.spawn(Position)
+    const ops: unknown[] = []
+    world.journal = (op) => ops.push(op)
+    world.get(entity, Position)!.x = 5
+    expect(ops).toEqual([])
+    world.touch(entity, Position)
+    expect(ops).toEqual([['set', entity, 'Position', '{"x":5,"y":0}']])
+  })
+})
