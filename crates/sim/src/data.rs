@@ -46,6 +46,8 @@ pub struct Data {
   pub buildings: HashMap<String, BuildingSpec>,
   pub turrets: HashMap<String, TurretSpec>,
   pub units: HashMap<String, UnitSpec>,
+  /// Виды юнитов в порядке units.json — как UNIT_TYPES в TS: по номеру в нём следы помнят вид.
+  pub unit_types: Vec<String>,
   pub weapons: HashMap<String, WeaponSpec>,
   /// Слои мода base в порядке объявления (docs/layers.md).
   pub layers: Vec<LayerSpec>,
@@ -56,7 +58,7 @@ fn table<T: for<'a> Deserialize<'a>>(name: &str, json: &str) -> HashMap<String, 
 }
 
 /// Данные мода base, вшитые в сборку.
-pub static DATA: LazyLock<Data> = LazyLock::new(|| Data { buildings: table("buildings", include_str!("../../../packages/base/data/buildings.json")), turrets: table("turrets", include_str!("../../../packages/base/data/turrets.json")), units: table("units", include_str!("../../../packages/base/data/units.json")), weapons: table("weapons", include_str!("../../../packages/base/data/weapons.json")), layers: LayerSpec::parse_all(include_str!("../../../packages/base/data/layers.json")).unwrap_or_else(|error| panic!("layers.json: {error}")) });
+pub static DATA: LazyLock<Data> = LazyLock::new(|| Data { buildings: table("buildings", include_str!("../../../packages/base/data/buildings.json")), turrets: table("turrets", include_str!("../../../packages/base/data/turrets.json")), units: table("units", include_str!("../../../packages/base/data/units.json")), unit_types: serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(include_str!("../../../packages/base/data/units.json")).expect("units.json").keys().cloned().collect(), weapons: table("weapons", include_str!("../../../packages/base/data/weapons.json")), layers: LayerSpec::parse_all(include_str!("../../../packages/base/data/layers.json")).unwrap_or_else(|error| panic!("layers.json: {error}")) });
 
 #[cfg(test)]
 mod tests {

@@ -8,6 +8,8 @@ import { landLayer, packTile } from '@kharos/sim-ts/landMemory'
 import { keyTile, type Paving } from '@kharos/sim-ts/paved'
 import { paveLayer } from '@kharos/sim-ts/paveMemory'
 import { createRecall, updateRecall, type Recall } from '@kharos/sim-ts/recall'
+import { TRACE_LIFE, traceCell, type Trace, type TraceKind, type Traces } from '@kharos/sim-ts/traces'
+import { UNIT_TYPES } from '@kharos/sim-ts/units'
 import type { Vision } from '@kharos/sim-ts/vision'
 import { createSim, type Sim, type SimHooks, type SimOptions, type SimSave } from '@kharos/sim-ts/sim'
 
@@ -42,6 +44,8 @@ interface Exports {
   memory_take(id: number): number
   build_memory_input(id: number, ptr: number, len: number): number
   build_memory_take(id: number): number
+  traces_add(id: number, ptr: number, len: number): number
+  traces_take(id: number): number
   sim_free(id: number): void
   sim_apply(id: number, ptr: number, len: number): number
   sim_journal(id: number): number
@@ -65,7 +69,9 @@ const decoder = new TextDecoder()
 
 /** Заводит sim.wasm из байтов сборки (`bun run build:wasm`). Синхронно: так его можно завести и внутри createSim. */
 export function loadSimWasm(bytes: BufferSource): SimWasm {
-  const instance = new WebAssembly.Instance(new WebAssembly.Module(bytes), {})
+  // Тригонометрия и гипотенуза — от JS (crates/engine/src/math.rs): так Rust считает их ровно как TS рядом.
+  const math = { hypot: Math.hypot, sin: Math.sin, cos: Math.cos, atan2: Math.atan2 }
+  const instance = new WebAssembly.Instance(new WebAssembly.Module(bytes), { math })
   return { exports: instance.exports as unknown as Exports }
 }
 
@@ -246,6 +252,9 @@ function pavingMirror(paving: Paving): LayerMirror {
 
 /** Системы памяти слоёв (recall.ts): на Rust они идут через memory_input и memory_take. */
 const MEMORY_SYSTEMS = ['updateLandMemory', 'updatePaveMemory', 'updateBuildMemory']
+
+/** Виды следов по номеру, как в слое traces. */
+const TRACE_KINDS = Object.keys(TRACE_LIFE) as TraceKind[]
 
 /** Копия знания игроков: тень памяти начинает с того же. */
 const copyKnown = ({ known }: Recall) => new Map([...known].map(([player, tiles]) => [player, new Map(tiles)]))
@@ -509,6 +518,7 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
   /** Система на Rust на своём месте в тике; обзор TS в режиме check повторяет её. */
   const runSystem = (name: string) => {
     if (MEMORY_SYSTEMS.includes(name)) return runMemory(name)
+    if (name === 'traces') return runTraces()
     runRust(name, rust.get(name)!)
     if (name !== 'vision') return
     for (const player of rustPlayers()) opened.add(player)
@@ -673,6 +683,95 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
     }
   }
 
+  /**
+   * Следы (traces.ts) держит Rust — предметы слоя traces (docs/layers.md, С7). Здесь — обёртка за интерфейсом Traces:
+   * следы систем TS (бой) сразу уходят в Rust (`traces_add`), а после системы traces приходят оставленные за тик и
+   * убранные (`traces_take`); по ним обёртка держит список и ячейки, которые читает хост. В режиме check прежние следы
+   * TS получают те же следы и считают тот же тик, а сверка сравнивает свежие и убранные.
+   */
+  const shadowTraces = sim.traces
+  let traceList: Trace[] = []
+  let traceFresh: Trace[] = []
+  let traceExpired: number[] = []
+  let traceLast = 0
+  const traceCells = new Map<number, Trace[]>()
+  const traces: Traces = {
+    add(trace) {
+      const type = 'type' in trace ? UNIT_TYPES.indexOf(trace.type) : 0
+      const fields = trace as { entity?: number; facing?: number; player?: number; size?: number }
+      const record = [TRACE_KINDS.indexOf(trace.kind), trace.x, trace.y, fields.entity ?? 0, type, fields.facing ?? 0, fields.player ?? 0, fields.size ?? 0, sim.time.tick]
+      const ptr = withBytes(api, new Uint8Array(Float64Array.from(record).buffer), (at, len) => api.traces_add(id, at, len))
+      const laid = numbers(Float64Array, ptr)
+      if (laid.length) keepTrace(traceOf(laid))
+      if (options.check) shadowTraces.add(trace)
+    },
+    all: () => traceList,
+    fresh: () => traceFresh,
+    expired: () => traceExpired,
+    inCell: (cell) => traceCells.get(cell) ?? [],
+    update: () => runSystem('traces'),
+    since(cursor) {
+      let from = traceList.length
+      while (from > 0 && traceList[from - 1].id > cursor) from--
+      return { traces: traceList.slice(from), cursor: traceLast }
+    },
+  }
+  /** След из записи Rust — с полями в том же порядке, что у TS: хост шлёт его JSON как есть. */
+  const traceOf = ([id, tick, kind, entity, type, facing, player, size, x, y]: Float64Array): Trace => {
+    switch (TRACE_KINDS[kind]) {
+      case 'track':
+        return { kind: 'track', entity, type: UNIT_TYPES[type], facing, player, x, y, id, tick }
+      case 'scar':
+        return { kind: 'scar', x, y, size, id, tick }
+      case 'burn':
+        return { kind: 'burn', x, y, id, tick }
+      default:
+        return { kind: 'wreck', type: UNIT_TYPES[type], facing, x, y, id, tick }
+    }
+  }
+  /** Оставленные с прошлого тика системы, по номеру: в конце тика они станут свежими. */
+  const traceLaid = new Map<number, Trace>()
+  /** След лёг: он в списке и в ячейках сразу, как в TS. */
+  const keepTrace = (trace: Trace) => {
+    traceList.push(trace)
+    traceLaid.set(trace.id, trace)
+    traceLast = trace.id
+    const cell = traceCell(trace.x, trace.y)
+    const bucket = traceCells.get(cell)
+    if (bucket) bucket.push(trace)
+    else traceCells.set(cell, [trace])
+  }
+  const runTraces = () => {
+    runRust('traces', rust.get('traces')!)
+    const records = numbers(Float64Array, api.traces_take(id))
+    const count = records[0]
+    traceFresh = []
+    for (let i = 0; i < count; i++) {
+      const record = records.subarray(1 + i * 10, 11 + i * 10)
+      if (!traceLaid.has(record[0])) keepTrace(traceOf(record))
+      traceFresh.push(traceLaid.get(record[0])!)
+    }
+    traceLaid.clear()
+    traceExpired = Array.from(records.subarray(1 + count * 10))
+    if (traceExpired.length) {
+      const gone = new Set(traceExpired)
+      traceList = traceList.filter((trace) => !gone.has(trace.id))
+      for (const [cell, bucket] of traceCells) {
+        const left = bucket.filter((trace) => !gone.has(trace.id))
+        if (left.length) traceCells.set(cell, left)
+        else traceCells.delete(cell)
+      }
+    }
+    if (!options.check) return
+    shadowTraces.update()
+    const fail = (what: string, ours: unknown, theirs: unknown) => {
+      throw new Error(`Rust разошёлся с TS: следы, ${what}: ${JSON.stringify(ours)} против ${JSON.stringify(theirs)}`)
+    }
+    if (JSON.stringify(traceFresh) !== JSON.stringify(shadowTraces.fresh())) fail('оставленные за тик', traceFresh, shadowTraces.fresh())
+    if (traceExpired.join(' ') !== shadowTraces.expired().join(' ')) fail('убранные', traceExpired, shadowTraces.expired())
+    if (traceList.length !== shadowTraces.all().length) fail('живых', traceList.length, shadowTraces.all().length)
+  }
+
   /** Система на Rust на своём месте в тике. */
   const runRust = (name: string, reads: ReadonlySet<string>) => {
     sync(reads)
@@ -821,6 +920,7 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
       return remove.call(known, player)
     }
   }
+  if (rust.has('traces')) (sim as { traces: Traces }).traces = traces
   if (options.check) check()
 
   const advance = sim.advance

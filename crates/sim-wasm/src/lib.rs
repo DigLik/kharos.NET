@@ -413,3 +413,42 @@ pub extern "C" fn build_memory_take(id: u32) -> *const u8 {
     .collect();
   STATE.with_borrow_mut(|state| answer(state, serde_json::to_vec(&out).unwrap()))
 }
+
+// Следы (crates/sim/src/traces.rs).
+
+/// Оставляет след от системы TS (бой): девять f64 — вид, x, y, сущность, номер вида юнита, поворот, игрок, поперечник,
+/// тик. Ответ — след, как он лёг (десять f64, как в `traces_take`), или пусто: тайл полон.
+///
+/// # Safety
+/// ptr и len — буфер от `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn traces_add(id: u32, ptr: *const u8, len: usize) -> *const u8 {
+  use kharos_sim::traces::NewTrace;
+  let record: Vec<f64> = std::slice::from_raw_parts(ptr, len).chunks_exact(8).map(|bytes| f64::from_le_bytes(bytes.try_into().unwrap())).collect();
+  let values = with_sim(id, |sim| {
+    let [kind, x, y, entity, unit, facing, player, size, tick] = record[..].try_into().ok()?;
+    let trace = NewTrace { kind: kind as u8, x, y, entity: entity as u32, unit: unit as u16, facing, player: player as u16, size };
+    let item = sim.traces.add(&mut sim.layers, &trace, tick as u64)?;
+    Some([item.fields.as_slice(), &[item.x, item.y]].concat())
+  })
+  .flatten()
+  .unwrap_or_default();
+  answer_numbers(&values, |value| value.to_le_bytes().to_vec())
+}
+
+/// Следы последнего тика системы `traces`: f64 — число оставленных, затем каждый по десять (номер, тик, вид, сущность,
+/// номер вида юнита, поворот, игрок, поперечник, x, y), затем номера убранных.
+#[no_mangle]
+pub extern "C" fn traces_take(id: u32) -> *const u8 {
+  let values = with_sim(id, |sim| {
+    let mut values = vec![sim.traces.fresh().len() as f64];
+    for item in sim.traces.fresh() {
+      values.extend_from_slice(&item.fields);
+      values.extend_from_slice(&[item.x, item.y]);
+    }
+    values.extend(sim.traces.expired().iter().map(|&id| id as f64));
+    values
+  })
+  .unwrap_or_default();
+  answer_numbers(&values, |value| value.to_le_bytes().to_vec())
+}

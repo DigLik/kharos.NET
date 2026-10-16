@@ -7,6 +7,7 @@ pub use kharos_engine::math;
 pub mod occupancy;
 pub mod recall;
 pub mod systems;
+pub mod traces;
 mod values;
 pub mod vision;
 
@@ -15,6 +16,7 @@ use kharos_engine::{Change, Layers, Owner, World};
 use build_memory::BuildMemory;
 use occupancy::Occupancy;
 use recall::{Kind, Recall};
+use traces::Traces;
 use vision::{Bounds, Vision};
 
 pub use systems::{reads, run, SYSTEMS};
@@ -41,6 +43,8 @@ pub struct Sim {
   pub pave_memory: Recall,
   /// Какими игроки помнят чужие здания (build_memory.rs).
   pub build_memory: BuildMemory,
+  /// Следы на земле — предметы слоя `traces` (traces.rs).
+  pub traces: Traces,
 }
 
 impl Sim {
@@ -52,7 +56,8 @@ impl Sim {
     let occupancy = Occupancy::new(&mut world, &layers);
     let vision = Vision::new(&layers, bounds, fog);
     let pave_memory = Recall::new(Kind::Paving(layers.id("paving").expect("нет слоя paving")));
-    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default() }
+    let traces = Traces::new(&layers);
+    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces }
   }
 
   /// Доводит выводимые слои до мира: разбирает события наблюдателей по порядку. Зовётся после чужого журнала и после

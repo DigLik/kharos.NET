@@ -39,6 +39,57 @@ pub fn turn_toward(facing: f64, wanted: f64, max_turn: f64) -> f64 {
   }
 }
 
+// Синус, косинус, арктангенс и гипотенуза в JS не одинаковы между движками и платформами: JavaScriptCore (Bun) берёт
+// их у системы, V8 — у своей fdlibm и своего `hypot`. Поэтому в wasm они приходят от хоста — импортом `math` (его
+// даёт `loadSimWasm` в packages/sim-rust), и Rust считает ровно как TS рядом; в нативе — системные, как у Bun.
+#[cfg(target_arch = "wasm32")]
+mod host {
+  #[link(wasm_import_module = "math")]
+  extern "C" {
+    pub fn hypot(a: f64, b: f64) -> f64;
+    pub fn sin(x: f64) -> f64;
+    pub fn cos(x: f64) -> f64;
+    pub fn atan2(y: f64, x: f64) -> f64;
+  }
+}
+
+/// `Math.hypot` двух чисел.
+pub fn js_hypot(a: f64, b: f64) -> f64 {
+  #[cfg(target_arch = "wasm32")]
+  return unsafe { host::hypot(a, b) };
+  #[cfg(not(target_arch = "wasm32"))]
+  a.hypot(b)
+}
+
+/// `Math.sin`.
+pub fn js_sin(x: f64) -> f64 {
+  #[cfg(target_arch = "wasm32")]
+  return unsafe { host::sin(x) };
+  #[cfg(not(target_arch = "wasm32"))]
+  x.sin()
+}
+
+/// `Math.cos`.
+pub fn js_cos(x: f64) -> f64 {
+  #[cfg(target_arch = "wasm32")]
+  return unsafe { host::cos(x) };
+  #[cfg(not(target_arch = "wasm32"))]
+  x.cos()
+}
+
+/// `Math.atan2`.
+pub fn js_atan2(y: f64, x: f64) -> f64 {
+  #[cfg(target_arch = "wasm32")]
+  return unsafe { host::atan2(y, x) };
+  #[cfg(not(target_arch = "wasm32"))]
+  y.atan2(x)
+}
+
+/// Угол от b до a, от -π до π (`angleBetween`).
+pub fn angle_between(a: f64, b: f64) -> f64 {
+  js_atan2(js_sin(a - b), js_cos(a - b))
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -50,6 +101,13 @@ mod tests {
     assert_eq!(js_round(0.49999999999999994), 0.0);
     assert_eq!(js_sign(0.0), 0.0);
     assert_eq!(js_sign(-3.0), -1.0);
+  }
+
+  #[test]
+  fn angles_wrap_to_the_short_side() {
+    assert_eq!(js_hypot(3.0, -4.0), 5.0);
+    assert!((angle_between(0.1, -0.1) - 0.2).abs() < 1e-12);
+    assert!((angle_between(3.0, -3.0) - (6.0 - std::f64::consts::TAU)).abs() < 1e-12);
   }
 
   #[test]

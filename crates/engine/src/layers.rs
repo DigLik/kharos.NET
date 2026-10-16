@@ -436,6 +436,14 @@ impl Layers {
     keys.into_iter().map(|(x, y)| Change { layer: layer.spec.name.clone(), owner, x, y, bytes: blocks[&(x, y)].clone() }).collect()
   }
 
+  /// Непустые блоки экземпляра слоя (чанки сетки или ячейки предметов) по порядку координат.
+  pub fn cells(&self, id: LayerId, owner: Owner) -> Vec<(i32, i32)> {
+    let Some(blocks) = self.layers[id].blocks(owner) else { return Vec::new() };
+    let mut keys: Vec<_> = blocks.keys().copied().collect();
+    keys.sort();
+    keys
+  }
+
   /// Применяет чужое изменение (зеркало, загрузка). В свои изменения оно не идёт: та сторона о нём уже знает.
   /// Незнакомый слой и блок не того размера пропускаются.
   pub fn apply(&mut self, change: &Change) -> Result<(), String> {
