@@ -1,5 +1,5 @@
 import { biomeAt, terrainAt, type Land } from '@kharos/shared/terrain'
-import { BUILDINGS, Building, DEPOSIT_CELL, Mark, Missile, Owner, Position, Site, Unit, alliesOf, buildingSpec, depositsIn, type Sim } from '../sim'
+import { BUILDINGS, Building, DEPOSIT_CELL, Mark, Missile, Owner, Position, Site, Unit, alliesOf, buildingSpec, depositsIn, type Sim } from '@kharos/sim-ts'
 import { missileAt } from './missiles'
 import { ALERT_SECONDS } from './alerts'
 import { cssColor } from './resourceColors'

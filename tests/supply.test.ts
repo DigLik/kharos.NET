@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Health, Inventory, Position, amountOf, canPlace, createSim, type Rules, type Sim } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { Magazine, Tactics } from '../src/sim/components'
-import { connectAll } from '../src/sim/piping'
-import { INFANTRY_MAGAZINE_SECONDS, MAGAZINE_SECONDS, isEmpty, magazineOf, shotCost } from '../src/sim/supply'
-import { freeTilesNear, isWalkable, spawnUnit, type UnitType } from '../src/sim/units'
-import { WEAPONS } from '../src/sim/weapons'
+import { Health, Inventory, Position, amountOf, canPlace, createSim, type Rules, type Sim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { Magazine, Tactics } from '@kharos/sim-ts/components'
+import { connectAll } from '@kharos/sim-ts/piping'
+import { INFANTRY_MAGAZINE_SECONDS, MAGAZINE_SECONDS, isEmpty, magazineOf, shotCost } from '@kharos/sim-ts/supply'
+import { freeTilesNear, isWalkable, spawnUnit, type UnitType } from '@kharos/sim-ts/units'
+import { WEAPONS } from '@kharos/sim-ts/weapons'
 
 const TICK = 1 / 20
 const seconds = (sim: Sim, time: number) => {

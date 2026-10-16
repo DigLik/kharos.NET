@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
-import { Drop, Hauler, Inventory, Unreachable, amountOf, createSim, unreachable, type Sim } from '../src/sim'
-import { NONE } from '../src/sim/common'
-import { placeBuilding } from '../src/sim/buildings'
-import { spawnUnit } from '../src/sim/units'
+import { Drop, Hauler, Inventory, Unreachable, amountOf, createSim, unreachable, type Sim } from '@kharos/sim-ts'
+import { NONE } from '@kharos/sim-ts/common'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 const TICK = 1 / 20
 

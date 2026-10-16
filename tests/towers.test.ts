@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Health, Inventory, Position, TOWER_RANGE, TRAINING_PLAYER, Unit, WEAPONS, createSim } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { spawnUnit } from '../src/sim/units'
+import { Health, Inventory, Position, TOWER_RANGE, TRAINING_PLAYER, Unit, WEAPONS, createSim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 const newSim = () => createSim({ generator: DEFAULT_SETTINGS.generator, size: DEFAULT_SETTINGS.world.size, rules: DEFAULT_SETTINGS.rules })
 

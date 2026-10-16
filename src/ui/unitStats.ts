@@ -1,5 +1,5 @@
 import { t } from '@kharos/i18n';
-import { WEAPONS, turretSpec, unitSight, unitSpec, type UnitType } from '../sim';
+import { WEAPONS, turretSpec, unitSight, unitSpec, type UnitType } from '@kharos/sim-ts';
 
 type WeaponType = keyof typeof WEAPONS;
 type Target = 'infantry' | 'vehicle' | 'heavy' | 'air' | 'building';

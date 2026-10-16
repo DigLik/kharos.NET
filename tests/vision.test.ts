@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { BUILDINGS, Position, buildingSight, createSim, unitSight, type Sim } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { spawnUnit } from '../src/sim/units'
+import { BUILDINGS, Position, buildingSight, createSim, unitSight, type Sim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { spawnUnit } from '@kharos/sim-ts/units'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 256 }

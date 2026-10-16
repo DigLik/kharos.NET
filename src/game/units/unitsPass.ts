@@ -7,7 +7,7 @@ import type { Entity } from '@kharos/ecs'
 import {
   Armed, Attached, Building, Converting, Ghost, Owner, Position, TURN, TURRET_TYPES, Turret, UNIT_TYPES, Unit, WEAPONS, alliesOf, flies, weaponOf, wrap, type ShotKind, type TurretType,
   type UnitType,
-} from '../../sim'
+} from '@kharos/sim-ts'
 import type { Scene } from '../scene'
 import { GAIT_PHASES, GAIT_STEP, MASK_TEAM, TEAM_NAMES, TEAM_PALETTE, TURRET_ART, TURRET_FRAME, UNIT_ART, UNIT_DIRECTIONS, UNIT_FRAME, UNIT_GAITS, UNIT_LIGHTS, type Team } from './unitArt'
 

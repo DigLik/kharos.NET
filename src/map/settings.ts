@@ -1,5 +1,5 @@
 import { DEFAULT_CONFIG, type GeneratorConfig } from '@kharos/shared/terrain'
-import { DEFAULT_RULES, type Rules } from '../sim'
+import { DEFAULT_RULES, type Rules } from '@kharos/sim-ts'
 
 /** Параметры отрисовки: меняют только картинку, мир при этом не перегенерируется. */
 export interface RenderConfig {

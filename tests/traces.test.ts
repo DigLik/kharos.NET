@@ -3,9 +3,9 @@ import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
 import { createHost, type Host } from '../src/net/host'
 import { decodeServer } from '../src/net/protocol'
 import { createReplica, type Replica } from '../src/net/replica'
-import { Owner, Position, Unit, createSim, type Sim } from '../src/sim'
-import { TRACE_LIFE, type Trace } from '../src/sim/traces'
-import { spawnUnit } from '../src/sim/units'
+import { Owner, Position, Unit, createSim, type Sim } from '@kharos/sim-ts'
+import { TRACE_LIFE, type Trace } from '@kharos/sim-ts/traces'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 const STEP = 1 / 20
 const options = { generator: DEFAULT_CONFIG, size: 256 }

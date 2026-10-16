@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Biome, Terrain, biomeAt, isCliffFoot, terrainAt } from '@kharos/shared/terrain'
-import { Health, createSim, isWalkable } from '../src/sim'
-import { findPath, smoothPath } from '../src/sim/path'
-import { spawnUnit, terrainSpeed } from '../src/sim/units'
+import { Health, createSim, isWalkable } from '@kharos/sim-ts'
+import { findPath, smoothPath } from '@kharos/sim-ts/path'
+import { spawnUnit, terrainSpeed } from '@kharos/sim-ts/units'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
 

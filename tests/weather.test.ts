@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { createSim, weatherAt, type SimOptions } from '../src/sim'
+import { createSim, weatherAt, type SimOptions } from '@kharos/sim-ts'
 import { throughJson } from './throughJson'
 
 const options: SimOptions = { generator: DEFAULT_SETTINGS.generator, size: 128 }

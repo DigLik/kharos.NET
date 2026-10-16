@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, terrainAt } from '@kharos/shared/terrain'
-import { createSim, type Sim } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { addCredits } from '../src/sim/economy'
-import { zonesOf } from '../src/sim/zones'
+import { createSim, type Sim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { zonesOf } from '@kharos/sim-ts/zones'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }

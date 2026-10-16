@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Armed, Blast, Building, Builds, Carrier, activeRepairs, Health, Inventory, INFANTRY_REGEN, isFighter, Repair, wrap, Turret, Owner, Path, Position, Producer, Shot, UNITS, Unit, WEAPONS, buildingHp, canAttack, canPlace, createSim, driveBattle, isWalkable, powerStates, producibleBy, randomArmy, spawnBattle, zoneEconomies, grantResearch, type Sim } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { REPAIR_PAUSE } from '../src/sim/construction'
-import { addCredits } from '../src/sim/economy'
-import { spawnUnit } from '../src/sim/units'
+import { Armed, Blast, Building, Builds, Carrier, activeRepairs, Health, Inventory, INFANTRY_REGEN, isFighter, Repair, wrap, Turret, Owner, Path, Position, Producer, Shot, UNITS, Unit, WEAPONS, buildingHp, canAttack, canPlace, createSim, driveBattle, isWalkable, powerStates, producibleBy, randomArmy, spawnBattle, zoneEconomies, grantResearch, type Sim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { REPAIR_PAUSE } from '@kharos/sim-ts/construction'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { spawnUnit } from '@kharos/sim-ts/units'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }

@@ -3,8 +3,8 @@
  * bun run stress [N] [расстояние]
  */
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { createSim, Path, Position, Unit, Owner } from '../src/sim'
-import { spawnUnit } from '../src/sim/units'
+import { createSim, Path, Position, Unit, Owner } from '@kharos/sim-ts'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 const n = Number(process.argv[2] ?? 500)
 /** Расстояние между армиями в тайлах. */

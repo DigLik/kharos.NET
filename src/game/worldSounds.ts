@@ -4,8 +4,8 @@ import type { Entity } from '@kharos/ecs'
 import {
   Accumulator, BUILDINGS, Batch, Beam, Building, Chaser, Converting, Deposit, Doomed, Drop, Glare, Hauler, Health, Mark, Missile, NO_PAVE, Off, Owner, Pave, Player, Position, Producer, Reactor,
   Shield, Silo, Site, Trade, Transfer, Turret, Unit, activeRepairs, buildingSpec, isBurning, isDefeated, powerStates, protectionLeft, wrap,
-} from '../sim'
-import { Gate, Scan } from '../sim/components'
+} from '@kharos/sim-ts'
+import { Gate, Scan } from '@kharos/sim-ts/components'
 import { nearness, sideOf } from './hearing'
 import { chaserAt, missileAt } from './missiles'
 import type { Scene } from './scene'

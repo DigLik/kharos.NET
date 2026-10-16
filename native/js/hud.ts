@@ -9,7 +9,7 @@
 
 import { goodIcon } from '../../src/game/goodIcons'
 import { unitPortrait } from '../../src/game/portraits'
-import { GOODS, UNIT_TYPES } from '../../src/sim'
+import { GOODS, UNIT_TYPES } from '@kharos/sim-ts'
 import { installSkin } from '../../src/ui/skin'
 import { box, createDocument, Element, type Document, type Node, picture } from './dom'
 import { draw } from './draw'

@@ -1,5 +1,5 @@
 import { t } from '@kharos/i18n'
-import { BUILDING_TYPES, ORE_OF, PRODUCT_SPECS, RESOURCE_SPECS, buildingSpec, entriesOf, isOre, isProduct, type BuildingType, type Good, type Ore, type Product, type Resource, type ResourceSpec } from '../sim'
+import { BUILDING_TYPES, ORE_OF, PRODUCT_SPECS, RESOURCE_SPECS, buildingSpec, entriesOf, isOre, isProduct, type BuildingType, type Good, type Ore, type Product, type Resource, type ResourceSpec } from '@kharos/sim-ts'
 
 /** Какое здание перерабатывает руду и какое собирает изделие: первое такое по порядку видов. */
 const REFINERIES = new Map<Ore, BuildingType>()

@@ -1,4 +1,4 @@
-import { DEPOSIT_SIZE, reserveLeft, type Sim } from '../sim'
+import { DEPOSIT_SIZE, reserveLeft, type Sim } from '@kharos/sim-ts'
 
 type Spot = { x: number; y: number; reserve: number }
 

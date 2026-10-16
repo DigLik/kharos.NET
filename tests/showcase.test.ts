@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { BUILDABLE, REQUIRES } from '../src/sim/buildings'
-import { PLAN } from '../src/sim/showcase'
-import { Building, Owner, SCENES, stanceOf, Site, TRAINING_PLAYER, Unit, createSim, type Sim, type SceneName } from '../src/sim'
+import { BUILDABLE, REQUIRES } from '@kharos/sim-ts/buildings'
+import { PLAN } from '@kharos/sim-ts/showcase'
+import { Building, Owner, SCENES, stanceOf, Site, TRAINING_PLAYER, Unit, createSim, type Sim, type SceneName } from '@kharos/sim-ts'
 
 const STEP = 1 / 20
 const PLAYER = 1

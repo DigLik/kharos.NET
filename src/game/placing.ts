@@ -1,5 +1,5 @@
 import { peakOf, tileKey } from '@kharos/shared/terrain'
-import { BUILDINGS, CORE, canDeployAt, DEPOSIT_SIZE, Owner, Pave, PAVE_LIMIT, digsIn, paveOwnerAt, peakTiles, type DigKind, canBuild, canPlace, canPave, creditsOf, depositNear, paveCost, buildingWithin, pipeAt, pipeStroke, wallStroke, isWellPair, wellsKept, UNDERGROUND_REACH, type BuildingSpec, type BuildingType } from '../sim'
+import { BUILDINGS, CORE, canDeployAt, DEPOSIT_SIZE, Owner, Pave, PAVE_LIMIT, digsIn, paveOwnerAt, peakTiles, type DigKind, canBuild, canPlace, canPave, creditsOf, depositNear, paveCost, buildingWithin, pipeAt, pipeStroke, wallStroke, isWellPair, wellsKept, UNDERGROUND_REACH, type BuildingSpec, type BuildingType } from '@kharos/sim-ts'
 import type { PaveTool, Scene } from './scene'
 
 /** Где встанет здание, которое игрок сейчас выбирает место: левый верхний тайл основания и годится ли место. */

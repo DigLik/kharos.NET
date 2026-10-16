@@ -8,7 +8,7 @@
  * в 1/FACING радиана).
  */
 
-import { WEAPONS, type WeaponType } from '../sim/weapons'
+import { WEAPONS, type WeaponType } from '@kharos/sim-ts/weapons'
 
 /** Сколько долей тайла в единице координаты: 1/256 тайла глазу не видна. */
 export const POSITION = 256

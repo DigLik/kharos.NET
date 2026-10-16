@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { OLDEST_VERSION, decodeSave, encodeSave, jsonSection, packSections, readJson, unpackSections } from '../src/save/file'
-import { SAVE_VERSION, createSim, spawnStartingUnits } from '../src/sim'
+import { SAVE_VERSION, createSim, spawnStartingUnits } from '@kharos/sim-ts'
 
 const world = () => {
   const sim = createSim({ generator: DEFAULT_SETTINGS.generator, size: 256, weather: { startHour: 9 } })

@@ -3,7 +3,7 @@ import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atl
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { Drop, GOODS, Inventory, Position, amountOf, loadOf, type Good } from '../sim'
+import { Drop, GOODS, Inventory, Position, amountOf, loadOf, type Good } from '@kharos/sim-ts'
 import { GOOD_COLORS } from './resourceColors'
 import type { Scene } from './scene'
 

@@ -1,7 +1,7 @@
-import type { Command, SimOptions } from '../sim'
-import type { EditOp } from '../sim/editOps'
-import type { DepositsSave } from '../sim/deposits'
-import type { Trace } from '../sim/traces'
+import type { Command, SimOptions } from '@kharos/sim-ts'
+import type { EditOp } from '@kharos/sim-ts/editOps'
+import type { DepositsSave } from '@kharos/sim-ts/deposits'
+import type { Trace } from '@kharos/sim-ts/traces'
 import type { CommandInfo } from './chatCommands'
 import { LAND, decodeDelta } from './codec'
 import type { Text } from '@kharos/i18n'
@@ -117,7 +117,7 @@ export interface PlayerInfo {
   player: number
   name: string
   online: boolean
-  /** Под защитой новичка: его нельзя атаковать, см. src/sim/shelter.ts. */
+  /** Под защитой новичка: его нельзя атаковать, см. packages/sim-ts/src/shelter.ts. */
   safe?: true
 }
 

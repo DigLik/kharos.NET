@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { STEPS, currentStep, stepTarget, stepsDone } from '../src/game/firstSteps'
-import { Building, Owner, Player, Position, Unit, createSim, depositAt, depositIn, spawnStartingUnits } from '../src/sim'
-import { grantResearch } from '../src/sim/research'
-import { spawnUnit } from '../src/sim/units'
+import { Building, Owner, Player, Position, Unit, createSim, depositAt, depositIn, spawnStartingUnits } from '@kharos/sim-ts'
+import { grantResearch } from '@kharos/sim-ts/research'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
 

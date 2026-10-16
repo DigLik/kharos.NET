@@ -1,6 +1,6 @@
 import { MOD_API, type ApiField, type ApiType, type ModFunctions } from './api'
 import { createMachine, type HostFunction, type Machine, type ModValue, type RunResult } from './luau'
-import type { SimEvent } from '../sim/sim'
+import type { SimEvent } from '@kharos/sim-ts/sim'
 
 /** Мод, как его приносит хост: имя (папка) и код. */
 export interface ModSource {

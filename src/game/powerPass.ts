@@ -4,10 +4,10 @@ import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atl
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { BUILDINGS, Building, GOODS, Hauler, Magazine, Owner, Position, Site, UNITS, Unit, ammoOf, isEmpty, magazineOf, powerStates, shutDown, unreachable, type Good, type PowerState } from '../sim'
+import { BUILDINGS, Building, GOODS, Hauler, Magazine, Owner, Position, Site, UNITS, Unit, ammoOf, isEmpty, magazineOf, powerStates, shutDown, unreachable, type Good, type PowerState } from '@kharos/sim-ts'
 import { GOOD_ICON, paintGood } from './goodIcons'
 import { lacksOf, runningLow, type Lack } from './lacks'
-import { AMMO_REORDER } from '../sim/logistics'
+import { AMMO_REORDER } from '@kharos/sim-ts/logistics'
 import { STATUS_BAR, STATUS_GAP, STATUS_STACK, statusBarsOf, statusLift } from './statusBars'
 import type { Scene } from './scene'
 

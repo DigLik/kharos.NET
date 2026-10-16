@@ -3,8 +3,8 @@ import { DEFAULT_LIMITS, type ConnectLimits } from '../src/net/limits'
 import type { Lang } from '@kharos/i18n'
 import { DEFAULT_SEND_RATE } from '../src/net/host'
 import { DEFAULT_PORT } from '../src/net/protocol'
-import { DEFAULT_RULES, type Rules } from '../src/sim'
-import { DEFAULT_WEATHER, type WeatherOptions } from '../src/sim/weather'
+import { DEFAULT_RULES, type Rules } from '@kharos/sim-ts'
+import { DEFAULT_WEATHER, type WeatherOptions } from '@kharos/sim-ts/weather'
 import { DEFAULT_TLS, type TlsSettings } from './tls'
 
 /** Настройки сервера из settings.json. */

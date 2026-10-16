@@ -2,10 +2,10 @@ import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, terrainAt } from '@kharos/shared/terrain'
-import { Armed, Carrier, Health, Orders, Path, Position, Tactics, createSim, type Sim } from '../src/sim'
-import { spawnUnit, type UnitType } from '../src/sim/units'
-import { placeBuilding } from '../src/sim/buildings'
-import { searchedTiles } from '../src/sim/path'
+import { Armed, Carrier, Health, Orders, Path, Position, Tactics, createSim, type Sim } from '@kharos/sim-ts'
+import { spawnUnit, type UnitType } from '@kharos/sim-ts/units'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { searchedTiles } from '@kharos/sim-ts/path'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
 const TICK = 1 / 20

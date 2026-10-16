@@ -1,10 +1,10 @@
 import type { Audio } from '../audio/audio'
 import type { SoundName } from '../audio/sounds'
 import type { Entity } from '@kharos/ecs'
-import { Building, Chaser, Health, Mark, Missile, Owner, Position, Shot, Unit, WARNING, alliesIn, buildingSpec } from '../sim'
+import { Building, Chaser, Health, Mark, Missile, Owner, Position, Shot, Unit, WARNING, alliesIn, buildingSpec } from '@kharos/sim-ts'
 import { missileAt } from './missiles'
 import { tileKey } from '@kharos/shared/terrain'
-import { DEPOSIT_SIZE } from '../sim/deposits'
+import { DEPOSIT_SIZE } from '@kharos/sim-ts/deposits'
 import type { Scene } from './scene'
 
 /** Не чаще этого, в секундах, игрока предупреждают, что замечен противник. */

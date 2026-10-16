@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Health, Position, SHIELD_DOWN, Shield, Shot, WEAPONS, createSim, domes, isWalkable, offerAlliance, type Sim } from '../src/sim'
-import { BUILDINGS, placeBuilding } from '../src/sim/buildings'
-import { addCredits } from '../src/sim/economy'
-import { absorb } from '../src/sim/shields'
-import { spawnUnit } from '../src/sim/units'
+import { Health, Position, SHIELD_DOWN, Shield, Shot, WEAPONS, createSim, domes, isWalkable, offerAlliance, type Sim } from '@kharos/sim-ts'
+import { BUILDINGS, placeBuilding } from '@kharos/sim-ts/buildings'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { absorb } from '@kharos/sim-ts/shields'
+import { spawnUnit } from '@kharos/sim-ts/units'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { protection: 0 } }

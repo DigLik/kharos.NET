@@ -14,11 +14,11 @@
 import {
   ASSEMBLE_RATE, BUILDINGS, DEPOSIT_KINDS, Inventory, MAX_LEVEL, PRODUCT_SPECS, REFINE_RATIO, RESOURCE_SPECS, TOPICS, amountOf, connectAll, createSim,
   cycleSeconds, depositIn, levelGain, priceOf, tierOf, upgradeCost, DEFAULT_RULES, type BuildingType, type DepositSpot, type Rules, type Sim, type Topic,
-} from '../../src/sim'
-import { setWorking } from '../../src/sim/assembly'
-import { put } from '../../src/sim/inventory'
-import { DEPOSIT_CELL, reserveLeft } from '../../src/sim/deposits'
-import { placeBuilding } from '../../src/sim/buildings'
+} from '@kharos/sim-ts'
+import { setWorking } from '@kharos/sim-ts/assembly'
+import { put } from '@kharos/sim-ts/inventory'
+import { DEPOSIT_CELL, reserveLeft } from '@kharos/sim-ts/deposits'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
 import { SESSION_RULES } from '../../server/settings'
 import { placeNearMine } from './economy'
 import { TICK, newSim, options, printTable, rings, round } from './lib'

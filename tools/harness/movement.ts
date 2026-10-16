@@ -18,12 +18,12 @@ import { Terrain, isCliffFoot, terrainAt } from '@kharos/shared/terrain'
 import {
   BUILDINGS, Health, Path, Position, Repair, Shot, TRAINING_PLAYER, Unit, createSim, driveBattle, spawnBattle,
   type BuildingType, type Sim, type UnitType,
-} from '../../src/sim'
-import { orderAttack } from '../../src/sim/combat'
-import { orderBuild } from '../../src/sim/construction'
-import { searchedTiles } from '../../src/sim/path'
-import { setStance } from '../../src/sim/tactics'
-import { freeTilesNear, isWalkable, openSpawn, orderGroupMove, spawnStartingUnits, spawnUnit, terrainSpeed } from '../../src/sim/units'
+} from '@kharos/sim-ts'
+import { orderAttack } from '@kharos/sim-ts/combat'
+import { orderBuild } from '@kharos/sim-ts/construction'
+import { searchedTiles } from '@kharos/sim-ts/path'
+import { setStance } from '@kharos/sim-ts/tactics'
+import { freeTilesNear, isWalkable, openSpawn, orderGroupMove, spawnStartingUnits, spawnUnit, terrainSpeed } from '@kharos/sim-ts/units'
 import { TICK, newSim, options, printTable, round, seconds } from './lib'
 
 /**

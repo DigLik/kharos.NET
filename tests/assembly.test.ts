@@ -4,11 +4,11 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import {
   Assembly, Building, BUILDINGS, BUY_MARKUP, BUY_SECONDS, Health, Inventory, PRODUCT_SPECS, RESOURCE_SPECS, Trade, buyPrice, creditsOf, UNITS, WEAPONS, amountOf, canPlace, createSim, cycleSeconds,
   hasRoom, stockOf, type BuildingType, type Good, type Sim,
-} from '../src/sim'
-import { STORES, placeBuilding, storeFor } from '../src/sim/buildings'
-import type { Amounts, Ware } from '../src/sim/resources'
-import { addCredits } from '../src/sim/economy'
-import { spawnUnit } from '../src/sim/units'
+} from '@kharos/sim-ts'
+import { STORES, placeBuilding, storeFor } from '@kharos/sim-ts/buildings'
+import type { Amounts, Ware } from '@kharos/sim-ts/resources'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
 const TICK = 1 / 20

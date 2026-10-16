@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test'
 import { BUILDING_ART, WALL_CONNECTION } from '../src/game/buildings/buildingArt'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Pixmap } from '../src/render/pixmap'
-import { BUILDING_TYPES, canPlace, createSim, type Sim } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
+import { BUILDING_TYPES, canPlace, createSim, type Sim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
 
 const createScene = () => ({ sim: createSim({ generator: DEFAULT_SETTINGS.generator, size: 1024 }) })
 type Scene = { sim: Sim }

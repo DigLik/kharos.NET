@@ -1,7 +1,7 @@
 import type { Audio } from '../audio/audio'
 import type { SoundName } from '../audio/sounds'
 import type { Entity } from '@kharos/ecs'
-import { Unit, resolveOrder, type Command, type Sim } from '../sim'
+import { Unit, resolveOrder, type Command, type Sim } from '@kharos/sim-ts'
 import { GUI_PRESS, type GuiPress } from '../gui/ui'
 
 /** Громкость звуков интерфейса: тише боя, но слышна поверх него. */

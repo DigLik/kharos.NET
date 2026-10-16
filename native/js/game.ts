@@ -12,7 +12,7 @@ import { createSlot } from '../../src/game/storage'
 import { startApp } from '../../src/gui/app'
 import { LOCAL_PLAYER, type GameMode } from '../../src/net/local'
 import { lastDrawn } from '../../src/render/renderer'
-import { SCENES, createSim, type Scene, type SceneName } from '../../src/sim'
+import { SCENES, createSim, type Scene, type SceneName } from '@kharos/sim-ts'
 import { loadLang, preferredLang } from '@kharos/i18n'
 import type { Launch } from '../../src/ui/launch'
 

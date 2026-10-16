@@ -4,8 +4,8 @@ import { createLocalServer, type LocalControl, type LocalNotice, type LocalPort,
 import { decodeServer } from '../src/net/protocol'
 import { createReplica, type Replica } from '../src/net/replica'
 import type { Entity } from '@kharos/ecs'
-import { Position, Unit, createSim, creditsOf, type SimSave } from '../src/sim'
-import { addCredits } from '../src/sim/economy'
+import { Position, Unit, createSim, creditsOf, type SimSave } from '@kharos/sim-ts'
+import { addCredits } from '@kharos/sim-ts/economy'
 
 const STEP = 1 / 20
 const options = { generator: DEFAULT_SETTINGS.generator, size: 256 }

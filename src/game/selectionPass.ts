@@ -4,7 +4,7 @@ import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atl
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { Armed, Attached, BUILDINGS, Building, Converting, Orders, Owner, Path, Position, Producer, Site, UNITS, Unit, buildTicks, networkOf, siteTicks, unitSpec } from '../sim'
+import { Armed, Attached, BUILDINGS, Building, Converting, Orders, Owner, Path, Position, Producer, Site, UNITS, Unit, buildTicks, networkOf, siteTicks, unitSpec } from '@kharos/sim-ts'
 import type { Scene } from './scene'
 import { statusLift } from './statusBars'
 import { prefs } from './prefs'

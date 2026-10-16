@@ -6,7 +6,7 @@ import { compileLuau, createMachine, type MachineOptions } from '../src/mods/lua
 import { createMods, DEFAULT_MOD_LIMITS, type ModReport } from '../src/mods/runtime'
 import { createHost } from '../src/net/host'
 import type { ServerMessage } from '../src/net/protocol'
-import { createSim } from '../src/sim'
+import { createSim } from '@kharos/sim-ts'
 
 const module = await compileLuau(readFileSync(new URL('../src/mods/luau.wasm', import.meta.url)))
 

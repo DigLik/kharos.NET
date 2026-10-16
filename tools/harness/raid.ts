@@ -14,9 +14,9 @@ import type { Entity } from '@kharos/ecs'
 import {
   BUILDINGS, BUILD_RATE, Building, Drop, Inventory, Owner, Position, RESOURCE_SPECS, UNITS, Unit, WARES, amountOf, isPipe, networkOf, connectAll,
   spawnBattle, type BuildingType, type Sim, type UnitType,
-} from '../../src/sim'
-import { placeBuilding } from '../../src/sim/buildings'
-import { depositIn } from '../../src/sim'
+} from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { depositIn } from '@kharos/sim-ts'
 import { TICK, centerOf, clock, newSim, placeNear, placeableNear, printTable, rings, round, seconds, spotNear } from './lib'
 
 /** На сколько тайлов от цели встают атакующие. */

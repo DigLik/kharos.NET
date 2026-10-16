@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { knownReserve } from '../src/game/knownReserve'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { createSim, depositIn, reserveLeft } from '../src/sim'
+import { createSim, depositIn, reserveLeft } from '@kharos/sim-ts'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
 

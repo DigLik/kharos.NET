@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { canPlace, createSim, Path, Position } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { orderGroupMove, spawnUnit } from '../src/sim/units'
+import { canPlace, createSim, Path, Position } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { orderGroupMove, spawnUnit } from '@kharos/sim-ts/units'
 
 test('большая армия сразу трогается, каждый юнит — к своему месту, и доходит', () => {
   const sim = createSim({ generator: DEFAULT_SETTINGS.generator, size: 1024 })

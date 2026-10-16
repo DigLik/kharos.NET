@@ -11,7 +11,7 @@ import {
   MAX_LEVEL, Upgrade, isUpgradable, levelFactor, levelGain, upgradeCost, upgradeLack, upgradeTicks, type LevelGain, type UpgradeLack,
   type Economy, Silo, launchLeft, warheadLack, type WarheadLack, Interceptor, interceptorLack, type InterceptorLack,
   Accumulator, Wanted, Fetch, Repair, canHaul, canSupply, isCarryTarget, isBurning, isSwitchable, Off, Owner, Player, Position, Shield, Tactics, Transfer, allyHeadIn, giftable, isDefeated, stanceOf, ammoOf, isEmpty, magazineOf, type Stance, type Amounts, type BuildingType, type Command, type DepositKind, type Good, type Ore, type Product, type Resource, type UnitType, type Sim,
-} from '../sim'
+} from '@kharos/sim-ts'
 import { currentStep, stepTarget, stepsDone, type StepTarget } from './firstSteps'
 import { paveStrokeOf } from './placing'
 import type { PaveTool, Scene } from './scene'

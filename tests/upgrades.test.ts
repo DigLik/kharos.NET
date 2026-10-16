@@ -4,11 +4,11 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import {
   BUILDINGS, BUY_SECONDS, Building, DEPOSIT_KINDS, Inventory, MAX_LEVEL, Position, REFINE_RATE, Site, Trade, Upgrade, amountOf, canPlace, createSim, creditsOf, depositIn, economyOf,
   isUpgradable, levelFactor, levelOf, refundOf, resolveOrder, stockOf, upgradeCost, upgradeLack, type BuildingType, type Good, type Sim,
-} from '../src/sim'
-import { STORES, placeBuilding, storeFor } from '../src/sim/buildings'
-import type { Amounts, Ware } from '../src/sim/resources'
-import { addCredits } from '../src/sim/economy'
-import { spawnUnit } from '../src/sim/units'
+} from '@kharos/sim-ts'
+import { STORES, placeBuilding, storeFor } from '@kharos/sim-ts/buildings'
+import type { Amounts, Ware } from '@kharos/sim-ts/resources'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { spawnUnit } from '@kharos/sim-ts/units'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }

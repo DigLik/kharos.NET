@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { BUILDINGS, Drop, Hauler, Inventory, Position, Producer, TRUCK_CAPACITY, Trade, UNITS, amountOf, canPlace, createSim, creditsOf, refundOf, type BuildingType, type Sim } from '../src/sim'
-import { buyPrice } from '../src/sim/trade'
-import { placeBuilding } from '../src/sim/buildings'
-import { addCredits } from '../src/sim/economy'
-import { dropItems } from '../src/sim/drops'
-import { spawnUnit } from '../src/sim/units'
+import { BUILDINGS, Drop, Hauler, Inventory, Position, Producer, TRUCK_CAPACITY, Trade, UNITS, amountOf, canPlace, createSim, creditsOf, refundOf, type BuildingType, type Sim } from '@kharos/sim-ts'
+import { buyPrice } from '@kharos/sim-ts/trade'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { dropItems } from '@kharos/sim-ts/drops'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
 const TICK = 1 / 20

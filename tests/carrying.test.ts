@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, terrainAt } from '@kharos/shared/terrain'
-import { Hauler, Inventory, amountOf, createSim, type Sim } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { put } from '../src/sim/inventory'
-import { apply } from '../src/sim/commands'
-import { flowsOf } from '../src/sim/logistics'
-import { spawnUnit } from '../src/sim/units'
+import { Hauler, Inventory, amountOf, createSim, type Sim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { put } from '@kharos/sim-ts/inventory'
+import { apply } from '@kharos/sim-ts/commands'
+import { flowsOf } from '@kharos/sim-ts/logistics'
+import { spawnUnit } from '@kharos/sim-ts/units'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }

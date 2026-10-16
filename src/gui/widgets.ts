@@ -4,7 +4,7 @@
 import type { GridState } from '../game/hud'
 import { goodCanvas } from '../game/goodIcons'
 import { t } from '@kharos/i18n'
-import type { Good } from '../sim'
+import type { Good } from '@kharos/sim-ts'
 import { INK, skins } from '../ui/skin'
 import type { Run, TextStyle, Ui } from './ui'
 

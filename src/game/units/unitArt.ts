@@ -1,5 +1,5 @@
 import { toned, type Pixmap } from '../../render/pixmap'
-import type { TurretType, UnitType } from '../../sim'
+import type { TurretType, UnitType } from '@kharos/sim-ts'
 
 /**
  * Векторные чертежи юнитов, вид сверху. Рисуются на Pixmap в пикселях будущего спрайта, 16 пикселей на тайл;

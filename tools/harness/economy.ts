@@ -18,10 +18,10 @@ import {
   depositIn, economyOf, freeCredits, hasResearch, isTrigger, topicsBefore, networkOf, pipeRoute, Position, entriesOf, isProduct, rewardsOf, stockOf, totalOf, unitSpec,
   type Topic,
   type Amounts, type BuildingType, type DepositSpot, type Resource, type Sim, type TurretSpec, type UnitType, type WeaponSpec,
-} from '../../src/sim'
-import { placeBuilding } from '../../src/sim/buildings'
-import { connectAll } from '../../src/sim/piping'
-import { spawnStartingUnits } from '../../src/sim/units'
+} from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { connectAll } from '@kharos/sim-ts/piping'
+import { spawnStartingUnits } from '@kharos/sim-ts/units'
 import { TICK, clock, newSim, placeableNear, printTable, rectOf, rectsApart, rings, round, spotNear } from './lib'
 
 /** Тиков в секунду: внутренние циклы идут ровно по секундам. */

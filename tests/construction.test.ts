@@ -5,14 +5,14 @@ import { Terrain, isCliffFoot, terrainAt } from '@kharos/shared/terrain'
 import {
   BUILDINGS, Building, Builds, CORE, Inventory, REWARDS, Owner, Player, Position, Site, TOPICS, Unit,
   Health, canBuild, canPlace, createSim, creditsOf, freeCredits, grantResearch, isWalkable, rewardsOf, siteAt, spawnStartingUnits, type Sim,
-} from '../src/sim'
-import { BUILD_RATE, isUnlocked, placeBuilding } from '../src/sim/buildings'
-import { WORK_RADIUS, awaitsMaterials, siteTicks, wallStroke } from '../src/sim/construction'
-import { addCredits } from '../src/sim/economy'
-import { spawnUnit } from '../src/sim/units'
+} from '@kharos/sim-ts'
+import { BUILD_RATE, isUnlocked, placeBuilding } from '@kharos/sim-ts/buildings'
+import { WORK_RADIUS, awaitsMaterials, siteTicks, wallStroke } from '@kharos/sim-ts/construction'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { spawnUnit } from '@kharos/sim-ts/units'
 import { throughJson } from './throughJson'
 import { addBuilders } from './builders'
-import type { SimEvent } from '../src/sim/sim'
+import type { SimEvent } from '@kharos/sim-ts/sim'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }
 const TICK = 1 / 20

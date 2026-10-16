@@ -8,8 +8,8 @@
  */
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { DEFAULT_SEND_RATE, createHost } from '../src/net/host'
-import { createSim, Owner, Unit } from '../src/sim'
-import { spawnUnit } from '../src/sim/units'
+import { createSim, Owner, Unit } from '@kharos/sim-ts'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 const armies = Number(process.argv[2] ?? 10)
 const n = Number(process.argv[3] ?? 1000)

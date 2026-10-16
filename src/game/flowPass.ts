@@ -2,7 +2,7 @@ import type { Entity } from '@kharos/ecs'
 import { setBlend } from '../gl'
 import type { Pass } from '../render/renderer'
 import { createLineProgram, createLines } from '../render/lines'
-import { BUILDINGS, Batch, Building, Owner, Position, Site, isPipe, zonesOf } from '../sim'
+import { BUILDINGS, Batch, Building, Owner, Position, Site, isPipe, zonesOf } from '@kharos/sim-ts'
 import { GOOD_COLORS } from './resourceColors'
 import type { Scene } from './scene'
 

@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test'
 import { lacksOf, runningLow } from '../src/game/lacks'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { BUILDINGS, Inventory, Owner, Position, Site, UNITS, canPlace, createSim, type BuildingType, type Sim } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { Assembly } from '../src/sim/components'
-import { addCredits } from '../src/sim/economy'
-import { grantResearch } from '../src/sim/research'
+import { BUILDINGS, Inventory, Owner, Position, Site, UNITS, canPlace, createSim, type BuildingType, type Sim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { Assembly } from '@kharos/sim-ts/components'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { grantResearch } from '@kharos/sim-ts/research'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
 const TICK = 1 / 20

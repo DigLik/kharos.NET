@@ -1,5 +1,5 @@
 import { Pixmap } from '../render/pixmap'
-import { buildingSpec, unitSpec, type BuildingType, type MountSpec, type UnitType } from '../sim'
+import { buildingSpec, unitSpec, type BuildingType, type MountSpec, type UnitType } from '@kharos/sim-ts'
 import { ART_TILE, BUILDING_ART } from './buildings/buildingArt'
 import { TEAMS, TURRET_ART, UNIT_ART, UNIT_FRAME, type Team } from './units/unitArt'
 import { PAVE_ART } from './pavingPass'

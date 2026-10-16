@@ -5,9 +5,9 @@ import { Camera } from '../src/game/camera'
 import type { Scene } from '../src/game/scene'
 import { createWorldSounds } from '../src/game/worldSounds'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Building, Glare, Off, Owner, Position, Shield, Site, Trade, createSim } from '../src/sim'
-import { Gate } from '../src/sim/components'
-import { placeBuilding } from '../src/sim/buildings'
+import { Building, Glare, Off, Owner, Position, Shield, Site, Trade, createSim } from '@kharos/sim-ts'
+import { Gate } from '@kharos/sim-ts/components'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
 
 /** Звуки мира без браузера: камера в (0, 0), звук записывает, что ему велели. */
 function setup() {

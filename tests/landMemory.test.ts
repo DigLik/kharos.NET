@@ -3,9 +3,9 @@ import { DEFAULT_CONFIG, Terrain, terrainAt } from '@kharos/shared/terrain'
 import { createHost, type Host } from '../src/net/host'
 import { decodeServer } from '../src/net/protocol'
 import { createReplica, type Replica } from '../src/net/replica'
-import { Owner, Position, Unit, createSim, type Sim } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { editTile, knownEdits } from '../src/sim/landMemory'
+import { Owner, Position, Unit, createSim, type Sim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { editTile, knownEdits } from '@kharos/sim-ts/landMemory'
 import { throughJson } from './throughJson'
 
 const STEP = 1 / 20

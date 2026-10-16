@@ -5,11 +5,11 @@ import { isCliffFoot } from '@kharos/shared/terrain'
 import {
   Building, CORE, Converting, Deploys, Owner, Path, Player, Position, Producer, UNITS, Unit,
   canDeploy, canDeployAt, canPlace, createSim, creditsOf, producibleBy, spawnStartingUnits, type Sim,
-} from '../src/sim'
-import { STARTING_CREDITS } from '../src/sim/economy'
-import { placeBuilding } from '../src/sim/buildings'
-import { DEPLOY_SECONDS } from '../src/sim/conversion'
-import { spawnUnit } from '../src/sim/units'
+} from '@kharos/sim-ts'
+import { STARTING_CREDITS } from '@kharos/sim-ts/economy'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { DEPLOY_SECONDS } from '@kharos/sim-ts/conversion'
+import { spawnUnit } from '@kharos/sim-ts/units'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }

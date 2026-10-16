@@ -4,7 +4,7 @@ import { uploadAtlas, type AtlasFrame, type PackedAtlas, type Sprite } from '../
 import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'
 import type { Entity } from '@kharos/ecs'
-import { Assembly, BUILDINGS, BUILDING_TYPES, Building, CORE, Converting, Deploys, Interceptor, Unit, deploySite, Inventory, Owner, Position, Reactor, Research, Silo, Site, amountOf, buildingSpec, depositAt, loadOf, ORES, ORE_OF, isBurning, isOpenGate, isPipe, loadedPlants, shutDown, siteTicks, type BuildingType } from '../../sim'
+import { Assembly, BUILDINGS, BUILDING_TYPES, Building, CORE, Converting, Deploys, Interceptor, Unit, deploySite, Inventory, Owner, Position, Reactor, Research, Silo, Site, amountOf, buildingSpec, depositAt, loadOf, ORES, ORE_OF, isBurning, isOpenGate, isPipe, loadedPlants, shutDown, siteTicks, type BuildingType } from '@kharos/sim-ts'
 import { placementOf } from '../placing'
 import type { Scene } from '../scene'
 import { ART_FRAMES, ART_TILE, BUILDING_ART, GATE_OPEN_VARIANT, SILO_DOOR_STEPS, SILO_RISE_STEPS, WALL_CONNECTION, type BuildingArt } from './buildingArt'

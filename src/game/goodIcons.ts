@@ -1,4 +1,4 @@
-import { isOre, resourceOf, type Good } from '../sim'
+import { isOre, resourceOf, type Good } from '@kharos/sim-ts'
 import { GOOD_COLORS } from './resourceColors'
 
 /**

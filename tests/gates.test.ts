@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { BUILDINGS, GATE_CLOSE, Position, Site, canPlace, createSim, creditsOf, freeCredits, isOpenGate, isWalkable, wallStroke, type Sim } from '../src/sim'
-import { addCredits } from '../src/sim/economy'
-import { isWall, placeBuilding } from '../src/sim/buildings'
-import { Gate } from '../src/sim/components'
-import { spawnUnit } from '../src/sim/units'
+import { BUILDINGS, GATE_CLOSE, Position, Site, canPlace, createSim, creditsOf, freeCredits, isOpenGate, isWalkable, wallStroke, type Sim } from '@kharos/sim-ts'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { isWall, placeBuilding } from '@kharos/sim-ts/buildings'
+import { Gate } from '@kharos/sim-ts/components'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 const TICK = 1 / 20
 const seconds = (sim: Sim, time: number) => {

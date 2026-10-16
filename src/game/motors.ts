@@ -3,7 +3,7 @@ import { MOTORS, MOTOR_NAMES, type Motor, type MotorName } from '../audio/motorS
 import type { MotorSound, MotorVoice } from '../audio/motorVoice'
 import type { SoundName } from '../audio/sounds'
 import type { Entity } from '@kharos/ecs'
-import { Position, Unit, unitSpec, wrap, type UnitType } from '../sim'
+import { Position, Unit, unitSpec, wrap, type UnitType } from '@kharos/sim-ts'
 import { HANDLING, createDrive, driveSound, stepDrive, type Drive, type Handling } from './drive'
 import { nearness, sideOf } from './hearing'
 import type { Scene } from './scene'

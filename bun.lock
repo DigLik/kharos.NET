@@ -8,6 +8,7 @@
         "@kharos/ecs": "workspace:*",
         "@kharos/i18n": "workspace:*",
         "@kharos/shared": "workspace:*",
+        "@kharos/sim-ts": "workspace:*",
         "acme-client": "^5.4.0",
       },
       "devDependencies": {
@@ -28,6 +29,14 @@
       "name": "@kharos/shared",
       "version": "0.1.0",
     },
+    "packages/sim-ts": {
+      "name": "@kharos/sim-ts",
+      "version": "0.1.0",
+      "dependencies": {
+        "@kharos/ecs": "workspace:*",
+        "@kharos/shared": "workspace:*",
+      },
+    },
   },
   "packages": {
     "@kharos/ecs": ["@kharos/ecs@workspace:packages/ecs"],
@@ -35,6 +44,8 @@
     "@kharos/i18n": ["@kharos/i18n@workspace:packages/i18n"],
 
     "@kharos/shared": ["@kharos/shared@workspace:packages/shared"],
+
+    "@kharos/sim-ts": ["@kharos/sim-ts@workspace:packages/sim-ts"],
 
     "@oxc-project/types": ["@oxc-project/types@0.152.0", "", {}, "sha512-oM/5rLBm2tPkg0iBgkH/FOeR3PCDpY19GTgAZjMFM8h9WI9VW7cLgzp6nwtarYKmovavIQZ+Fe/RKX/8C8O/Rw=="],
 

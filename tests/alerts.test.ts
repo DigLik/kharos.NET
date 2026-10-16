@@ -3,9 +3,9 @@ import { createAlerts } from '../src/game/alerts'
 import type { Scene } from '../src/game/scene'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { tileKey } from '@kharos/shared/terrain'
-import { DEPOSIT_TYPES, Health, Mark, Missile, Position, Shot, WARNING, createSim } from '../src/sim'
-import { loadDeposits } from '../src/sim/deposits'
-import { spawnUnit } from '../src/sim/units'
+import { DEPOSIT_TYPES, Health, Mark, Missile, Position, Shot, WARNING, createSim } from '@kharos/sim-ts'
+import { loadDeposits } from '@kharos/sim-ts/deposits'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 /** Уведомления над миром без отрисовки: им нужны только мир и номер игрока. */
 function setup() {

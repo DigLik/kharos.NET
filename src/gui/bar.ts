@@ -7,7 +7,7 @@ import type { Minimap } from '../game/minimap'
 import { buildingCanvas, paveCanvas, unitCanvas } from '../game/portraits'
 import { prefs } from '../game/prefs'
 import { rich, t } from '@kharos/i18n'
-import { RELIEF_BELOW, RELIEF_INCOME, WARES, resourceOf, type Good, type UnitType } from '../sim'
+import { RELIEF_BELOW, RELIEF_INCOME, WARES, resourceOf, type Good, type UnitType } from '@kharos/sim-ts'
 import { GRID_KEYS, keyLabel, type FerryDraft, type Slot, type dealOf } from '../ui/commands'
 import { markSeen } from '../ui/seen'
 import { sourceOf } from '../ui/sources'
@@ -52,7 +52,7 @@ export interface BarActions {
   moveSelected(x: number, y: number): void
   lookAtSelection(): void
   narrow(type: UnitType, remove: boolean): void
-  send: (command: import('../sim').Command) => void
+  send: (command: import('@kharos/sim-ts').Command) => void
   /** Курсор на кнопке здания: на карте видны границы зон. */
   zones(shown: boolean): void
 }

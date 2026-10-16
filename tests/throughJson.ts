@@ -1,4 +1,4 @@
-import type { SimSave } from '../src/sim'
+import type { SimSave } from '@kharos/sim-ts'
 
 /**
  * Сохранение, пропущенное через JSON, — проверка, что данные переживают диск и сеть. Карта мира двоичная (в файле

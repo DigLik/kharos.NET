@@ -4,12 +4,12 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import {
   BUILDINGS, Burst, Doomed, GLARE, Glare, Health, Inventory, LAUNCH_MARK, Mark, Missile, Off, Silo, WARNING, canPlace, createSim, creditsOf, isUnlocked, protect, protectionLeft, shownTo, warheadLack,
   type BuildingType, type Sim,
-} from '../src/sim'
-import { STORES, placeBuilding, storeFor } from '../src/sim/buildings'
-import { buildingHp } from '../src/sim/combat'
-import { addCredits } from '../src/sim/economy'
-import type { Amounts, Ware } from '../src/sim/resources'
-import { spawnUnit } from '../src/sim/units'
+} from '@kharos/sim-ts'
+import { STORES, placeBuilding, storeFor } from '@kharos/sim-ts/buildings'
+import { buildingHp } from '@kharos/sim-ts/combat'
+import { addCredits } from '@kharos/sim-ts/economy'
+import type { Amounts, Ware } from '@kharos/sim-ts/resources'
+import { spawnUnit } from '@kharos/sim-ts/units'
 import { wireOf } from '../src/net/wire'
 import { throughJson } from './throughJson'
 

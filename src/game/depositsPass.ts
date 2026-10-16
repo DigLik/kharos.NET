@@ -4,7 +4,7 @@ import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atl
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites } from '../render/sprites'
-import { DEPOSIT_CELL, DEPOSIT_SIZE, DEPOSIT_TYPES, depositsIn, type DepositKind } from '../sim'
+import { DEPOSIT_CELL, DEPOSIT_SIZE, DEPOSIT_TYPES, depositsIn, type DepositKind } from '@kharos/sim-ts'
 import type { Scene } from './scene'
 
 /** Пикселей спрайта на тайл, как у местности. */

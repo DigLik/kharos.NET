@@ -5,12 +5,12 @@ import { Terrain, isCliffFoot, terrainAt } from '@kharos/shared/terrain'
 import {
   BUILDINGS, Building, Builds, CORE, Health, Owner, Player, SCAN_SIZE, Site, Unit, buildingSight, scanRadius,
   Busy, Inventory, Producer, Off, OVERLOAD_DAMAGE, idlePower, loadedPlants, overloadOf, RELIEF_BELOW, RELIEF_INCOME, REPAIR_COST, coreless, powerSupply, REPAIR_SPEED, canBuild, canDeploy, canPlace, createSim, creditsOf, economyOf, powerOf, powerStates, refundOf, rewardsOf, siteAt, zoneEconomies, zoneOf, zonesOf, spawnStartingUnits, type BuildingType, type Sim,
-} from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { Accumulator, Scan } from '../src/sim/components'
-import { connectAll, connectBuilding } from '../src/sim/piping'
-import { REWARDS, STARTING_CREDITS, addCredits } from '../src/sim/economy'
-import { spawnUnit } from '../src/sim/units'
+} from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { Accumulator, Scan } from '@kharos/sim-ts/components'
+import { connectAll, connectBuilding } from '@kharos/sim-ts/piping'
+import { REWARDS, STARTING_CREDITS, addCredits } from '@kharos/sim-ts/economy'
+import { spawnUnit } from '@kharos/sim-ts/units'
 import { addBuilders } from './builders'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }

@@ -6,8 +6,8 @@ import { Camera } from '../src/game/camera'
 import { createMotors } from '../src/game/motors'
 import type { Scene } from '../src/game/scene'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Position, createSim } from '../src/sim'
-import { spawnUnit } from '../src/sim/units'
+import { Position, createSim } from '@kharos/sim-ts'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 /** Моторы над миром без браузера: камера в (0, 0), звук записывает, что ему велели. */
 function setup() {

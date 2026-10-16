@@ -5,8 +5,8 @@
  */
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { createHost } from '../src/net/host'
-import { createSim, Unit, Owner } from '../src/sim'
-import { spawnUnit } from '../src/sim/units'
+import { createSim, Unit, Owner } from '@kharos/sim-ts'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 const n = Number(process.argv[2] ?? 1000)
 /** Сколько игроков подключено; армии — у первых двух, остальные смотрят. */

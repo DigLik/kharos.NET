@@ -4,8 +4,8 @@ import { createHost } from '../src/net/host'
 import { CHAT_LENGTH, decodeServer, type ChatLine } from '../src/net/protocol'
 import { complete } from '../src/net/chatCommands'
 import { textOf, type Text } from '@kharos/i18n'
-import { Owner, Player, Silo, Unit, createSim } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
+import { Owner, Player, Silo, Unit, createSim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
 
 /**
  * Подключение к хосту, которое копит пришедшие сообщения чата: игроков — в lines, сервера — в notices. Сообщения

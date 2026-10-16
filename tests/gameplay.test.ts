@@ -3,8 +3,8 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import {
   BUILDINGS, DEPOSIT_KINDS, Owner, RESOURCE_SPECS, TRUCK_CAPACITY, UNITS, Unit,
   createSim, driveBattle, isWalkable, spawnBattle, type Sim, type UnitType,
-} from '../src/sim'
-import { REWARDS, STARTING_CREDITS } from '../src/sim/economy'
+} from '@kharos/sim-ts'
+import { REWARDS, STARTING_CREDITS } from '@kharos/sim-ts/economy'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
 /** Цена отряда в бою: у каждой стороны столько юнитов, сколько в неё влезает. */

@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_CONFIG, Terrain, isCliffFoot, setTile } from '@kharos/shared/terrain'
-import { Position, canDeploy, createSim, type Sim } from '../src/sim'
-import { CORE, canPlace } from '../src/sim/buildings'
-import { canPave } from '../src/sim/paving'
-import { isWalkable, notWalledIn, openSpawn, orderMove, spawnUnit, terrainSpeed } from '../src/sim/units'
+import { Position, canDeploy, createSim, type Sim } from '@kharos/sim-ts'
+import { CORE, canPlace } from '@kharos/sim-ts/buildings'
+import { canPave } from '@kharos/sim-ts/paving'
+import { isWalkable, notWalledIn, openSpawn, orderMove, spawnUnit, terrainSpeed } from '@kharos/sim-ts/units'
 
 const STEP = 1 / 20
 const seconds = (sim: Sim, time: number) => {

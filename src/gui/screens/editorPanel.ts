@@ -33,8 +33,8 @@ import {
   type Command,
   type Sim,
   type UnitType,
-} from '../../sim'
-import { DEPOSIT_KINDS, DEPOSIT_SIZE, DEPOSIT_TYPES, depositAt, reserveLeft, type DepositKind } from '../../sim/deposits'
+} from '@kharos/sim-ts'
+import { DEPOSIT_KINDS, DEPOSIT_SIZE, DEPOSIT_TYPES, depositAt, reserveLeft, type DepositKind } from '@kharos/sim-ts/deposits'
 import {
   canPutDeposit,
   depositUnder,
@@ -49,8 +49,8 @@ import {
   turretFacings,
   type Brush,
   type BrushShape,
-} from '../../sim/editor'
-import type { EditOp, EditResult } from '../../sim/editOps'
+} from '@kharos/sim-ts/editor'
+import type { EditOp, EditResult } from '@kharos/sim-ts/editOps'
 import { stanceSlots } from '../../ui/commands'
 import { chips, menuButton, numberField, slider } from '../form'
 import type { Ui } from '../ui'

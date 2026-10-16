@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, isCliffFoot, peakOf, terrainAt } from '@kharos/shared/terrain'
-import { CLIFF_COST, Dig, PEAK_COST, canDig, createSim, creditsOf, isWalkable, peakTiles, type Sim } from '../src/sim'
-import { addCredits } from '../src/sim/economy'
+import { CLIFF_COST, Dig, PEAK_COST, canDig, createSim, creditsOf, isWalkable, peakTiles, type Sim } from '@kharos/sim-ts'
+import { addCredits } from '@kharos/sim-ts/economy'
 import { addBuilders } from './builders'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }

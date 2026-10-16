@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
-import { createSim } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { Hauler, Path } from '../src/sim/components'
-import { seekBeam } from '../src/sim/hauling'
-import { approach, beamFor } from '../src/sim/inventory'
-import { SEARCH_LIMIT, searchedTiles } from '../src/sim/path'
-import { spawnUnit } from '../src/sim/units'
+import { createSim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { Hauler, Path } from '@kharos/sim-ts/components'
+import { seekBeam } from '@kharos/sim-ts/hauling'
+import { approach, beamFor } from '@kharos/sim-ts/inventory'
+import { SEARCH_LIMIT, searchedTiles } from '@kharos/sim-ts/path'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 test('грузовик едет к зданию дальше окна поиска пути: путь до края окна, остальное — на ходу', () => {
   const sim = createSim({ generator: { ...DEFAULT_CONFIG, blank: true }, size: 1024 })

@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Health, INFANTRY_REGEN, Owner, Position, Site, createSim, isWalkable, type Sim } from '../src/sim'
-import { BUILDINGS, placeBuilding } from '../src/sim/buildings'
-import { STATION_REGEN } from '../src/sim/combat'
-import { activeRepairs, repairLinks } from '../src/sim/construction'
-import { addCredits, creditsOf } from '../src/sim/economy'
-import { spawnUnit } from '../src/sim/units'
+import { Health, INFANTRY_REGEN, Owner, Position, Site, createSim, isWalkable, type Sim } from '@kharos/sim-ts'
+import { BUILDINGS, placeBuilding } from '@kharos/sim-ts/buildings'
+import { STATION_REGEN } from '@kharos/sim-ts/combat'
+import { activeRepairs, repairLinks } from '@kharos/sim-ts/construction'
+import { addCredits, creditsOf } from '@kharos/sim-ts/economy'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
 const TICK = 1 / 20

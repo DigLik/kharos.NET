@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { HudState } from '../src/game/hud'
-import type { Command } from '../src/sim'
+import type { Command } from '@kharos/sim-ts'
 import { commandsOf, type Deal } from '../src/ui/commands'
 
 test('сделка космопорта: ресурс, потом количество шагами в пределах запаса, кредитов и трюма', () => {

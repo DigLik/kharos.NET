@@ -4,10 +4,10 @@ import type { Entity } from '@kharos/ecs'
 import {
   BUILDINGS, Beam, REWARDS, RELIEF_BELOW, DEPOSIT_CELL, DEPOSIT_KINDS, DEPOSIT_TYPES, Deposit, Hauler, Inventory, REFINE_RATE, REFINE_RATIO, RESOURCE_SPECS, SELL_SECONDS, TRUCK_CAPACITY, Trade, amountOf, canBuild, deliveredTo, gapBetween, canSell, isWalkable, stockOf, canPlace, createSim, creditsOf, depositAt, depositIn, depositNear, reserveLeft, rewardsOf,
   zonesOf, Owner, Position, Site, type BuildingType, type DepositSpot, type Good, type Sim,
-} from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { addCredits } from '../src/sim/economy'
-import { spawnUnit } from '../src/sim/units'
+} from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { spawnUnit } from '@kharos/sim-ts/units'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }

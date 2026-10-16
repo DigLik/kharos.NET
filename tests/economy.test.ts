@@ -4,15 +4,15 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import {
   BUILDINGS, DEPOSIT_TYPES, Inventory, Producer, RESOURCE_SPECS, SELL_SECONDS, Site, UNITS, Unit, amountOf, awaitsMaterials, canPlace, createSim, creditsOf,
   canSupply, depositIn, materialShare, siteAt, siteTicks, type BuildingType, type Sim,
-} from '../src/sim'
-import { STORES, placeBuilding, storeFor } from '../src/sim/buildings'
-import type { Amounts, Ware } from '../src/sim/resources'
-import { addCredits, rewardsOf } from '../src/sim/economy'
-import { Hauler } from '../src/sim/components'
-import { NONE } from '../src/sim/common'
-import { spawnUnit } from '../src/sim/units'
-import { dropItems } from '../src/sim/drops'
-import { refineryFor, spaceFor } from '../src/sim/logistics'
+} from '@kharos/sim-ts'
+import { STORES, placeBuilding, storeFor } from '@kharos/sim-ts/buildings'
+import type { Amounts, Ware } from '@kharos/sim-ts/resources'
+import { addCredits, rewardsOf } from '@kharos/sim-ts/economy'
+import { Hauler } from '@kharos/sim-ts/components'
+import { NONE } from '@kharos/sim-ts/common'
+import { spawnUnit } from '@kharos/sim-ts/units'
+import { dropItems } from '@kharos/sim-ts/drops'
+import { refineryFor, spaceFor } from '@kharos/sim-ts/logistics'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }
 const TICK = 1 / 20

@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test'
 import { Biome, DEFAULT_CONFIG, DUNE_SHIFT, biomeAt, Dunes, Terrain, isCliffFoot, peakOf, setTile, terrainAt, tileBytes } from '@kharos/shared/terrain'
-import { Attached, Building, Ghost, Path, canFight, Health, Inventory, Owner, Position, Unit, createSim, creditsOf, type Sim } from '../src/sim'
-import { addPlayer, brushTiles, playerCamera, setPlayerCamera, clearTasks, depositsInBox, orderNow, setFacing, setTurretFacing, turretFacings, depositUnder, entitiesIn, entityAt, erase, moveDeposit, moveGhost, moveGroup, moveUnit, paint, playersOf, putBuilding, putDeposit, putUnit, removeDeposit, setCredits, setDeposit, setHealth, setOwner, setStock } from '../src/sim/editor'
-import { depositAt, depositIn, depositNear, depositsIn, reserveLeft } from '../src/sim/deposits'
-import { editTile } from '../src/sim/landMemory'
-import { allZones, networkOf } from '../src/sim/zones'
+import { Attached, Building, Ghost, Path, canFight, Health, Inventory, Owner, Position, Unit, createSim, creditsOf, type Sim } from '@kharos/sim-ts'
+import { addPlayer, brushTiles, playerCamera, setPlayerCamera, clearTasks, depositsInBox, orderNow, setFacing, setTurretFacing, turretFacings, depositUnder, entitiesIn, entityAt, erase, moveDeposit, moveGhost, moveGroup, moveUnit, paint, playersOf, putBuilding, putDeposit, putUnit, removeDeposit, setCredits, setDeposit, setHealth, setOwner, setStock } from '@kharos/sim-ts/editor'
+import { depositAt, depositIn, depositNear, depositsIn, reserveLeft } from '@kharos/sim-ts/deposits'
+import { editTile } from '@kharos/sim-ts/landMemory'
+import { allZones, networkOf } from '@kharos/sim-ts/zones'
 
 const world = () => {
   const sim = createSim({ generator: DEFAULT_CONFIG, size: 256 })

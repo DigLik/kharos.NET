@@ -1,4 +1,4 @@
-import { SAVE_VERSION, adoptLabs, type SimSave } from '../sim'
+import { SAVE_VERSION, adoptLabs, type SimSave } from '@kharos/sim-ts'
 import { t } from '@kharos/i18n'
 
 /**

@@ -19,10 +19,10 @@ import type { Entity } from '@kharos/ecs'
 import {
   BUILDINGS, Inventory, Owner, Shield, UNITS, Unit, durabilityOf, flies, isWalkable, spawnBattle,
   type BuildingType, type Sim, type UnitType,
-} from '../../src/sim'
-import { placeBuilding } from '../../src/sim/buildings'
-import { addCredits, creditsOf } from '../../src/sim/economy'
-import { spawnUnit } from '../../src/sim/units'
+} from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { addCredits, creditsOf } from '@kharos/sim-ts/economy'
+import { spawnUnit } from '@kharos/sim-ts/units'
 import { TICK, buildingAt, clock, newSim, printTable } from './lib'
 
 /** Половина стороны кольца: стены стоят на кольце от −3 до 3, внутри 5×5. */

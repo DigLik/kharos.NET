@@ -8,10 +8,10 @@ import { createReplica, type Replica } from '../src/net/replica'
 import {
   BUILDINGS, Drop, Inventory, Position, Transfer, amountOf, canFerry, canPlace, canSell, createSim, creditsOf, offerAlliance, sendFerry,
   type BuildingType, type Command, type Sim,
-} from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { addCredits } from '../src/sim/economy'
-import { SELL_SECONDS, flightTicks, sell } from '../src/sim/trade'
+} from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { SELL_SECONDS, flightTicks, sell } from '@kharos/sim-ts/trade'
 import { commandsOf, type FerryDraft, type Page } from '../src/ui/commands'
 
 const STEP = 1 / 20

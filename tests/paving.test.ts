@@ -5,11 +5,11 @@ import { Terrain, isCliffFoot, terrainAt } from '@kharos/shared/terrain'
 import {
   BRIDGE_COST, Building, Path, CORE, FOUNDATION_COST, Owner, Pave, Position, ROAD_COST, ROAD_SPEED, Site, Unit,
   FOUNDATION_SPEED, buildSpeed, canBuild, canPave, canPlace, createSim, creditsOf, isPaved, paveCode, paveOwnerAt, spawnStartingUnits, type Sim,
-} from '../src/sim'
-import { orderMove, spawnUnit, terrainSpeed } from '../src/sim/units'
-import { canDeploy } from '../src/sim/conversion'
-import { breakSlabs } from '../src/sim/combat'
-import { settlePave } from '../src/sim/paved'
+} from '@kharos/sim-ts'
+import { orderMove, spawnUnit, terrainSpeed } from '@kharos/sim-ts/units'
+import { canDeploy } from '@kharos/sim-ts/conversion'
+import { breakSlabs } from '@kharos/sim-ts/combat'
+import { settlePave } from '@kharos/sim-ts/paved'
 import { addBuilders } from './builders'
 import { throughJson } from './throughJson'
 

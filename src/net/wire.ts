@@ -1,5 +1,5 @@
 import type { Component, Entity, World } from '@kharos/ecs'
-import { Accumulator, Armed, Assembly, Attached, Blast, Builds, Fetch, Burst, Converting, Deploys, Chaser, Drop, Hauler, Health, Interceptor, Inventory, Magazine, Mark, Missile, Owner, Path, Position, Producer, Reactor, Repair, Scan, Shot, Silo, SAVED, Tactics, Trade, Turret, Unit, Unreachable, Wanted } from '../sim/components'
+import { Accumulator, Armed, Assembly, Attached, Blast, Builds, Fetch, Burst, Converting, Deploys, Chaser, Drop, Hauler, Health, Interceptor, Inventory, Magazine, Mark, Missile, Owner, Path, Position, Producer, Reactor, Repair, Scan, Shot, Silo, SAVED, Tactics, Trade, Turret, Unit, Unreachable, Wanted } from '@kharos/sim-ts/components'
 import { quantize, type Motion } from './codec'
 
 /** До скольких знаков после запятой округляются дробные числа в сети: тысячная тайла глазу не видна. */

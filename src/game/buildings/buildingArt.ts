@@ -1,6 +1,6 @@
 import type { Pixmap } from '../../render/pixmap'
-import { BUILDINGS, type BuildingType } from '../../sim/buildings'
-import { ORES } from '../../sim/resources'
+import { BUILDINGS, type BuildingType } from '@kharos/sim-ts/buildings'
+import { ORES } from '@kharos/sim-ts/resources'
 import { GOOD_COLORS } from '../resourceColors'
 
 

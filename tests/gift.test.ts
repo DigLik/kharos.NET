@@ -7,12 +7,12 @@ import { createReplica, type Replica } from '../src/net/replica'
 import {
   Doomed, Hauler, Inventory, Owner, Path, Tactics, amountOf, canPlace, createSim, fromClient, giftable, handOver, offerAlliance,
   type BuildingType, type Command, type Sim,
-} from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { NONE } from '../src/sim/common'
-import { addCredits } from '../src/sim/economy'
-import { turretsOf } from '../src/sim/turrets'
-import { spawnUnit } from '../src/sim/units'
+} from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { NONE } from '@kharos/sim-ts/common'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { turretsOf } from '@kharos/sim-ts/turrets'
+import { spawnUnit } from '@kharos/sim-ts/units'
 import { commandsOf, type Page } from '../src/ui/commands'
 
 const STEP = 1 / 20

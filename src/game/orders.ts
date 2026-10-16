@@ -1,5 +1,5 @@
 import type { Entity } from '@kharos/ecs'
-import { resolveOrder, unitNear, type Command } from '../sim'
+import { resolveOrder, unitNear, type Command } from '@kharos/sim-ts'
 import type { Scene } from './scene'
 
 /** Насколько мимо юнита можно щёлкнуть, чтобы всё равно попасть в него. В пикселях экрана. */

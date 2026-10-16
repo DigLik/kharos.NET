@@ -5,15 +5,15 @@ import {
   BUILDINGS, Batch, Inventory, Off, Player, RESEARCH, RESEARCH_FOR, Research, TIER_CREDITS, TIER_SECONDS, TOPICS, Upgrade, amountOf, canPlace, createSim, creditsOf, depositIn, hasResearch,
   STALL_SECONDS, isUnlocked, pickTopic, planOf, progressOf, researchOf, stockOf, tierOf, topicPrice, topicsBefore, upgradeCost, upgradeLack, upgradeTicks,
   type BuildingType, type Rules, type Sim, type Topic,
-} from '../src/sim'
-import { STORES, placeBuilding, storeFor } from '../src/sim/buildings'
-import { PRODUCTS, RESOURCE_SPECS, isOre, resourceOf, type Amounts, type Good, type Ware } from '../src/sim/resources'
-import { addCredits } from '../src/sim/economy'
-import { UNIT_TYPES, unitSpec } from '../src/sim/units'
-import { adoptLabs, grantResearch, topicsUnder } from '../src/sim/research'
-import { isTrigger } from '../src/sim/topics'
-import { spawnUnit } from '../src/sim/units'
-import { requestsOf } from '../src/sim/logistics'
+} from '@kharos/sim-ts'
+import { STORES, placeBuilding, storeFor } from '@kharos/sim-ts/buildings'
+import { PRODUCTS, RESOURCE_SPECS, isOre, resourceOf, type Amounts, type Good, type Ware } from '@kharos/sim-ts/resources'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { UNIT_TYPES, unitSpec } from '@kharos/sim-ts/units'
+import { adoptLabs, grantResearch, topicsUnder } from '@kharos/sim-ts/research'
+import { isTrigger } from '@kharos/sim-ts/topics'
+import { spawnUnit } from '@kharos/sim-ts/units'
+import { requestsOf } from '@kharos/sim-ts/logistics'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }

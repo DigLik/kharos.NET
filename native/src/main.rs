@@ -52,7 +52,7 @@ fn game_url() -> Result<ModuleSpecifier> {
 
 /// Что окно говорит игре до её начала — объект JS, его читают обёртка и вход игры (`__kharos_options`):
 /// - `fixed` — время ведёт окно ровным шагом (запись), а не часы;
-/// - `scene` — какую сценку показывать (`KHAROS_SCENE`, см. `SCENES` в `src/sim/showcase.ts`);
+/// - `scene` — какую сценку показывать (`KHAROS_SCENE`, см. `SCENES` в `packages/sim-ts/src/showcase.ts`);
 /// - `hour` — с какого часа суток начать (`KHAROS_HOUR`): свет в ролике не должен зависеть от случая;
 /// - `mode` — настоящая игра вместо сценки (`KHAROS_MODE`: `play`, `sandbox`, `battle`), с мышью и клавишами;
 /// - `lang` — язык строк из `LANG`.

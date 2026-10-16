@@ -1,6 +1,6 @@
 import type { Entity } from '@kharos/ecs'
-import type { Sim } from '../src/sim'
-import { freeTilesNear, spawnUnit } from '../src/sim/units'
+import type { Sim } from '@kharos/sim-ts'
+import { freeTilesNear, spawnUnit } from '@kharos/sim-ts/units'
 
 /**
  * Строители игрока рядом с (x, y), каждый на своём свободном тайле за стартовым набором. В стартовом наборе их нет — их заказывают в главном

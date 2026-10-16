@@ -2,9 +2,9 @@ import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { createHost } from '../src/net/host'
 import { decodeServer, type PlayerInfo } from '../src/net/protocol'
-import { Armed, Health, canAttack, createSim, isWalkable, protect, protectionLeft, resolveOrder, type Sim } from '../src/sim'
-import { addCredits } from '../src/sim/economy'
-import { spawnUnit } from '../src/sim/units'
+import { Armed, Health, canAttack, createSim, isWalkable, protect, protectionLeft, resolveOrder, type Sim } from '@kharos/sim-ts'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
 const TICK = 1 / 20

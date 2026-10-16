@@ -179,7 +179,7 @@ KHAROS_RECORD=~/shorts/clip.mp4 KHAROS_SCENE=battle KHAROS_HOUR=10 cargo run
 | `KHAROS_SECONDS` | `20` | длина ролика |
 | `KHAROS_SKIP` | `2` | сколько секунд после начала мира пропустить: сценка расходится, камера встаёт |
 | `KHAROS_RATIO` | `2` | плотность пикселей, как `devicePixelRatio`: при 2 ролик 1080×1920 показывает мир, как окно 540×960 |
-| `KHAROS_SCENE` | `mining` | сценка из `SCENES` (`src/sim/showcase.ts`): `construction`, `defense`, `battle`, `armor`, `infantry`, `air` |
+| `KHAROS_SCENE` | `mining` | сценка из `SCENES` (`packages/sim-ts/src/showcase.ts`): `construction`, `defense`, `battle`, `armor`, `infantry`, `air` |
 | `KHAROS_HOUR` | случайный | час суток в начале — свет в кадре не зависит от случая |
 
 `KHAROS_SCENE` и `KHAROS_HOUR` работают и без записи. Рисует игра в свой буфер кадра размера ролика: «экран» WebGL

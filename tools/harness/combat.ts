@@ -9,8 +9,8 @@
 import {
   UNITS, UNIT_TYPES, WEAPONS, createSim, driveBattle, isFighter, spawnBattle, unitSpec, Unit, Owner,
   type TurretSpec, type UnitType, type WeaponSpec, type WeaponType,
-} from '../../src/sim'
-import { turretSpec } from '../../src/sim/turrets'
+} from '@kharos/sim-ts'
+import { turretSpec } from '@kharos/sim-ts/turrets'
 import { arena, options, pad, printTable, round } from './lib'
 
 /** Сколько реального времени отводится одному бою, в секундах. */

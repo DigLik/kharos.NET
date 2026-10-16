@@ -4,8 +4,8 @@
  */
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../../src/map/settings'
-import { BUILDINGS, Building, Position, Site, canPlace, createSim, isWalkable, type BuildingType, type Sim } from '../../src/sim'
-import { placeBuilding } from '../../src/sim/buildings'
+import { BUILDINGS, Building, Position, Site, canPlace, createSim, isWalkable, type BuildingType, type Sim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
 
 /** Шаг симуляции в секундах: 20 тиков в секунду, как в игре. */
 export const TICK = 1 / 20

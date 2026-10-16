@@ -5,10 +5,10 @@ import { Terrain, terrainAt } from '@kharos/shared/terrain'
 import {
   Armed, Building, Carrier, CONTROL_RADIUS, Health, Inventory, Position, Unit, SAND_DURABILITY, Site, Turret,
   canBuild, canPlace, createSim, durabilityOf, isWalkable, networkOf, siteAt, type BuildingType, type Sim,
-} from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { addCredits } from '../src/sim/economy'
-import { spawnUnit, type UnitType } from '../src/sim/units'
+} from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { spawnUnit, type UnitType } from '@kharos/sim-ts/units'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }
 const TICK = 1 / 20

@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Building, Burst, Doomed, Health, Inventory, Off, Reactor, createSim, isWalkable, powerSupply, requestsOf, zoneEconomies, type Sim } from '../src/sim'
-import { BUILDINGS, isUnlocked, levelGain, placeBuilding } from '../src/sim/buildings'
-import { buildingHp } from '../src/sim/combat'
-import { setWorking } from '../src/sim/assembly'
-import { put } from '../src/sim/inventory'
-import { spawnUnit } from '../src/sim/units'
+import { Building, Burst, Doomed, Health, Inventory, Off, Reactor, createSim, isWalkable, powerSupply, requestsOf, zoneEconomies, type Sim } from '@kharos/sim-ts'
+import { BUILDINGS, isUnlocked, levelGain, placeBuilding } from '@kharos/sim-ts/buildings'
+import { buildingHp } from '@kharos/sim-ts/combat'
+import { setWorking } from '@kharos/sim-ts/assembly'
+import { put } from '@kharos/sim-ts/inventory'
+import { spawnUnit } from '@kharos/sim-ts/units'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { protection: 0, techTree: false } }

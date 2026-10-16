@@ -1,7 +1,7 @@
 import type { Entity } from '@kharos/ecs'
-import { BUILDINGS, Building, CORE, DEPOSIT_CELL, DEPOSIT_SIZE, Owner, Position, Site, Unit, depositAt, depositsIn, hasResearch, missingBuildings, reserveLeft, rewardsOf, type BuildingType, type DepositKind, type Sim, type Topic, type UnitType } from '../sim'
-import { isReady } from '../sim/buildings'
-import { knowsDeposit } from '../sim/deposits'
+import { BUILDINGS, Building, CORE, DEPOSIT_CELL, DEPOSIT_SIZE, Owner, Position, Site, Unit, depositAt, depositsIn, hasResearch, missingBuildings, reserveLeft, rewardsOf, type BuildingType, type DepositKind, type Sim, type Topic, type UnitType } from '@kharos/sim-ts'
+import { isReady } from '@kharos/sim-ts/buildings'
+import { knowsDeposit } from '@kharos/sim-ts/deposits'
 
 /**
  * Первые шаги новичка вместо туториала: список с галочками по настоящей цепочке экономики. Шаг отмечается сам, по миру,

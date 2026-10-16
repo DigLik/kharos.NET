@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { DEPOSIT_KINDS, Building, Hauler, Owner, Unit, createSim, powerStates, spawnSandbox, stockOf, zonesOf, type Sim } from '../src/sim'
+import { DEPOSIT_KINDS, Building, Hauler, Owner, Unit, createSim, powerStates, spawnSandbox, stockOf, zonesOf, type Sim } from '@kharos/sim-ts'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
 const TICK = 1 / 20

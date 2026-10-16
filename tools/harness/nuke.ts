@@ -13,11 +13,11 @@ import type { Entity } from '@kharos/ecs'
 import {
   BUILDINGS, BUILDING_TYPES, Building, Health, Interceptor, Missile, Owner, PRODUCT_SPECS, RESOURCE_SPECS, Silo, UNITS, Unit, buildingHp, canPlace, createSim, entriesOf,
   type Amounts, type BuildingType, type Good, type Sim,
-} from '../../src/sim'
-import { placeBuilding } from '../../src/sim/buildings'
-import { addCredits } from '../../src/sim/economy'
-import { connectAll } from '../../src/sim/piping'
-import { spawnSandbox } from '../../src/sim/sandbox'
+} from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { connectAll } from '@kharos/sim-ts/piping'
+import { spawnSandbox } from '@kharos/sim-ts/sandbox'
 import { options, placeNear, printTable, round, seconds, until } from './lib'
 
 const { warhead } = BUILDINGS.silo

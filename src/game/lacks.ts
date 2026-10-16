@@ -2,14 +2,14 @@ import type { Entity } from '@kharos/ecs'
 import {
   Assembly, Building, Converting, GOODS, Interceptor, Inventory, Producer, Research, Site, amountOf, awaitsMaterials, buildingSpec, hasRoom, sitesShortOfCredits, interceptorLack, isOwn, missingFor,
   recipeOf, shutDown, type Amounts, type BuildingType, type Good, type Sim,
-} from '../sim'
-import { networkHas } from '../sim/upgrades'
-import { feedOf } from '../sim/buildings'
-import { hasAmmo } from '../sim/combat'
-import { roomFor } from '../sim/inventory'
-import { AMMO_REORDER } from '../sim/logistics'
-import { TURRETS } from '../sim/turrets'
-import { WEAPONS, type WeaponType } from '../sim/weapons'
+} from '@kharos/sim-ts'
+import { networkHas } from '@kharos/sim-ts/upgrades'
+import { feedOf } from '@kharos/sim-ts/buildings'
+import { hasAmmo } from '@kharos/sim-ts/combat'
+import { roomFor } from '@kharos/sim-ts/inventory'
+import { AMMO_REORDER } from '@kharos/sim-ts/logistics'
+import { TURRETS } from '@kharos/sim-ts/turrets'
+import { WEAPONS, type WeaponType } from '@kharos/sim-ts/weapons'
 
 const EPSILON = 1e-6
 

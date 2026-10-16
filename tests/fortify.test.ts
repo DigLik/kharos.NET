@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { fortification } from '../src/sim/fortify'
+import { fortification } from '@kharos/sim-ts/fortify'
 
 test('укрепление: разные схемы, ни одной постройки на главном здании и ни одной клетки дважды, всегда есть турели', () => {
   let seed = 1

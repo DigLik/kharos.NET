@@ -26,6 +26,7 @@
     "acme-client": "^5.4.0",
     "@kharos/ecs": "workspace:*",
     "@kharos/i18n": "workspace:*",
-    "@kharos/shared": "workspace:*"
+    "@kharos/shared": "workspace:*",
+    "@kharos/sim-ts": "workspace:*"
   }
 }

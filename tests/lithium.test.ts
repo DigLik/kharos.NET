@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Biome, biomeAt } from '@kharos/shared/terrain'
-import { Accumulator, Inventory, TOPICS, Trade, buyResearch, createSim, depositIn, grantResearch, isWalkable, powerStates, powerSupply, zoneEconomies, type Sim } from '../src/sim'
-import { BUILDINGS, placeBuilding } from '../src/sim/buildings'
-import { addCredits } from '../src/sim/economy'
-import { buy } from '../src/sim/trade'
+import { Accumulator, Inventory, TOPICS, Trade, buyResearch, createSim, depositIn, grantResearch, isWalkable, powerStates, powerSupply, zoneEconomies, type Sim } from '@kharos/sim-ts'
+import { BUILDINGS, placeBuilding } from '@kharos/sim-ts/buildings'
+import { addCredits } from '@kharos/sim-ts/economy'
+import { buy } from '@kharos/sim-ts/trade'
 import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { protection: 0, techTree: false } }

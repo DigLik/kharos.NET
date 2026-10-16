@@ -1,4 +1,4 @@
-import { BUILDINGS, missileLift } from '../sim'
+import { BUILDINGS, missileLift } from '@kharos/sim-ts'
 
 /** Ракета, какой её знает клиент: см. Missile в components.ts. */
 interface Flight {

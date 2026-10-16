@@ -2,9 +2,9 @@ import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Terrain, isCliffFoot, terrainAt } from '@kharos/shared/terrain'
-import { Blast, Building, Health, Owner, Position, Unit, armyOf, createSim, creditsOf, isDefeated, spawnStartingUnits, type Sim } from '../src/sim'
-import { spawnUnit } from '../src/sim/units'
-import { placeBuilding } from '../src/sim/buildings'
+import { Blast, Building, Health, Owner, Position, Unit, armyOf, createSim, creditsOf, isDefeated, spawnStartingUnits, type Sim } from '@kharos/sim-ts'
+import { spawnUnit } from '@kharos/sim-ts/units'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
 const TICK = 1 / 20

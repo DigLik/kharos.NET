@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Path, Producer, Unit, canPlace, createSim } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { addCredits } from '../src/sim/economy'
+import { Path, Producer, Unit, canPlace, createSim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { addCredits } from '@kharos/sim-ts/economy'
 
 test('точка сбора: готовый юнит сам едет к ней; чужому зданию её не поставить', () => {
   const sim = createSim({ generator: DEFAULT_SETTINGS.generator, size: 256 })

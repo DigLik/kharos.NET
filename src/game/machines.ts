@@ -1,7 +1,7 @@
 import type { Audio } from '../audio/audio'
 import type { LoopName } from '../audio/sounds'
 import type { Entity } from '@kharos/ecs'
-import { Assembly, Building, Inventory, Owner, Position, Producer, Reactor, Silo, Site, amountOf, buildingSpec, isBurning } from '../sim'
+import { Assembly, Building, Inventory, Owner, Position, Producer, Reactor, Silo, Site, amountOf, buildingSpec, isBurning } from '@kharos/sim-ts'
 import { nearness, sideOf } from './hearing'
 import type { Scene } from './scene'
 

@@ -1,5 +1,5 @@
 import type { Entity, World } from '@kharos/ecs'
-import { Building, Ghost, Health, Shield, Site, buildingSpec } from '../sim'
+import { Building, Ghost, Health, Shield, Site, buildingSpec } from '@kharos/sim-ts'
 
 /** Высота полосы состояния над зданием и зазор между полосами — в пикселях экрана; зазор до крыши — в тайлах. */
 export const STATUS_BAR = 3

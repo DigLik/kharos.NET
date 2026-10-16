@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import type { Entity } from '@kharos/ecs'
-import { BUILDINGS, Health, Path, Player, Position, Producer, SUPPLY, UNIT_TYPES, armyOf, overLimit, WEAPONS, canPlace, createSim, isWalkable, missingResearch, unitSpec } from '../src/sim'
-import { TOWER_RANGE, orderAttack } from '../src/sim/combat'
-import { spawnUnit } from '../src/sim/units'
-import { placeBuilding } from '../src/sim/buildings'
-import { addCredits } from '../src/sim/economy'
+import { BUILDINGS, Health, Path, Player, Position, Producer, SUPPLY, UNIT_TYPES, armyOf, overLimit, WEAPONS, canPlace, createSim, isWalkable, missingResearch, unitSpec } from '@kharos/sim-ts'
+import { TOWER_RANGE, orderAttack } from '@kharos/sim-ts/combat'
+import { spawnUnit } from '@kharos/sim-ts/units'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { addCredits } from '@kharos/sim-ts/economy'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
 

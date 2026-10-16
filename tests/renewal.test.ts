@@ -1,9 +1,9 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_CONFIG, isBuildable, terrainAt } from '@kharos/shared/terrain'
-import { Deposit, Position, createSim, depositAt, type DepositSpot, type Sim } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
-import { addDeposit, fillDeposits, knowsDeposit, takeReserve } from '../src/sim/deposits'
-import { spawnUnit } from '../src/sim/units'
+import { Deposit, Position, createSim, depositAt, type DepositSpot, type Sim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { addDeposit, fillDeposits, knowsDeposit, takeReserve } from '@kharos/sim-ts/deposits'
+import { spawnUnit } from '@kharos/sim-ts/units'
 import { throughJson } from './throughJson'
 
 const TICK = 1 / 20

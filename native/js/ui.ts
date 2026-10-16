@@ -11,7 +11,7 @@
 
 import { GOOD_ICON, goodIcon } from '../../src/game/goodIcons'
 import { buildingPortrait, levelPortrait, pavePortrait, unitPortrait } from '../../src/game/portraits'
-import { BUILDING_TYPES, GOODS, UNIT_TYPES } from '../../src/sim'
+import { BUILDING_TYPES, GOODS, UNIT_TYPES } from '@kharos/sim-ts'
 import { installSkin } from '../../src/ui/skin'
 import { fromUrl, type Image, paintedBytes } from './png'
 import { show, type Sheet } from './show'

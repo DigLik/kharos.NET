@@ -5,8 +5,8 @@ import { createMachines } from '../src/game/machines'
 import { Camera } from '../src/game/camera'
 import type { Scene } from '../src/game/scene'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { createSim } from '../src/sim'
-import { placeBuilding } from '../src/sim/buildings'
+import { createSim } from '@kharos/sim-ts'
+import { placeBuilding } from '@kharos/sim-ts/buildings'
 
 /** Звук работы над миром без браузера: камера в (0, 0), звук записывает, что ему велели. */
 function setup() {

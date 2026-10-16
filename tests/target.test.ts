@@ -1,8 +1,8 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Armed, Hauler, Orders, Path, Position, canPlace, createSim, depositIn, resolveOrder, type Sim } from '../src/sim'
-import { dropItems } from '../src/sim/drops'
-import { spawnUnit } from '../src/sim/units'
+import { Armed, Hauler, Orders, Path, Position, canPlace, createSim, depositIn, resolveOrder, type Sim } from '@kharos/sim-ts'
+import { dropItems } from '@kharos/sim-ts/drops'
+import { spawnUnit } from '@kharos/sim-ts/units'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }
 const TICK = 1 / 20

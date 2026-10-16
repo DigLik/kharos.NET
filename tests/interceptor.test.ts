@@ -3,10 +3,10 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import {
   BUILDINGS, Burst, Chaser, Health, Interceptor, Inventory, Mark, Missile, Off, Silo, canPlace, createSim, creditsOf, interceptorLack, isUnlocked, offerAlliance,
   type BuildingType, type Sim,
-} from '../src/sim'
-import { placeBuilding, storeFor } from '../src/sim/buildings'
-import { addCredits } from '../src/sim/economy'
-import type { Amounts, Ware } from '../src/sim/resources'
+} from '@kharos/sim-ts'
+import { placeBuilding, storeFor } from '@kharos/sim-ts/buildings'
+import { addCredits } from '@kharos/sim-ts/economy'
+import type { Amounts, Ware } from '@kharos/sim-ts/resources'
 import { wireOf } from '../src/net/wire'
 import { throughJson } from './throughJson'
 import type { Entity } from '@kharos/ecs'
