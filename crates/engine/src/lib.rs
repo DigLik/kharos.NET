@@ -2,6 +2,8 @@
 //! хранилище мира с журналом, через который его зеркалит TS (docs/boundary.md), и слои (docs/layers.md).
 
 pub mod layers;
+pub mod math;
+pub mod terrain;
 pub mod world;
 
 pub use layers::{Change, Channel, Item, LayerId, LayerSpec, Layers, Owner, Scope, Shape};

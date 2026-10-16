@@ -25,6 +25,7 @@ interface Exports {
   sim_order(id: number, ptr: number, len: number): number
   sim_systems(): number
   sim_run(id: number, ptr: number, len: number, tick: number, step: number): number
+  land_area(ptr: number, len: number, left: number, top: number, right: number, bottom: number): number
 }
 
 /** Экземпляр sim.wasm: один на сколько угодно симуляций. */
@@ -56,6 +57,16 @@ function withText<R>(api: Exports, text: string, call: (ptr: number, len: number
 
 /** Ответ wasm: текст из общего буфера ответа. */
 const answer = (api: Exports, ptr: number) => decoder.decode(new Uint8Array(api.memory.buffer, ptr, api.out_len()))
+
+/**
+ * Земля из генератора на Rust: чанки области тайлов [left, right) × [top, bottom) подряд, построчно, по 4096 байт, с
+ * выводимым — как getChunk в TS. Для сверки генераторов.
+ */
+export function rustLand(wasm: SimWasm, config: object, bounds: { left: number; top: number; right: number; bottom: number }): Uint8Array {
+  const api = wasm.exports
+  const ptr = withText(api, JSON.stringify(config), (at, len) => api.land_area(at, len, bounds.left, bounds.top, bounds.right, bounds.bottom))
+  return new Uint8Array(api.memory.buffer, ptr, api.out_len()).slice()
+}
 
 /** Все компоненты симуляции по именам. */
 const COMPONENTS: ReadonlyMap<string, Component<any>> = new Map(

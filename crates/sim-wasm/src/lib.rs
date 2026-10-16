@@ -156,3 +156,29 @@ pub unsafe extern "C" fn sim_run(id: u32, ptr: *const u8, len: usize, tick: f64,
     None => 2,
   }
 }
+
+/// Земля из генератора на Rust: все чанки карты — область тайлов [left, right) × [top, bottom) — подряд, построчно, по
+/// 4096 байт, с выводимым. Настройки генератора — JSON `GeneratorConfig` в буфере от `alloc`. Для сверки с TS.
+///
+/// # Safety
+/// ptr и len — буфер от `alloc` с UTF-8 внутри.
+#[no_mangle]
+pub unsafe extern "C" fn land_area(ptr: *const u8, len: usize, left: i32, top: i32, right: i32, bottom: i32) -> *const u8 {
+  use kharos_engine::terrain::{GeneratorConfig, Land, LandArea};
+  let bytes = std::slice::from_raw_parts(ptr, len);
+  let out = match serde_json::from_slice::<GeneratorConfig>(bytes) {
+    Ok(config) => {
+      let area = LandArea::of(left, top, right, bottom);
+      let mut land = Land::new(config, area);
+      let mut out = Vec::new();
+      for y in 0..area.height {
+        for x in 0..area.width {
+          out.extend_from_slice(land.chunk(area.left + x, area.top + y));
+        }
+      }
+      out
+    }
+    Err(_) => Vec::new(),
+  };
+  STATE.with_borrow_mut(|state| answer(state, out))
+}

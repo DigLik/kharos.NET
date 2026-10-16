@@ -2,7 +2,7 @@
 //! (docs/boundary.md, §4): система на Rust стоит на своём месте в порядке тика, а остальные пока идут в TS.
 
 pub mod data;
-pub mod math;
+pub use kharos_engine::math;
 pub mod systems;
 mod values;
 
