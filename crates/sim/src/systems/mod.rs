@@ -1,8 +1,7 @@
 //! Системы на Rust по именам из порядка тика `sim-ts` (createSim). Каждая объявляет, какие компоненты читает и пишет:
 //! перед ней TS досылает в Rust именно их (docs/boundary.md, §4).
 
-use crate::Time;
-use kharos_engine::World;
+use crate::{Sim, Time};
 
 mod turrets;
 
@@ -10,11 +9,11 @@ mod turrets;
 pub struct System {
   pub name: &'static str,
   pub reads: &'static [&'static str],
-  pub run: fn(&mut World, Time),
+  pub run: fn(&mut Sim, Time),
 }
 
 /// Системы, которые уже на Rust.
-pub const SYSTEMS: &[System] = &[System { name: "followCarriers", reads: &["Attached", "Position", "Turret", "Unit", "Building"], run: turrets::follow_carriers }, System { name: "restTurrets", reads: &["Turret", "Armed", "Repair"], run: turrets::rest_turrets }];
+pub const SYSTEMS: &[System] = &[System { name: "followCarriers", reads: &["Attached", "Position", "Turret", "Unit", "Building"], run: |sim, time| turrets::follow_carriers(&mut sim.world, time) }, System { name: "restTurrets", reads: &["Turret", "Armed", "Repair"], run: |sim, time| turrets::rest_turrets(&mut sim.world, time) }];
 
 /// Что читает система; None — такой на Rust нет.
 pub fn reads(name: &str) -> Option<&'static [&'static str]> {
@@ -22,8 +21,8 @@ pub fn reads(name: &str) -> Option<&'static [&'static str]> {
 }
 
 /// Выполняет систему; false — такой на Rust нет.
-pub fn run(world: &mut World, name: &str, time: Time) -> bool {
+pub fn run(sim: &mut Sim, name: &str, time: Time) -> bool {
   let Some(system) = SYSTEMS.iter().find(|system| system.name == name) else { return false };
-  (system.run)(world, time);
+  (system.run)(sim, time);
   true
 }

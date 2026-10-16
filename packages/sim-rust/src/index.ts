@@ -1,4 +1,5 @@
 import type { Component, Entity, JournalOp } from '@kharos/ecs'
+import { CHUNK_SIZE, chunkRevision, getChunk, tileKey, type Land } from '@kharos/shared/terrain'
 import * as components from '@kharos/sim-ts/components'
 import { createSim, type Sim, type SimHooks, type SimOptions, type SimSave } from '@kharos/sim-ts/sim'
 
@@ -17,7 +18,7 @@ interface Exports {
   dealloc(ptr: number, len: number): void
   out_ptr(): number
   out_len(): number
-  sim_new(): number
+  sim_new(ptr: number, len: number, left: number, top: number, width: number, height: number): number
   sim_free(id: number): void
   sim_apply(id: number, ptr: number, len: number): number
   sim_journal(id: number): number
@@ -25,6 +26,8 @@ interface Exports {
   sim_order(id: number, ptr: number, len: number): number
   sim_systems(): number
   sim_run(id: number, ptr: number, len: number, tick: number, step: number): number
+  sim_layers(id: number, ptr: number, len: number): number
+  sim_chunk(id: number, chunkX: number, chunkY: number): number
   land_area(ptr: number, len: number, left: number, top: number, right: number, bottom: number): number
 }
 
@@ -43,8 +46,10 @@ export function loadSimWasm(bytes: BufferSource): SimWasm {
 }
 
 /** Зовёт функцию wasm с текстом на входе: текст кладётся в выделенный буфер и освобождается после. */
-function withText<R>(api: Exports, text: string, call: (ptr: number, len: number) => R): R {
-  const bytes = encoder.encode(text)
+const withText = <R>(api: Exports, text: string, call: (ptr: number, len: number) => R): R => withBytes(api, encoder.encode(text), call)
+
+/** Зовёт функцию wasm с байтами на входе: они кладутся в выделенный буфер и освобождаются после. */
+function withBytes<R>(api: Exports, bytes: Uint8Array, call: (ptr: number, len: number) => R): R {
   const ptr = api.alloc(Math.max(bytes.length, 1))
   // Вид на память — заново после каждого вызова, растущего память: старый отваливается (docs/engine.md, §5).
   new Uint8Array(api.memory.buffer, ptr, bytes.length).set(bytes)
@@ -67,6 +72,44 @@ export function rustLand(wasm: SimWasm, config: object, bounds: { left: number; 
   const ptr = withText(api, JSON.stringify(config), (at, len) => api.land_area(at, len, bounds.left, bounds.top, bounds.right, bounds.bottom))
   return new Uint8Array(api.memory.buffer, ptr, api.out_len()).slice()
 }
+
+/** Изменение слоя (docs/layers.md): блок слоя целиком — чанк сетки или ячейка предметов. */
+export interface LayerChange {
+  layer: string
+  /** Игрок; -1 — слой мира. */
+  owner: number
+  x: number
+  y: number
+  bytes: Uint8Array
+}
+
+/**
+ * Изменения одним буфером, как `layers::encode` в crates/engine: число, затем на каждое — имя слоя (u8 длина, байты),
+ * владелец (i32), x, y блока (i32), длина (u32) и байты; всё little-endian. Один формат на зеркало, сохранение и сеть.
+ */
+export function encodeChanges(changes: readonly LayerChange[]): Uint8Array {
+  const names = changes.map(({ layer }) => encoder.encode(layer))
+  const size = changes.reduce((sum, { bytes }, i) => sum + 1 + names[i].length + 16 + bytes.length, 4)
+  const out = new Uint8Array(size)
+  const view = new DataView(out.buffer)
+  view.setUint32(0, changes.length, true)
+  let at = 4
+  changes.forEach(({ owner, x, y, bytes }, i) => {
+    out[at++] = names[i].length
+    out.set(names[i], at)
+    at += names[i].length
+    view.setInt32(at, owner, true)
+    view.setInt32(at + 4, x, true)
+    view.setInt32(at + 8, y, true)
+    view.setUint32(at + 12, bytes.length, true)
+    out.set(bytes, at + 16)
+    at += 16 + bytes.length
+  })
+  return out
+}
+
+/** Чанк земли изменением слоя land. */
+const landChange = (land: Land, x: number, y: number): LayerChange => ({ layer: 'land', owner: -1, x, y, bytes: getChunk(land, x, y) })
 
 /** Все компоненты симуляции по именам. */
 const COMPONENTS: ReadonlyMap<string, Component<any>> = new Map(
@@ -93,13 +136,15 @@ const finalizer = new FinalizationRegistry<{ api: Exports; id: number }>(({ api,
 
 export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, options: RustSimOptions = {}): Sim {
   const api = wasm.exports
-  const id = api.sim_new()
   const available = systemsOf(api)
   const rust = new Map([...available].filter(([name]) => !options.rust || options.rust.includes(name)))
   const sim = (options.create ?? createSim)(source, {
     systems: (list) => list.map(([name, system]) => (rust.has(name) ? [name, () => runRust(name, rust.get(name)!)] : [name, system])),
   })
-  const { world } = sim
+  const { world, land } = sim
+  const area = land.area!
+  const id = withText(api, JSON.stringify(land.config), (ptr, len) => api.sim_new(ptr, len, area.left, area.top, area.width, area.height))
+  if (id < 0) throw new Error(`sim.wasm не принял настройки генератора: ${answer(api, api.out_ptr())}`)
   finalizer.register(sim, { api, id }, sim)
 
   /** Мир, каким его знает Rust: сущность → компонент → JSON данных. По нему видно, что поменяли на месте. */
@@ -111,6 +156,26 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
     if (!ops.length) return
     const code = withText(api, `[${ops.join(',')}]`, (ptr, len) => api.sim_apply(id, ptr, len))
     if (code !== 0) throw new Error(`sim.wasm не принял журнал: ${code === 1 ? answer(api, api.out_ptr()) : 'нет симуляции'}`)
+  }
+
+  const applyLayers = (changes: LayerChange[]) => {
+    if (!changes.length) return
+    const code = withBytes(api, encodeChanges(changes), (ptr, len) => api.sim_layers(id, ptr, len))
+    if (code !== 0) throw new Error(`sim.wasm не принял слои: ${code === 1 ? answer(api, api.out_ptr()) : 'нет симуляции'}`)
+  }
+
+  /** Правка карты, которую Rust уже знает: чанки с правкой новее — изменённые. */
+  let landRevision = land.revision
+  /** Досылает Rust чанки земли, изменённые с прошлого раза, — вместе с соседями, у которых пересчиталось выводимое. */
+  const syncLand = () => {
+    if (land.revision === landRevision) return
+    const changes: LayerChange[] = []
+    for (const [key, revision] of land.revisions) {
+      // Ключ — tileKey(x, y) чанка.
+      if (revision > landRevision) changes.push(landChange(land, (key % 65536) - 32768, Math.floor(key / 65536) - 32768))
+    }
+    landRevision = land.revision
+    applyLayers(changes)
   }
 
   /** Запись операции для Rust и для known. Данные add не шлются: их догонит сверка, а «set» не меняет порядка. */
@@ -143,6 +208,7 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
    * (то, что читает следующая система на Rust), иначе — всего, что Rust знает.
    */
   const sync = (keys?: ReadonlySet<string>) => {
+    syncLand()
     const ops = pending
     pending = []
     for (const [entity, data] of known) {
@@ -197,8 +263,31 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
     pull()
   }
 
-  /** Сверяет Rust с TS: снимок и порядок каждого хранилища. Бросает на первом расхождении. */
+  /** Чанки карты, уже сверенные с Rust: номер в области → правка, на которой сверен. */
+  const landChecked = new Map<number, number>()
+
+  /** Сверяет землю: каждый чанк карты, собранный в TS, — один раз и снова после правки. */
+  const checkLand = () => {
+    land.owned.forEach((chunk, n) => {
+      if (!chunk) return
+      const x = area.left + (n % area.width)
+      const y = area.top + Math.floor(n / area.width)
+      const revision = chunkRevision(land, x, y)
+      if (landChecked.get(n) === revision) return
+      const ptr = api.sim_chunk(id, x, y)
+      const rust = new Uint8Array(api.memory.buffer, ptr, api.out_len())
+      const at = rust.findIndex((byte, i) => byte !== chunk[i])
+      if (rust.length !== chunk.length || at >= 0) {
+        const tile = Math.floor(at / 4)
+        throw new Error(`Rust разошёлся с TS: земля, тайл (${x * CHUNK_SIZE + (tile % CHUNK_SIZE)}, ${y * CHUNK_SIZE + Math.floor(tile / CHUNK_SIZE)}), байт ${at % 4}: ${rust[at]} против ${chunk[at]}`)
+      }
+      landChecked.set(n, revision)
+    })
+  }
+
+  /** Сверяет Rust с TS: снимок, порядок каждого хранилища и землю. Бросает на первом расхождении. */
   const check = () => {
+    checkLand()
     const keys = [...COMPONENTS.keys()]
     const rust = JSON.parse(answer(api, api.sim_snapshot(id))) as { next: number; entities: [number, Record<string, unknown>][] }
     const ts = world.snapshot([...COMPONENTS.values()])
@@ -222,7 +311,16 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
     }
   }
 
-  // Начало: всё, что уже есть в TS-мире, — сущности по возрастанию, затем каждое хранилище в его порядке.
+  // Начало. Земля: из сохранения — вся карта (Rust собрал бы её генератором, а мир уже жил), новая — только правленое.
+  const loaded = 'land' in source
+  const initial: LayerChange[] = []
+  for (let n = 0; n < area.width * area.height; n++) {
+    const x = area.left + (n % area.width)
+    const y = area.top + Math.floor(n / area.width)
+    if (loaded || land.revisions.has(tileKey(x, y))) initial.push(landChange(land, x, y))
+  }
+  applyLayers(initial)
+  // Мир: всё, что уже есть, — сущности по возрастанию, затем каждое хранилище в его порядке.
   const start: string[] = []
   for (const entity of world.all) {
     known.set(entity, new Map())

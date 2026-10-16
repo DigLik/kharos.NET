@@ -4,13 +4,15 @@
 //! Строки и JSON TS кладёт в буфер, выделенный `alloc`, и освобождает `dealloc`. Ответ функция пишет в общий буфер
 //! ответа и отдаёт его начало; длина — `out_len`. Буфер живёт до следующего ответа.
 
-use kharos_engine::{Op, World};
+use kharos_engine::terrain::{GeneratorConfig, LandArea};
+use kharos_engine::{layers, Op};
+use kharos_sim::Sim;
 use serde_json::Value;
 use std::cell::RefCell;
 
 #[derive(Default)]
 struct State {
-  sims: Vec<Option<World>>,
+  sims: Vec<Option<Sim>>,
   out: Vec<u8>,
 }
 
@@ -24,7 +26,7 @@ fn answer(state: &mut State, bytes: Vec<u8>) -> *const u8 {
   state.out.as_ptr()
 }
 
-fn with_sim<R>(id: u32, act: impl FnOnce(&mut World) -> R) -> Option<R> {
+fn with_sim<R>(id: u32, act: impl FnOnce(&mut Sim) -> R) -> Option<R> {
   STATE.with_borrow_mut(|state| state.sims.get_mut(id as usize).and_then(Option::as_mut).map(act))
 }
 
@@ -56,21 +58,34 @@ pub extern "C" fn out_len() -> usize {
   STATE.with_borrow(|state| state.out.len())
 }
 
-/// Новая симуляция; отдаёт её номер. Журнал своих операций она ведёт сразу.
+/// Новая симуляция на земле из генератора (JSON `GeneratorConfig` в буфере от `alloc`) с картой мира — областью
+/// чанков left, top, width, height (`LandArea`); отдаёт её номер, -1 — настройки не читаются (ответ — текст ошибки).
+/// Журнал своих операций она ведёт сразу.
+///
+/// # Safety
+/// ptr и len — буфер от `alloc` с UTF-8 внутри.
 #[no_mangle]
-pub extern "C" fn sim_new() -> u32 {
+pub unsafe extern "C" fn sim_new(ptr: *const u8, len: usize, left: i32, top: i32, width: i32, height: i32) -> i32 {
+  let config = match serde_json::from_slice::<GeneratorConfig>(std::slice::from_raw_parts(ptr, len)) {
+    Ok(config) => config,
+    Err(error) => {
+      return STATE.with_borrow_mut(|state| {
+        answer(state, error.to_string().into_bytes());
+        -1
+      })
+    }
+  };
   STATE.with_borrow_mut(|state| {
-    let mut world = World::new();
-    world.record(true);
-    let free = state.sims.iter().position(Option::is_none);
-    match free {
+    let mut sim = Sim::new(config, LandArea { left, top, width, height });
+    sim.world.record(true);
+    match state.sims.iter().position(Option::is_none) {
       Some(at) => {
-        state.sims[at] = Some(world);
-        at as u32
+        state.sims[at] = Some(sim);
+        at as i32
       }
       None => {
-        state.sims.push(Some(world));
-        state.sims.len() as u32 - 1
+        state.sims.push(Some(sim));
+        state.sims.len() as i32 - 1
       }
     }
   })
@@ -92,13 +107,18 @@ pub extern "C" fn sim_free(id: u32) {
 #[no_mangle]
 pub unsafe extern "C" fn sim_apply(id: u32, ptr: *const u8, len: usize) -> i32 {
   let bytes = std::slice::from_raw_parts(ptr, len);
-  let result = with_sim(id, |world| -> Result<(), String> {
+  let result = with_sim(id, |sim| -> Result<(), String> {
     let ops: Value = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
     for op in ops.as_array().ok_or("журнал — не список")? {
-      world.replay(Op::from_json(op)?);
+      sim.world.replay(Op::from_json(op)?);
     }
     Ok(())
   });
+  code(result)
+}
+
+/// Код ответа: 0 — сделано, 1 — ошибка (ответ — её текст), 2 — нет симуляции.
+fn code(result: Option<Result<(), String>>) -> i32 {
   match result {
     Some(Ok(())) => 0,
     Some(Err(error)) => STATE.with_borrow_mut(|state| {
@@ -112,14 +132,14 @@ pub unsafe extern "C" fn sim_apply(id: u32, ptr: *const u8, len: usize) -> i32 {
 /// Свои операции симуляции с прошлого раза — JSON-списком, в форме журнала TS.
 #[no_mangle]
 pub extern "C" fn sim_journal(id: u32) -> *const u8 {
-  let json = with_sim(id, |world| Value::from(world.take_journal().iter().map(Op::to_json).collect::<Vec<_>>()).to_string()).unwrap_or_default();
+  let json = with_sim(id, |sim| Value::from(sim.world.take_journal().iter().map(Op::to_json).collect::<Vec<_>>()).to_string()).unwrap_or_default();
   STATE.with_borrow_mut(|state| answer(state, json.into_bytes()))
 }
 
 /// Снимок мира — JSON в форме `WorldSnapshot` TS.
 #[no_mangle]
 pub extern "C" fn sim_snapshot(id: u32) -> *const u8 {
-  let json = with_sim(id, |world| world.snapshot().to_string()).unwrap_or_default();
+  let json = with_sim(id, |sim| sim.world.snapshot().to_string()).unwrap_or_default();
   STATE.with_borrow_mut(|state| answer(state, json.into_bytes()))
 }
 
@@ -131,7 +151,7 @@ pub extern "C" fn sim_snapshot(id: u32) -> *const u8 {
 #[no_mangle]
 pub unsafe extern "C" fn sim_order(id: u32, ptr: *const u8, len: usize) -> *const u8 {
   let key = std::str::from_utf8(std::slice::from_raw_parts(ptr, len)).unwrap_or_default();
-  let json = with_sim(id, |world| Value::from(world.query(&[key])).to_string()).unwrap_or_default();
+  let json = with_sim(id, |sim| Value::from(sim.world.query(&[key])).to_string()).unwrap_or_default();
   STATE.with_borrow_mut(|state| answer(state, json.into_bytes()))
 }
 
@@ -150,11 +170,29 @@ pub extern "C" fn sim_systems() -> *const u8 {
 #[no_mangle]
 pub unsafe extern "C" fn sim_run(id: u32, ptr: *const u8, len: usize, tick: f64, step: f64) -> i32 {
   let name = std::str::from_utf8(std::slice::from_raw_parts(ptr, len)).unwrap_or_default();
-  match with_sim(id, |world| kharos_sim::run(world, name, kharos_sim::Time { tick: tick as u64, step })) {
+  match with_sim(id, |sim| kharos_sim::run(sim, name, kharos_sim::Time { tick: tick as u64, step })) {
     Some(true) => 0,
     Some(false) => 1,
     None => 2,
   }
+}
+
+/// Применяет изменения слоёв от TS — буфер в формате `layers::encode` (docs/layers.md): правки карты, загруженный
+/// мир. Коды — как у `sim_apply`.
+///
+/// # Safety
+/// ptr и len — буфер от `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn sim_layers(id: u32, ptr: *const u8, len: usize) -> i32 {
+  let bytes = std::slice::from_raw_parts(ptr, len);
+  code(with_sim(id, |sim| sim.apply(&layers::decode(bytes)?)))
+}
+
+/// Чанк земли симуляции (в чанках) с выводимым — 4096 байт, как `getChunk` в TS; пусто — нет симуляции. Для сверки.
+#[no_mangle]
+pub extern "C" fn sim_chunk(id: u32, chunk_x: i32, chunk_y: i32) -> *const u8 {
+  let bytes = with_sim(id, |sim| sim.land.chunk(chunk_x, chunk_y).to_vec()).unwrap_or_default();
+  STATE.with_borrow_mut(|state| answer(state, bytes))
 }
 
 /// Земля из генератора на Rust: все чанки карты — область тайлов [left, right) × [top, bottom) — подряд, построчно, по
@@ -164,7 +202,7 @@ pub unsafe extern "C" fn sim_run(id: u32, ptr: *const u8, len: usize, tick: f64,
 /// ptr и len — буфер от `alloc` с UTF-8 внутри.
 #[no_mangle]
 pub unsafe extern "C" fn land_area(ptr: *const u8, len: usize, left: i32, top: i32, right: i32, bottom: i32) -> *const u8 {
-  use kharos_engine::terrain::{GeneratorConfig, Land, LandArea};
+  use kharos_engine::terrain::Land;
   let bytes = std::slice::from_raw_parts(ptr, len);
   let out = match serde_json::from_slice::<GeneratorConfig>(bytes) {
     Ok(config) => {
