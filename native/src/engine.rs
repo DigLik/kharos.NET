@@ -11,6 +11,8 @@ use deno_core::{JsRuntime, ModuleSpecifier, RuntimeOptions};
 /// Обёртка браузерного API (`js/prelude.js`): то, что в браузере даёт страница, — холст, кадры, таймеры, `console`
 /// и состояние WebGL. Файл кладётся в двоичный файл: рядом с ним на диске ничего не нужно.
 const PRELUDE: &str = include_str!("../js/prelude.js");
+/// Звук — Web Audio API поверх `src/audio.rs` (`js/audio.js`): идёт следом за обёрткой, тоже из двоичного файла.
+const AUDIO: &str = include_str!("../js/audio.js");
 
 pub struct Engine {
   runtime: JsRuntime,
@@ -30,6 +32,7 @@ impl Engine {
       let _entered = tokio.enter();
       JsRuntime::new(RuntimeOptions {
         extensions: vec![
+          crate::audio::kharos_audio::init(),
           crate::canvas::kharos_canvas::init(),
           crate::gl::kharos_gl::init(),
           crate::record::kharos_record::init(),
@@ -52,6 +55,7 @@ impl Engine {
     self.runtime.execute_script("options", format!("globalThis.__kharos_options = {options}"))?;
     self.runtime.execute_script("opcodes", crate::gl::opcodes_script())?;
     self.runtime.execute_script("prelude", PRELUDE.to_string())?;
+    self.runtime.execute_script("audio", AUDIO.to_string())?;
     // Начало игры — дело не мгновенное: она сама берёт графику и заводит мир, а первый шаг после `await` ждёт,
     // пока прокрутится очередь задач V8. Её и прокручивает событийный цикл — как это делал бы браузер после
     // загрузки страницы. Работы в цикле, кроме самой игры, нет: кадры окно зовёт само (см. `frame`).

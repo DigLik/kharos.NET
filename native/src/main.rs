@@ -5,6 +5,7 @@
 //! и `src/web` (то, что в браузере даёт движок, а не страница). Собранная игра лежит рядом с привязками
 //! (`js/game.bundle.js`) — её кладёт сборщик, см. README.
 
+mod audio;
 mod canvas;
 mod engine;
 mod gl;

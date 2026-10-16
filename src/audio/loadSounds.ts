@@ -4,6 +4,8 @@ import type { SoundsMessage } from './sounds.worker'
 const buffers = new Map<string, AudioBuffer>()
 let loading: Promise<void> | null = null
 const listeners = new Set<(share: number) => void>()
+/** Без воркера звук синтезируется на странице кусками по столько миллисекунд — между ними идут кадры. */
+const SLICE = 12
 
 /** Запись в буфер звука. Буфер не привязан к контексту: один на страницу годится и меню, и любой игре. */
 function store(key: string, channels: Float32Array[]) {
@@ -16,22 +18,35 @@ function store(key: string, channels: Float32Array[]) {
 
 /**
  * Синтезирует весь звук в воркере, один раз за жизнь страницы; повторный вызов ждёт того же. Записи сразу уходят
- * в буферы, и отдельные массивы не копятся. onProgress получает долю готового. Если воркер не запустился или упал,
- * недостающее синтезируется прямо на странице — так она замрёт, но звук будет.
+ * в буферы, и отдельные массивы не копятся. onProgress получает долю готового. Если воркер не запустился или упал
+ * (в нативной оболочке воркеров нет), недостающее синтезируется прямо на странице — кусками между кадрами.
  */
 export function loadSounds(onProgress?: (share: number) => void): Promise<void> {
   if (onProgress) listeners.add(onProgress)
   const done = () => onProgress && listeners.delete(onProgress)
   loading ??= new Promise<void>((resolve) => {
-    // Звука нет вовсе (нативная оболочка, пока без пункта 10.3): синтезировать незачем — класть некуда.
+    // Звука нет вовсе: синтезировать незачем — класть некуда.
     if (typeof AudioBuffer === 'undefined') {
       listeners.forEach((listener) => listener(1))
       return resolve()
     }
     let worker: Worker | undefined
-    const finish = () => {
+    let finishing = false
+    const finish = async () => {
+      if (finishing) return
+      finishing = true
       worker?.terminate()
-      for (const [key, make] of soundPieces()) if (!buffers.has(key)) store(key, make(SYNTH_RATE))
+      // Недостающее — кусками между кадрами: страница не замирает, а полоса загрузки идёт.
+      const pieces = soundPieces()
+      let since = performance.now()
+      for (const [key, make] of pieces) {
+        if (buffers.has(key)) continue
+        store(key, make(SYNTH_RATE))
+        if (performance.now() - since < SLICE) continue
+        listeners.forEach((listener) => listener(buffers.size / pieces.size))
+        await new Promise((next) => setTimeout(next))
+        since = performance.now()
+      }
       listeners.forEach((listener) => listener(1))
       resolve()
     }
