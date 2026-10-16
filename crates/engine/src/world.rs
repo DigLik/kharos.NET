@@ -6,7 +6,7 @@
 //! компонента, когда его начнёт читать система на Rust.
 
 use serde_json::{Map, Value};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// Сущность — просто номер. Номера не переиспользуются.
 pub type Entity = u32;
@@ -89,6 +89,21 @@ impl Store {
   }
 }
 
+/// Событие наблюдателя (`observe`): сущность получила весь набор его компонентов — с их данными на этот миг, как их
+/// видит `enter` в TS, — или потеряла один из них.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Event {
+  Enter { observer: usize, entity: Entity, data: Vec<Value> },
+  Leave { observer: usize, entity: Entity },
+}
+
+/// Наблюдатель: набор компонентов и сущности, у которых он сейчас весь.
+#[derive(Default)]
+struct Observer {
+  keys: Vec<String>,
+  active: HashSet<Entity>,
+}
+
 #[derive(Default)]
 pub struct World {
   next: Entity,
@@ -99,6 +114,9 @@ pub struct World {
   by_key: HashMap<String, usize>,
   /// Журнал своих операций — пока он включён (record).
   journal: Option<Vec<Op>>,
+  observers: Vec<Observer>,
+  /// События наблюдателей с прошлого take_events, по порядку.
+  events: Vec<Event>,
 }
 
 impl World {
@@ -199,6 +217,43 @@ impl World {
     if let Some(data) = logged {
       self.log(|| Op::Add(entity, key.to_owned(), data));
     }
+    for observer in 0..self.observers.len() {
+      if self.observers[observer].keys.iter().any(|other| other == key) {
+        self.activate(observer, entity);
+      }
+    }
+  }
+
+  /// Наблюдатель за сущностями с набором компонентов (`observe` в TS): вход — когда сущность получила весь набор,
+  /// выход — когда потеряла один из них (до того, как его снимут). Уже подходящие входят сразу, в порядке запроса.
+  /// События копятся до take_events: так их разбирает тот, кто владеет миром, а данные входа — снимок на его миг.
+  pub fn observe(&mut self, keys: &[&str]) -> usize {
+    self.observers.push(Observer { keys: keys.iter().map(|key| key.to_string()).collect(), active: HashSet::new() });
+    let observer = self.observers.len() - 1;
+    for entity in self.query(keys) {
+      self.activate(observer, entity);
+    }
+    observer
+  }
+
+  /// События наблюдателей с прошлого раза, по порядку.
+  pub fn take_events(&mut self) -> Vec<Event> {
+    std::mem::take(&mut self.events)
+  }
+
+  fn activate(&mut self, observer: usize, entity: Entity) {
+    if self.observers[observer].active.contains(&entity) {
+      return;
+    }
+    let mut data = Vec::new();
+    for key in &self.observers[observer].keys {
+      match self.get(entity, key) {
+        Some(value) => data.push(value.clone()),
+        None => return,
+      }
+    }
+    self.observers[observer].active.insert(entity);
+    self.events.push(Event::Enter { observer, entity, data });
   }
 
   /// Меняет поля компонента; те же значения — ничего не происходит. Компонента нет — добавляет его с этими полями.
@@ -231,6 +286,12 @@ impl World {
   pub fn remove(&mut self, entity: Entity, key: &str) {
     if !self.has(entity, key) {
       return;
+    }
+    for observer in 0..self.observers.len() {
+      let watched = &mut self.observers[observer];
+      if watched.keys.iter().any(|other| other == key) && watched.active.remove(&entity) {
+        self.events.push(Event::Leave { observer, entity });
+      }
     }
     self.store_mut(key).remove(entity);
     self.log(|| Op::Remove(entity, key.to_owned()));
@@ -348,6 +409,24 @@ mod tests {
     world.add(1, "Velocity", json!({}));
     assert_eq!(world.query(&["Position", "Velocity"]), vec![3, 1]);
     assert_eq!(world.query(&["Position", "Missing"]), Vec::<Entity>::new());
+  }
+
+  #[test]
+  fn observers_see_entering_data_and_leave_before_removal() {
+    let mut world = World::new();
+    let a = world.spawn();
+    world.add(a, "Position", json!({ "x": 1 }));
+    world.add(a, "Building", json!({ "type": "wall" }));
+    let observer = world.observe(&["Position", "Building"]);
+    let b = world.spawn();
+    world.add(b, "Building", json!({ "type": "gate" }));
+    world.add(b, "Position", json!({ "x": 2 }));
+    // Данные входа — какими были на миг входа: правка после не меняет события.
+    world.set(b, "Position", fields(json!({ "x": 3 })));
+    world.destroy(a);
+    world.remove(b, "Building");
+    world.remove(b, "Position");
+    assert_eq!(world.take_events(), vec![Event::Enter { observer, entity: a, data: vec![json!({ "x": 1 }), json!({ "type": "wall" })] }, Event::Enter { observer, entity: b, data: vec![json!({ "x": 2 }), json!({ "type": "gate" })] }, Event::Leave { observer, entity: a }, Event::Leave { observer, entity: b },]);
   }
 
   #[test]

@@ -1,6 +1,8 @@
 import type { Component, Entity, JournalOp } from '@kharos/ecs'
 import { CHUNK_SIZE, chunkRevision, getChunk, tileKey, type Land } from '@kharos/shared/terrain'
+import { BUILDINGS } from '@kharos/sim-ts/buildings'
 import * as components from '@kharos/sim-ts/components'
+import { Building, Position } from '@kharos/sim-ts/components'
 import { keyTile, type Paving } from '@kharos/sim-ts/paved'
 import { createSim, type Sim, type SimHooks, type SimOptions, type SimSave } from '@kharos/sim-ts/sim'
 
@@ -137,8 +139,8 @@ interface LayerMirror {
   layer: string
   /** Игрок; -1 — слой мира. */
   owner: number
-  /** Блоки, изменённые с прошлого вызова: x, y блока. */
-  take(): [number, number][]
+  /** Блоки, изменённые с прошлого вызова: x, y блока. Нет — слой выводимый: Rust считает его сам, а зеркало только сверяет. */
+  take?(): [number, number][]
   /** Все непустые блоки: для начала и сверки. */
   all(): [number, number][]
   /** Байты блока в формате слоя; пустые — блока нет. */
@@ -153,6 +155,32 @@ const chunkOf = (key: number) => {
 
 /** Чанки по ключам tileKey — координатами. */
 const chunkList = (keys: Iterable<number>) => [...keys].map((key): [number, number] => [keyTile(key).x, keyTile(key).y])
+
+/** Занятость (createOccupancy в buildings.ts) — выводимый слой occupancy: номер здания в u32. Только для сверки. */
+function occupancyMirror(sim: Sim): LayerMirror {
+  return {
+    layer: 'occupancy',
+    owner: -1,
+    all() {
+      const keys = new Set<number>()
+      for (const [, position, building] of sim.world.query(Position, Building)) {
+        const { width, height } = BUILDINGS[building.type]
+        for (let y = position.y; y < position.y + height; y++) {
+          for (let x = position.x; x < position.x + width; x++) keys.add(tileKey(Math.floor(x / CHUNK_SIZE), Math.floor(y / CHUNK_SIZE)))
+        }
+      }
+      return chunkList(keys)
+    },
+    block(chunkX, chunkY) {
+      const bytes = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * 4)
+      const view = new DataView(bytes.buffer)
+      for (let y = 0; y < CHUNK_SIZE; y++) {
+        for (let x = 0; x < CHUNK_SIZE; x++) view.setUint32((y * CHUNK_SIZE + x) * 4, sim.occupancy.at(chunkX * CHUNK_SIZE + x, chunkY * CHUNK_SIZE + y) ?? 0, true)
+      }
+      return bytes
+    },
+  }
+}
 
 /** Покрытие (paved.ts) — слой paving: код тайла (paveCode) в u16. Изменения ловятся на lay, lift и clear. */
 function pavingMirror(paving: Paving): LayerMirror {
@@ -250,14 +278,14 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
   }
 
   /** Слои TS, которые Rust повторяет. */
-  const mirrors: LayerMirror[] = [pavingMirror(sim.paving)]
+  const mirrors: LayerMirror[] = [pavingMirror(sim.paving), occupancyMirror(sim)]
 
   /** Досылает Rust изменённое в слоях: землю и блоки зеркал. */
   const syncLayers = () => {
     syncLand()
     const changes: LayerChange[] = []
     for (const mirror of mirrors) {
-      for (const [x, y] of mirror.take()) changes.push({ layer: mirror.layer, owner: mirror.owner, x, y, bytes: mirror.block(x, y) })
+      for (const [x, y] of mirror.take?.() ?? []) changes.push({ layer: mirror.layer, owner: mirror.owner, x, y, bytes: mirror.block(x, y) })
     }
     applyLayers(changes)
   }
@@ -276,7 +304,11 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
     applyLayers(changes)
   }
 
-  /** Запись операции для Rust и для known. Данные add не шлются: их догонит сверка, а «set» не меняет порядка. */
+  /**
+   * Запись операции для Rust и для known. add идёт с данными, set — правкой, по порядку: выводимое в Rust (занятость)
+   * читает данные на миг операции, как наблюдатели TS. Правку на месте TS не журналит — её догоняет сверка JSON, поэтому
+   * после set значение в known помечается устаревшим.
+   */
   const note = (op: JournalOp) => {
     switch (op[0]) {
       case 'spawn':
@@ -290,9 +322,15 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
       case 'next':
         pending.push(`["next",${op[1]}]`)
         return
-      case 'add':
-        known.get(op[1])?.set(op[2], '{}')
-        pending.push(`["add",${op[1]},${JSON.stringify(op[2])},{}]`)
+      case 'add': {
+        const data = typeof op[3] === 'string' ? op[3] : JSON.stringify(op[3])
+        known.get(op[1])?.set(op[2], data)
+        pending.push(`["add",${op[1]},${JSON.stringify(op[2])},${data}]`)
+        return
+      }
+      case 'set':
+        known.get(op[1])?.set(op[2], '')
+        pending.push(`["set",${op[1]},${JSON.stringify(op[2])},${typeof op[3] === 'string' ? op[3] : JSON.stringify(op[3])}]`)
         return
       case 'remove':
         known.get(op[1])?.delete(op[2])
@@ -441,6 +479,7 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
   }
   // Слои зеркал — все непустые блоки: сохранение уже легло в TS.
   for (const mirror of mirrors) {
+    if (!mirror.take) continue
     mirror.take()
     for (const [x, y] of mirror.all()) initial.push({ layer: mirror.layer, owner: mirror.owner, x, y, bytes: mirror.block(x, y) })
   }

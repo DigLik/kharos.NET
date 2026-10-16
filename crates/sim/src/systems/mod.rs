@@ -24,5 +24,6 @@ pub fn reads(name: &str) -> Option<&'static [&'static str]> {
 pub fn run(sim: &mut Sim, name: &str, time: Time) -> bool {
   let Some(system) = SYSTEMS.iter().find(|system| system.name == name) else { return false };
   (system.run)(sim, time);
+  sim.settle();
   true
 }

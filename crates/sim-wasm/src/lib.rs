@@ -112,6 +112,7 @@ pub unsafe extern "C" fn sim_apply(id: u32, ptr: *const u8, len: usize) -> i32 {
     for op in ops.as_array().ok_or("журнал — не список")? {
       sim.world.replay(Op::from_json(op)?);
     }
+    sim.settle();
     Ok(())
   });
   code(result)

@@ -7,4 +7,4 @@ pub mod terrain;
 pub mod world;
 
 pub use layers::{Change, Channel, Item, LayerId, LayerSpec, Layers, Owner, Scope, Shape};
-pub use world::{Entity, Op, World};
+pub use world::{Entity, Event, Op, World};

@@ -3,11 +3,13 @@
 
 pub mod data;
 pub use kharos_engine::math;
+pub mod occupancy;
 pub mod systems;
 mod values;
 
 use kharos_engine::terrain::{GeneratorConfig, Land, LandArea};
 use kharos_engine::{Change, Layers, Owner, World};
+use occupancy::Occupancy;
 
 pub use systems::{reads, run, SYSTEMS};
 
@@ -24,12 +26,25 @@ pub struct Sim {
   /// Земля — слой `land`: хранит её генератор с ленивой сборкой чанков, а изменения ходят тем же форматом, что у слоёв.
   pub land: Land,
   pub layers: Layers,
+  /// Занятость тайлов зданиями — выводимый слой `occupancy`; обновляется в `settle`.
+  pub occupancy: Occupancy,
 }
 
 impl Sim {
   /// Новая симуляция на земле из генератора config с картой мира area (в чанках).
   pub fn new(config: GeneratorConfig, area: LandArea) -> Self {
-    Self { world: World::new(), land: Land::new(config, area), layers: Layers::new(data::DATA.layers.clone()) }
+    let mut world = World::new();
+    let layers = Layers::new(data::DATA.layers.clone());
+    let occupancy = Occupancy::new(&mut world, &layers);
+    Self { world, land: Land::new(config, area), layers, occupancy }
+  }
+
+  /// Доводит выводимые слои до мира: разбирает события наблюдателей по порядку. Зовётся после чужого журнала и после
+  /// каждой системы — до того, как их кто-то прочтёт.
+  pub fn settle(&mut self) {
+    for event in self.world.take_events() {
+      self.occupancy.handle(&event, &mut self.layers);
+    }
   }
 
   /// Применяет изменения слоёв от той стороны (зеркало TS, загрузка): чанки земли — в землю, остальное — в слои.
