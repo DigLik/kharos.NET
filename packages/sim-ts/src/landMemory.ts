@@ -1,39 +1,22 @@
 import { patchSavedTile, saveLand, setTile, tileBytes, tileKey, type TileEdit } from '@kharos/shared/terrain'
 import { prepareDeposits } from './deposits'
-import { TRACE_CELL } from './traces'
+import { keyTile } from './paved'
+import { createRecall, knownValue, updateRecall, type Recall, type RecallLayer } from './recall'
 import type { Sim } from './sim'
 
 /**
  * Что игроки знают о карте. Карта у всех одна, но её правки (снесли гору, проложили пандус) игрок узнаёт, только
- * увидев: в тумане войны тайл остаётся для него таким, каким он его знал. Поэтому помнится, каким был каждый
- * изменённый тайл до первой правки, и какую версию изменённых тайлов видел каждый игрок. Неизменённые тайлы у всех
- * одинаковы и не помнятся.
+ * увидев: в тумане войны тайл остаётся для него таким, каким он его знал. Это память запоминаемого слоя (recall.ts):
+ * помнится, каким был каждый изменённый тайл до первой правки, — это знают все, — и что из правок знает каждый игрок.
+ * Неизменённые тайлы у всех одинаковы и не помнятся.
  *
- * Тайлы здесь — хранимые байты, см. tileBytes.
+ * Тайлы здесь — хранимые байты (см. tileBytes), в памяти — одним числом (packTile).
  */
-export interface LandMemory {
+export interface LandMemory extends Recall {
   /** Каким был изменённый тайл до первой правки, по tileKey. */
   original: Map<number, { x: number; y: number; tile: number[] }>
-  /** Какую версию изменённых тайлов знает игрок, по tileKey. Нет записи — знает исходную. */
-  known: Map<number, Map<number, number[]>>
-  /** Что игрок узнал с прошлого takeLearned: по ним хост шлёт правки, см. host.ts. */
-  learned: Map<number, Set<number>>
-  /**
-   * Изменённые тайлы по ячейкам EDIT_CELL: игроки сверяют только ячейки в своём обзоре, а правок на карте с землеройными
-   * работами — тысячи. Забытые правки (original их больше не знает) тут могут остаться — их пропускают.
-   */
-  cells: Map<number, Set<number>>
-}
-
-/** Сторона ячейки, по которым разложены правки, — как у следов: ячейки обзора хост считает той же стороны. */
-const EDIT_CELL = TRACE_CELL
-
-/** Кладёт изменённый тайл в его ячейку. */
-function index(memory: LandMemory, x: number, y: number, key: number) {
-  const cell = tileKey(Math.floor(x / EDIT_CELL), Math.floor(y / EDIT_CELL))
-  const keys = memory.cells.get(cell)
-  if (keys) keys.add(key)
-  else memory.cells.set(cell, new Set([key]))
+  /** Тайлы, изменённые с прошлой сверки. */
+  edited: Set<number>
 }
 
 /** В сохранении: изменённые тайлы — x, y и исходные байты подряд; знание игроков — x, y и байты подряд. */
@@ -42,19 +25,20 @@ export interface LandMemorySave {
   known: Record<string, number[]>
 }
 
-const same = (a: number[], b: number[]) => a.length === b.length && a.every((value, i) => value === b[i])
+/** Хранимые байты тайла одним числом и обратно. */
+export const packTile = (tile: readonly number[]) => (tile[0] | (tile[1] << 8) | (tile[2] << 16) | (tile[3] << 24)) >>> 0
+export const unpackTile = (value: number) => [value & 255, (value >>> 8) & 255, (value >>> 16) & 255, value >>> 24]
 
 export function createLandMemory(save?: LandMemorySave): LandMemory {
-  const memory: LandMemory = { original: new Map(), known: new Map(), learned: new Map(), cells: new Map() }
+  const memory: LandMemory = { ...createRecall(), original: new Map(), edited: new Set() }
   if (!save) return memory
   for (let i = 0; i + 5 < save.original.length; i += 6) {
     const [x, y, ...tile] = save.original.slice(i, i + 6)
     memory.original.set(tileKey(x, y), { x, y, tile })
-    index(memory, x, y, tileKey(x, y))
   }
   for (const [player, flat] of Object.entries(save.known)) {
-    const known = new Map<number, number[]>()
-    for (let i = 0; i + 5 < flat.length; i += 6) known.set(tileKey(flat[i], flat[i + 1]), flat.slice(i + 2, i + 6))
+    const known = new Map<number, number>()
+    for (let i = 0; i + 5 < flat.length; i += 6) known.set(tileKey(flat[i], flat[i + 1]), packTile(flat.slice(i + 2, i + 6)))
     memory.known.set(Number(player), known)
   }
   return memory
@@ -66,63 +50,56 @@ export function saveLandMemory(memory: LandMemory): LandMemorySave {
   const known: Record<string, number[]> = {}
   for (const [player, tiles] of memory.known) {
     const flat: number[] = []
-    for (const [key, tile] of tiles) {
-      const { x, y } = memory.original.get(key)!
-      flat.push(x, y, ...tile)
+    for (const [key, value] of tiles) {
+      const { x, y } = keyTile(key)
+      flat.push(x, y, ...unpackTile(value))
     }
     known[player] = flat
   }
   return { original, known }
 }
 
-/** Меняет тайл мира. Кто из игроков видит его сейчас, узнает об этом в конце тика, см. updateLandMemory. */
+/** Земля как запоминаемый слой: общее — тайл до первой правки, правки ничьи. */
+export const landLayer = (sim: Sim): RecallLayer => ({
+  actual: (x, y) => packTile(tileBytes(sim.land, x, y)),
+  common(key, actual) {
+    const original = sim.landMemory.original.get(key)
+    return original ? packTile(original.tile) : actual
+  },
+  tiles: () => sim.landMemory.original.keys(),
+})
+
+/** Меняет тайл мира. Кто из игроков видит его сейчас, узнает об этом при сверке, см. updateLandMemory. */
 export function editTile(sim: Sim, x: number, y: number, edit: TileEdit) {
   const key = tileKey(x, y)
   const before = tileBytes(sim.land, x, y)
-  if (!sim.landMemory.original.has(key)) {
-    sim.landMemory.original.set(key, { x, y, tile: before })
-    index(sim.landMemory, x, y, key)
-  }
+  if (!sim.landMemory.original.has(key)) sim.landMemory.original.set(key, { x, y, tile: before })
   // Месторождения вокруг считаются по карте до правки: правка их не создаёт и не двигает.
   prepareDeposits(sim, x, y, x, y)
   setTile(sim.land, x, y, edit)
+  sim.landMemory.edited.add(key)
 }
 
-/** Какую версию тайла знает игрок. */
-const knownTile = (memory: LandMemory, player: number, key: number) => memory.known.get(player)?.get(key) ?? memory.original.get(key)!.tile
-
-/** Система тика, после обзора: каждый игрок узнаёт изменённые тайлы, которые видит. */
+/** Система тика, после обзора: игроки узнают изменённые тайлы, которые видят, см. recall.ts. */
 export function updateLandMemory(sim: Sim) {
   const memory = sim.landMemory
   if (!memory.original.size) return
-  for (const player of sim.vision.players()) {
-    const sees = sim.vision.seer(player)
-    for (const cell of sim.vision.seenCells(player, EDIT_CELL)) {
-      for (const key of memory.cells.get(cell) ?? []) {
-        const edit = memory.original.get(key)
-        if (!edit || !sees(edit.x, edit.y)) continue
-        const tile = tileBytes(sim.land, edit.x, edit.y)
-        if (same(knownTile(memory, player, key), tile)) continue
-        let known = memory.known.get(player)
-        if (!known) memory.known.set(player, (known = new Map()))
-        known.set(key, tile)
-        let learned = memory.learned.get(player)
-        if (!learned) memory.learned.set(player, (learned = new Set()))
-        learned.add(key)
-      }
-    }
-  }
+  const edited = [...memory.edited]
+  memory.edited.clear()
+  updateRecall(sim, memory, landLayer(sim), edited)
 }
 
 /** Правки, которые игрок узнал с прошлого вызова: x, y и байты тайла подряд, см. applyEdits. */
-export function takeLearned(memory: LandMemory, player: number): number[] {
+export function takeLearned(sim: Sim, player: number): number[] {
+  const memory = sim.landMemory
   const learned = memory.learned.get(player)
   if (!learned?.size) return []
   memory.learned.delete(player)
+  const layer = landLayer(sim)
   const edits: number[] = []
   for (const key of learned) {
-    const { x, y } = memory.original.get(key)!
-    edits.push(x, y, ...knownTile(memory, player, key))
+    const { x, y } = keyTile(key)
+    edits.push(x, y, ...unpackTile(knownValue(memory, layer, player, key)))
   }
   return edits
 }
@@ -130,9 +107,11 @@ export function takeLearned(memory: LandMemory, player: number): number[] {
 /** Всё, что игрок знает об изменённых тайлах иначе, чем исходная карта: правки поверх pristineLand при подключении. */
 export function knownEdits(memory: LandMemory, player: number): number[] {
   const edits: number[] = []
-  for (const [key, tile] of memory.known.get(player) ?? []) {
-    const { x, y, tile: original } = memory.original.get(key)!
-    if (!same(tile, original)) edits.push(x, y, ...tile)
+  for (const [key, value] of memory.known.get(player) ?? []) {
+    const original = memory.original.get(key)
+    if (original && value === packTile(original.tile)) continue
+    const { x, y } = keyTile(key)
+    edits.push(x, y, ...unpackTile(value))
   }
   return edits
 }

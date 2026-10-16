@@ -1415,7 +1415,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
       // Правки карты — только тем, кто их увидел, см. landMemory.ts. Узнанное игроками без вкладок уже в их памяти.
       const learned = new Map<number, string>()
       for (const player of new Set(peers.values())) {
-        const edits = takeLearned(sim.landMemory, player)
+        const edits = takeLearned(sim, player)
         if (edits.length) learned.set(player, JSON.stringify({ type: 'tiles', edits } satisfies ServerMessage))
       }
       sim.landMemory.learned.clear()

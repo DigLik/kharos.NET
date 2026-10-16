@@ -6,6 +6,7 @@ import { createReplica, type Replica } from '@kharos/client/net/replica'
 import { Owner, Position, Unit, createSim, type Sim } from '@kharos/sim-ts'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
 import { editTile, knownEdits } from '@kharos/sim-ts/landMemory'
+import { LEARN_TICKS } from '@kharos/sim-ts/recall'
 import { throughJson } from './throughJson'
 
 const STEP = 1 / 20
@@ -55,7 +56,8 @@ test('правку в тумане игрок не узнаёт, пока не �
   const changed = before === Terrain.Swamp ? rock : swamp
   editTile(host.sim, near.x, near.y, changed === rock ? swamp : rock)
   editTile(host.sim, far.x, far.y, changed)
-  host.advance(STEP)
+  // Увиденное игроки сверяют раз в LEARN_TICKS тиков, см. recall.ts.
+  for (let i = 0; i < LEARN_TICKS; i++) host.advance(STEP)
   await settle()
   expect(terrainAt(client.sim.land, near.x, near.y)).toBe(terrainAt(host.sim.land, near.x, near.y))
   expect(terrainAt(client.sim.land, far.x, far.y)).toBe(before)
@@ -82,7 +84,7 @@ test('знание игроков о карте переживает сохра�
   host.advance(STEP)
   const near = ownUnit(host.sim, 1)
   editTile(host.sim, near.x, near.y, terrainAt(host.sim.land, near.x, near.y) === Terrain.Rock ? swamp : rock)
-  host.advance(STEP)
+  for (let i = 0; i < LEARN_TICKS; i++) host.advance(STEP)
   const edits = knownEdits(host.sim.landMemory, 1)
   expect(edits.length).toBe(6)
   const loaded = createSim(throughJson(host.sim.save()))
