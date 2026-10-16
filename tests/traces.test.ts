@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
-import { createHost, type Host } from '../src/net/host'
+import { createHost, type Host } from '@kharos/host'
 import { decodeServer } from '@kharos/protocol'
 import { createReplica, type Replica } from '../src/net/replica'
 import { Owner, Position, Unit, createSim, type Sim } from '@kharos/sim-ts'

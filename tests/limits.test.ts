@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
-import { createHost } from '../src/net/host'
-import { clientAddress, createBucket, createGate } from '../src/net/limits'
+import { createHost } from '@kharos/host'
+import { clientAddress, createBucket, createGate } from '@kharos/host/limits'
 import { createSim } from '@kharos/sim-ts'
 
 test('ведро жетонов: разом не больше запаса, потом — по скорости', () => {

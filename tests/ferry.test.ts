@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import type { HudState } from '../src/game/hud'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
-import { createHost, type Host } from '../src/net/host'
+import { createHost, type Host } from '@kharos/host'
 import { decodeServer } from '@kharos/protocol'
 import { createReplica, type Replica } from '../src/net/replica'
 import {

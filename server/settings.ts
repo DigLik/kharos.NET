@@ -1,7 +1,7 @@
 import { DEFAULT_CONFIG, type GeneratorConfig } from '@kharos/shared/terrain'
-import { DEFAULT_LIMITS, type ConnectLimits } from '../src/net/limits'
+import { DEFAULT_LIMITS, type ConnectLimits } from '@kharos/host/limits'
 import type { Lang } from '@kharos/i18n'
-import { DEFAULT_SEND_RATE } from '../src/net/host'
+import { DEFAULT_SEND_RATE } from '@kharos/host'
 import { DEFAULT_PORT } from '@kharos/protocol'
 import { DEFAULT_RULES, type Rules } from '@kharos/sim-ts'
 import { DEFAULT_WEATHER, type WeatherOptions } from '@kharos/sim-ts/weather'
@@ -35,7 +35,7 @@ export interface ServerSettings {
   limits: ConnectLimits
   /**
    * Сколько КБ в секунду сервер шлёт одному игроку: в большом бою то, что не влезло, приходит реже — сначала то, что
-   * у игрока на экране, см. рассылку в src/net/host.ts. Ноль снимает ограничение.
+   * у игрока на экране, см. рассылку в packages/host/src/host.ts. Ноль снимает ограничение.
    */
   sendRate: number
   /**

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
-import { createHost, type Host, type HostSave } from '../src/net/host'
+import { createHost, type Host, type HostSave } from '@kharos/host'
 import { FACING, MOTION_FIELDS, POSITION, SPAN_MOST, decodeDelta, encodeDelta } from '@kharos/protocol/codec'
 import { decodeServer } from '@kharos/protocol'
 import type { WeaponType } from '@kharos/sim-ts/weapons'

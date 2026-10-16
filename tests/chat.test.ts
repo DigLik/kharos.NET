@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
-import { createHost } from '../src/net/host'
+import { createHost } from '@kharos/host'
 import { CHAT_LENGTH, decodeServer, type ChatLine } from '@kharos/protocol'
 import { complete } from '@kharos/protocol/chatCommands'
 import { textOf, type Text } from '@kharos/i18n'

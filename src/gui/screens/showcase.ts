@@ -6,7 +6,7 @@
 import { createGame, simOptions, type Game } from '../../game/game'
 import { stage } from '../../game/stage'
 import type { MapSettings } from '@kharos/shared/settings'
-import { LOCAL_PLAYER } from '../../net/local'
+import { LOCAL_PLAYER } from '@kharos/host/local'
 import { SCENES, createSim, type SceneName } from '@kharos/sim-ts'
 import type { Ui } from '../ui'
 import type { ScreenOverlay } from './screen'

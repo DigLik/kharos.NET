@@ -7,6 +7,7 @@
       "dependencies": {
         "@kharos/data": "workspace:*",
         "@kharos/ecs": "workspace:*",
+        "@kharos/host": "workspace:*",
         "@kharos/i18n": "workspace:*",
         "@kharos/mods": "workspace:*",
         "@kharos/protocol": "workspace:*",
@@ -27,6 +28,19 @@
     "packages/ecs": {
       "name": "@kharos/ecs",
       "version": "0.1.0",
+    },
+    "packages/host": {
+      "name": "@kharos/host",
+      "version": "0.1.0",
+      "dependencies": {
+        "@kharos/data": "workspace:*",
+        "@kharos/ecs": "workspace:*",
+        "@kharos/i18n": "workspace:*",
+        "@kharos/mods": "workspace:*",
+        "@kharos/protocol": "workspace:*",
+        "@kharos/shared": "workspace:*",
+        "@kharos/sim-ts": "workspace:*",
+      },
     },
     "packages/i18n": {
       "name": "@kharos/i18n",
@@ -69,6 +83,8 @@
     "@kharos/data": ["@kharos/data@workspace:packages/data"],
 
     "@kharos/ecs": ["@kharos/ecs@workspace:packages/ecs"],
+
+    "@kharos/host": ["@kharos/host@workspace:packages/host"],
 
     "@kharos/i18n": ["@kharos/i18n@workspace:packages/i18n"],
 

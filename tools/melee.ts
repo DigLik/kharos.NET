@@ -7,7 +7,7 @@
  * bun tools/melee.ts [K] [N] [секунд] [мс на тик] [КБ/с игроку]
  */
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
-import { DEFAULT_SEND_RATE, createHost } from '../src/net/host'
+import { DEFAULT_SEND_RATE, createHost } from '@kharos/host'
 import { createSim, Owner, Unit } from '@kharos/sim-ts'
 import { spawnUnit } from '@kharos/sim-ts/units'
 

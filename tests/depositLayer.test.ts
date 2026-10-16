@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_CONFIG, Terrain, setTile } from '@kharos/shared/terrain'
-import { createHost } from '../src/net/host'
+import { createHost } from '@kharos/host'
 import { decodeServer } from '@kharos/protocol'
 import { createReplica, type Replica } from '../src/net/replica'
 import { DEPOSIT_CELL, Deposit, Position, createSim, depositsIn, type Sim } from '@kharos/sim-ts'

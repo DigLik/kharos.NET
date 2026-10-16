@@ -4,7 +4,7 @@
  * bun tools/stress-net.ts [N] [игроков]
  */
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
-import { createHost } from '../src/net/host'
+import { createHost } from '@kharos/host'
 import { createSim, Unit, Owner } from '@kharos/sim-ts'
 import { spawnUnit } from '@kharos/sim-ts/units'
 

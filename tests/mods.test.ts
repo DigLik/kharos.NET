@@ -4,7 +4,7 @@ import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
 import { MOD_API, luauDefinitions, tsDefinitions } from '@kharos/mods/api'
 import { compileLuau, createMachine, type MachineOptions } from '@kharos/mods/luau'
 import { createMods, DEFAULT_MOD_LIMITS, type ModReport } from '@kharos/mods/runtime'
-import { createHost } from '../src/net/host'
+import { createHost } from '@kharos/host'
 import type { ServerMessage } from '@kharos/protocol'
 import { createSim } from '@kharos/sim-ts'
 

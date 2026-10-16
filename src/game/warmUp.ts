@@ -1,6 +1,6 @@
 import { createContext, drawOffscreen } from '../gl'
 import { DEFAULT_SETTINGS, type MapSettings } from '@kharos/shared/settings'
-import { LOCAL_PLAYER } from '../net/local'
+import { LOCAL_PLAYER } from '@kharos/host/local'
 import { uploadAtlasSlowly, uploadSteps } from '../render/atlas'
 import { createRenderer } from '../render/renderer'
 import { createSim } from '@kharos/sim-ts'

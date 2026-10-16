@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
-import { createLocalServer, type LocalControl, type LocalNotice, type LocalPort, type LocalServer } from '../src/net/local'
+import { createLocalServer, type LocalControl, type LocalNotice, type LocalPort, type LocalServer } from '@kharos/host/local'
 import { decodeServer } from '@kharos/protocol'
 import { createReplica, type Replica } from '../src/net/replica'
 import type { Entity } from '@kharos/ecs'
