@@ -18,7 +18,7 @@ import { quoteName } from '../net/chatCommands'
 import { REWARDS, type BuildingType, type Command, type Good, type Reward } from '../sim'
 import { GRID_KEYS, commandsOf, dealOf, type Deal, type FerryDraft, type Page, type Slot } from '../ui/commands'
 import { chainOf } from '../ui/sources'
-import { barHeight, bottomBar, type BarActions } from './bar'
+import { barHeight, minimapSide, bottomBar, type BarActions } from './bar'
 import { createChat } from './chat'
 import { links } from './links'
 import { techWindow } from './tech'
@@ -673,7 +673,7 @@ export function createHud(actions: () => HudActions, gui: Gui): Hud {
       if (!state.editor) groups(ui, state, bottom, game)
       allies(ui, state, bottom, game)
       // Чат — правее мини-карты, когда она выше панели.
-      const side = prefs().minimap
+      const side = minimapSide(ui.width)
       chat.draw(ui, state, ui.width >= NARROW && side > 140 ? side + 12 : 12, bottom + 8)
       if (state.alerts.length && !state.editor) alerts(ui, state, top, game)
       if (state.steps) steps(ui, state, top, game)

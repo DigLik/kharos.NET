@@ -27,8 +27,21 @@ const PORTRAIT = 96
 const TILE = 32
 const QUEUED = 24
 
+/** Ширина сетки в ряд: четыре ячейки по CELL_WIDTH. */
+const GRID_WIDTH = 4 * CELL_WIDTH + 3 * 4
+/** Меньше этого сведениям о выбранном не дать: портрет, промежуток и полторы сотни на текст. */
+const INFO_MIN = 104 + 10 + 24 + 150
+/** Отступы панели и промежутки между мини-картой, сведениями и сеткой. */
+const BAR_SPACING = 16 + 8 + 8
+
 /** Высота нижней панели: от неё отступают чат, группы и союзники над ней. */
 export const barHeight = (width: number) => (width < NARROW ? INNER_NARROW + GRID_NARROW + 16 + 4 : INNER + 16)
+
+/**
+ * Сторона мини-карты. На узком экране — в ряд со сведениями; в широкий ряд крупная из настроек встаёт, только пока
+ * сведениям остаётся INFO_MIN: иначе — меньше, вплоть до высоты панели. Настройка от этого не меняется.
+ */
+export const minimapSide = (width: number) => (width < NARROW ? INNER_NARROW : Math.max(INNER, Math.min(prefs().minimap, width - BAR_SPACING - GRID_WIDTH - INFO_MIN)))
 
 const percent = (value: number) => `${Math.round(value * 100)}%`
 
@@ -192,7 +205,8 @@ function commandGrid(ui: Ui, slots: (Slot | null)[], stock: Stack[], width: numb
           const id = `cell:${i}`
           const picture = slotImage(slot)
           const outline = slot.hint && !slot.disabled ? pulse(ui, '90 169 255', 1000, 0.3, 1) : slot.fresh && !slot.disabled ? pulse(ui, '240 201 90', 1600, 0.2, 0.95) : undefined
-          const click = ui.button(id, { width: cellWidth, height: cellHeight, padding: [0, 4, 0, 2], gap: 6, justify: 'start', active: slot.active, disabled: slot.disabled, group: slot.group !== undefined, outline }, () => {
+          // Отступы — как у кнопки страницы: с картинкой она стоит почти у рамки, без неё текст отходит на 8.
+          const click = ui.button(id, { width: cellWidth, height: cellHeight, padding: [0, 6, 0, picture ? 4 : 8], gap: 6, justify: 'start', active: slot.active, disabled: slot.disabled, group: slot.group !== undefined, outline }, () => {
             if (picture) {
               ui.box({ direction: 'stack' }, () => {
                 // Раздел — стопкой из двух карточек: одна выглядывает из-за другой.
@@ -252,9 +266,11 @@ function info(ui: Ui, state: HudState, width: number, height: number, actions: B
         ? state.mixed ? t('hud.buildingsCount', { count: state.buildings }) : `${t(`buildings.${building}`)} ×${state.buildings}`
         : site ? t(site.undo ? 'hud.undoing' : site.demolish ? 'hud.demolition' : 'hud.construction', { name: t(`buildings.${building}`) }) : t(`buildings.${building}`)
       : units.map(({ type, count }) => (count > 1 ? `${t(`units.${type}`)} ×${count}` : t(`units.${type}`))).join(', ')
-  // Ширина подробностей: панель без рамки и отступов, без портрета (или плиток) и промежутка.
-  const left = many ? 4 * 40 + 3 * 4 : 104
-  const text = Math.max(120, width - 24 - left - 10)
+  // Плиток отряда в ряд — сколько влезает рядом с текстом (до четырёх). Ширина подробностей — остаток: панель без
+  // рамки и отступов, без портрета (или плиток) и промежутка.
+  const columns = Math.max(1, Math.min(4, Math.floor((width - 24 - 10 - 150 + 4) / 44)))
+  const left = many ? columns * 40 + (columns - 1) * 4 : 104
+  const text = Math.max(40, width - 24 - left - 10)
   let n = 0
   const id = () => `info:${n++}`
   const good = (resource: Good, amount?: number, of?: number) => resRun(resource, id(), amount, of)
@@ -262,9 +278,9 @@ function info(ui: Ui, state: HudState, width: number, height: number, actions: B
   ui.box({ width, height, skin: 'well', padding: [10, 12], direction: 'row', gap: 10 }, () => {
     if (many) {
       ui.box({ direction: 'column', gap: 4, width: left, maxHeight: height - 20, scroll: true, id: 'info:units' }, () => {
-        for (let start = 0; start < units.length; start += 4) {
+        for (let start = 0; start < units.length; start += columns) {
           ui.box({ direction: 'row', gap: 4 }, () => {
-            for (const { type, count } of units.slice(start, start + 4)) {
+            for (const { type, count } of units.slice(start, start + columns)) {
               const unitId = `unit:${type}`
               const click = ui.button(unitId, { width: 40, height: 40, padding: 0, skin: 'well', direction: 'stack' }, () => {
                 ui.box({ self: ['center', 'center'] }, () => ui.image(unitCanvas(type, TILE), TILE, TILE))
@@ -447,7 +463,7 @@ export function bottomBar(ui: Ui, state: HudState, slots: (Slot | null)[], actio
   const narrow = ui.width < NARROW
   const selected = state.units.length > 0 || state.building !== null
   const inner = narrow ? INNER_NARROW : INNER
-  const side = narrow ? inner : prefs().minimap
+  const side = minimapSide(ui.width)
   const stock = state.stock?.items ?? []
   if (state.editor) {
     ui.box({ id: 'bar', anchor: { left: 0, bottom: 0 }, skin: 'panel', padding: [4, 8], direction: 'row', align: 'end', height: inner + 16 }, () => minimapView(ui, side, actions))
@@ -465,9 +481,9 @@ export function bottomBar(ui: Ui, state: HudState, slots: (Slot | null)[], actio
     })
     return
   }
-  const gridWidth = 4 * CELL_WIDTH + 3 * 4
-  // Мини-карта занимает в ряду всю свою сторону, даже когда выступает над панелью.
-  const infoWidth = Math.max(160, ui.width - 16 - side - gridWidth - 16)
+  const gridWidth = GRID_WIDTH
+  // Мини-карта занимает в ряду всю свою сторону, даже когда выступает над панелью; сведениям — остаток.
+  const infoWidth = ui.width - BAR_SPACING - side - gridWidth
   ui.box({ id: 'bar', anchor: { left: 0, right: 0, bottom: 0 }, height: INNER + 16, skin: 'panel', padding: [4, 8], direction: 'row', align: 'end', gap: 8 }, () => {
     // Мини-карта крупнее панели выступает над ней: панель её не обрезает.
     ui.box({ height: INNER, direction: 'column', justify: 'end' }, () => minimapView(ui, side, actions))
