@@ -5,7 +5,7 @@
 import { createGame, type Game } from '../../game/game'
 import type { HudState } from '../../game/hud'
 import { stage } from '../../game/stage'
-import { t } from '../../i18n'
+import { t } from '@kharos/i18n'
 import type { MapSettings } from '../../map/settings'
 import { PasswordRequired } from '../../net/connect'
 import type { Replica } from '../../net/replica'

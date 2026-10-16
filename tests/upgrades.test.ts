@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import type { Entity } from '../src/ecs'
+import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import {
   BUILDINGS, BUY_SECONDS, Building, DEPOSIT_KINDS, Inventory, MAX_LEVEL, Position, REFINE_RATE, Site, Trade, Upgrade, amountOf, canPlace, createSim, creditsOf, depositIn, economyOf,

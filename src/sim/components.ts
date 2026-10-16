@@ -1,4 +1,4 @@
-import { component } from '../ecs'
+import { component } from '@kharos/ecs'
 import type { BuildingType } from './buildings'
 import type { Amounts, Good, Product, Resource } from './resources'
 import type { TurretType } from './turrets'

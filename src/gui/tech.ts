@@ -6,7 +6,7 @@
 import type { TechState, TopicView } from '../game/hud'
 import { goodCanvas } from '../game/goodIcons'
 import { buildingCanvas, levelCanvas, paveCanvas, unitCanvas } from '../game/portraits'
-import { t } from '../i18n'
+import { t } from '@kharos/i18n'
 import type { Command, LabLack, Topic } from '../sim'
 import type { Ui } from './ui'
 import { COLORS, SHADOW, coin, res } from './widgets'

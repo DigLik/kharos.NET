@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import type { ViewBox } from '../net/protocol'
 import type { EditOp } from '../sim/editOps'
 import { createAudio } from '../audio/audio'

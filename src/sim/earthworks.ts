@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { CLIFF_BIT, DUNE_SHIFT, Terrain, batchLand, peakOf, tileBytes, tileKey, type Dunes } from '../map/terrain'
 import { isOwn } from './common'
 import { Dig, Owner, Position } from './components'

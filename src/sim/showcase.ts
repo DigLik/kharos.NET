@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { driveBattle, randomArmy, spawnBattle } from './battle'
 import { BUILDINGS, buildingSpec, canPlace, placeBuilding, type BuildingType } from './buildings'
 import { connectAll } from './piping'

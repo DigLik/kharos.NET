@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { tileKey } from '../map/terrain'
 import { BUILDINGS, BUILD_RATE, CORE, applyLevel, buildingSpec, canPlace, durabilityOf, equip, isUnlocked, newBuilding, siteAt, upgradeCost, upgradeSpent, type BuildingSpec, type BuildingType } from './buildings'
 import { NONE, isOwn, onTurn, ownerOf, rectDistance, turnToward, wrap } from './common'

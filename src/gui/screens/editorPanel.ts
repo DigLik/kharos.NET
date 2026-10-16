@@ -3,12 +3,12 @@
 // панель правит и сохранение, и живой мир на сервере. Пока панель открыта, левая и правая кнопки на холсте — её.
 // Перенесено со страницы (src/ui/EditorPanel.tsx): та же логика, отрисовка — вызовами ui.
 
-import type { Entity } from '../../ecs'
+import type { Entity } from '@kharos/ecs'
 import type { Game } from '../../game/game'
 import { ordersAt } from '../../game/orders'
 import { placementOf } from '../../game/placing'
 import type { SceneEdit } from '../../game/scene'
-import { hasText, hostText, t, textOf, type Key } from '../../i18n'
+import { hasText, hostText, t, textOf, type Key } from '@kharos/i18n'
 import { Biome, Dunes as DUNES_OF, MAX_PEAK_RADIUS, Terrain, type Dunes } from '../../map/terrain'
 import {
   Armed,

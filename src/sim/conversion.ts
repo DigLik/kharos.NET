@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { BUILDINGS, CORE, canPlace, placeBuilding } from './buildings'
 import { clearDrops } from './drops'
 import { isOwn, onTurn, ownerOf } from './common'

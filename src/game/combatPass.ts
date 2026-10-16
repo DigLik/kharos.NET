@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { setBlend } from '../gl'
 import { Biome, Terrain, biomeAt, terrainAt } from '../map/terrain'
 import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atlas'

@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { tileKey } from '../map/terrain'
 import { BUILDINGS, RESEARCH_FOR, UNDERGROUND_REACH, buildingSpec, canPlace, placeBuilding, siteAt, type BuildingType } from './buildings'
 import { hasResearch } from './topics'

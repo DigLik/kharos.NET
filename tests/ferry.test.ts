@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import type { Entity } from '../src/ecs'
+import type { Entity } from '@kharos/ecs'
 import type { HudState } from '../src/game/hud'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { createHost, type Host } from '../src/net/host'

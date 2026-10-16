@@ -1,5 +1,5 @@
 import { forgetAlliances } from './allies'
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { CORE } from './buildings'
 import { Attached, Building, Doomed, Owner, Pave, Player, Position, Site, Unit } from './components'
 import { dropCargo } from './drops'

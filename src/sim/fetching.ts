@@ -1,4 +1,4 @@
-import type { DataOf, Entity } from '../ecs'
+import type { DataOf, Entity } from '@kharos/ecs'
 import { BUILDINGS } from './buildings'
 import { NONE, onTurn } from './common'
 import { Beam, Builds, Building, Converting, Fetch, Inventory, Owner, Path, Position, Repair, Site, Unit } from './components'

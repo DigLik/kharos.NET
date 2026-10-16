@@ -1,4 +1,4 @@
-import type { Entity, World } from '../ecs'
+import type { Entity, World } from '@kharos/ecs'
 import { Building, Ghost, Health, Shield, Site, buildingSpec } from '../sim'
 
 /** Высота полосы состояния над зданием и зазор между полосами — в пикселях экрана; зазор до крыши — в тайлах. */

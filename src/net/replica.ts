@@ -1,6 +1,6 @@
 import type { EditOp } from '../sim/editOps'
 import type { CommandInfo } from './chatCommands'
-import { World, type Component, type Entity, type Time } from '../ecs'
+import { World, type Component, type Entity, type Time } from '@kharos/ecs'
 import { applyEdits, areaOf, createLand, loadLand, saveLand } from '../map/terrain'
 import { inflate } from '../save/file'
 import { createDeposits, loadDeposits } from '../sim/deposits'
@@ -19,7 +19,7 @@ import { wrap } from '../sim/common'
 import { MOTION_FIELDS } from './codec'
 import { SAVE_VERSION, type SimSave } from '../sim/sim'
 import type { ChatLine, ClientMessage, PlayerInfo, PlayerView, ServerMessage, ViewBox } from './protocol'
-import { t, textOf } from '../i18n'
+import { t, textOf } from '@kharos/i18n'
 
 /** Из чего собираются призраки: сохраняемое и метка призрака. */
 const REMEMBERED = [...SAVED, Ghost]

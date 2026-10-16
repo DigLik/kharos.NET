@@ -12,7 +12,7 @@
  *   crossing  — разношёрстная армия идёт через карту 512×512 по диагонали на нескольких картах: доезжают ли все
  *               и не стоит ли кто-то с приказом вечно. Долгий: около минуты.
  */
-import type { Entity } from '../../src/ecs'
+import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../../src/map/settings'
 import { Terrain, isCliffFoot, terrainAt } from '../../src/map/terrain'
 import {

@@ -1,6 +1,6 @@
 import type { Audio } from '../audio/audio'
 import type { SoundName } from '../audio/sounds'
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { Unit, resolveOrder, type Command, type Sim } from '../sim'
 import { GUI_PRESS, type GuiPress } from '../gui/ui'
 

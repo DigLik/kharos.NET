@@ -1,4 +1,4 @@
-import type { Entity, World } from '../ecs'
+import type { Entity, World } from '@kharos/ecs'
 import { Biome, biomeAt, hash, isBuildable, isCliffFoot, terrainAt, tileKey } from '../map/terrain'
 import { Deposit, Position } from './components'
 import type { Resource } from './resources'

@@ -11,7 +11,7 @@
  *
  * Раздел отвечает на главный вопрос стабилизации: сколько линий добычи кормит одну производственную.
  */
-import type { Entity } from '../../src/ecs'
+import type { Entity } from '@kharos/ecs'
 import {
   BUILDINGS, BUILDING_TYPES, Builds, Building, DEPOSIT_KINDS, DEPOSIT_TYPES, Inventory, Owner, PRODUCTS, PRODUCT_SPECS, REFINE_RATE, RESOURCE_SPECS,
   REWARDS, Site, TRUCK_CAPACITY, TURRETS, Trade, UNITS, Unit, WEAPONS, amountOf, buildingSpec, canBuild, canPlace, canSell, creditsOf, cycleSeconds,

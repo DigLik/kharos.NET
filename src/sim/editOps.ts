@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import type { BuildingType } from './buildings'
 import type { Command } from './commands'
 import { depositAt, reserveLeft, type DepositKind } from './deposits'

@@ -9,7 +9,7 @@ import { addCredits } from '../src/sim/economy'
 import type { Amounts, Ware } from '../src/sim/resources'
 import { wireOf } from '../src/net/wire'
 import { throughJson } from './throughJson'
-import type { Entity } from '../src/ecs'
+import type { Entity } from '@kharos/ecs'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { protection: 0, techTree: false } }
 const TICK = 1 / 20

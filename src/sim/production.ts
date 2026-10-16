@@ -1,4 +1,4 @@
-import type { Entity, Time } from '../ecs'
+import type { Entity, Time } from '@kharos/ecs'
 import { tileKey } from '../map/terrain'
 import { BUILDINGS, buildingSpec, missingBuildings, type BuildingType } from './buildings'
 import { isOwn, ownerOf } from './common'

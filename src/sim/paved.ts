@@ -1,4 +1,4 @@
-import type { Entity, World } from '../ecs'
+import type { Entity, World } from '@kharos/ecs'
 import { tileKey } from '../map/terrain'
 import { Owner, Pave, Position } from './components'
 import type { Sim } from './sim'

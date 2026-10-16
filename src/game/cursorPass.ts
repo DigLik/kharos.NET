@@ -1,7 +1,7 @@
 import { setBlend } from '../gl'
 import type { Pass } from '../render/renderer'
 import { createSpriteProgram, createSprites, createWhiteTexture } from '../render/sprites'
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { BUILDINGS, Building, CONTROL_RADIUS, EXPAND_RADIUS, Silo, Hauler, Owner, Position, Tactics, allZones, buildingSpec, gridOf, wellPartners, type BuildingSpec, type BuildingType, type Zone } from '../sim'
 import { paveStrokeOf, placementOf } from './placing'
 import type { Scene } from './scene'

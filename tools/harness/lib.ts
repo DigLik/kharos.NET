@@ -2,7 +2,7 @@
  * Общее для всех разделов харнесса: мир по умолчанию, шаг времени, поиск места под сцену и печать таблиц.
  * Сцены ставятся той же симуляцией и на той же карте, что и в игре: харнесс ничего не подкручивает.
  */
-import type { Entity } from '../../src/ecs'
+import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../../src/map/settings'
 import { BUILDINGS, Building, Position, Site, canPlace, createSim, isWalkable, type BuildingType, type Sim } from '../../src/sim'
 import { placeBuilding } from '../../src/sim/buildings'

@@ -1,4 +1,4 @@
-import type { Entity } from '../src/ecs'
+import type { Entity } from '@kharos/ecs'
 import type { Sim } from '../src/sim'
 import { freeTilesNear, spawnUnit } from '../src/sim/units'
 

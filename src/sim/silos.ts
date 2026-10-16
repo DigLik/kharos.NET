@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { BUILDINGS, buildingSpec, isReady } from './buildings'
 import { rectDistance } from './common'
 import { allied } from './allies'

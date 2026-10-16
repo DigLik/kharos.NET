@@ -1,4 +1,4 @@
-import type { Entity, World } from '../ecs'
+import type { Entity, World } from '@kharos/ecs'
 import { BUILDINGS, buildingSpec } from './buildings'
 import { NONE, turnToward, wrap } from './common'
 import { Armed, Attached, Building, Carrier, Owner, Position, Repair, Turret, Unit } from './components'

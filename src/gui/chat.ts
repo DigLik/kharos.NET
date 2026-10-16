@@ -4,7 +4,7 @@
 
 import type { HudState } from '../game/hud'
 import { complete } from '../net/chatCommands'
-import { t } from '../i18n'
+import { t } from '@kharos/i18n'
 import type { Ui } from './ui'
 
 /** Сколько секунд сообщение видно, пока чат закрыт, и сколько из них оно гаснет. */

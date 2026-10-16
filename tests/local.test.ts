@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { createLocalServer, type LocalControl, type LocalNotice, type LocalPort, type LocalServer } from '../src/net/local'
 import { decodeServer } from '../src/net/protocol'
 import { createReplica, type Replica } from '../src/net/replica'
-import type { Entity } from '../src/ecs'
+import type { Entity } from '@kharos/ecs'
 import { Position, Unit, createSim, creditsOf, type SimSave } from '../src/sim'
 import { addCredits } from '../src/sim/economy'
 

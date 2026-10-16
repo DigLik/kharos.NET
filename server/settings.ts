@@ -1,6 +1,6 @@
 import { DEFAULT_CONFIG, type GeneratorConfig } from '../src/map/terrain'
 import { DEFAULT_LIMITS, type ConnectLimits } from '../src/net/limits'
-import type { Lang } from '../src/i18n'
+import type { Lang } from '@kharos/i18n'
 import { DEFAULT_SEND_RATE } from '../src/net/host'
 import { DEFAULT_PORT } from '../src/net/protocol'
 import { DEFAULT_RULES, type Rules } from '../src/sim'

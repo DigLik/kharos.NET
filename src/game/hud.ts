@@ -2,8 +2,8 @@ import type { CommandInfo } from '../net/chatCommands'
 import type { AlertKind, AlertText } from './alerts'
 import type { Replica } from '../net/replica'
 import { knownReserve } from './knownReserve'
-import type { Entity } from '../ecs'
-import { textOf } from '../i18n'
+import type { Entity } from '@kharos/ecs'
+import { textOf } from '@kharos/i18n'
 import {
   armyOf, overLimit, Assembly, BUILDABLE, isPacked, isUnlocked, buyPrice, buyResearch, isOrbital, roomFor, BUILDINGS, Building, Converting, Deploys, Hauler, Health, CORE, GOODS, PRODUCT_SPECS, REFINE_RATE, RESOURCES, RESOURCE_SPECS, buildingSpec, cycleSeconds, isOwn, missingRequirements, producibleBy, productStock, hasRoom, Trade, Inventory, amountOf, loadOf, deliveredTo, stockOf, stockOfZone, isPipe, networkOf, zoneWith, Producer, QUEUE_LIMIT, Site, UNITS, UNIT_TYPES, Unit, unitSpec,
   awaitsMaterials, sitesShortOfCredits, buildTicks, canDemolish, freeCredits, canFight, canSendDeploy, canPack, depositAt, depositNear, DEPOSIT_SIZE, entriesOf, isDeployBlocked, creditsOf, protectionLeft, coreless, economyOf, isSiteBlocked, materialsFor, reserveLeft, idlePowerOf, overloadOf, powerOf, powerStates, prepaidOf, refundOf, repairCostOf, rewardsOf, siteTicks, spareOf, unreachable, zoneEconomies, gridOf, gridsOf, RELIEF_BELOW,

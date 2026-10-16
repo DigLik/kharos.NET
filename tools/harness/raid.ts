@@ -10,7 +10,7 @@
  * дроп ничей, его увозит любой грузовик, и для нападающего это добыча, — и сколько отряд теряет, если цель
  * стережёт одна турель с полным боезапасом. Набег окупается, когда ущерб и добыча больше потерь.
  */
-import type { Entity } from '../../src/ecs'
+import type { Entity } from '@kharos/ecs'
 import {
   BUILDINGS, BUILD_RATE, Building, Drop, Inventory, Owner, Position, RESOURCE_SPECS, UNITS, Unit, WARES, amountOf, isPipe, networkOf, connectAll,
   spawnBattle, type BuildingType, type Sim, type UnitType,

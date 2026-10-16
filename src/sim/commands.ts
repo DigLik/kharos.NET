@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { setWorking } from './assembly'
 import { ping } from './pings'
 import { BUILDINGS, type BuildingType } from './buildings'

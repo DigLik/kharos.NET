@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { Terrain, isCliffFoot, isPassable, terrainAt, tileKey } from '../map/terrain'
 import { BUILDINGS, CORE, siteAt, type BuildingType } from './buildings'
 import { isOwn } from './common'

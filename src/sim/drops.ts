@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { BUILDINGS } from './buildings'
 import { Building, Drop, Inventory, Position, Site, Unit } from './components'
 import { amountOf, loadOf } from './inventory'

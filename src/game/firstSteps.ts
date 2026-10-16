@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { BUILDINGS, Building, CORE, DEPOSIT_CELL, DEPOSIT_SIZE, Owner, Position, Site, Unit, depositAt, depositsIn, hasResearch, missingBuildings, reserveLeft, rewardsOf, type BuildingType, type DepositKind, type Sim, type Topic, type UnitType } from '../sim'
 import { isReady } from '../sim/buildings'
 import { knowsDeposit } from '../sim/deposits'

@@ -1,4 +1,4 @@
-import type { Entity, World } from '../ecs'
+import type { Entity, World } from '@kharos/ecs'
 import { tileKey } from '../map/terrain'
 import { alliesIn } from './allies'
 import { BUILDINGS, buildingSpec } from './buildings'

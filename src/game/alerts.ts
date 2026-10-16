@@ -1,6 +1,6 @@
 import type { Audio } from '../audio/audio'
 import type { SoundName } from '../audio/sounds'
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { Building, Chaser, Health, Mark, Missile, Owner, Position, Shot, Unit, WARNING, alliesIn, buildingSpec } from '../sim'
 import { missileAt } from './missiles'
 import { tileKey } from '../map/terrain'

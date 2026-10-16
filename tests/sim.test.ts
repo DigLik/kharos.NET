@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { World, component } from '../src/ecs'
+import { World, component } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Building, Pave, Position, canPlace, createSim, type Sim } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'

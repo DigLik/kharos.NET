@@ -13,7 +13,7 @@ import { startApp } from '../../src/gui/app'
 import { LOCAL_PLAYER, type GameMode } from '../../src/net/local'
 import { lastDrawn } from '../../src/render/renderer'
 import { SCENES, createSim, type Scene, type SceneName } from '../../src/sim'
-import { loadLang, preferredLang } from '../../src/i18n'
+import { loadLang, preferredLang } from '@kharos/i18n'
 import type { Launch } from '../../src/ui/launch'
 
 /** Что окно сказало до начала игры (см. `game_options` в `src/main.rs`): сценка, час суток и ровные ли часы. */

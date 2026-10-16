@@ -3,7 +3,7 @@ import { DEFAULT_CONFIG } from '../src/map/terrain'
 import { createHost } from '../src/net/host'
 import { CHAT_LENGTH, decodeServer, type ChatLine } from '../src/net/protocol'
 import { complete } from '../src/net/chatCommands'
-import { textOf, type Text } from '../src/i18n'
+import { textOf, type Text } from '@kharos/i18n'
 import { Owner, Player, Silo, Unit, createSim } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
 

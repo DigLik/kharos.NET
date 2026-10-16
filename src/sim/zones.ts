@@ -1,4 +1,4 @@
-import type { Entity, World } from '../ecs'
+import type { Entity, World } from '@kharos/ecs'
 import { BUILDINGS, CORE, UNDERGROUND_REACH, buildingSpec, type BuildingSpec, type BuildingType } from './buildings'
 import { Building, Inventory, Owner, Position, Site } from './components'
 import type { Sim } from './sim'

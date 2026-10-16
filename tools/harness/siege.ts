@@ -15,7 +15,7 @@
  *
  * Сцена ставится на скале: на песке оборона держит лишь 70% прочности, и мерить надо одно и то же.
  */
-import type { Entity } from '../../src/ecs'
+import type { Entity } from '@kharos/ecs'
 import {
   BUILDINGS, Inventory, Owner, Shield, UNITS, Unit, durabilityOf, flies, isWalkable, spawnBattle,
   type BuildingType, type Sim, type UnitType,

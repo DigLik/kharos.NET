@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { BUILDINGS, type BuildingType } from './buildings'
 import { Building, Owner, Position, SAVED } from './components'
 import type { Sim } from './sim'

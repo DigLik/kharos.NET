@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { TRAINING_PLAYER, orderAttack, weaponOf } from './combat'
 import { Armed, Owner, Path, Position, Unit } from './components'
 import { setStance } from './tactics'

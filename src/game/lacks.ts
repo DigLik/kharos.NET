@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import {
   Assembly, Building, Converting, GOODS, Interceptor, Inventory, Producer, Research, Site, amountOf, awaitsMaterials, buildingSpec, hasRoom, sitesShortOfCredits, interceptorLack, isOwn, missingFor,
   recipeOf, shutDown, type Amounts, type BuildingType, type Good, type Sim,

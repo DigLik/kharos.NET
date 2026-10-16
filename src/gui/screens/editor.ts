@@ -5,7 +5,7 @@
 import { createGame, type Game } from '../../game/game'
 import { stage } from '../../game/stage'
 import { loadSave, storeSave } from '../../game/storage'
-import { t } from '../../i18n'
+import { t } from '@kharos/i18n'
 import type { MapSettings } from '../../map/settings'
 import { reloadLocal } from '../../net/connect'
 import { decodeSave, encodeSave, readJson, type Sections } from '../../save/file'

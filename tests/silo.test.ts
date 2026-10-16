@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import type { Entity } from '../src/ecs'
+import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import {
   BUILDINGS, Burst, Doomed, GLARE, Glare, Health, Inventory, LAUNCH_MARK, Mark, Missile, Off, Silo, WARNING, canPlace, createSim, creditsOf, isUnlocked, protect, protectionLeft, shownTo, warheadLack,

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import type { Entity } from '../src/ecs'
+import type { Entity } from '@kharos/ecs'
 import { DEFAULT_CONFIG } from '../src/map/terrain'
 import { Drop, Hauler, Inventory, Unreachable, amountOf, createSim, unreachable, type Sim } from '../src/sim'
 import { NONE } from '../src/sim/common'

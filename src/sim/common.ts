@@ -1,4 +1,4 @@
-import type { Entity, Time } from '../ecs'
+import type { Entity, Time } from '@kharos/ecs'
 import { Owner } from './components'
 import type { Sim } from './sim'
 

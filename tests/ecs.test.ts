@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { World, component, type Entity } from '../src/ecs'
+import { World, component, type Entity } from '@kharos/ecs'
 
 const Position = component('Position', { x: 0, y: 0 })
 const Velocity = component('Velocity', { x: 0, y: 0 })

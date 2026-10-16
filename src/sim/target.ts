@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { siteAt } from './buildings'
 import { canAttack } from './combat'
 import type { Command } from './commands'

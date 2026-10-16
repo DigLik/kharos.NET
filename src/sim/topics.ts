@@ -1,4 +1,4 @@
-import type { Entity, World } from '../ecs'
+import type { Entity, World } from '@kharos/ecs'
 import { Player } from './components'
 import { entriesOf, type Amounts } from './resources'
 import type { Sim } from './sim'

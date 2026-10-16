@@ -4,7 +4,7 @@ import type { DepositsSave } from '../sim/deposits'
 import type { Trace } from '../sim/traces'
 import type { CommandInfo } from './chatCommands'
 import { LAND, decodeDelta } from './codec'
-import type { Text } from '../i18n'
+import type { Text } from '@kharos/i18n'
 
 /**
  * Версия сетевой игры. Клиент и сервер играют вместе, только если она у них одна: копия мира у клиента собирается

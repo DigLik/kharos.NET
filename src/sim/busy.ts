@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { cycleSeconds, hasRoom, recipeOf } from './assembly'
 import { BUILDINGS, type BuildingSpec } from './buildings'
 import { NONE } from './common'

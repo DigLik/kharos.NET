@@ -4,7 +4,7 @@
 
 import { stage } from '../../game/stage'
 import type { Scene } from '../../game/scene'
-import { t } from '../../i18n'
+import { t } from '@kharos/i18n'
 import { createLandWindow, minZoom, type LandWindow } from '../../map/landWindow'
 import { DEFAULT_SETTINGS } from '../../map/settings'
 import { createLand } from '../../map/terrain'

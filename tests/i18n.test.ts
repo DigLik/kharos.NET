@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { LANGS, hostText, loadLang, rich, t, textOf } from '../src/i18n'
-import ru from '../src/i18n/ru.json'
+import { LANGS, hostText, loadLang, rich, t, textOf } from '@kharos/i18n'
+import ru from '@kharos/i18n/ru.json'
 
 /** Строки словаря по ключу через точку. */
 const flatten = (dict: object, prefix = '', out: Record<string, string> = {}) => {
@@ -16,7 +16,7 @@ const placeholders = (text: string) => [...text.matchAll(/\{(\w+)(?::\w+)?\}/g)]
 test('словари: в каждом языке те же ключи и те же подстановки, что в русском', async () => {
   const source = flatten(ru)
   for (const { lang } of LANGS) {
-    const dict = flatten((await import(`../src/i18n/${lang}.json`)).default)
+    const dict = flatten((await import(`@kharos/i18n/${lang}.json`)).default)
     expect(Object.keys(dict).sort()).toEqual(Object.keys(source).sort())
     for (const key of Object.keys(source)) expect([key, placeholders(dict[key])]).toEqual([key, placeholders(source[key])])
   }

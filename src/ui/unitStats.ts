@@ -1,4 +1,4 @@
-import { t } from '../i18n';
+import { t } from '@kharos/i18n';
 import { WEAPONS, turretSpec, unitSight, unitSpec, type UnitType } from '../sim';
 
 type WeaponType = keyof typeof WEAPONS;

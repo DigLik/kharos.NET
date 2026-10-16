@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { BUILDINGS, MAX_LEVEL, isReady, levelGain, upgradeCost } from './buildings'
 import { Building, Converting, Inventory, Position, Upgrade } from './components'
 import { assignBuilders } from './construction'

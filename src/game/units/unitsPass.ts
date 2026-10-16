@@ -3,7 +3,7 @@ import { uploadAtlas, type AtlasFrame, type PackedAtlas, type Sprite } from '../
 import type { Pixmap } from '../../render/pixmap'
 import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'
-import type { Entity } from '../../ecs'
+import type { Entity } from '@kharos/ecs'
 import {
   Armed, Attached, Building, Converting, Ghost, Owner, Position, TURN, TURRET_TYPES, Turret, UNIT_TYPES, Unit, WEAPONS, alliesOf, flies, weaponOf, wrap, type ShotKind, type TurretType,
   type UnitType,

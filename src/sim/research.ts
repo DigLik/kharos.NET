@@ -1,4 +1,4 @@
-import type { Entity, Time, WorldSnapshot } from '../ecs'
+import type { Entity, Time, WorldSnapshot } from '@kharos/ecs'
 import { BUILDING_TYPES, RESEARCH_FOR, buildingSpec, isReady } from './buildings'
 import { Building, Inventory, Off, Owner, Player, Position, Research, Site } from './components'
 import { DEPOSIT_CELL, depositAt, depositsIn } from './deposits'

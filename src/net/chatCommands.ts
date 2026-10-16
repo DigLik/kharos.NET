@@ -3,7 +3,7 @@
  * администратора он длиннее), а клиент по нему дописывает команду и её аргументы, см. complete.
  */
 
-import { commandHelp, commandLabel } from '../i18n'
+import { commandHelp, commandLabel } from '@kharos/i18n'
 
 /** Команда, какой её знает клиент: имя без «/», аргументы и что делает. */
 export interface CommandInfo {

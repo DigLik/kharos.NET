@@ -1,4 +1,4 @@
-import { t } from '../i18n'
+import { t } from '@kharos/i18n'
 
 export { createProgram } from './program'
 export type { Program, Uniforms, UniformValue } from './program'

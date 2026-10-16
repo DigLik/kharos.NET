@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import type { Entity } from '../src/ecs'
+import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { DEPOSIT_KINDS, Building, Hauler, Owner, Unit, createSim, powerStates, spawnSandbox, stockOf, zonesOf, type Sim } from '../src/sim'
 

@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { type BuildingType, Building, Site, Producer, Hauler, Inventory, isCarrySource, isCarryTarget, type UnitType, Owner, Position, isOwn, UNITS, Unit, canFight, isStop, siteAt, BUILDINGS, BRIDGE_COST, CLIFF_COST, FOUNDATION_COST, PEAK_COST, ROAD_COST, Silo, canSendDeploy, creditsOf, type DigKind } from '../sim'
 import type { CameraMotion } from './cameraMotion'
 import { DENIED } from './interfaceSounds'

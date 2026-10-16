@@ -1,7 +1,7 @@
 import type { GeneratorConfig } from '../map/terrain'
 import type { SimSave, WeatherOptions } from '../sim'
 import { decodeSave, encodeSave, readJson } from '../save/file'
-import { t } from '../i18n'
+import { t } from '@kharos/i18n'
 
 /**
  * Сохранения локальной игры в браузере. Их несколько, у каждого своё место (слот): список с названиями и

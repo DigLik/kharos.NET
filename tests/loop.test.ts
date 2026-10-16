@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { Loop, World, component, type System } from '../src/ecs'
+import { Loop, World, component, type System } from '@kharos/ecs'
 
 const Position = component('Position', { x: 0 })
 const Stock = component('Stock', { ore: 0 }, { tracked: true })

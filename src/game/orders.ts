@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { resolveOrder, unitNear, type Command } from '../sim'
 import type { Scene } from './scene'
 

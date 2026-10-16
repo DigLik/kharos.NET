@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { setBlend } from '../gl'
 import type { Pass } from '../render/renderer'
 import { createLineProgram, createLines } from '../render/lines'

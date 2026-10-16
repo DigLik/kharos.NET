@@ -1,5 +1,5 @@
 import { SAVE_VERSION, adoptLabs, type SimSave } from '../sim'
-import { t } from '../i18n'
+import { t } from '@kharos/i18n'
 
 /**
  * Двоичный файл сохранения: один формат для браузера, воркера и сервера.

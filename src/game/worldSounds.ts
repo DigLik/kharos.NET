@@ -1,6 +1,6 @@
 import type { Audio } from '../audio/audio'
 import type { LoopName, SoundName } from '../audio/sounds'
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import {
   Accumulator, BUILDINGS, Batch, Beam, Building, Chaser, Converting, Deposit, Doomed, Drop, Glare, Hauler, Health, Mark, Missile, NO_PAVE, Off, Owner, Pave, Player, Position, Producer, Reactor,
   Shield, Silo, Site, Trade, Transfer, Turret, Unit, activeRepairs, buildingSpec, isBurning, isDefeated, powerStates, protectionLeft, wrap,

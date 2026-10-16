@@ -3,7 +3,7 @@
 
 import { CHANNELS, loadLevel, loadMuted, loadVolume, storeLevel, storeMuted, storeVolume } from '../../audio/audio'
 import { MINIMAP_SIDES, SELECTION_LEVELS, STEPS_SHOWN, prefs, setPrefs } from '../../game/prefs'
-import { LANGS, chooseLang, currentLang, t, type Key } from '../../i18n'
+import { LANGS, chooseLang, currentLang, t, type Key } from '@kharos/i18n'
 import { FPS_LIMITS, PRESETS, RESOLUTIONS, graphics, presetOf, setGraphics, type Detail, type Preset } from '../../render/graphics'
 import { checkbox, chips, groupTitle, menuWindow, row, slider } from '../form'
 import type { Anchor, Ui } from '../ui'

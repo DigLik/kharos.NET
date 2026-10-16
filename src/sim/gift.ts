@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { allied } from './allies'
 import { isOwn } from './common'
 import { Attached, Builds, Doomed, Hauler, Inventory, Owner, Path, Unit } from './components'

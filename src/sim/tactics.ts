@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { isOwn, onTurn } from './common'
 import { Armed, Path, Position, Tactics, Unit } from './components'
 import type { Sim } from './sim'

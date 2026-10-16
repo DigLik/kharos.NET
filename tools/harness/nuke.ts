@@ -9,7 +9,7 @@
  *
  * Раздел отвечает на вопрос: окупается ли удар и хватает ли одного перехватчика.
  */
-import type { Entity } from '../../src/ecs'
+import type { Entity } from '@kharos/ecs'
 import {
   BUILDINGS, BUILDING_TYPES, Building, Health, Interceptor, Missile, Owner, PRODUCT_SPECS, RESOURCE_SPECS, Silo, UNITS, Unit, buildingHp, canPlace, createSim, entriesOf,
   type Amounts, type BuildingType, type Good, type Sim,

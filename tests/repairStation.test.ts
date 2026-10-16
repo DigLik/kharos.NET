@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import type { Entity } from '../src/ecs'
+import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
 import { Health, INFANTRY_REGEN, Owner, Position, Site, createSim, isWalkable, type Sim } from '../src/sim'
 import { BUILDINGS, placeBuilding } from '../src/sim/buildings'

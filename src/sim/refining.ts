@@ -1,4 +1,4 @@
-import type { Entity, Time } from '../ecs'
+import type { Entity, Time } from '@kharos/ecs'
 import { buildingSpec, levelFactor, levelOf } from './buildings'
 import { Building, Inventory, Site } from './components'
 import { powerSupply } from './income'

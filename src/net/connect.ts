@@ -3,7 +3,7 @@ import type { SimOptions, SimSave } from '../sim'
 import { createLocalServer, type LocalControl, type LocalNotice, type LocalPort, type LocalSetup } from './local'
 import { PROTOCOL_VERSION, decodeServer } from './protocol'
 import { createReplica, type Replica } from './replica'
-import { t, textOf } from '../i18n'
+import { t, textOf } from '@kharos/i18n'
 
 /**
  * Игра на хосте: копия его симуляции и номер игрока, которого хост выдал этому клиенту. local — управление

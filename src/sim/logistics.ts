@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { inputsOf } from './assembly'
 import { BUILDINGS, buildingSpec, feedOf, isReady, type BuildingSpec } from './buildings'
 import { NONE, isOwn } from './common'

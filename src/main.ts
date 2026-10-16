@@ -1,5 +1,5 @@
 import { startApp } from './gui/app'
-import { loadLang, preferredLang } from './i18n'
+import { loadLang, preferredLang } from '@kharos/i18n'
 import { installSkin } from './ui/skin'
 
 const rootElement = document.querySelector<HTMLDivElement>('#root')

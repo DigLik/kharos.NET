@@ -1,4 +1,4 @@
-import type { Entity, Time } from '../ecs'
+import type { Entity, Time } from '@kharos/ecs'
 import { hash } from '../map/terrain'
 import { BUILDINGS, buildingSpec, isReady, levelFactor, type BuildingType } from './buildings'
 import { Building, Off, Owner, Position, Scan } from './components'

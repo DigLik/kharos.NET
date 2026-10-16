@@ -1,4 +1,4 @@
-import type { Entity } from '../ecs'
+import type { Entity } from '@kharos/ecs'
 import { NONE, isOwn } from './common'
 import { Converting, Drop, Hauler, Inventory, Path, Site, Unit } from './components'
 import { amountOf, beamFor, reaches, roomFor, transfer } from './inventory'
