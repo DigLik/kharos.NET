@@ -1,32 +1,31 @@
-// Точка входа нативной игры: собранная игра в рантайме окна. Переписанного здесь нет — это тот же путь, что у
-// витрины главного меню (src/ui/Showcase.tsx): крошечный мир считает сам рантайм, без хоста, сценка сама ведёт своё
-// действие, а рисуют те же проходы. Отличия от витрины четыре, и все оттого, что оболочка ещё не всё умеет (см. README):
-// - графику рисует drawArt прямо здесь: воркера в оболочке нет, и игра идёт тем же путём, что у себя на странице,
-//   когда воркер не запустился (см. loadArt.ts);
-// - проходы собираются одним куском, без экрана загрузки (warmUp.ts): очередь видеокарты у окна своя, а не общая на
-//   все вкладки браузера;
-// - звука и интерфейса нет: это следующие шаги оболочки; управление есть в настоящей игре (`KHAROS_MODE`, см. `play`);
-// - в конце — проверка, что нарисованное дошло до драйвера: та же, что у проверки фундамента (см. README).
+// Точка входа нативной игры: собранная игра в рантайме окна. Переписанного здесь нет: без переменных окружения окно
+// запускает то же приложение, что страница (src/gui/app.ts), — загрузку, главное меню над витриной, игру, редактор;
+// весь интерфейс рисуется на холсте. KHAROS_MODE открывает игру сразу, минуя меню. KHAROS_SCENE — сценка витрины без
+// интерфейса, для роликов: крошечный мир считает сам рантайм, без хоста, сценка сама ведёт своё действие.
+// В конце — проверка, что нарисованное дошло до драйвера: та же, что у проверки фундамента (см. README).
 
 import { createGame, simOptions, type Game } from '../../src/game/game'
 import { loadArt } from '../../src/game/loadArt'
 import { stage } from '../../src/game/stage'
 import { DEFAULT_SETTINGS, type MapSettings } from '../../src/map/settings'
+import { createSlot } from '../../src/game/storage'
+import { startApp } from '../../src/gui/app'
 import { LOCAL_PLAYER, type GameMode } from '../../src/net/local'
+import { lastDrawn } from '../../src/render/renderer'
 import { SCENES, createSim, type Scene, type SceneName } from '../../src/sim'
 import { loadLang, preferredLang } from '../../src/i18n'
-import { startLocal } from './local'
+import type { Launch } from '../../src/ui/launch'
 
 /** Что окно сказало до начала игры (см. `game_options` в `src/main.rs`): сценка, час суток и ровные ли часы. */
 type Options = { fixed?: boolean; scene?: string | null; hour?: number | null; mode?: string | null }
 const native = globalThis as typeof globalThis & { __kharos_options?: Options; __kharos_roll?: () => void }
 const shell: Options = native.__kharos_options ?? {}
 
-/** Сценка, которую ведёт окно: у неё своё действие, и ввода для него не нужно. Другую выбирает `KHAROS_SCENE`. */
-const SCENE: SceneName = shell.scene && shell.scene in SCENES ? (shell.scene as SceneName) : 'mining'
+/** Сценка без интерфейса (`KHAROS_SCENE`): у неё своё действие, и ввода для него не нужно. */
+const SCENE: SceneName | null = shell.scene && shell.scene in SCENES ? (shell.scene as SceneName) : null
 /**
- * Во что играть вместо сценки (`KHAROS_MODE`): обычная игра, тестовая карта с готовой базой или показательный бой —
- * как в меню страницы. Тогда мир считает локальный хост, а камерой и приказами управляют мышь и клавиши.
+ * Во что играть сразу, минуя меню (`KHAROS_MODE`): новая игра, тестовая карта с готовой базой или показательный бой —
+ * как в меню страницы. Мир считает локальный хост, а камерой и приказами управляют мышь и клавиши.
  */
 const MODES: GameMode[] = ['play', 'sandbox', 'battle']
 const MODE = MODES.find((mode) => mode === shell.mode) ?? null
@@ -136,42 +135,38 @@ function start(name: SceneName) {
   throw new Error(`сценка «${name}» не встала ни на одной из ${ATTEMPTS} местностей`)
 }
 
-/**
- * Настоящая игра: мир заводит локальный хост по режиму, как меню страницы, а управление — то же, что на странице
- * (`controls.ts`): ввод окна приходит в игру событиями страницы (см. `__kharos_input` в `prelude.js`).
- */
-async function play(mode: GameMode) {
-  const settings: MapSettings = {
-    ...DEFAULT_SETTINGS,
-    generator: { ...DEFAULT_SETTINGS.generator, seed: Math.floor(Math.random() * 2 ** 31) },
-  }
-  const options = simOptions(settings)
-  const session = await startLocal({
-    options: shell.hour === null || shell.hour === undefined ? options : { ...options, weather: { startHour: shell.hour } },
-    mode,
-    battle: settings.battle,
-    save: null,
-  })
-  console.log(`нативная игра: режим «${mode}», карта ${settings.world.size}×${settings.world.size}, игрок ${session.player}`)
-  const canvas = stage()
-  game = createGame(canvas, settings, fail, session)
-  checkFrame(canvas)
-  native.__kharos_roll?.()
+/** Запуск по KHAROS_MODE: новая игра — новый слот, как её заводит меню; бой и песочница — как есть. */
+function launchOf(mode: GameMode): Launch {
+  if (mode !== 'play') return { kind: mode }
+  const seed = Math.floor(Math.random() * 2 ** 31)
+  return { kind: 'save', slot: createSlot('Native', DEFAULT_SETTINGS.world.size, seed) }
 }
 
-/** Начало: графика рисуется один раз, а дальше идёт игра. Ход рисования виден в журнале — это несколько секунд. */
+/** Начало: сценка без интерфейса — или приложение целиком. Ход рисования графики виден в журнале. */
 async function main() {
   // Словарь — как у страницы: язык из окружения окна (navigator.languages берёт его из LANG, см. game_options).
   await loadLang(preferredLang())
-  let told = -10
-  await loadArt((share) => {
-    const percent = Math.round(share * 100)
-    if (percent < told + 10) return
-    told = percent
-    console.log(`графика: ${percent}%`)
-  })
-  if (MODE) await play(MODE)
-  else start(SCENE)
+  if (SCENE) {
+    let told = -10
+    await loadArt((share) => {
+      const percent = Math.round(share * 100)
+      if (percent < told + 10) return
+      told = percent
+      console.log(`графика: ${percent}%`)
+    })
+    start(SCENE)
+    return
+  }
+  // У окна нет запрета на звук до первого нажатия: «Продолжить» после загрузки не нужен.
+  startApp(document.body as HTMLElement, { launch: MODE ? launchOf(MODE) : undefined, skipContinue: true })
+  console.log(MODE ? `нативная игра: приложение, сразу «${MODE}»` : 'нативная игра: приложение, главное меню')
+  // Запись начинается с первого кадра игры (или витрины меню): экран загрузки в ролик не попадает.
+  const rolled = setInterval(() => {
+    if (lastDrawn() === -Infinity) return
+    clearInterval(rolled)
+    native.__kharos_roll?.()
+  }, 100)
+  checkFrame(stage())
 }
 
 void main().catch((error: unknown) => console.error('игра не запустилась:', error))

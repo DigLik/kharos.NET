@@ -1,15 +1,14 @@
-import { useEffect, useRef, useState } from 'preact/hooks'
+// Схема будущей карты для окна новой игры на холсте — как мини-карта в игре, только без гор: они мельче пикселя схемы.
+// Считается порциями, по BUDGET мс за кадр: карта проявляется сверху вниз, а меню не подвисает. Пока ползунок тянут,
+// заново не считается — только после паузы SETTLE.
+
 import { PALETTE } from '../game/minimap'
-import { t } from '../i18n'
 import { Terrain, sampleTerrain, type GeneratorConfig } from '../map/terrain'
 
 /** Сторона предпросмотра в пикселях холста. */
 const PREVIEW_SIZE = 256
-/** Сколько миллисекунд за кадр можно считать: карта проявляется сверху вниз, а меню не подвисает. */
 const BUDGET = 8
-/** Пауза после последней правки, прежде чем считать карту заново: ползунок тянут — не пересчитывать на каждом шаге. */
 const SETTLE = 120
-
 /** Цвет превью вне карты, RGBA. */
 const OUTSIDE = [8, 17, 28, 255]
 
@@ -19,30 +18,36 @@ export interface Shares {
   swamp: number
 }
 
-/**
- * Схема будущей карты стороной size тайлов с местностью config — как на мини-карте в игре, только без гор:
- * они мельче пикселя схемы.
- */
-export function MapPreview({ config, size, height = size }: { config: GeneratorConfig; size: number; height?: number }) {
-  const canvas = useRef<HTMLCanvasElement>(null)
-  const [shares, setShares] = useState<Shares | null>(null)
-  const [ready, setReady] = useState(false)
+export interface Preview {
+  readonly canvas: HTMLCanvasElement
+  /** Карта досчитана: схема яркая. */
+  readonly ready: boolean
+  readonly shares: Shares | null
+  /** Показать карту с такой местностью и размером: другая — считается заново. */
+  show(config: GeneratorConfig, width: number, height?: number): void
+  destroy(): void
+}
 
-  useEffect(() => {
-    const context = canvas.current?.getContext('2d')
-    if (!context) return
-    setReady(false)
+export function createPreview(): Preview {
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = PREVIEW_SIZE
+  const context = canvas.getContext('2d')!
+  let key = ''
+  let ready = false
+  let shares: Shares | null = null
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let frame = 0
+
+  const draw = (config: GeneratorConfig, size: number, height: number) => {
     const image = context.getImageData(0, 0, PREVIEW_SIZE, PREVIEW_SIZE)
     // Карта вписана в квадрат превью по большей стороне; что вне её — тёмное поле.
     const scale = Math.max(size, height) / PREVIEW_SIZE
     const counts = [0, 0, 0, 0]
     let inside = 0
     let row = 0
-    let frame = 0
     const step = () => {
       const start = performance.now()
       while (row < PREVIEW_SIZE && performance.now() - start < BUDGET) {
-        // Середина карты — в начале координат и в середине превью.
         const y = (row + 0.5 - PREVIEW_SIZE / 2) * scale
         for (let column = 0; column < PREVIEW_SIZE; column++) {
           const x = (column + 0.5 - PREVIEW_SIZE / 2) * scale
@@ -68,28 +73,32 @@ export function MapPreview({ config, size, height = size }: { config: GeneratorC
         return
       }
       const total = Math.max(1, inside)
-      setShares({ rock: counts[Terrain.Rock] / total, swamp: counts[Terrain.Swamp] / total })
-      setReady(true)
+      shares = { rock: counts[Terrain.Rock] / total, swamp: counts[Terrain.Swamp] / total }
+      ready = true
     }
-    const timer = setTimeout(() => (frame = requestAnimationFrame(step)), SETTLE)
-    return () => {
+    frame = requestAnimationFrame(step)
+  }
+
+  return {
+    canvas,
+    get ready() {
+      return ready
+    },
+    get shares() {
+      return shares
+    },
+    show(config, width, height = width) {
+      const next = `${JSON.stringify(config)}|${width}|${height}`
+      if (next === key) return
+      key = next
+      ready = false
       clearTimeout(timer)
       cancelAnimationFrame(frame)
-    }
-  }, [config, size, height])
-
-  return (
-    <figure class="preview">
-      <canvas ref={canvas} class={ready ? 'preview__map' : 'preview__map is-busy'} width={PREVIEW_SIZE} height={PREVIEW_SIZE} />
-      <figcaption>
-        {t('menu.previewSize', { width: size, height })}
-        {shares && (
-          <>
-            {' · '}
-            {t('menu.previewShares', { rock: Math.round(shares.rock * 100), swamp: Math.round(shares.swamp * 100) })}
-          </>
-        )}
-      </figcaption>
-    </figure>
-  )
+      timer = setTimeout(() => draw(config, width, height), SETTLE)
+    },
+    destroy() {
+      clearTimeout(timer)
+      cancelAnimationFrame(frame)
+    },
+  }
 }

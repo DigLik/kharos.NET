@@ -1,6 +1,5 @@
-import { render } from 'preact'
+import { startApp } from './gui/app'
 import { loadLang, preferredLang } from './i18n'
-import { App } from './ui/App'
 import { installSkin } from './ui/skin'
 
 const rootElement = document.querySelector<HTMLDivElement>('#root')
@@ -12,4 +11,4 @@ if (!rootElement) {
 installSkin()
 // Словарь догружается: до него рисовать нечем.
 await loadLang(preferredLang())
-render(<App />, rootElement)
+startApp(rootElement)

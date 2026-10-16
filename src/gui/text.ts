@@ -13,6 +13,7 @@ export const FONTS = {
   body: { font: '12px "Ark Pixel 12", "Kharos Unifont 12"', line: 16, ascent: 13 },
   small: { font: '10px "Ark Pixel 10", "Kharos Unifont 10"', line: 14, ascent: 11 },
   title: { font: '20px "Ark Pixel 10", "Kharos Unifont 10"', line: 28, ascent: 22 },
+  logo: { font: '40px "Ark Pixel 10", "Kharos Unifont 10"', line: 56, ascent: 44 },
 } as const
 
 export type FontName = keyof typeof FONTS
@@ -87,19 +88,55 @@ export function textWidth(name: FontName, text: string): number {
   return width
 }
 
-/** Строка, разбитая по словам на строки не шире width; слово длиннее строки идёт отдельной строкой как есть. */
+/**
+ * Строка, разбитая по словам на строки не шире width. Слово длиннее строки (адрес сервера, ник, текст без пробелов —
+ * китайский) рвётся по буквам.
+ */
 export function wrapText(name: FontName, text: string, width: number): string[] {
   const lines: string[] = []
   let line = ''
   for (const word of text.split(' ')) {
     const next = line ? `${line} ${word}` : word
-    if (line && textWidth(name, next) > width) {
-      lines.push(line)
-      line = word
-    } else line = next
+    if (textWidth(name, next) <= width) {
+      line = next
+      continue
+    }
+    if (line) lines.push(line)
+    line = ''
+    // Длинное слово — сперва по дефисам (как переносит страница), что и так не влезло — по буквам.
+    for (const part of word.split(/(?<=-)/)) {
+      if (textWidth(name, line + part) <= width) {
+        line += part
+        continue
+      }
+      if (line) lines.push(line)
+      line = ''
+      for (const letter of part) {
+        if (line && textWidth(name, line + letter) > width) {
+          lines.push(line)
+          line = ''
+        }
+        line += letter
+      }
+    }
   }
   lines.push(line)
   return lines
+}
+
+/** Строка, сокращённая многоточием до width; влезает — как есть. */
+export function clipText(name: FontName, text: string, width: number): string {
+  if (textWidth(name, text) <= width) return text
+  const letters = [...text]
+  // Поиск половинным делением: сколько первых букв с многоточием ещё влезает.
+  let low = 0
+  let high = letters.length
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2)
+    if (textWidth(name, `${letters.slice(0, middle).join('').trimEnd()}…`) <= width) low = middle
+    else high = middle - 1
+  }
+  return `${letters.slice(0, low).join('').trimEnd()}…`
 }
 
 /**

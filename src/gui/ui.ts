@@ -10,7 +10,7 @@
 // проход не заливает его в текстуру заново (см. pass.ts) — интерфейс почти всегда стоит.
 
 import { CORNER, SKIN_SCALE, skins, type SkinName } from '../ui/skin'
-import { FONTS, fontsLoaded, textImage, textWidth, wrapText, type FontName } from './text'
+import { FONTS, clipText, fontsLoaded, textImage, textWidth, wrapText, type FontName } from './text'
 
 /** Место на экране в пикселях CSS: отсчёт от левого верхнего угла холста. */
 export interface Rect {
@@ -56,6 +56,10 @@ export interface BoxStyle {
   maxHeight?: number
   /** Доля свободного места вдоль родителя, которую забирает узел. */
   grow?: number
+  /** В тесном ряду узел уступает место — его текст переносится или сокращается (растущий уступает и без этого). */
+  shrink?: boolean
+  /** Ряд, которому тесно, переносит детей на следующие строки (промежуток между строками — тот же gap). */
+  wrap?: boolean
   /** Рамка скина девятью частями — как border-image у страницы. */
   skin?: SkinName
   background?: string
@@ -82,8 +86,13 @@ export interface TextStyle {
   shadow?: string
   /** На сколько пикселей тень сдвинута: у кнопок и подписей — на один, у крупного и у чата — на два. */
   lift?: number
-  /** Перенос по словам в эту ширину: строка становится столбцом строк. */
-  wrap?: number
+  /**
+   * Перенос по словам: true — в ширину, что даёт родитель, число — не шире него (и не шире родителя). Строка
+   * становится столбцом строк.
+   */
+  wrap?: number | true
+  /** Не влезает в ширину родителя — сокращается многоточием. */
+  ellipsis?: boolean
 }
 
 /** Кусок строки с переносом: текст своим цветом или картинка (значок груза) — с подсказкой, если дан id. */
@@ -108,7 +117,8 @@ export interface Field {
 }
 
 export interface FieldOptions {
-  width: number
+  /** Ширина поля; без неё поле растёт на свободное место ряда (или тянется на ширину столбца со stretch). */
+  width?: number
   placeholder?: string
   password?: boolean
   maxLength?: number
@@ -125,7 +135,7 @@ export interface FieldOptions {
 }
 
 type Leaf =
-  | { kind: 'text'; text: string; font: FontName; color: string; shadow?: string; lift: number }
+  | { kind: 'text'; text: string; font: FontName; color: string; shadow?: string; lift: number; wrap?: number | true; ellipsis?: boolean; lines: string[] }
   | { kind: 'image'; image: CanvasImageSource; width: number; height: number; smooth: boolean; live: boolean }
   | { kind: 'space' }
   | { kind: 'caret'; color: string }
@@ -139,6 +149,8 @@ interface Node {
   rect: Rect
   /** Высота содержимого с отступами — у прокручиваемого узла она больше его самого. */
   content: number
+  /** Строки ряда с переносом (wrap): дети по строкам. */
+  lines?: Node[][]
 }
 
 /** Через сколько мс наведения появляется подсказка. */
@@ -244,18 +256,27 @@ function pads(style: BoxStyle): [number, number, number, number] {
 
 const clamp = (value: number, min = 0, max = Infinity) => Math.max(min, Math.min(max, value))
 
+/** Узел уступает место в тесном ряду: его ширина не задана, а текст умеет переноситься или сокращаться. */
+const yields = (node: Node) => node.style.width === undefined && (!!node.style.grow || !!node.style.shrink || (node.leaf?.kind === 'text' && (!!node.leaf.wrap || !!node.leaf.ellipsis)))
+
 /**
- * Желаемый размер узла: заданный стилем или набранный детьми (или содержимым листа). column — родитель кладёт детей
- * столбцом: растущий прокручиваемый узел тогда высоты под содержимое не просит.
+ * Желаемый размер узла: заданный стилем или набранный детьми (или содержимым листа). room — сколько места по ширине
+ * даёт родитель: в него переносится и сокращается текст, а тесный ряд делит его между уступчивыми детьми. column —
+ * родитель кладёт детей столбцом: растущий прокручиваемый узел тогда высоты под содержимое не просит.
  */
-function measure(node: Node, column = false): { width: number; height: number } {
+function measure(node: Node, room = Infinity, column = false): { width: number; height: number } {
   const { style, leaf } = node
   const [top, right, bottom, left] = pads(style)
+  const inner = Math.max(0, Math.min(style.width ?? room, style.maxWidth ?? Infinity) - left - right)
   let width = 0
   let height = 0
   if (leaf?.kind === 'text') {
-    width = textWidth(leaf.font, leaf.text) + (leaf.shadow ? leaf.lift : 0)
-    height = FONTS[leaf.font].line
+    const lift = leaf.shadow ? leaf.lift : 0
+    const space = Math.max(1, (leaf.wrap === true ? inner : Math.min(leaf.wrap ?? Infinity, inner)) - lift)
+    leaf.lines = leaf.text.split('\n').flatMap((line) => (leaf.wrap ? wrapText(leaf.font, line, space) : [line]))
+    if (leaf.ellipsis) leaf.lines = leaf.lines.map((line) => clipText(leaf.font, line, Math.max(1, inner - lift)))
+    width = leaf.lines.reduce((most, line) => Math.max(most, textWidth(leaf.font, line)), 0) + lift
+    height = FONTS[leaf.font].line * leaf.lines.length
   } else if (leaf?.kind === 'image') {
     width = leaf.width
     height = leaf.height
@@ -263,17 +284,54 @@ function measure(node: Node, column = false): { width: number; height: number } 
     width = 1
     height = FONTS.body.line
   } else if (style.direction === 'stack') {
-    const sizes = node.children.map((child) => measure(child))
+    const sizes = node.children.map((child) => measure(child, inner))
     width = sizes.reduce((most, size) => Math.max(most, size.width), 0)
     height = sizes.reduce((most, size) => Math.max(most, size.height), 0)
   } else {
     const row = style.direction === 'row'
-    const sizes = node.children.map((child) => measure(child, !row))
-    const gaps = (style.gap ?? 0) * Math.max(0, sizes.length - 1)
-    const along = sizes.reduce((sum, size) => sum + (row ? size.width : size.height), 0) + gaps
-    const across = sizes.reduce((most, size) => Math.max(most, row ? size.height : size.width), 0)
-    width = row ? along : across
-    height = row ? across : along
+    const gap = style.gap ?? 0
+    const gaps = gap * Math.max(0, node.children.length - 1)
+    let sizes = node.children.map((child) => measure(child, inner, !row))
+    node.lines = undefined
+    if (row && style.wrap && sizes.reduce((sum, size) => sum + size.width, 0) + gaps > inner) {
+      // Перенос: дети по порядку, пока строка влезает в ширину.
+      const lines: Node[][] = [[]]
+      let used = 0
+      for (const child of node.children) {
+        const line = lines[lines.length - 1]
+        if (line.length && used + gap + child.want.width > inner) {
+          lines.push([child])
+          used = child.want.width
+        } else {
+          line.push(child)
+          used += (line.length > 1 ? gap : 0) + child.want.width
+        }
+      }
+      node.lines = lines
+      const widthOf = (line: Node[]) => line.reduce((sum, child) => sum + child.want.width, 0) + gap * (line.length - 1)
+      const heightOf = (line: Node[]) => line.reduce((most, child) => Math.max(most, child.want.height), 0)
+      width = Math.max(...lines.map(widthOf))
+      height = lines.reduce((sum, line) => sum + heightOf(line), 0) + gap * (lines.length - 1)
+      sizes = []
+    }
+    // Тесный ряд: уступчивые дети делят оставшееся место — узкие берут своё, остальное поровну — и меряются заново.
+    const total = sizes.reduce((sum, size) => sum + size.width, 0) + gaps
+    if (row && total > inner && !node.lines) {
+      const flexible = node.children.filter(yields).sort((a, b) => a.want.width - b.want.width)
+      let free = inner - total + flexible.reduce((sum, child) => sum + child.want.width, 0)
+      flexible.forEach((child, index) => {
+        const share = Math.max(0, free / (flexible.length - index))
+        if (child.want.width > share) measure(child, share, false)
+        free -= child.want.width
+      })
+      if (flexible.length) sizes = node.children.map((child) => child.want)
+    }
+    if (!node.lines) {
+      const along = sizes.reduce((sum, size) => sum + (row ? size.width : size.height), 0) + gaps
+      const across = sizes.reduce((most, size) => Math.max(most, row ? size.height : size.width), 0)
+      width = row ? along : across
+      height = row ? across : along
+    }
   }
   node.content = height + top + bottom
   width = clamp(style.width ?? width + left + right, style.minWidth ?? 0, style.maxWidth)
@@ -284,7 +342,10 @@ function measure(node: Node, column = false): { width: number; height: number } 
   return node.want
 }
 
-/** Ставит детей узла на места: вдоль — по порядку с промежутком, свободное место — растущим; поперёк — выравнивание. */
+/**
+ * Ставит детей узла на места: вдоль — по порядку с промежутком, свободное место — растущим; поперёк — выравнивание.
+ * Столбцу не хватает высоты — уступают прокручиваемые дети: тело окна выше экрана прокручивается.
+ */
 function place(node: Node, rect: Rect, scrolls: Map<string, number>) {
   node.rect = { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) }
   const { style, children } = node
@@ -311,23 +372,45 @@ function place(node: Node, rect: Rect, scrolls: Map<string, number>) {
     return
   }
   const gap = style.gap ?? 0
+  if (node.lines) {
+    // Ряд с переносом: каждая строка — свой ряд во всю ширину, строки — столбцом.
+    let y = inner.y
+    for (const line of node.lines) {
+      const height = line.reduce((most, child) => Math.max(most, child.want.height), 0)
+      const part: Node = { ...node, style: { ...style, wrap: false, padding: 0, scroll: false }, children: line, lines: undefined }
+      place(part, { x: inner.x, y, width: inner.width, height }, scrolls)
+      y += height + gap
+    }
+    return
+  }
   const room = row ? inner.width : inner.height
-  const wanted = children.reduce((sum, child) => sum + (row ? child.want.width : child.want.height), 0) + gap * (children.length - 1)
+  const sizes = children.map((child) => (row ? child.want.width : child.want.height))
+  // Столбцу не хватает высоты — прокручиваемые дети отдают свою сверх minHeight.
+  let short = sizes.reduce((sum, size) => sum + size, 0) + gap * (children.length - 1) - room
+  if (!row) {
+    children.forEach((child, index) => {
+      if (short <= 0 || !child.style.scroll) return
+      const cut = Math.min(short, Math.max(0, sizes[index] - (child.style.minHeight ?? 0)))
+      sizes[index] -= cut
+      short -= cut
+    })
+  }
   // Зазор бывает и отрицательным: ребёнок крупнее родителя выступает за него — с end вверх (мини-карта над панелью).
-  const slack = room - wanted
+  const slack = -short
   const free = Math.max(0, slack)
   const grows = children.reduce((sum, child) => sum + (child.style.grow ?? 0), 0)
   let offset = 0
   let spacing = gap
   if (!grows) {
-    if (style.justify === 'center') offset = slack / 2
+    // По середине — только пока влезает (safe center у страницы): не влезшее уходит вниз, а не за верх.
+    if (style.justify === 'center') offset = free / 2
     else if (style.justify === 'end') offset = slack
     else if (style.justify === 'between' && children.length > 1) spacing = gap + free / (children.length - 1)
   }
   let along = (row ? inner.x : inner.y) + offset
-  for (const child of children) {
+  children.forEach((child, index) => {
     const extra = grows ? (free * (child.style.grow ?? 0)) / grows : 0
-    const size = (row ? child.want.width : child.want.height) + extra
+    const size = sizes[index] + extra
     const crossRoom = row ? inner.height : inner.width
     const align = style.align ?? 'start'
     const crossWant = align === 'stretch' ? crossRoom : row ? child.want.height : child.want.width
@@ -335,7 +418,7 @@ function place(node: Node, rect: Rect, scrolls: Map<string, number>) {
     const cross = (row ? inner.y : inner.x) + crossOffset
     place(child, row ? { x: along, y: cross, width: size, height: crossWant } : { x: cross, y: along, width: crossWant, height: size }, scrolls)
     along += size + spacing
-  }
+  })
 }
 
 /** Место корневой панели по привязке: заданы оба края — растянута между ними, иначе — своего размера. */
@@ -641,7 +724,7 @@ export function createGui(target: HTMLElement): Gui {
       const seenFields = new Set<string>()
       const add = (node: Node) => (stack.length ? stack[stack.length - 1].children : top).push(node)
       const make = (style: BoxStyle, leaf: Leaf | null = null): Node => ({ style, leaf, children: [], want: { width: 0, height: 0 }, rect: { x: 0, y: 0, width: 0, height: 0 }, content: 0 })
-      const textLeaf = (text: string, style: TextStyle = {}): Leaf => ({ kind: 'text', text, font: style.font ?? 'body', color: style.color ?? '#d6e6f5', shadow: style.shadow, lift: style.lift ?? 1 })
+      const textLeaf = (text: string, style: TextStyle = {}): Leaf => ({ kind: 'text', text, font: style.font ?? 'body', color: style.color ?? '#d6e6f5', shadow: style.shadow, lift: style.lift ?? 1, wrap: style.wrap, ellipsis: style.ellipsis, lines: [text] })
       const ui: Ui = {
         width,
         height,
@@ -656,12 +739,8 @@ export function createGui(target: HTMLElement): Gui {
           stack.pop()
         },
         text(text, style = {}) {
-          if (style.wrap === undefined && !text.includes('\n')) {
-            add(make({}, textLeaf(text, style)))
-            return
-          }
-          const lines = text.split('\n').flatMap((line) => (style.wrap ? wrapText(style.font ?? 'body', line, style.wrap) : [line]))
-          ui.box({ direction: 'column' }, () => lines.forEach((line) => add(make({}, textLeaf(line, style)))))
+          // Строки — при раскладке: перенос и многоточие зависят от места, что даст родитель.
+          add(make({}, textLeaf(text, style)))
         },
         flow(runs, style) {
           // Куски — словами и значками; строка переносится, когда следующий кусок не влезает в ширину.
@@ -760,11 +839,12 @@ export function createGui(target: HTMLElement): Gui {
           const isFocused = focused === id
           const shown = options.password ? '•'.repeat(edit.value.length) : edit.value
           const current = edit
-          // Длинный текст сдвигается так, чтобы курсор был виден.
-          const shift = Math.max(0, textWidth('body', shown.slice(0, edit.caret)) - (options.width - 18))
+          // Длинный текст сдвигается так, чтобы курсор был виден; без фокуса поле, как у страницы, показывает начало.
+          const room = options.width ?? hits.find((one) => one.id === id)?.rect.width ?? 120
+          const shift = focused === id ? Math.max(0, textWidth('body', shown.slice(0, edit.caret)) - (room - 18)) : 0
           const look = options.background ? { background: options.background, outline: options.outline } : { skin: 'well' as const, outline: options.outline }
           const color = options.color
-          ui.box({ id, width: options.width, height: 26, ...look, padding: [5, 8], clip: true }, () => {
+          ui.box({ id, width: options.width, grow: options.width === undefined ? 1 : undefined, minWidth: 40, height: 28, ...look, padding: [6, 8], clip: true }, () => {
             // Отступ слева отрицательный: строка уезжает влево, и курсор остаётся в поле.
             ui.box({ direction: 'row', align: 'center', padding: [0, 0, 0, -shift] }, () => {
               if (!shown && options.placeholder) ui.text(options.placeholder, { color: '#8a8a8a' })
@@ -800,10 +880,10 @@ export function createGui(target: HTMLElement): Gui {
       for (const tip of tips.slice(-1)) {
         const node = make({ direction: 'column', gap: 2, padding: [6, 10], skin: 'panel', passive: true })
         stack.push(node)
-        if (typeof tip.content === 'string') for (const line of tip.content.split('\n')) ui.text(line, { wrap: TIP_WIDTH })
+        if (typeof tip.content === 'string') ui.text(tip.content, { wrap: TIP_WIDTH })
         else tip.content()
         stack.pop()
-        measure(node)
+        measure(node, width - 16)
         if (tip.anchor) node.style.anchor = tip.anchor
         else {
           let x = pointer.x + 14
@@ -817,7 +897,8 @@ export function createGui(target: HTMLElement): Gui {
 
       // Раскладка: корневые панели — по привязке, их дети — рядами и столбцами.
       for (const root of top) {
-        measure(root)
+        const anchor = root.style.anchor ?? {}
+        measure(root, width - (anchor.left ?? 0) - (anchor.right ?? 0))
         place(root, anchored(root, width, height), scrolls)
       }
 
@@ -830,7 +911,7 @@ export function createGui(target: HTMLElement): Gui {
       const walk = (node: Node, clip: Rect, path: string[]) => {
         const { style, leaf, rect } = node
         parts.push(`${rect.x},${rect.y},${rect.width},${rect.height}|${style.skin ?? ''}|${style.background ?? ''}|${style.clip || style.scroll ? 1 : 0}|${style.outline ?? ''}|${style.alpha ?? ''}`)
-        if (leaf?.kind === 'text') parts.push(`t${leaf.font}|${leaf.color}|${leaf.shadow ?? ''}${leaf.lift}|${leaf.text}`)
+        if (leaf?.kind === 'text') parts.push(`t${leaf.font}|${leaf.color}|${leaf.shadow ?? ''}${leaf.lift}|${leaf.lines.join('\n')}`)
         else if (leaf?.kind === 'image') {
           parts.push(`i${imageId(leaf.image)}|${leaf.smooth}`)
           live ||= leaf.live
@@ -887,12 +968,16 @@ export function createGui(target: HTMLElement): Gui {
           context.strokeRect(rect.x + OUTLINE / 2, rect.y + OUTLINE / 2, rect.width - OUTLINE, rect.height - OUTLINE)
         }
         if (leaf?.kind === 'text') {
-          if (leaf.shadow) {
-            const shade = textImage(leaf.font, leaf.shadow, leaf.text, density)
-            if (shade) context.drawImage(shade, rect.x + leaf.lift, rect.y + leaf.lift, shade.width / density, shade.height / density)
-          }
-          const image = textImage(leaf.font, leaf.color, leaf.text, density)
-          if (image) context.drawImage(image, rect.x, rect.y, image.width / density, image.height / density)
+          const { line } = FONTS[leaf.font]
+          leaf.lines.forEach((text, index) => {
+            const y = rect.y + index * line
+            if (leaf.shadow) {
+              const shade = textImage(leaf.font, leaf.shadow, text, density)
+              if (shade) context.drawImage(shade, rect.x + leaf.lift, y + leaf.lift, shade.width / density, shade.height / density)
+            }
+            const image = textImage(leaf.font, leaf.color, text, density)
+            if (image) context.drawImage(image, rect.x, y, image.width / density, image.height / density)
+          })
         } else if (leaf?.kind === 'image') {
           context.imageSmoothingEnabled = leaf.smooth
           context.drawImage(leaf.image, rect.x, rect.y, rect.width, rect.height)

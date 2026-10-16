@@ -68,7 +68,7 @@ export function bar(ui: Ui, value: number, label: string, width?: number) {
       ui.box({ grow: fill, background: COLORS.teamMid })
       ui.box({ grow: 1 - fill })
     })
-    ui.box({ self: ['start', 'center'], padding: [0, 8] }, () => ui.text(label, { ...SHADOW, color: COLORS.text }))
+    ui.box({ self: ['start', 'center'], padding: [0, 8] }, () => ui.text(label, { ...SHADOW, color: COLORS.text, ellipsis: true }))
   })
 }
 

@@ -161,7 +161,7 @@ function slotCard(ui: Ui, slot: Slot, hotkey: string, stock: Stack[]) {
       ui.box({ direction: 'column' }, () => {
         ui.box({ direction: 'row', align: 'center', gap: 6 }, () => {
           ui.image(goodCanvas(resource), 16, 16)
-          ui.box({ grow: 1 }, () => ui.text(t(`goods.${resource}`)))
+          ui.box({ grow: 1 }, () => ui.text(t(`goods.${resource}`), { ellipsis: true }))
           ui.text(short ? `${stored(resource)}/${amount}` : String(amount), { color: short ? COLORS.warn : COLORS.text })
         })
         if (short) ui.box({ padding: [0, 0, 0, 22] }, () => ui.text(sourceOf(resource), { color: COLORS.dim, wrap: WIDTH - 22 }))
@@ -203,7 +203,7 @@ function commandGrid(ui: Ui, slots: (Slot | null)[], stock: Stack[], width: numb
             }
             ui.box({ direction: 'column', grow: 1, gap: 0, clip: true }, () => {
               ui.box({ direction: 'row', gap: 6 }, () => {
-                ui.box({ grow: 1, clip: true }, () => ui.text(slot.label, { ...SHADOW, color: COLORS.bright }))
+                ui.box({ grow: 1 }, () => ui.text(slot.label, { ...SHADOW, color: COLORS.bright, ellipsis: true }))
                 if (!picture) key(ui, hotkey, slot.disabled ? COLORS.muted : COLORS.gold)
               })
               ui.box({ direction: 'row', align: 'center', gap: 4 }, () => {
@@ -288,10 +288,10 @@ function info(ui: Ui, state: HudState, width: number, height: number, actions: B
     }
 
     ui.box({ id: 'info:details', direction: 'column', gap: 4, grow: 1, maxHeight: height - 20, scroll: true }, () => {
-      ui.box({ id: 'info:title', clip: true, width: text }, () => ui.text(title, { font: 'title', color: COLORS.bright, shadow: COLORS.ink, lift: 2 }))
+      ui.box({ id: 'info:title', width: text }, () => ui.text(title, { font: 'title', color: COLORS.bright, shadow: COLORS.ink, lift: 2, ellipsis: true }))
       ui.tip('info:title', many ? title : stats ? unitStatsText(stats) : '')
       if (stats) {
-        ui.box({ id: 'info:stats', clip: true, width: text }, () => ui.text(unitStatsLine(stats), { color: COLORS.dim }))
+        ui.box({ id: 'info:stats', width: text }, () => ui.text(unitStatsLine(stats), { color: COLORS.dim, ellipsis: true }))
         ui.tip('info:stats', unitStatsText(stats))
       }
       if (state.power) hint(ui, gridText(state.power), text, state.power.demand > state.power.produced || state.power.overload ? COLORS.bad : COLORS.power)
@@ -435,7 +435,7 @@ function info(ui: Ui, state: HudState, width: number, height: number, actions: B
 /** Подсказка по управлению, когда ничего не выбрано: по предложению в строке. */
 function nothing(ui: Ui, width: number, height: number) {
   ui.box({ width, height, skin: 'well', padding: [10, 12], direction: 'column', justify: 'center', gap: 4, clip: true }, () => {
-    for (const line of t('hud.nothingSelected').split(/(?<=\.)\s+/)) ui.text(line, { color: COLORS.muted, wrap: width - 24 })
+    for (const line of t('hud.nothingSelected').split(/(?<=\.)\s+/)) ui.text(line, { color: COLORS.muted, wrap: true })
   })
 }
 

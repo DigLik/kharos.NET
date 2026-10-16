@@ -23,6 +23,11 @@ export function loadSounds(onProgress?: (share: number) => void): Promise<void> 
   if (onProgress) listeners.add(onProgress)
   const done = () => onProgress && listeners.delete(onProgress)
   loading ??= new Promise<void>((resolve) => {
+    // Звука нет вовсе (нативная оболочка, пока без пункта 10.3): синтезировать незачем — класть некуда.
+    if (typeof AudioBuffer === 'undefined') {
+      listeners.forEach((listener) => listener(1))
+      return resolve()
+    }
     let worker: Worker | undefined
     const finish = () => {
       worker?.terminate()

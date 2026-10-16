@@ -310,7 +310,8 @@ export function createHud(actions: () => HudActions, gui: Gui): Hud {
    */
   const groups = (ui: Ui, state: HudState, bottom: number, game: HudActions) => {
     const side = ui.width <= 520 ? Math.floor((ui.width - 24 - 18) / 10) : GROUP_SLOT
-    ui.box({ anchor: { centerX: 0, bottom: bottom + 8 }, direction: 'row', gap: 2 }, () => {
+    // Ячейки — на панели, как у страницы: у неё любая панель HUD была в рамке скина с границей в 4.
+    ui.box({ anchor: { centerX: 0, bottom: bottom + 8 }, skin: 'panel', padding: 4, direction: 'row', gap: 2 }, () => {
       for (const digit of GROUP_DIGITS) {
         const group = state.groups.find((one) => one.digit === digit)
         const id = `group:${digit}`
@@ -388,12 +389,12 @@ export function createHud(actions: () => HudActions, gui: Gui): Hud {
     const count = done.filter(Boolean).length
     const width = Math.min(300, ui.width - 24)
     const target = state.stepTarget
-    ui.box({ anchor: { right: 12, top: top + 6 }, width, skin: 'panel', padding: [8, 10, 10, 10], direction: 'column', gap: 6 }, () => {
+    ui.box({ anchor: { right: 12, top: top + 6 }, width, skin: 'panel', padding: [8, 10, 10, 10], direction: 'column', align: 'stretch', gap: 6 }, () => {
       ui.box({ direction: 'row', gap: 4 }, () => {
-        if (ui.button('steps:toggle', { grow: 1, height: 28, padding: [0, 8], justify: 'start' }, () => {
+        if (ui.button('steps:toggle', { height: 28, padding: [0, 8], justify: 'start' }, () => {
           ui.text(t('steps.title'), SHADOW)
-          ui.text(`${count}/${STEPS.length}`, { color: COLORS.dim })
-          ui.text(shown === 'open' ? '▾' : '▸', SHADOW)
+          ui.text(`${count}/${STEPS.length}`, { ...SHADOW, font: 'small', color: COLORS.gold })
+          ui.text(shown === 'open' ? '▾' : '▸', { ...SHADOW, font: 'small' })
         })) set(shown === 'open' ? 'folded' : 'open')
         ui.tip('steps:toggle', t(shown === 'open' ? 'steps.foldTip' : 'steps.unfoldTip'))
         if (ui.button('steps:close', { height: 28, padding: [0, 8] }, () => ui.text('×', SHADOW))) set('off')
@@ -401,27 +402,29 @@ export function createHud(actions: () => HudActions, gui: Gui): Hud {
       })
       if (shown !== 'open') return
       if (finished) {
-        ui.text(t('steps.finished'), { color: COLORS.good, wrap: width - 24 })
+        ui.box({ padding: [0, 2] }, () => ui.text(t('steps.finished'), { color: COLORS.good, wrap: true }))
         return
       }
       const narrow = ui.width < NARROW
-      STEPS.forEach(({ key }, i) => {
+      // Список — плотнее панели: строки через 4, описание текущего шага — мелким шрифтом.
+      ui.box({ direction: 'column', align: 'stretch', gap: 4, padding: [0, 2] }, () => STEPS.forEach(({ key }, i) => {
         // На узком экране — только текущий шаг: список закрыл бы поле.
         if (narrow && i !== current) return
         const color = done[i] ? COLORS.dim : i === current ? COLORS.bright : COLORS.muted
-        ui.box({ direction: 'row', gap: 8, padding: [0, 2] }, () => {
+        ui.box({ direction: 'row', gap: 8 }, () => {
           ui.box({ width: 14, direction: 'row', justify: 'end' }, () => ui.text(done[i] ? '✓' : String(i + 1), { color: done[i] ? COLORS.good : i === current ? COLORS.team : color }))
-          ui.box({ direction: 'column', gap: 2 }, () => {
-            ui.text(t(`steps.items.${key}.title`), { color, wrap: width - 44 })
+          ui.box({ direction: 'column', gap: 2, grow: 1 }, () => {
+            ui.text(t(`steps.items.${key}.title`), { color, wrap: true })
             if (i !== current) return
-            ui.text(t(`steps.items.${key}.tip`), { color: COLORS.soft, wrap: width - 44 })
+            ui.text(t(`steps.items.${key}.tip`), { font: 'small', color: COLORS.soft, wrap: true })
             if (target) {
+              ui.space(0, 2)
               if (ui.button('steps:show', { height: 28, padding: [0, 10] }, () => ui.text(t('steps.show'), SHADOW))) game.flyTo(target.x + target.width / 2, target.y + target.height / 2)
               ui.tip('steps:show', t('steps.showTip'))
             }
           })
         })
-      })
+      }))
     })
   }
 

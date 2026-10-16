@@ -31,9 +31,7 @@ import { createPavingPass } from './pavingPass'
 import { createDropsPass } from './dropsPass'
 import { createFlowPass } from './flowPass'
 import { startFrames } from './frames'
-import { createHud, topHeight } from '../gui/hud'
-import { createGuiPass } from '../gui/pass'
-import { createGui } from '../gui/ui'
+import { createGuiPass, type Overlay } from '../gui/pass'
 import { readHud, type HudState } from './hud'
 import { createMinimap, type Minimap } from './minimap'
 import type { CarryPick, PaveTool, Scene } from './scene'
@@ -69,8 +67,6 @@ const SHOWCASE_MENU = 400
  * показывает камеры игроков.
  */
 const VIEW_GAP = 0.15
-/** Как часто строится кадр интерфейса на холсте без ввода, в секундах: так же часто страница опрашивает HUD. */
-const GUI_INTERVAL = 0.1
 
 export type GameSession = Omit<Session, 'sim'> & { sim: Sim & { readonly generation?: number; readonly kept?: boolean; respawn?(): void; say?(text: string): void; edit?(edit: EditOp): void; view?(box: ViewBox): void } }
 
@@ -79,6 +75,15 @@ export interface GameOptions {
   showcase?: boolean
   /** Редактор сохранений: мир стоит, и уведомлений о врагах и атаках нет — в нём враги ставятся руками. */
   editor?: boolean
+  /**
+   * Интерфейс на холсте (src/gui): игра кладёт его в кадр последним проходом, поверх мира и курсора, а нажатия, что
+   * пришлись на его панели (covers), миру не отдаёт. Строит его оболочка приложения (src/gui/app.ts).
+   */
+  overlay?: Overlay & {
+    covers(x: number, y: number): boolean
+    /** Сколько пикселей CSS с краёв экрана закрыто панелями: камера ставит середину видимого между ними. */
+    insets(width: number, height: number): { top: number; bottom: number; right: number }
+  }
 }
 
 export interface Game {
@@ -268,7 +273,7 @@ export function createGame(
   settings: MapSettings,
   onError: (error: unknown) => void,
   session: GameSession,
-  { slot, showcase = false, editor = false }: GameOptions = {},
+  { slot, showcase = false, editor = false, overlay }: GameOptions = {},
 ): Game {
   const camera = new Camera()
   // Камера возвращается туда, где была, только вместе с миром: в новом мире слота места ещё нет.
@@ -279,22 +284,6 @@ export function createGame(
     camera.zoomTo(view.zoom)
   }
   const scene = createScene(session.sim, session.player, settings, camera)
-  // Интерфейс на холсте (src/gui): в витрине его нет. Его проход — последний в кадре, поверх мира и курсора.
-  const gui = showcase ? null : createGui(canvas)
-  // Интерфейс игрока: его клавиши должны идти раньше клавиш управления (Esc закрывает окна, а не открывает меню).
-  // Игру он получает лениво: она собирается ниже.
-  let api: Game | null = null
-  const hud = gui && !editor ? createHud(() => api!, gui) : null
-  let guiChanged = false
-  let sinceGui = GUI_INTERVAL
-  const overlay = gui && {
-    surface: gui.surface,
-    takeChanged() {
-      const changed = guiChanged
-      guiChanged = false
-      return changed
-    },
-  }
 
   // Всё, что живёт на видеокарте, создаётся здесь: после потери контекста рендер вызовет это заново. Атласы и
   // шейдеры уже на видеокарте — их по частям готовит экран загрузки (см. warmUp.ts), — здесь только то, что у игры своё.
@@ -309,24 +298,17 @@ export function createGame(
     },
     onError,
   )
-  /**
-   * Какие края холста закрыты интерфейсом: верхняя полоса и нижняя панель лежат поверх него. Меряется каждый кадр —
-   * панели могут меняться, — по классам интерфейса.
-   */
+  /** Какие края холста закрыты интерфейсом: его панели лежат поверх холста. Меряется каждый кадр — панели меняются. */
   const measureInset = () => {
-    const frame = canvas.getBoundingClientRect()
-    // Верхняя полоса нарисована на холсте (src/gui/hud.ts): её высота известна и так; в витрине её нет.
-    const top = gui ? { bottom: frame.top + topHeight(frame.width) } : null
-    const bottom = document.querySelector('.hud.bar')?.getBoundingClientRect()
-    camera.inset.top = top ? Math.max(0, Math.min(frame.height, top.bottom - frame.top)) : 0
-    camera.inset.bottom = bottom ? Math.max(0, Math.min(frame.height, frame.bottom - bottom.top)) : 0
-    // Боковая панель редактора — справа.
-    const side = document.querySelector('.editor__panel')?.getBoundingClientRect()
-    if (side) camera.inset.right = Math.max(0, Math.min(frame.width, frame.right - side.left))
+    if (!overlay) return
+    const insets = overlay.insets(canvas.clientWidth, canvas.clientHeight)
+    camera.inset.top = insets.top
+    camera.inset.bottom = insets.bottom
+    camera.inset.right = insets.right
   }
   const motion = new CameraMotion(camera)
   motion.simple = editor
-  const controls = showcase ? null : createControls(canvas, scene, motion, gui ? (x, y) => gui.covers(x, y) : undefined)
+  const controls = showcase ? null : createControls(canvas, scene, motion, overlay ? (x, y) => overlay.covers(x, y) : undefined)
   // В редакторе мир стоит, и гул машин и зданий ни к чему: звука нет вовсе.
   const audio = showcase || editor ? null : createAudio()
   const shake = createShake()
@@ -469,12 +451,6 @@ export function createGame(
     const { x: shakeX, y: shakeY } = shake.offset(camera.zoom)
     camera.x += shakeX
     camera.y += shakeY
-    // Кадр интерфейса — по вводу или раз в GUI_INTERVAL: панели берут состояние игры опросом, как и страница.
-    sinceGui += seconds
-    if (gui && (gui.touched || sinceGui >= GUI_INTERVAL)) {
-      sinceGui = 0
-      if (hud && gui.frame(width, height, canvas.width / width, (ui) => hud.draw(ui, readHud(scene)))) guiChanged = true
-    }
     landWindow.update(sim.land, camera, width, height)
     const { time } = sim
     scene.weather = weatherAt(sim.options, time.elapsed + time.alpha * time.step)
@@ -486,7 +462,7 @@ export function createGame(
   // Последний шанс сохраниться: вкладку закрывают или уводят в фон.
   window.addEventListener('pagehide', saveCamera)
 
-  api = {
+  const api: Game = {
     scene,
     restart,
     hud: () => readHud(scene),
@@ -583,8 +559,6 @@ export function createGame(
       window.removeEventListener('pagehide', saveCamera)
       saveCamera()
       controls?.destroy()
-      hud?.destroy()
-      gui?.destroy()
       interfaceSounds?.destroy()
       motors?.destroy()
       audio?.destroy()
