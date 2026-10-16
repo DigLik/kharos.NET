@@ -15,12 +15,7 @@ mod calls;
 mod data;
 
 pub use calls::op_gl;
-pub use data::{
-  op_gl_bind_attrib_location, op_gl_buffer_data, op_gl_buffer_sub_data, op_gl_get_active_uniform,
-  op_gl_get_attrib_location, op_gl_get_program_info_log, op_gl_get_program_parameter, op_gl_get_shader_info_log,
-  op_gl_get_shader_parameter, op_gl_get_uniform_location, op_gl_log, op_gl_read_pixels, op_gl_shader_source,
-  op_gl_tex_image_2d, op_gl_tex_image_canvas, op_gl_tex_sub_image_2d, op_gl_uniform_fv,
-};
+pub use data::{op_gl_bind_attrib_location, op_gl_buffer_data, op_gl_buffer_sub_data, op_gl_get_active_uniform, op_gl_get_attrib_location, op_gl_get_program_info_log, op_gl_get_program_parameter, op_gl_get_shader_info_log, op_gl_get_shader_parameter, op_gl_get_uniform_location, op_gl_log, op_gl_read_pixels, op_gl_shader_source, op_gl_tex_image_2d, op_gl_tex_image_canvas, op_gl_tex_sub_image_2d, op_gl_uniform_fv};
 
 /// Ресурс драйвера, заведённый игрой. Игре достаётся его номер, Rust — сам объект.
 enum Res {
@@ -96,7 +91,6 @@ macro_rules! find {
 }
 
 pub(crate) use find;
-
 
 /// Номера вызовов, которые идут общей операцией: их имена видит и JS (см. opcodes_script).
 /// Число — единственный источник правды: обёртка берёт имена отсюда, а не повторяет их у себя.
@@ -207,27 +201,7 @@ pub fn opcodes_script() -> String {
 
 deno_core::extension!(
   kharos_gl,
-  ops = [
-    op_gl,
-    op_gl_shader_source,
-    op_gl_get_shader_parameter,
-    op_gl_get_shader_info_log,
-    op_gl_get_program_parameter,
-    op_gl_get_program_info_log,
-    op_gl_get_uniform_location,
-    op_gl_get_attrib_location,
-    op_gl_bind_attrib_location,
-    op_gl_get_active_uniform,
-    op_gl_buffer_data,
-    op_gl_buffer_sub_data,
-    op_gl_tex_image_2d,
-    op_gl_tex_sub_image_2d,
-    op_gl_uniform_fv,
-    op_gl_read_pixels,
-    op_gl_tex_image_canvas,
-    op_gl_log,
-  ],
+  ops = [op_gl, op_gl_shader_source, op_gl_get_shader_parameter, op_gl_get_shader_info_log, op_gl_get_program_parameter, op_gl_get_program_info_log, op_gl_get_uniform_location, op_gl_get_attrib_location, op_gl_bind_attrib_location, op_gl_get_active_uniform, op_gl_buffer_data, op_gl_buffer_sub_data, op_gl_tex_image_2d, op_gl_tex_sub_image_2d, op_gl_uniform_fv, op_gl_read_pixels, op_gl_tex_image_canvas, op_gl_log,],
   // JS здесь нет нарочно: у кода расширений deno_core требует семибитного ASCII, а обёртка `js/prelude.js`
   // русская. Её кладёт в рантайм `engine.rs` — обычным скриптом.
 );
-

@@ -37,9 +37,7 @@ pub fn measure_costs() {
 
 /// Время рисования по холстам с прошлого вызова: номер, ширина, высота, время.
 pub fn take_costs() -> Vec<(u32, u32, u32, Duration)> {
-  COSTS.with(|costs| {
-    costs.borrow_mut().as_mut().map_or_else(Vec::new, |costs| costs.drain().map(|(id, (width, height, time))| (id, width, height, time)).collect())
-  })
+  COSTS.with(|costs| costs.borrow_mut().as_mut().map_or_else(Vec::new, |costs| costs.drain().map(|(id, (width, height, time))| (id, width, height, time)).collect()))
 }
 
 /// Время рисования по холстам: номер — ширина, высота и сумма за срок замера.
@@ -121,7 +119,9 @@ pub fn op_canvas_resize(id: u32, width: u32, height: u32) {
 /// Заливка пути цветом 0xRRGGBBAA: `fill`, `fillRect`. Путь — командами (см. `sheet::path`).
 #[op2(fast)]
 pub fn op_canvas_fill(id: u32, #[buffer] path: &[u8], #[buffer] values: &[u8], color: u32, evenodd: bool) {
-  let Some(path) = sheet::path(&floats32(path)) else { return };
+  let Some(path) = sheet::path(&floats32(path)) else {
+    return;
+  };
   let state = state(values);
   with(id, &state, |sheet, mask| sheet.fill(&path, color, &state, mask, evenodd));
 }
@@ -129,7 +129,9 @@ pub fn op_canvas_fill(id: u32, #[buffer] path: &[u8], #[buffer] values: &[u8], c
 /// Обводка пути: `stroke`, `strokeRect`.
 #[op2(fast)]
 pub fn op_canvas_stroke(id: u32, #[buffer] path: &[u8], #[buffer] values: &[u8], color: u32) {
-  let Some(path) = sheet::path(&floats32(path)) else { return };
+  let Some(path) = sheet::path(&floats32(path)) else {
+    return;
+  };
   let state = state(values);
   with(id, &state, |sheet, mask| sheet.stroke(&path, color, &state, mask));
 }
@@ -214,9 +216,7 @@ pub fn op_canvas_put_image_data(id: u32, x: i32, y: i32, width: u32, height: u32
 #[buffer]
 pub fn op_canvas_get_image_data(id: u32, x: i32, y: i32, width: u32, height: u32) -> Vec<u8> {
   let (width, height) = (width as usize, height as usize);
-  SHEETS
-    .with(|sheets| sheets.borrow_mut().get_mut(&id).map(|sheet| sheet.get_image_data(x as i64, y as i64, width, height)))
-    .unwrap_or_else(|| vec![0; width * height * 4])
+  SHEETS.with(|sheets| sheets.borrow_mut().get_mut(&id).map(|sheet| sheet.get_image_data(x as i64, y as i64, width, height))).unwrap_or_else(|| vec![0; width * height * 4])
 }
 
 /// Текст: `fillText` и `strokeText`. align — 0 к началу, 1 по середине, 2 к концу; baseline — 0 алфавитная,
@@ -226,11 +226,12 @@ pub fn op_canvas_get_image_data(id: u32, x: i32, y: i32, width: u32, height: u32
 pub fn op_canvas_text(id: u32, #[string] text: &str, #[string] font: &str, x: f64, y: f64, align: u32, baseline: u32, #[buffer] values: &[u8], color: u32, stroke: bool) {
   let state = state(values);
   let line = text::lay(&text::spec(font), text);
-  let x = x as f32 - match align {
-    1 => line.width / 2.0,
-    2 => line.width,
-    _ => 0.0,
-  };
+  let x = x as f32
+    - match align {
+      1 => line.width / 2.0,
+      2 => line.width,
+      _ => 0.0,
+    };
   let y = y as f32
     + match baseline {
       1 => line.ascent,
@@ -240,13 +241,7 @@ pub fn op_canvas_text(id: u32, #[string] text: &str, #[string] font: &str, x: f6
       _ => 0.0,
     };
   let path = text::outline(&line, x, y);
-  with(id, &state, |sheet, mask| {
-    if stroke {
-      sheet.stroke(&path, color, &state, mask)
-    } else {
-      sheet.fill(&path, color, &state, mask, false)
-    }
-  });
+  with(id, &state, |sheet, mask| if stroke { sheet.stroke(&path, color, &state, mask) } else { sheet.fill(&path, color, &state, mask, false) });
 }
 
 /// Меры строки: `measureText` — ширина и границы шрифта над и под базовой линией, тремя `f32` подряд.
@@ -261,9 +256,7 @@ pub fn op_canvas_measure(#[string] font: &str, #[string] text: &str) -> Vec<u8> 
 #[op2]
 #[string]
 pub fn op_canvas_png(id: u32) -> String {
-  SHEETS
-    .with(|sheets| sheets.borrow_mut().get_mut(&id).map(|sheet| png::base64(&png::png(sheet.width as usize, sheet.height as usize, &sheet.pixels()))))
-    .unwrap_or_default()
+  SHEETS.with(|sheets| sheets.borrow_mut().get_mut(&id).map(|sheet| png::base64(&png::png(sheet.width as usize, sheet.height as usize, &sheet.pixels())))).unwrap_or_default()
 }
 
 /// Где лежат файлы страницы (`public/` игры: значок и шрифты страницы): `KHAROS_PUBLIC`, иначе рядом с окном.
@@ -296,25 +289,7 @@ pub fn op_canvas_load_image(#[string] src: &str) -> Vec<u32> {
   let (width, height) = (image.width() as u32, image.height() as u32);
   let id = next();
   SHEETS.with(|sheets| sheets.borrow_mut().insert(id, Sheet::from_image(&image, width, height)));
-  vec![id, width, height]
+  return vec![id, width, height];
 }
 
-deno_core::extension!(
-  kharos_canvas,
-  ops = [
-    op_canvas_create,
-    op_canvas_resize,
-    op_canvas_fill,
-    op_canvas_stroke,
-    op_canvas_clear,
-    op_canvas_clip,
-    op_canvas_unclip,
-    op_canvas_draw_image,
-    op_canvas_put_image_data,
-    op_canvas_get_image_data,
-    op_canvas_text,
-    op_canvas_measure,
-    op_canvas_png,
-    op_canvas_load_image,
-  ],
-);
+deno_core::extension!(kharos_canvas, ops = [op_canvas_create, op_canvas_resize, op_canvas_fill, op_canvas_stroke, op_canvas_clear, op_canvas_clip, op_canvas_unclip, op_canvas_draw_image, op_canvas_put_image_data, op_canvas_get_image_data, op_canvas_text, op_canvas_measure, op_canvas_png, op_canvas_load_image,],);

@@ -1,0 +1,28 @@
+# Формат кода Rust — тот же, что у остального проекта: основа Google, отступ в два пробела и никакого
+# переноса строк по длине. В clang-format это же задают настройки редактора: `BasedOnStyle: Google,
+# IndentWidth: 2, ColumnLimit: 0`.
+#
+# Предела длины строки у rustfmt нет, и снят он так же, как `ColumnLimit: 0`: `use_small_heuristics`
+# = "Max" вместе с большим `max_width` оставляет выражение одной строкой — русские пояснения и
+# набитые строками вызовы никто не рвёт. Длину комментариев rustfmt не трогает и без этого
+# (`wrap_comments` по умолчанию выключен).
+#
+# Опций ночного rustfmt здесь нет: конфиг проверен и стабильным rustfmt (1.8.0), и ночным, разницы в
+# выводе между ними нет.
+
+max_width = 1000          # ColumnLimit: 0 — переносов по длине нет (см. выше)
+hard_tabs = false         # отступ пробелами, а не табуляцией
+tab_spaces = 2            # два пробела — как в TS/JS и C/C++ этого проекта
+newline_style = "Auto"    # переводы строк те, что уже лежат в файле
+use_small_heuristics = "Max"  # ширины вызовов, литералов и цепочек — от `max_width`, то есть без предела
+merge_derives = true      # у одного типа — один `#[derive]`, если он собирается
+remove_nested_parens = true   # лишние скобки вокруг одного выражения убираются
+reorder_imports = true    # `use` — по алфавиту
+reorder_modules = true    # `mod` — по алфавиту
+use_try_shorthand = false     # `try!(...)` не переписывается в `?`
+use_field_init_shorthand = false  # `Foo { name: name }` не сокращается до `Foo { name }`
+force_explicit_abi = true     # `extern "C"`, а не `extern`
+
+# Из `Cargo.toml` это же читает `cargo fmt`; здесь — чтобы rustfmt из редактора писал ровно так же.
+edition = "2021"
+style_edition = "2021"

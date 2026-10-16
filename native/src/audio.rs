@@ -17,10 +17,7 @@ use std::sync::{Mutex, Once};
 use deno_core::op2;
 use deno_error::JsErrorBox;
 use web_audio_api::context::{AudioContext, AudioContextOptions, AudioContextState, BaseAudioContext};
-use web_audio_api::node::{
-  AudioBufferSourceNode, AudioDestinationNode, AudioNode, AudioScheduledSourceNode, BiquadFilterNode, BiquadFilterType, ConvolverNode,
-  DynamicsCompressorNode, GainNode, OscillatorNode, OscillatorType, StereoPannerNode,
-};
+use web_audio_api::node::{AudioBufferSourceNode, AudioDestinationNode, AudioNode, AudioScheduledSourceNode, BiquadFilterNode, BiquadFilterType, ConvolverNode, DynamicsCompressorNode, GainNode, OscillatorNode, OscillatorType, StereoPannerNode};
 use web_audio_api::{AudioBuffer, AudioBufferOptions, AudioParam};
 
 /// Узел графа. Виды — те, что берёт звук игры (`src/audio`); номер вида тот же, что у обёртки (`KIND` в `js/audio.js`).
@@ -405,27 +402,4 @@ pub fn op_audio_buffer_drop(buffer: u32) {
   BUFFERS.with(|buffers| buffers.borrow_mut().remove(&buffer));
 }
 
-deno_core::extension!(
-  kharos_audio,
-  ops = [
-    op_audio_context,
-    op_audio_time,
-    op_audio_rate,
-    op_audio_state,
-    op_audio_control,
-    op_audio_node,
-    op_audio_drop,
-    op_audio_connect,
-    op_audio_disconnect,
-    op_audio_param,
-    op_audio_param_value,
-    op_audio_set,
-    op_audio_set_buffer,
-    op_audio_start,
-    op_audio_stop,
-    op_audio_ended,
-    op_audio_buffer,
-    op_audio_buffer_write,
-    op_audio_buffer_drop,
-  ],
-);
+deno_core::extension!(kharos_audio, ops = [op_audio_context, op_audio_time, op_audio_rate, op_audio_state, op_audio_control, op_audio_node, op_audio_drop, op_audio_connect, op_audio_disconnect, op_audio_param, op_audio_param_value, op_audio_set, op_audio_set_buffer, op_audio_start, op_audio_stop, op_audio_ended, op_audio_buffer, op_audio_buffer_write, op_audio_buffer_drop,],);

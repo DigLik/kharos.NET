@@ -6,10 +6,7 @@
 use std::fs;
 
 use deno_core::error::ModuleLoaderError;
-use deno_core::{
-  resolve_import, ModuleLoadOptions, ModuleLoadReferrer, ModuleLoadResponse, ModuleLoader, ModuleSource, ModuleSourceCode,
-  ModuleSpecifier, ModuleType, ResolutionKind,
-};
+use deno_core::{resolve_import, ModuleLoadOptions, ModuleLoadReferrer, ModuleLoadResponse, ModuleLoader, ModuleSource, ModuleSourceCode, ModuleSpecifier, ModuleType, ResolutionKind};
 use deno_error::JsErrorBox;
 
 /// Загрузчик модулей окна: адрес модуля — это путь на диске.
@@ -23,22 +20,14 @@ impl ModuleLoader for FromDisk {
   }
 
   /// Читает модуль. Всё идёт сразу: диск рядом, а ждать, как сеть, нечего — поэтому и ответ синхронный.
-  fn load(
-    &self,
-    module_specifier: &ModuleSpecifier,
-    _maybe_referrer: Option<&ModuleLoadReferrer>,
-    _options: ModuleLoadOptions,
-  ) -> ModuleLoadResponse {
+  fn load(&self, module_specifier: &ModuleSpecifier, _maybe_referrer: Option<&ModuleLoadReferrer>, _options: ModuleLoadOptions) -> ModuleLoadResponse {
     ModuleLoadResponse::Sync(read(module_specifier))
   }
 }
 
 /// Код модуля с диска. О том, что файла нет, рантайм узнаёт отсюда — этим и говорит, чего игре не хватило.
 fn read(specifier: &ModuleSpecifier) -> Result<ModuleSource, ModuleLoaderError> {
-  let path = specifier
-    .to_file_path()
-    .map_err(|_| JsErrorBox::generic(format!("модуль не с диска: {specifier}")))?;
-  let code = fs::read_to_string(&path)
-    .map_err(|error| JsErrorBox::generic(format!("модуль не прочитан ({}): {error}", path.display())))?;
+  let path = specifier.to_file_path().map_err(|_| JsErrorBox::generic(format!("модуль не с диска: {specifier}")))?;
+  let code = fs::read_to_string(&path).map_err(|error| JsErrorBox::generic(format!("модуль не прочитан ({}): {error}", path.display())))?;
   Ok(ModuleSource::new(ModuleType::JavaScript, ModuleSourceCode::String(code.into()), specifier, None))
 }

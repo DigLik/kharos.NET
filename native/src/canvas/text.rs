@@ -17,12 +17,7 @@ use rustybuzz::{Face, UnicodeBuffer};
 use skia_safe::{Path, PathBuilder};
 
 /// Семейства по имени (без кавычек и регистра): файл шрифта и во сколько раз его кегль больше заданного.
-const FAMILIES: [(&str, &str, f32); 4] = [
-  ("ark pixel 12", "ark-pixel-12px.otf", 1.0),
-  ("ark pixel 10", "ark-pixel-10px.otf", 1.0),
-  ("kharos unifont 12", "unifont.otf", 4.0 / 3.0),
-  ("kharos unifont 10", "unifont.otf", 1.6),
-];
+const FAMILIES: [(&str, &str, f32); 4] = [("ark pixel 12", "ark-pixel-12px.otf", 1.0), ("ark pixel 10", "ark-pixel-10px.otf", 1.0), ("kharos unifont 12", "unifont.otf", 4.0 / 3.0), ("kharos unifont 10", "unifont.otf", 1.6)];
 /// Шрифт по умолчанию — для `10px sans-serif` холста и для семейств, которых у окна нет.
 const DEFAULT: &str = "ark-pixel-12px.otf";
 /// Последний запасной: у него есть почти всё.
@@ -169,13 +164,7 @@ pub fn lay(spec: &Spec, text: &str) -> Line {
     buffer.guess_segment_properties();
     let shaped = rustybuzz::shape(&font.face, &[], buffer);
     for (info, position) in shaped.glyph_infos().iter().zip(shaped.glyph_positions()) {
-      glyphs.push(Placed {
-        font,
-        glyph: GlyphId(info.glyph_id as u16),
-        x: pen + position.x_offset as f32 * unit,
-        y: -(position.y_offset as f32) * unit,
-        scale: unit,
-      });
+      glyphs.push(Placed { font, glyph: GlyphId(info.glyph_id as u16), x: pen + position.x_offset as f32 * unit, y: -(position.y_offset as f32) * unit, scale: unit });
       pen += position.x_advance as f32 * unit;
     }
   }

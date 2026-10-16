@@ -10,8 +10,7 @@
 
 use skia_safe::{
   paint::{Cap, Join, Style},
-  surfaces, AlphaType, BlendMode, Canvas, ClipOp, Color, ColorType, CubicResampler, FilterMode, Image, ImageInfo, Matrix,
-  MipmapMode, Paint, Path, PathBuilder, PathFillType, Rect, SamplingOptions, Surface, TileMode,
+  surfaces, AlphaType, BlendMode, Canvas, ClipOp, Color, ColorType, CubicResampler, FilterMode, Image, ImageInfo, Matrix, MipmapMode, Paint, Path, PathBuilder, PathFillType, Rect, SamplingOptions, Surface, TileMode,
 };
 
 /// Пиксели холста: RGBA, цвет умножен на альфу. Порядок байтов задаётся явно, чтобы он не зависел от платформы
@@ -53,22 +52,13 @@ impl State {
   pub fn read(values: &[f64]) -> Self {
     let at = |index: usize| values.get(index).copied().unwrap_or(0.0);
     let f = |index: usize| at(index) as f32;
-    let stroke = Stroke {
-      width: f(10).max(0.0),
-      cap: [Cap::Butt, Cap::Round, Cap::Square][(at(11) as usize).min(2)],
-      join: [Join::Miter, Join::Round, Join::Bevel][(at(12) as usize).min(2)],
-      miter: f(13).max(1.0),
-    };
+    let stroke = Stroke { width: f(10).max(0.0), cap: [Cap::Butt, Cap::Round, Cap::Square][(at(11) as usize).min(2)], join: [Join::Miter, Join::Round, Join::Bevel][(at(12) as usize).min(2)], miter: f(13).max(1.0) };
     Self {
       // Числа холста a, b, c, d, e, f — это увеличение X, наклон Y, наклон X, увеличение Y, сдвиг X, сдвиг Y.
       transform: Matrix::new_all(f(0), f(2), f(4), f(1), f(3), f(5), 0.0, 0.0, 1.0),
       alpha: f(6).clamp(0.0, 1.0),
       mask: at(7) as u32,
-      quality: [
-        SamplingOptions::new(FilterMode::Nearest, MipmapMode::None),
-        SamplingOptions::new(FilterMode::Linear, MipmapMode::None),
-        SamplingOptions::from(CubicResampler::mitchell()),
-      ][(at(8) as usize).min(2)],
+      quality: [SamplingOptions::new(FilterMode::Nearest, MipmapMode::None), SamplingOptions::new(FilterMode::Linear, MipmapMode::None), SamplingOptions::from(CubicResampler::mitchell())][(at(8) as usize).min(2)],
       blend: blend(at(9) as u32),
       stroke,
     }
@@ -79,11 +69,7 @@ impl State {
 /// здесь `SrcOver`, `destination-atop` — `DstATop`.
 fn blend(code: u32) -> BlendMode {
   use BlendMode::*;
-  const MODES: [BlendMode; 26] = [
-    SrcOver, SrcIn, SrcOut, SrcATop, DstOver, DstIn, DstOut, DstATop, Plus, Src, Xor, Multiply, Screen, Overlay,
-    Darken, Lighten, ColorDodge, ColorBurn, HardLight, SoftLight, Difference, Exclusion, Hue, Saturation, Color,
-    Luminosity,
-  ];
+  const MODES: [BlendMode; 26] = [SrcOver, SrcIn, SrcOut, SrcATop, DstOver, DstIn, DstOut, DstATop, Plus, Src, Xor, Multiply, Screen, Overlay, Darken, Lighten, ColorDodge, ColorBurn, HardLight, SoftLight, Difference, Exclusion, Hue, Saturation, Color, Luminosity];
   MODES.get(code as usize).copied().unwrap_or(SrcOver)
 }
 
@@ -175,9 +161,7 @@ fn solid(value: u32, state: &State) -> Paint {
 
 impl Sheet {
   pub fn new(width: u32, height: u32) -> Self {
-    let surface = (width > 0 && height > 0)
-      .then(|| surfaces::raster(&image_info(width as i32, height as i32), None, None))
-      .flatten();
+    let surface = (width > 0 && height > 0).then(|| surfaces::raster(&image_info(width as i32, height as i32), None, None)).flatten();
     Self { width, height, surface }
   }
 
@@ -215,7 +199,9 @@ impl Sheet {
       path.set_fill_type(PathFillType::EvenOdd);
     }
     let paint = solid(value, state);
-    self.draw_with(mask, &state.transform, |canvas| { canvas.draw_path(&path, &paint); });
+    self.draw_with(mask, &state.transform, |canvas| {
+      canvas.draw_path(&path, &paint);
+    });
   }
 
   /// Обводка пути: `stroke`, `strokeRect`.
@@ -226,14 +212,18 @@ impl Sheet {
     paint.set_stroke_cap(state.stroke.cap);
     paint.set_stroke_join(state.stroke.join);
     paint.set_stroke_miter(state.stroke.miter);
-    self.draw_with(mask, &state.transform, |canvas| { canvas.draw_path(path, &paint); });
+    self.draw_with(mask, &state.transform, |canvas| {
+      canvas.draw_path(path, &paint);
+    });
   }
 
   /// Стирает прямоугольник до прозрачного: `clearRect`. Прозрачность и режим наложения на него не действуют.
   pub fn clear(&mut self, rect: Rect, state: &State, mask: Option<&Mask>) {
     let mut paint = Paint::default();
     paint.set_blend_mode(BlendMode::Clear);
-    self.draw_with(mask, &state.transform, |canvas| { canvas.draw_rect(rect, &paint); });
+    self.draw_with(mask, &state.transform, |canvas| {
+      canvas.draw_rect(rect, &paint);
+    });
   }
 
   /// Снимок пикселей: `drawImage` берёт источник себе, а прежний холст продолжает рисовать. Снимок дешевле копии
@@ -259,7 +249,9 @@ impl Sheet {
     // Край картинки на целых пикселях не размывается, а на дробных сглаживается — как у страницы.
     paint.set_anti_alias(true);
     let rect = Rect::from_xywh(dx, dy, dw, dh);
-    self.draw_with(mask, &state.transform, |canvas| { canvas.draw_rect(rect, &paint); });
+    self.draw_with(mask, &state.transform, |canvas| {
+      canvas.draw_rect(rect, &paint);
+    });
   }
 
   /// Обрезка по пути: новая маска — прежняя обрезка и этот путь.

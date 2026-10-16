@@ -43,19 +43,14 @@ pub fn op_gl_get_shader_parameter(shader: u32, pname: u32) -> f64 {
   if pname != COMPILE_STATUS {
     return 0.0;
   }
-  find!(shader, Shader)
-    .and_then(|shader| with(|gl| unsafe { gl.get_shader_compile_status(shader) }))
-    .map(|ok| if ok { 1.0 } else { 0.0 })
-    .unwrap_or(0.0)
+  find!(shader, Shader).and_then(|shader| with(|gl| unsafe { gl.get_shader_compile_status(shader) })).map(|ok| if ok { 1.0 } else { 0.0 }).unwrap_or(0.0)
 }
 
 /// Журнал сборки шейдера: текст ошибки, если сборка не удалась.
 #[op2]
 #[string]
 pub fn op_gl_get_shader_info_log(shader: u32) -> String {
-  find!(shader, Shader)
-    .and_then(|shader| with(|gl| unsafe { gl.get_shader_info_log(shader) }))
-    .unwrap_or_default()
+  find!(shader, Shader).and_then(|shader| with(|gl| unsafe { gl.get_shader_info_log(shader) })).unwrap_or_default()
 }
 
 /// Параметр программы: удалась ли сборка (`LINK_STATUS`), сколько в ней юниформов и атрибутов.
@@ -68,9 +63,7 @@ pub fn op_gl_get_program_parameter(program: u32, pname: u32) -> f64 {
     return 0.0;
   };
   match pname {
-    LINK_STATUS => with(|gl| unsafe { gl.get_program_link_status(program) })
-      .map(|ok| if ok { 1.0 } else { 0.0 })
-      .unwrap_or(0.0),
+    LINK_STATUS => with(|gl| unsafe { gl.get_program_link_status(program) }).map(|ok| if ok { 1.0 } else { 0.0 }).unwrap_or(0.0),
     ACTIVE_UNIFORMS => with(|gl| unsafe { gl.get_active_uniforms(program) }).unwrap_or(0) as f64,
     ACTIVE_ATTRIBUTES => with(|gl| unsafe { gl.get_active_attributes(program) }).unwrap_or(0) as f64,
     _ => 0.0,
@@ -81,9 +74,7 @@ pub fn op_gl_get_program_parameter(program: u32, pname: u32) -> f64 {
 #[op2]
 #[string]
 pub fn op_gl_get_program_info_log(program: u32) -> String {
-  find!(program, Program)
-    .and_then(|program| with(|gl| unsafe { gl.get_program_info_log(program) }))
-    .unwrap_or_default()
+  find!(program, Program).and_then(|program| with(|gl| unsafe { gl.get_program_info_log(program) })).unwrap_or_default()
 }
 
 /// Юниформ по имени: номер для драйвера или 0, если такого юниформа в шейдере нет (в WebGL — null).
@@ -104,10 +95,7 @@ pub fn op_gl_get_attrib_location(program: u32, #[string] name: &str) -> f64 {
   let Some(program) = find!(program, Program) else {
     return -1.0;
   };
-  with(|gl| unsafe { gl.get_attrib_location(program, name) })
-    .flatten()
-    .map(|location| location as f64)
-    .unwrap_or(-1.0)
+  with(|gl| unsafe { gl.get_attrib_location(program, name) }).flatten().map(|location| location as f64).unwrap_or(-1.0)
 }
 
 /// Закрепляет за атрибутом место: игра даёт нулевое место общему углу квадрата (`aCorner`).
@@ -165,23 +153,9 @@ pub fn op_gl_buffer_sub_data(target: u32, buffer: u32, offset: u32, #[buffer] da
 
 /// Заводит и заливает плоскость текстуры. Пустой массив — «памяти пока нет»: в WebGL это null вместо пикселей.
 #[op2(fast)]
-pub fn op_gl_tex_image_2d(
-  target: u32,
-  level: i32,
-  internal: i32,
-  width: i32,
-  height: i32,
-  border: i32,
-  format: u32,
-  kind: u32,
-  #[buffer] data: &[u8],
-) {
+pub fn op_gl_tex_image_2d(target: u32, level: i32, internal: i32, width: i32, height: i32, border: i32, format: u32, kind: u32, #[buffer] data: &[u8]) {
   // Драйвер берёт пиксели из памяти или из буфера: пустой массив — «памяти пока нет», как `null` в WebGL.
-  let pixels = if data.is_empty() {
-    glow::PixelUnpackData::Slice(None)
-  } else {
-    glow::PixelUnpackData::Slice(Some(data))
-  };
+  let pixels = if data.is_empty() { glow::PixelUnpackData::Slice(None) } else { glow::PixelUnpackData::Slice(Some(data)) };
   with(|gl| unsafe { gl.tex_image_2d(target, level, internal, width, height, border, format, kind, pixels) });
 }
 
@@ -210,22 +184,8 @@ pub fn op_gl_tex_image_canvas(target: u32, level: i32, internal: i32, format: u3
 
 /// Записывает пиксели в прямоугольник текстуры: так атласы заливаются полосами при запуске игры.
 #[op2(fast)]
-pub fn op_gl_tex_sub_image_2d(
-  target: u32,
-  level: i32,
-  x: i32,
-  y: i32,
-  width: i32,
-  height: i32,
-  format: u32,
-  kind: u32,
-  #[buffer] data: &[u8],
-) {
-  let pixels = if data.is_empty() {
-    glow::PixelUnpackData::Slice(None)
-  } else {
-    glow::PixelUnpackData::Slice(Some(data))
-  };
+pub fn op_gl_tex_sub_image_2d(target: u32, level: i32, x: i32, y: i32, width: i32, height: i32, format: u32, kind: u32, #[buffer] data: &[u8]) {
+  let pixels = if data.is_empty() { glow::PixelUnpackData::Slice(None) } else { glow::PixelUnpackData::Slice(Some(data)) };
   with(|gl| unsafe {
     gl.tex_sub_image_2d(target, level, x, y, width, height, format, kind, pixels);
   });
@@ -263,4 +223,3 @@ pub fn op_gl_read_pixels(x: i32, y: i32, width: i32, height: i32, format: u32, k
 pub fn op_gl_log(#[string] message: String) {
   println!("{message}");
 }
-

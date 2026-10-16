@@ -32,8 +32,8 @@ use raw_window_handle::HasWindowHandle;
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
-use winit::keyboard::{Key, PhysicalKey};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::keyboard::{Key, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 
 /// Что запускается в рантайме: собранная игра. Rust берёт её с диска, а не вшивает в двоичный файл: так правка в
@@ -46,9 +46,7 @@ const GAME: &str = "js/game.bundle.js";
 fn game_url() -> Result<ModuleSpecifier> {
   let name = std::env::var("KHAROS_SCRIPT").unwrap_or_else(|_| GAME.to_string());
   let path = Path::new(&name);
-  let path = fs::canonicalize(path)
-    .or_else(|_| fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join(path)))
-    .map_err(|error| anyhow!("код игры не найден ({name}): {error}; собрать его: bun run bundle:native"))?;
+  let path = fs::canonicalize(path).or_else(|_| fs::canonicalize(Path::new(env!("CARGO_MANIFEST_DIR")).join(path))).map_err(|error| anyhow!("код игры не найден ({name}): {error}; собрать его: bun run bundle:native"))?;
   ModuleSpecifier::from_file_path(&path).map_err(|_| anyhow!("путь игры не переводится в адрес: {}", path.display()))
 }
 
@@ -74,11 +72,7 @@ fn game_options(fixed: bool) -> Result<String> {
     Err(_) => "null".into(),
   };
   // Язык строк — из окружения, как его берут прочие программы: `ru_RU.UTF-8` даёт `ru-RU`.
-  let lang = std::env::var("LANG")
-    .ok()
-    .and_then(|value| value.split('.').next().map(|tag| tag.replace('_', "-")))
-    .filter(|tag| !tag.is_empty() && tag != "C" && tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
-    .map_or("null".into(), |tag| format!("'{tag}'"));
+  let lang = std::env::var("LANG").ok().and_then(|value| value.split('.').next().map(|tag| tag.replace('_', "-"))).filter(|tag| !tag.is_empty() && tag != "C" && tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')).map_or("null".into(), |tag| format!("'{tag}'"));
   Ok(format!("{{ fixed: {fixed}, scene: {scene}, hour: {hour}, mode: {mode}, lang: {lang} }}"))
 }
 
@@ -117,16 +111,10 @@ impl App {
       }
       None => (1280.0, 720.0),
     };
-    let attributes = WindowAttributes::default()
-      .with_title(if recording.is_some() { "Kharos — запись" } else { "Kharos" })
-      .with_inner_size(LogicalSize::new(width, height))
-      .with_window_icon(icon::window_icon());
+    let attributes = WindowAttributes::default().with_title(if recording.is_some() { "Kharos — запись" } else { "Kharos" }).with_inner_size(LogicalSize::new(width, height)).with_window_icon(icon::window_icon());
     let template = ConfigTemplateBuilder::new().with_alpha_size(8);
     // Берём конфигурацию с наибольшим числом сэмплов: картинку рисуют проходы, и лишнее сглаживание только мешает.
-    let (window, config) = DisplayBuilder::new()
-      .with_window_attributes(Some(attributes))
-      .build(event_loop, template, pick_config)
-      .map_err(|error| anyhow!("окно не создалось: {error}"))?;
+    let (window, config) = DisplayBuilder::new().with_window_attributes(Some(attributes)).build(event_loop, template, pick_config).map_err(|error| anyhow!("окно не создалось: {error}"))?;
     let window = window.ok_or_else(|| anyhow!("окно не создалось"))?;
     icon::dock_icon();
     let display = config.display();
@@ -134,17 +122,11 @@ impl App {
 
     // Игра написана для WebGL 2 — это OpenGL ES 3.0. На настольном драйвере берём ближайшую версию с профилем ядра,
     // а если её нет (так бывает в эмуляторах и на старых сборках), пробуем настоящий GLES.
-    let desktop = ContextAttributesBuilder::new()
-      .with_context_api(ContextApi::OpenGl(Some(Version::new(3, 3))))
-      .with_profile(GlProfile::Core)
-      .build(Some(raw));
+    let desktop = ContextAttributesBuilder::new().with_context_api(ContextApi::OpenGl(Some(Version::new(3, 3)))).with_profile(GlProfile::Core).build(Some(raw));
     let portable = ContextAttributesBuilder::new().with_context_api(ContextApi::Gles(None)).build(Some(raw));
     let (context, desktop) = match unsafe { display.create_context(&config, &desktop) } {
       Ok(context) => (context, true),
-      Err(_) => (
-        unsafe { display.create_context(&config, &portable) }.map_err(|error| anyhow!("нет контекста OpenGL: {error}"))?,
-        false,
-      ),
+      Err(_) => (unsafe { display.create_context(&config, &portable) }.map_err(|error| anyhow!("нет контекста OpenGL: {error}"))?, false),
     };
 
     let surface_attributes = window.build_surface_attributes(Default::default())?;
@@ -185,9 +167,7 @@ impl App {
   /// Один кадр: игра считает свой кадр, Rust показывает нарисованное. При записи кадр ещё и уходит в ролик;
   /// true — ролик набран целиком.
   fn redraw(&mut self) -> Result<bool> {
-    let (Some(engine), Some(surface), Some(context), Some(pace)) =
-      (self.engine.as_mut(), self.surface.as_ref(), self.context.as_ref(), self.pace.as_mut())
-    else {
+    let (Some(engine), Some(surface), Some(context), Some(pace)) = (self.engine.as_mut(), self.surface.as_ref(), self.context.as_ref(), self.pace.as_mut()) else {
       return Ok(false);
     };
     let Some(recorder) = self.recorder.as_mut() else {

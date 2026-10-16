@@ -81,6 +81,11 @@ rusty_v8`: контрольную сумму `build.rs` пишет до расп
 gzip -dc target/debug/gn_out/obj/librusty_v8.tmp > target/debug/gn_out/obj/librusty_v8.a
 ```
 
+Формат кода Rust задаёт `rustfmt.toml` в этом каталоге: отступ в два пробела и основа Google — как у остального
+проекта задано в clang-format (`BasedOnStyle: Google, IndentWidth: 2, ColumnLimit: 0`), и переносов строк по длине нет:
+цепочки вызовов и литералы остаются одной строкой. Правки после себя прогоняют `cargo fmt`, он же и проверяет готовое
+(`cargo fmt --check`). Опции в файле стабильные: и `cargo fmt`, и rustfmt из редактора (rust-analyzer) пишут одинаково.
+
 ## Что видно в журнале
 
 Окно печатает то, что делает игра, поэтому по журналу видно каждый шаг:

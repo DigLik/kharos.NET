@@ -31,13 +31,7 @@ impl Engine {
       // Контекст нужен именно здесь: deno_core запоминает его у себя при создании рантайма.
       let _entered = tokio.enter();
       JsRuntime::new(RuntimeOptions {
-        extensions: vec![
-          crate::audio::kharos_audio::init(),
-          crate::canvas::kharos_canvas::init(),
-          crate::gl::kharos_gl::init(),
-          crate::record::kharos_record::init(),
-          crate::web::kharos_web::init(),
-        ],
+        extensions: vec![crate::audio::kharos_audio::init(), crate::canvas::kharos_canvas::init(), crate::gl::kharos_gl::init(), crate::record::kharos_record::init(), crate::web::kharos_web::init()],
         // Модули игра берёт с диска: собранную игру кладёт туда сборщик (см. `src/modules.rs`).
         module_loader: Some(Rc::new(crate::modules::FromDisk)),
         ..Default::default()

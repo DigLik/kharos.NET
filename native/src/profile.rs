@@ -34,22 +34,7 @@ impl Profile {
     crate::canvas::measure_costs();
     let hertz = if hertz > 0.0 { hertz } else { 60.0 };
     println!("замер кадров: экран {hertz:.0} Гц");
-    Some(Self {
-      period: Duration::from_secs_f64(1.0 / hertz),
-      since: Instant::now(),
-      last: None,
-      frames: 0,
-      game: Duration::ZERO,
-      game_max: Duration::ZERO,
-      show: Duration::ZERO,
-      show_max: Duration::ZERO,
-      gap_max: Duration::ZERO,
-      missed: 0,
-      gaps: [0; 4],
-      steps: [0; 3],
-      clock: None,
-      sheets: HashMap::new(),
-    })
+    Some(Self { period: Duration::from_secs_f64(1.0 / hertz), since: Instant::now(), last: None, frames: 0, game: Duration::ZERO, game_max: Duration::ZERO, show: Duration::ZERO, show_max: Duration::ZERO, gap_max: Duration::ZERO, missed: 0, gaps: [0; 4], steps: [0; 3], clock: None, sheets: HashMap::new() })
   }
 
   /// Кадр: начался в started, игра закончила в drawn, показ — в shown; clock — время кадра, отданное игре (мс).
@@ -84,27 +69,11 @@ impl Profile {
     }
     let ms = |duration: Duration| duration.as_secs_f64() * 1000.0;
     let frames = self.frames.max(1);
-    println!(
-      "кадры: {} за {:.0} мс, игра {:.1}/{:.1} мс, показ {:.1}/{:.1} мс, худший промежуток {:.1} мс, пропусков {}, промежутки {:?}, шаги часов {:?}",
-      self.frames,
-      ms(shown - self.since),
-      ms(self.game) / frames as f64,
-      ms(self.game_max),
-      ms(self.show) / frames as f64,
-      ms(self.show_max),
-      ms(self.gap_max),
-      self.missed,
-      self.gaps,
-      self.steps,
-    );
+    println!("кадры: {} за {:.0} мс, игра {:.1}/{:.1} мс, показ {:.1}/{:.1} мс, худший промежуток {:.1} мс, пропусков {}, промежутки {:?}, шаги часов {:?}", self.frames, ms(shown - self.since), ms(self.game) / frames as f64, ms(self.game_max), ms(self.show) / frames as f64, ms(self.show_max), ms(self.gap_max), self.missed, self.gaps, self.steps,);
     // Дороже всего рисуемые холсты: размер, в среднем на кадр и худший кадр.
     let mut sheets: Vec<_> = self.sheets.drain().collect();
     sheets.sort_by(|a, b| b.1 .2.cmp(&a.1 .2));
-    let sheets: Vec<String> = sheets
-      .iter()
-      .take(4)
-      .map(|(id, (width, height, sum, max))| format!("#{id} {width}×{height} {:.1}/{:.1} мс", ms(*sum) / frames as f64, ms(*max)))
-      .collect();
+    let sheets: Vec<String> = sheets.iter().take(4).map(|(id, (width, height, sum, max))| format!("#{id} {width}×{height} {:.1}/{:.1} мс", ms(*sum) / frames as f64, ms(*max))).collect();
     if !sheets.is_empty() {
       println!("  холсты: {}", sheets.join(", "));
     }

@@ -50,23 +50,12 @@ impl Options {
       return Ok(None);
     };
     let size = std::env::var("KHAROS_SIZE").unwrap_or_else(|_| "1080x1920".into());
-    let (width, height) = size
-      .split_once('x')
-      .and_then(|(width, height)| Some((width.parse().ok()?, height.parse().ok()?)))
-      .ok_or_else(|| anyhow!("KHAROS_SIZE={size}: ждём ширину и высоту, например 1080x1920"))?;
+    let (width, height) = size.split_once('x').and_then(|(width, height)| Some((width.parse().ok()?, height.parse().ok()?))).ok_or_else(|| anyhow!("KHAROS_SIZE={size}: ждём ширину и высоту, например 1080x1920"))?;
     // Кодировщик берёт кадры только чётных сторон: у цвета в yuv420p половинное разрешение.
     if width % 2 == 1 || height % 2 == 1 || width == 0 || height == 0 {
       return Err(anyhow!("KHAROS_SIZE={size}: стороны должны быть чётными и не нулевыми"));
     }
-    let options = Self {
-      path,
-      width,
-      height,
-      fps: number("KHAROS_FPS", 60)?.max(1),
-      seconds: number("KHAROS_SECONDS", 20.0)?,
-      skip: number("KHAROS_SKIP", 2.0)?,
-      ratio: number("KHAROS_RATIO", 2.0)?,
-    };
+    let options = Self { path, width, height, fps: number("KHAROS_FPS", 60)?.max(1), seconds: number("KHAROS_SECONDS", 20.0)?, skip: number("KHAROS_SKIP", 2.0)?, ratio: number("KHAROS_RATIO", 2.0)? };
     Ok(Some(options))
   }
 }
@@ -121,14 +110,7 @@ impl Recorder {
 
     let size = format!("{}x{}", options.width, options.height);
     // Кадры идут снизу вверх (так их отдаёт OpenGL) — переворачивает их ffmpeg, это дешевле, чем здесь.
-    let mut ffmpeg = Command::new("ffmpeg")
-      .args(["-y", "-hide_banner", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", &size])
-      .args(["-r", &options.fps.to_string(), "-i", "-", "-vf", "vflip"])
-      .args(["-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p", "-movflags", "+faststart"])
-      .arg(&options.path)
-      .stdin(Stdio::piped())
-      .spawn()
-      .context("ffmpeg не запустился — он должен быть в PATH")?;
+    let mut ffmpeg = Command::new("ffmpeg").args(["-y", "-hide_banner", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", &size]).args(["-r", &options.fps.to_string(), "-i", "-", "-vf", "vflip"]).args(["-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p", "-movflags", "+faststart"]).arg(&options.path).stdin(Stdio::piped()).spawn().context("ffmpeg не запустился — он должен быть в PATH")?;
     let stdin = ffmpeg.stdin.take();
     let pixels = vec![0u8; (options.width * options.height * 4) as usize];
     println!("запись: {} — {size}, {} кадров/с, {} с после {} с разгона", options.path, options.fps, options.seconds, options.skip);
