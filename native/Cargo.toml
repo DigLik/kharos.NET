@@ -20,6 +20,12 @@ tiny-skia = "0.11"
 tokio = { version = "1", features = ["rt", "time"] }
 winit = "0.30"
 
+# Значок в Доке (см. src/icon.rs): те же версии, что тянет winit, — сборка их уже знает.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5.2"
+objc2-app-kit = { version = "0.2.2", features = ["NSApplication", "NSImage", "NSResponder"] }
+objc2-foundation = { version = "0.2.2", features = ["NSData"] }
+
 [profile.dev]
 opt-level = 1
 

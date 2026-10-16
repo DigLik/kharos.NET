@@ -178,7 +178,7 @@ export function createMenu(play: (launch: Launch) => void): Menu {
   let logo: HTMLImageElement | null = null
   if (typeof Image !== 'undefined') {
     logo = new Image()
-    logo.src = `${import.meta.env.BASE_URL}favicon.svg`
+    logo.src = `${import.meta.env.BASE_URL}favicon.png`
   }
 
   // Новая игра.

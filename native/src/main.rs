@@ -8,6 +8,7 @@
 mod canvas;
 mod engine;
 mod gl;
+mod icon;
 mod modules;
 mod record;
 mod web;
@@ -112,7 +113,8 @@ impl App {
     };
     let attributes = WindowAttributes::default()
       .with_title(if recording.is_some() { "Kharos — запись" } else { "Kharos" })
-      .with_inner_size(LogicalSize::new(width, height));
+      .with_inner_size(LogicalSize::new(width, height))
+      .with_window_icon(icon::window_icon());
     let template = ConfigTemplateBuilder::new().with_alpha_size(8);
     // Берём конфигурацию с наибольшим числом сэмплов: картинку рисуют проходы, и лишнее сглаживание только мешает.
     let (window, config) = DisplayBuilder::new()
@@ -120,6 +122,7 @@ impl App {
       .build(event_loop, template, pick_config)
       .map_err(|error| anyhow!("окно не создалось: {error}"))?;
     let window = window.ok_or_else(|| anyhow!("окно не создалось"))?;
+    icon::dock_icon();
     let display = config.display();
     let raw = window.window_handle()?.as_raw();
 

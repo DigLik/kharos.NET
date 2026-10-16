@@ -218,6 +218,35 @@ pub fn op_canvas_png(id: u32) -> String {
     .unwrap_or_default()
 }
 
+/// Где лежат файлы страницы (`public/` игры: значок и шрифты страницы): `KHAROS_PUBLIC`, иначе рядом с окном.
+fn public_dir() -> std::path::PathBuf {
+  std::env::var_os("KHAROS_PUBLIC").map(std::path::PathBuf::from).unwrap_or_else(|| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../public"))
+}
+
+/// Картинка страницы (`new Image()` с `src`): PNG из `public/` — в новый холст. Отдаёт номер холста, ширину и высоту;
+/// файла нет или это не PNG — пусто, и обёртка зовёт `onerror`. Адрес — путь от корня страницы: `/favicon.png`.
+#[op2]
+#[serde]
+pub fn op_canvas_load_image(#[string] src: &str) -> Vec<u32> {
+  let path = src.split(['?', '#']).next().unwrap_or_default().trim_start_matches("./").trim_start_matches('/');
+  // Только внутри public: подняться выше по `..` адрес не может.
+  if path.is_empty() || path.split('/').any(|part| part == "..") {
+    return Vec::new();
+  }
+  let file = public_dir().join(path);
+  let pixmap = match std::fs::read(&file).map_err(|error| error.to_string()).and_then(|bytes| tiny_skia::Pixmap::decode_png(&bytes).map_err(|error| error.to_string())) {
+    Ok(pixmap) => pixmap,
+    Err(error) => {
+      eprintln!("картинка {} не прочитана: {error}", file.display());
+      return Vec::new();
+    }
+  };
+  let (width, height) = (pixmap.width(), pixmap.height());
+  let id = next();
+  SHEETS.with(|sheets| sheets.borrow_mut().insert(id, Sheet { width, height, pixmap: Some(pixmap) }));
+  vec![id, width, height]
+}
+
 deno_core::extension!(
   kharos_canvas,
   ops = [
@@ -234,5 +263,6 @@ deno_core::extension!(
     op_canvas_text,
     op_canvas_measure,
     op_canvas_png,
+    op_canvas_load_image,
   ],
 );

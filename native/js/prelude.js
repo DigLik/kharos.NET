@@ -285,7 +285,7 @@
     documentElement: { ...element(), lang: '' },
     // Холст на всю игру здесь не один: холстом окна становится тот, у которого спросят WebGL 2 (см. `stage.ts`),
     // а прочие — вычислители интерфейса: на них рисуются скины, значки, портреты и мини-карта (см. `src/canvas`).
-    createElement: (name) => (name === 'canvas' ? new CanvasElement() : element()),
+    createElement: (name) => (name === 'canvas' ? new CanvasElement() : name === 'img' ? new ImageElement() : element()),
     getElementById: () => canvas,
     // Разметки нет: игра ищет на странице только панели интерфейса, а его в оболочке ещё нет.
     querySelector: () => null,
@@ -994,6 +994,68 @@
 
   /** Двумерный холст вне страницы: у игры их заводят мини-карта и значки. */
   globalThis.OffscreenCanvas ??= class OffscreenCanvas extends CanvasElement {}
+
+  /**
+   * Картинка страницы (`new Image()`, `<img>`): PNG из `public/` игры читает Rust сразу в холст (см.
+   * `op_canvas_load_image`), и рисуют её как холст — `drawImage` берёт номер. Файл читается тут же, а `load` (или
+   * `error`) приходит задачей позже — как у браузера: слушатель, поставленный после `src`, его не пропустит.
+   */
+  class ImageElement {
+    constructor(width, height) {
+      this.id = -1
+      this.naturalWidth = 0
+      this.naturalHeight = 0
+      this.complete = false
+      this.style = {}
+      this.onload = null
+      this.onerror = null
+      this.source = ''
+      /** Размер, заданный при создании или атрибутом; без него — свой у картинки. */
+      this.sized = { width, height }
+      listening(this)
+    }
+
+    get width() {
+      return this.sized.width ?? this.naturalWidth
+    }
+
+    set width(value) {
+      this.sized.width = value
+    }
+
+    get height() {
+      return this.sized.height ?? this.naturalHeight
+    }
+
+    set height(value) {
+      this.sized.height = value
+    }
+
+    get src() {
+      return this.source
+    }
+
+    set src(value) {
+      this.source = String(value)
+      const [id, width, height] = core.ops.op_canvas_load_image(this.source)
+      const loaded = id !== undefined
+      this.id = loaded ? id : -1
+      this.naturalWidth = loaded ? width : 0
+      this.naturalHeight = loaded ? height : 0
+      this.complete = true
+      setTimeout(() => {
+        const event = new Event(loaded ? 'load' : 'error')
+        ;(loaded ? this.onload : this.onerror)?.call(this, event)
+        this.dispatchEvent(event)
+      }, 0)
+    }
+
+    decode() {
+      return this.id >= 0 ? Promise.resolve() : Promise.reject(new Error(`картинка ${this.source} не прочитана`))
+    }
+  }
+  globalThis.Image ??= ImageElement
+  globalThis.HTMLImageElement ??= ImageElement
 
   /**
    * Контекст WebGL 2: то, чем игра разговаривает с видеокартой. Связывание буферов, текстур и мест атрибутов
