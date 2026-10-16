@@ -27,5 +27,6 @@ bun tools/smoke/browser.ts "http://localhost:5200/" $OUT/menu.png 6 4 > $OUT/web
 bun tools/smoke/browser.ts "http://localhost:5200/?sandbox" $OUT/dist.png 6 4 > $OUT/web.log && ok web-dist || bad web-dist "$(cat $OUT/web.log)"
 pkill -f "vite --port 5199"; pkill -f "vite preview --port 5200"
 
-out=$(bun tools/smoke/server.ts bun $OUT/out/kharos-server-bun.js 2>&1) && ok server-live-bundle || bad server-live-bundle "$out"
-out=$(bun tools/smoke/server.ts $OUT/out/kharos-server 2>&1) && ok server-live-binary || bad server-live-binary "$out"
+# С модом mods/hello: машина Luau (luau.wasm) должна найтись и рядом с бандлом, и внутри бинарника.
+out=$(SMOKE_MOD=mods/hello bun tools/smoke/server.ts bun $OUT/out/kharos-server-bun.js 2>&1) && ok server-live-bundle || bad server-live-bundle "$out"
+out=$(SMOKE_MOD=mods/hello bun tools/smoke/server.ts $OUT/out/kharos-server 2>&1) && ok server-live-binary || bad server-live-binary "$out"

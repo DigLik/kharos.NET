@@ -3,9 +3,11 @@
  * юниту ехать и проверяет, что он поехал. Сервер работает в .cache/smoke/server со своими настройками и
  * сохранением — настоящие не трогаются.
  * bun tools/smoke/server.ts <команда сервера...>, например: bun tools/smoke/server.ts bun .cache/smoke/out/kharos-server-bun.js
+ * SMOKE_MOD=<папка мода> — сервер запускается с этим модом, и в журнале ждётся строка SMOKE_MOD_LINE (по умолчанию —
+ * та, что печатает mods/hello): так проверяется, что машина Luau (luau.wasm) у сборки на месте.
  */
 import { spawn } from 'node:child_process'
-import { mkdirSync, rmSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Owner, Position, Unit } from '@kharos/sim-ts/components'
 import { decodeServer, PROTOCOL_VERSION } from '../../src/net/protocol'
@@ -16,6 +18,8 @@ if (!command) throw new Error('bun tools/smoke/server.ts <команда сер�
 const dir = new URL('../../.cache/smoke/server', import.meta.url).pathname
 rmSync(dir, { recursive: true, force: true })
 mkdirSync(dir, { recursive: true })
+const mod = process.env.SMOKE_MOD
+if (mod) writeFileSync(`${dir}/settings.json`, JSON.stringify({ mods: [resolve(mod)] }))
 const PORT = 8799
 // Пути из командной строки — от каталога запуска, а сервер работает в своём.
 const local = (arg: string) => (arg.startsWith('.') ? resolve(arg) : arg)
@@ -75,5 +79,8 @@ console.log(`игрок ${player}, своих юнитов ${mine.length}, су�
 socket.close()
 server.kill()
 if (moved < 0.5) fail('юнит не поехал')
+const modLine = process.env.SMOKE_MOD_LINE ?? 'hello загружен'
+if (mod && !log.includes(modLine)) fail(`мод не загрузился: в журнале нет «${modLine}»`)
+if (mod) console.log(`мод загружен: ${modLine}`)
 console.log('OK server-live')
 process.exit(0)
