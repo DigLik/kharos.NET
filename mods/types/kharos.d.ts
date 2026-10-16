@@ -1,4 +1,4 @@
-// Создано tools/modapi.ts по src/mods/api.ts, не править. API модов, версия 1.
+// Создано tools/modapi.ts по packages/mods/src/api.ts, не править. API модов, версия 1.
 
 declare namespace kharos {
   type Entity = number

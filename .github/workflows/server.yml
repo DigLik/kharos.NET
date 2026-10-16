@@ -33,7 +33,7 @@ jobs:
       # Лицензии библиотек — из бандла в отдельный файл релиза: код чище, а условия лицензий соблюдены.
       - run: |
           perl -0ne 'print "$&\n\n" while m{/\*!.*?\*/}gs' out/kharos-server-bun.js > out/THIRD-PARTY-LICENSES.txt
-          cat src/mods/luau.LICENSE.txt >> out/THIRD-PARTY-LICENSES.txt
+          cat packages/mods/src/luau.LICENSE.txt >> out/THIRD-PARTY-LICENSES.txt
           perl -0pi -e 's{/\*!.*?\*/}{}gs' out/kharos-server-bun.js
       - run: bun build server/main.ts --compile --minify --target=bun-linux-x64 --outfile out/kharos-server-linux-x64
       - run: bun build server/main.ts --compile --minify --target=bun-linux-arm64 --outfile out/kharos-server-linux-arm64

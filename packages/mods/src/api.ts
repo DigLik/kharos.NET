@@ -94,7 +94,7 @@ const comment = (prefix: string, doc: string) => doc.split('\n').map((line) => `
 
 /** Описание типов для luau-lsp: файл определений (`declare`). */
 export function luauDefinitions(schema: ApiSchema): string {
-  const lines = [`-- Создано tools/modapi.ts по src/mods/api.ts, не править. API модов, версия ${schema.version}.`, '', 'type Entity = number', 'type Player = number', '']
+  const lines = [`-- Создано tools/modapi.ts по packages/mods/src/api.ts, не править. API модов, версия ${schema.version}.`, '', 'type Entity = number', 'type Player = number', '']
   const luau = (field: ApiField) => LUAU_TYPES[field.type] + (field.optional ? '?' : '')
   for (const [name, event] of Object.entries(schema.events)) {
     lines.push(...comment('--- ', event.doc), `type ${eventType(name)} = {`)
@@ -114,7 +114,7 @@ export function luauDefinitions(schema: ApiSchema): string {
 
 /** Описание типов для TypeScript: пространство имён kharos. */
 export function tsDefinitions(schema: ApiSchema): string {
-  const lines = [`// Создано tools/modapi.ts по src/mods/api.ts, не править. API модов, версия ${schema.version}.`, '', 'declare namespace kharos {', '  type Entity = number', '  type Player = number', '']
+  const lines = [`// Создано tools/modapi.ts по packages/mods/src/api.ts, не править. API модов, версия ${schema.version}.`, '', 'declare namespace kharos {', '  type Entity = number', '  type Player = number', '']
   const ts = (field: ApiField) => TS_TYPES[field.type] + (field.optional ? ' | undefined' : '')
   for (const [name, event] of Object.entries(schema.events)) {
     lines.push(`  /** ${event.doc} */`, `  interface ${eventType(name)} {`)

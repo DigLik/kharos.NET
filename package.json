@@ -27,6 +27,7 @@
     "@kharos/ecs": "workspace:*",
     "@kharos/i18n": "workspace:*",
     "@kharos/shared": "workspace:*",
-    "@kharos/sim-ts": "workspace:*"
+    "@kharos/sim-ts": "workspace:*",
+    "@kharos/mods": "workspace:*"
   }
 }

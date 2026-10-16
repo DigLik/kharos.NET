@@ -1,14 +1,14 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
-import { MOD_API, luauDefinitions, tsDefinitions } from '../src/mods/api'
-import { compileLuau, createMachine, type MachineOptions } from '../src/mods/luau'
-import { createMods, DEFAULT_MOD_LIMITS, type ModReport } from '../src/mods/runtime'
+import { MOD_API, luauDefinitions, tsDefinitions } from '@kharos/mods/api'
+import { compileLuau, createMachine, type MachineOptions } from '@kharos/mods/luau'
+import { createMods, DEFAULT_MOD_LIMITS, type ModReport } from '@kharos/mods/runtime'
 import { createHost } from '../src/net/host'
 import type { ServerMessage } from '../src/net/protocol'
 import { createSim } from '@kharos/sim-ts'
 
-const module = await compileLuau(readFileSync(new URL('../src/mods/luau.wasm', import.meta.url)))
+const module = await compileLuau(readFileSync(new URL('../packages/mods/src/luau.wasm', import.meta.url)))
 
 /** Машина с функциями say и echo: say копит строки, echo отдаёт аргумент обратно. */
 function machine(options: Partial<MachineOptions> = {}) {

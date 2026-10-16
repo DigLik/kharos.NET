@@ -7,6 +7,7 @@
       "dependencies": {
         "@kharos/ecs": "workspace:*",
         "@kharos/i18n": "workspace:*",
+        "@kharos/mods": "workspace:*",
         "@kharos/shared": "workspace:*",
         "@kharos/sim-ts": "workspace:*",
         "acme-client": "^5.4.0",
@@ -25,6 +26,13 @@
       "name": "@kharos/i18n",
       "version": "0.1.0",
     },
+    "packages/mods": {
+      "name": "@kharos/mods",
+      "version": "0.1.0",
+      "dependencies": {
+        "@kharos/sim-ts": "workspace:*",
+      },
+    },
     "packages/shared": {
       "name": "@kharos/shared",
       "version": "0.1.0",
@@ -42,6 +50,8 @@
     "@kharos/ecs": ["@kharos/ecs@workspace:packages/ecs"],
 
     "@kharos/i18n": ["@kharos/i18n@workspace:packages/i18n"],
+
+    "@kharos/mods": ["@kharos/mods@workspace:packages/mods"],
 
     "@kharos/shared": ["@kharos/shared@workspace:packages/shared"],
 

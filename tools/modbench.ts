@@ -2,7 +2,7 @@
  * Замер машины модов: сколько стоит завести машину, загрузить мод, отдать событие и вызвать функцию хоста. Одна и та
  * же функция идёт в Bun (`bun tools/modbench.ts`) и в браузере — её зовёт страница с воркером.
  */
-import { compileLuau, createMachine, type Machine } from '../src/mods/luau'
+import { compileLuau, createMachine, type Machine } from '@kharos/mods/luau'
 
 export interface BenchLine {
   name: string
@@ -181,6 +181,6 @@ function benchSystems(module: WebAssembly.Module, add: (name: string, value: num
 }
 
 if (import.meta.main) {
-  const bytes = await Bun.file(new URL('../src/mods/luau.wasm', import.meta.url)).arrayBuffer()
+  const bytes = await Bun.file(new URL('../packages/mods/src/luau.wasm', import.meta.url)).arrayBuffer()
   for (const line of await benchMods(bytes)) console.log(`${line.name.padEnd(36)} ${String(line.value).padStart(10)} ${line.unit}`)
 }

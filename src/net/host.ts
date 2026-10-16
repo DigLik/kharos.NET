@@ -19,7 +19,7 @@ import { cleanChat, cleanName, type ChatLine, type PlayerInfo, type PlayerView, 
 import { PLAYER_ARG, parseCommand, type CommandInfo } from './chatCommands'
 import { hostText, type Text } from '@kharos/i18n'
 import { erase, putUnit, setCredits, setHealth } from '@kharos/sim-ts/editor'
-import { createMods, type ModLimits, type ModSource } from '../mods/runtime'
+import { createMods, type ModLimits, type ModSource } from '@kharos/mods/runtime'
 import { addCredits, pay } from '@kharos/sim-ts/economy'
 import { freeTilesNear } from '@kharos/sim-ts/units'
 
@@ -236,7 +236,7 @@ export interface HostOptions {
    * игре канал не тесен). Что не влезло, ждёт следующих тиков. Обязательное в бюджет не смотрит.
    */
   budget?: { ms?: number; bytes?: number }
-  /** Моды: скомпилированный luau.wasm (см. src/mods/luau.ts) и код модов. Их print и ошибки идут в log. */
+  /** Моды: скомпилированный luau.wasm (см. packages/mods/src/luau.ts) и код модов. Их print и ошибки идут в log. */
   mods?: { module: WebAssembly.Module; sources: readonly ModSource[]; limits?: ModLimits }
 }
 

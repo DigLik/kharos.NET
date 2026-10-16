@@ -1,5 +1,5 @@
 /**
- * Описания типов API модов для редактора мододела — по схеме src/mods/api.ts: mods/types/kharos.d.luau (luau-lsp,
+ * Описания типов API модов для редактора мододела — по схеме packages/mods/src/api.ts: mods/types/kharos.d.luau (luau-lsp,
  * «definitionFiles») и mods/types/kharos.d.ts (для будущей машины TS/JS). Схема поменялась — запустить заново;
  * tests/mods.test.ts сверяет файлы со схемой.
  *
@@ -7,7 +7,7 @@
  */
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { MOD_API, luauDefinitions, tsDefinitions } from '../src/mods/api'
+import { MOD_API, luauDefinitions, tsDefinitions } from '@kharos/mods/api'
 
 const TYPES = join(import.meta.dir, '../mods/types')
 writeFileSync(join(TYPES, 'kharos.d.luau'), luauDefinitions(MOD_API))

@@ -7,9 +7,9 @@ import { PROTOCOL_VERSION, type ServerMessage } from '../src/net/protocol'
 import { createSim } from '@kharos/sim-ts'
 import { decodeSave, encodeSave, readJson } from '../src/save/file'
 import { defaultSettings, mergeSettings, type ServerSettings } from './settings'
-import { compileLuau } from '../src/mods/luau'
-import type { ModSource } from '../src/mods/runtime'
-import luauWasm from '../src/mods/luau.wasm' with { type: 'file' }
+import { compileLuau } from '@kharos/mods/luau'
+import type { ModSource } from '@kharos/mods/runtime'
+import luauWasm from '@kharos/mods/luau.wasm' with { type: 'file' }
 import { TLS_CHECK_INTERVAL, TLS_MODES, obtainCertificate, readCertificate, tlsDomain, type Certificate } from './tls'
 
 /** Как часто сервер пишет в консоль, что с ним происходит, в секундах. */

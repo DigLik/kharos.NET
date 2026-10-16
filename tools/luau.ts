@@ -1,12 +1,12 @@
 /**
- * Сборка машины модов: Luau закреплённой версии и привязка src/mods/luau.cpp → src/mods/luau.wasm.
+ * Сборка машины модов: Luau закреплённой версии и привязка packages/mods/src/luau.cpp → packages/mods/src/luau.wasm.
  *
  * Что делает:
  * - качает Luau тега LUAU_TAG в .cache/luau (повторный запуск не качает; другой тег — папку удалить);
  * - компилирует нужные части (Common, Ast, Bytecode, Compiler, VM — без анализатора типов и JIT) в .cache/luau-build,
  *   параллельно и только изменившееся;
  * - собирает самостоятельный wasm без JS-обвязки Emscripten: его импорты — часы, вызов хоста и print (модуль kharos),
- *   остальное заглушает src/mods/luau.ts.
+ *   остальное заглушает packages/mods/src/luau.ts.
  *
  * Ошибки Luau — исключения C++, они идут родными исключениями wasm (-fwasm-exceptions): быстрее обвязки на JS, и их
  * умеют все наши хосты — Chrome, Firefox, Safari, Bun и V8 нативной оболочки. Стек — первым в памяти и в 1 МБ:
@@ -23,8 +23,8 @@ const LUAU_TAG = '0.742'
 const ROOT = join(import.meta.dir, '..')
 const LUAU = join(ROOT, '.cache/luau')
 const BUILD = join(ROOT, '.cache/luau-build')
-const GLUE = join(ROOT, 'src/mods/luau.cpp')
-const OUT = join(ROOT, 'src/mods/luau.wasm')
+const GLUE = join(ROOT, 'packages/mods/src/luau.cpp')
+const OUT = join(ROOT, 'packages/mods/src/luau.wasm')
 const PARTS = ['Common', 'Ast', 'Bytecode', 'Compiler', 'VM']
 
 const COMPILE = ['-O2', '-std=c++17', '-fwasm-exceptions', '-DNDEBUG', ...PARTS.map((part) => `-I${join(LUAU, part, 'include')}`)]

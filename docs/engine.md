@@ -111,7 +111,7 @@ mods/, docs/, tools/, tests/ — как сейчас
 Всё это разом — `tools/smoke/all.sh` (кадры и журналы — в `.cache/smoke`).
 
 Окно оболочки запускается только по согласию (оно на экране пользователя). Что ещё держится за пути `src/`:
-обе схемы CI (в схеме сервера `grep` по `src/net/protocol.ts` и лицензия `src/mods/luau.LICENSE.txt`),
+обе схемы CI (в схеме сервера `grep` по `src/net/protocol.ts` и лицензия `packages/mods/src/luau.LICENSE.txt`),
 `tsconfig*.json`, `bunfig.toml` (`tests/setup.ts`), `native/vite.config.ts` и `native/js`, инструменты в `tools/`,
 бот в `/tmp/kharos-bot` (он не в репозитории — его пути обновляются вместе с шагом).
 
@@ -162,7 +162,7 @@ TS-ECS (`packages/ecs`) живёт и после удаления `sim-ts` — �
 | Хост | Симуляция | Скрипты логики (§8) |
 |---|---|---|
 | Браузер: воркер одиночной игры, хост P2P | wasm | Luau (wasm), TS — в том же воркере |
-| Сервер (Bun) | wasm, как Luau сейчас (`src/mods/luau.ts`) | Luau (wasm), TS — Bun; позже сервер может стать бинарником Rust |
+| Сервер (Bun) | wasm, как Luau сейчас (`packages/mods/src/luau.ts`) | Luau (wasm), TS — Bun; позже сервер может стать бинарником Rust |
 | Нативная оболочка, десктоп и Android | Rust в самом бинарнике | Luau через `mlua`, TS — V8 |
 | iOS | Rust в самом бинарнике | Luau через `mlua`; TS — JavaScriptCore без JIT, медленно |
 
@@ -223,7 +223,7 @@ ABI выводится из той же схемы, что и привязки L
             шага д: они берут `DEFAULT_RULES` из симуляции. Проход земли, шейдер и `landWindow` уедут с клиентом (е).
       - [x] г. `sim` → `packages/sim-ts` (`@kharos/sim-ts`), пока с открытыми внутренностями (`exports` по маске) —
             чтобы шаг был механическим.
-      - [ ] д. Машина Luau → `@kharos/mods`; протокол, кодек, рассылка, команды чата и файл сохранения →
+      - [ ] д. Машина Luau → `@kharos/mods` (сделано); протокол, кодек, рассылка, команды чата и файл сохранения →
             `@kharos/protocol`; `Rules` и `DEFAULT_RULES` → `@kharos/data` (симуляция их переэкспортирует), настройки
             карты → `shared`; хост, локальная игра, воркер и пределы подключений → `@kharos/host` — воркер создаёт сам
             `host`, рядом со своим файлом.

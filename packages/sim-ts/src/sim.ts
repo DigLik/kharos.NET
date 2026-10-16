@@ -186,7 +186,7 @@ export interface SimSave extends SimOptions {
   buildMemory?: BuildMemorySave
 }
 
-/** Что случилось в мире: событие для модов, см. src/mods/api.ts — поля те же, что у события в схеме. */
+/** Что случилось в мире: событие для модов, см. packages/mods/src/api.ts — поля те же, что у события в схеме. */
 export type SimEvent = { type: 'built'; entity: Entity; player: number; building: BuildingType; x: number; y: number }
 
 /**

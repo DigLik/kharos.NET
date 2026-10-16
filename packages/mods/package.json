@@ -1,0 +1,15 @@
+{
+  "name": "@kharos/mods",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    "./api": "./src/api.ts",
+    "./luau": "./src/luau.ts",
+    "./runtime": "./src/runtime.ts",
+    "./luau.wasm": "./src/luau.wasm"
+  },
+  "dependencies": {
+    "@kharos/sim-ts": "workspace:*"
+  }
+}
