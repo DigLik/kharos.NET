@@ -432,7 +432,7 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene, art
       }
     }
     // Шахта в пуске парит из открытого ствола, и чем ближе старт, тем гуще.
-    const launchTicks = Math.round(BUILDINGS.silo.warhead.launch / time.step)
+    const launchTicks = Math.round(BUILDINGS.silo.warhead!.launch / time.step)
     for (const [, silo, building, position] of world.query(Silo, Building, Position)) {
       if (silo.start < 0) continue
       const share = (clock - silo.start) / launchTicks
@@ -857,7 +857,7 @@ export function createCombatPasses(gl: WebGL2RenderingContext, scene: Scene, art
             line(glow, x, y - 0.8, x, y + 0.8, 2, LAUNCH_SITE, 0.8)
             continue
           }
-          const { radius, core } = BUILDINGS.silo.warhead.blast
+          const { radius, core } = BUILDINGS.silo.warhead!.blast
           if (!visible(x - radius, y) && !visible(x + radius, y) && !visible(x, y - radius) && !visible(x, y + radius) && !visible(x, y)) continue
           const beat = 0.5 + 0.5 * Math.cos(time * Math.PI * 2 * (left < 5 ? 3 : 1))
           ring(radius, 3, STRIKE, 0.35 + 0.4 * beat)

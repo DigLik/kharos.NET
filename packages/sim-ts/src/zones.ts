@@ -4,7 +4,7 @@ import { Building, Inventory, Owner, Position, Site } from './components'
 import type { Sim } from './sim'
 
 /** Радиус зоны строительства вокруг главного здания, в тайлах от его центра. */
-export const CONTROL_RADIUS = BUILDINGS.command.zone
+export const CONTROL_RADIUS = BUILDINGS.command.zone!
 /** На сколько тайлов от своего центра расширяет зону любое другое готовое здание. */
 export const EXPAND_RADIUS = 5
 

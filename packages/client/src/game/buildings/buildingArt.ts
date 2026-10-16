@@ -1866,7 +1866,7 @@ const silo: BuildingArt = {
  */
 const interceptor: BuildingArt = {
   ...BUILDINGS.interceptor,
-  variants: BUILDINGS.interceptor.intercept.capacity + 1,
+  variants: BUILDINGS.interceptor.intercept!.capacity + 1,
   working: true,
   draw(g, t, light, variant = 0, working = false) {
     const CONCRETE: Tones = [0x4f4c47, 0x77736b, 0x9d988e, 0xbfb9ae, 0xe0dbd1]

@@ -229,7 +229,7 @@ export function createBuildingsPass(gl: WebGL2RenderingContext, scene: Scene, ar
       const siloVariant = (entity: Entity) => {
         const start = world.get(entity, Silo)?.start ?? -1
         if (start < 0) return 0
-        const share = (simTime.tick + simTime.alpha - start) / Math.round(BUILDINGS.silo.warhead.launch / simTime.step)
+        const share = (simTime.tick + simTime.alpha - start) / Math.round(BUILDINGS.silo.warhead!.launch / simTime.step)
         const doors = Math.min(SILO_DOOR_STEPS - 1, Math.floor((share / DOORS_SHARE) * (SILO_DOOR_STEPS - 1)))
         if (share < RISE_FROM) return doors
         return SILO_DOOR_STEPS - 1 + Math.min(SILO_RISE_STEPS, Math.ceil(((share - RISE_FROM) / (1 - RISE_FROM)) * SILO_RISE_STEPS))

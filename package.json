@@ -33,6 +33,7 @@
     "@kharos/sim-ts": "*",
     "@kharos/mods": "*",
     "@kharos/data": "*",
+    "@kharos/base": "*",
     "@kharos/protocol": "*",
     "@kharos/host": "*",
     "@kharos/client": "*"

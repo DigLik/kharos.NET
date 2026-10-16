@@ -385,7 +385,7 @@ export function createCursorPass(gl: WebGL2RenderingContext, scene: Scene): Pass
         const size = ROUTE_DOT / camera.zoom
         const cx = Math.floor(aim.x) + 0.5
         const cy = Math.floor(aim.y) + 0.5
-        const { radius, core } = BUILDINGS.silo.warhead.blast
+        const { radius, core } = BUILDINGS.silo.warhead!.blast
         for (const r of [radius, core]) {
           const dots = Math.ceil((Math.PI * 2 * r) / gap)
           for (let i = 0; i < dots; i++) {

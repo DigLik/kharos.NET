@@ -192,7 +192,7 @@ export function createMinimap(scene: Scene) {
         } else {
           context.strokeStyle = FOE
           context.beginPath()
-          context.arc(x, y, Math.max(4 * k, BUILDINGS.silo.warhead.blast.radius * scale), 0, Math.PI * 2)
+          context.arc(x, y, Math.max(4 * k, BUILDINGS.silo.warhead!.blast.radius * scale), 0, Math.PI * 2)
           context.stroke()
         }
       }

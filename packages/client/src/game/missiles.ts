@@ -17,7 +17,7 @@ interface Flight {
  * не уберёт.
  */
 export function missileAt(missile: Flight, clock: number, step: number) {
-  const { speed } = BUILDINGS.silo.warhead
+  const { speed } = BUILDINGS.silo.warhead!
   const reach = Math.hypot(missile.toX - missile.fromX, missile.toY - missile.fromY) || 1
   const headingX = (missile.toX - missile.fromX) / reach
   const headingY = (missile.toY - missile.fromY) / reach

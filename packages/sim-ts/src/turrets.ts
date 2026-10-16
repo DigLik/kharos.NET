@@ -1,4 +1,5 @@
 import type { Entity, World } from '@kharos/ecs'
+import turrets from '@kharos/base/turrets.json'
 import { BUILDINGS, buildingSpec } from './buildings'
 import { NONE, turnToward, wrap } from './common'
 import { Armed, Attached, Building, Carrier, Owner, Position, Repair, Turret, Unit } from './components'
@@ -20,24 +21,12 @@ export interface TurretSpec {
   weapon?: WeaponType
   /** Строит и чинит всё своё в этом радиусе, в тайлах; см. construction.ts. */
   repair?: number
+  /** Пояснение к записи для того, кто правит данные; игре не нужно. */
+  about?: string
 }
 
-export const TURRETS = {
-  // Танковая башня: тяжёлая, поворачивается медленно, ядро вылетает с конца длинного ствола.
-  cannon: { turn: 2, radius: 0.85, weapon: 'cannon' },
-  // Разрядная башня: катушка с двумя электродами, разряд срывается с их концов.
-  arc: { turn: 3, radius: 0.7, weapon: 'arc' },
-  // Пассажир багги с миниганом: лёгкий, разворачивается быстро.
-  gunner: { turn: 8, radius: 0.45, weapon: 'machinegun' },
-  rocket: { turn: 4, radius: 0.2, weapon: 'launcher' },
-  repair: { turn: 4, radius: 0.2, repair: 5 },
-  // Лазерная турель: купол с одним излучателем, поворачивается быстро.
-  laser: { turn: 4, radius: 0.6, weapon: 'laser' },
-  // Пушка главного здания: тяжёлый купол со спаренным излучателем.
-  core: { turn: 2.5, radius: 0.9, weapon: 'coreGun' },
-  // Та же пушка на крыше MCV, ещё без оружия: заработает, когда MCV развернётся в главное здание.
-  mcv: { turn: 2.5, radius: 0.9 },
-} satisfies Record<string, TurretSpec>
+/** Виды турелей — данные мода base (packages/base/data/turrets.json). */
+export const TURRETS = turrets as Record<keyof typeof turrets, TurretSpec>
 
 export type TurretType = keyof typeof TURRETS
 export const TURRET_TYPES = Object.keys(TURRETS) as TurretType[]

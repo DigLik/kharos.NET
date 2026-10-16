@@ -5,19 +5,20 @@
     "": {
       "name": "kharos",
       "dependencies": {
-        "@kharos/client": "workspace:*",
-        "@kharos/data": "workspace:*",
-        "@kharos/ecs": "workspace:*",
-        "@kharos/host": "workspace:*",
-        "@kharos/i18n": "workspace:*",
-        "@kharos/mods": "workspace:*",
-        "@kharos/protocol": "workspace:*",
-        "@kharos/shared": "workspace:*",
-        "@kharos/sim-ts": "workspace:*",
+        "@kharos/base": "*",
+        "@kharos/client": "*",
+        "@kharos/data": "*",
+        "@kharos/ecs": "*",
+        "@kharos/host": "*",
+        "@kharos/i18n": "*",
+        "@kharos/mods": "*",
+        "@kharos/protocol": "*",
+        "@kharos/shared": "*",
+        "@kharos/sim-ts": "*",
         "acme-client": "^5.4.0",
       },
       "devDependencies": {
-        "@kharos/tsconfig": "workspace:*",
+        "@kharos/tsconfig": "*",
         "@types/bun": "^1.4.2",
         "typescript": "^7.0.2",
         "vite": "^8.3.2",
@@ -42,6 +43,10 @@
       "dependencies": {
         "@kharos/client": "workspace:*",
       },
+    },
+    "packages/base": {
+      "name": "@kharos/base",
+      "version": "0.1.0",
     },
     "packages/client": {
       "name": "@kharos/client",
@@ -101,16 +106,17 @@
       "name": "@kharos/shared",
       "version": "0.1.0",
       "dependencies": {
-        "@kharos/data": "workspace:*",
+        "@kharos/data": "*",
       },
     },
     "packages/sim-ts": {
       "name": "@kharos/sim-ts",
       "version": "0.1.0",
       "dependencies": {
-        "@kharos/data": "workspace:*",
-        "@kharos/ecs": "workspace:*",
-        "@kharos/shared": "workspace:*",
+        "@kharos/base": "*",
+        "@kharos/data": "*",
+        "@kharos/ecs": "*",
+        "@kharos/shared": "*",
       },
     },
     "packages/tsconfig": {
@@ -119,6 +125,8 @@
     },
   },
   "packages": {
+    "@kharos/base": ["@kharos/base@workspace:packages/base"],
+
     "@kharos/client": ["@kharos/client@workspace:packages/client"],
 
     "@kharos/data": ["@kharos/data@workspace:packages/data"],

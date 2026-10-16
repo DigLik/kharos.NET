@@ -1,4 +1,5 @@
 import type { Entity } from '@kharos/ecs'
+import units from '@kharos/base/units.json'
 import { Biome, Terrain, biomeAt, isCliffFoot, isPassable, terrainAt, tileKey } from '@kharos/shared/terrain'
 import { FOUNDATION_SPEED, ROAD_SPEED, isPaved } from './paved'
 import { isOwn } from './common'
@@ -67,116 +68,27 @@ export interface UnitSpec {
    * в секунду. Склад ей наполняют грузовики по заявке, хранилища её сети и станция поставки. См. supply.ts.
    */
   supplies?: { radius: number; rate: number }
+  /**
+   * Сколько места юнит занимает в лимите армии (Rules.armyLimit): пехота и рабочие — по одному, лёгкая техника — два,
+   * тяжёлая и ударная авиация — три, носитель — четыре, машина снабжения — два, как лёгкая техника: она обслуживает
+   * армию. MCV не в счёт: базу поднять заново можно всегда.
+   */
+  supply: number
+  /** Пояснение к записи для того, кто правит данные; игре не нужно. */
+  about?: string
 }
 
 /**
- * Боевые числа подобраны под боевой треугольник: у каждого юнита есть контр-юниты, ни один не бьёт всех.
- * Как это выглядит на деле — видно прогоном `bun run balance`: он считает урон в секунду и проводит бои.
+ * Виды юнитов — данные мода base (packages/base/data/units.json). Боевые числа подобраны под боевой треугольник: у
+ * каждого юнита есть контр-юниты, ни один не бьёт всех. Как это выглядит на деле — видно прогоном `bun run balance`.
  */
-export const UNITS = {
-  mcv: {
-    speed: 2.5, turn: 2.2, radius: 0.8, cost: 2000, buildTime: 30, kind: 'heavy', hp: 800, sight: 9, materials: { blocks: 20, metal: 20 },
-    // Пушка будущего главного здания едет на крыше: поворачивается, но не стреляет.
-    mounts: [{ turret: 'mcv', along: -0.19, across: 0 }],
-  },
-  // Строитель сам подвозит материалы на свою стройку, если их никто не везёт: кузов на 10 и луч, как у грузовика.
-  builder: { speed: 4, turn: 5, radius: 0.45, cost: 120, buildTime: 5, kind: 'vehicle', hp: 100, repair: 5, sight: 6, inventory: 10, beam: { radius: 2, rate: 10, give: true, take: true } },
-  infantry: { speed: 3, turn: 10, radius: 0.3, cost: 60, buildTime: 3, kind: 'infantry', hp: 50, weapon: 'rifle', ammo: 10 },
-  // Грузовик возит добытое из шахты в хранилище и заказанное по зонам: см. hauling.ts. Своим лучом он и забирает груз,
-  // и сгружает его: зданиям лучи не нужны.
-  // Харвестер — шахта на колёсах: копает медленнее шахты, зато сам и где угодно, и сам возит руду на
-  // переработку. Тяжелее грузовика: его ловят в поле, и он должен пережить первый налёт.
-  truck: { speed: 3.5, turn: 4, radius: 0.45, cost: 150, buildTime: 8, kind: 'vehicle', hp: 150, sight: 6, inventory: 25, hauls: true, beam: { radius: 2, rate: 10, give: true, take: true } },
-  // Пехота.
-  // Огнемётчик: штурмовик ближнего боя — выжигает пехоту в окопах и здания, к броне ему не подойти.
-  flamer: { speed: 3.4, turn: 10, radius: 0.3, cost: 140, buildTime: 5, kind: 'infantry', hp: 90, weapon: 'flame', research: 'flamer', ammo: 20 },
-  rocketeer: { speed: 2.6, turn: 10, radius: 0.3, cost: 120, buildTime: 5, kind: 'infantry', hp: 40, weapon: 'launcher', research: 'rockets', ammo: 20 },
-  // Машинки: быстрые и хрупкие.
-  // Багги: за водителем сидит пассажир с миниганом и стреляет во все стороны. Она же разведчик: видит дальше всех на земле.
-  buggy: {
-    speed: 6, turn: 5, radius: 0.45, cost: 250, buildTime: 7, kind: 'vehicle', hp: 150, materials: { metal: 6 }, sight: 11, ammo: 30,
-    mounts: [{ turret: 'gunner', along: -0.16, across: 0 }],
-  },
-  // Зенитка: быстрая машина со спаренной автопушкой, бьёт только по воздуху — далеко и сильно.
-  flak: { speed: 5, turn: 4.5, radius: 0.5, cost: 350, buildTime: 8, kind: 'vehicle', hp: 170, weapon: 'flak', materials: { metal: 8 }, sight: 10, ammo: 40 },
-  // Лазеру нужен кремний.
-  lancer: { speed: 4.5, turn: 4.5, radius: 0.45, cost: 350, buildTime: 9, kind: 'vehicle', hp: 180, weapon: 'laser', materials: { metal: 8, silicon: 4 }, research: 'lasers' },
-  // Тяжёлые: медленные, крепкие и дорогие.
-  // Весь второй тир собирают с компонентами: в них харит, и без его месторождения и цеха верхней техники нет.
-  // Танк бьёт ядрами из башни: она поворачивается сама, и стрелять можно на ходу. Кремний его прицела — в компонентах.
-  tank: {
-    speed: 2.2, turn: 2.5, radius: 0.7, cost: 600, buildTime: 14, kind: 'heavy', hp: 450, materials: { metal: 20, parts: 2 }, research: 'armor', ammo: 60,
-    mounts: [{ turret: 'cannon', along: -0.06, across: 0 }],
-  },
-  // Артиллерия: гаубица на колёсном лафете. Бьёт дальше турелей, но видит меньше, чем стреляет, — ей нужен
-  // разведчик; хрупкая и с мёртвой зоной вблизи, без прикрытия её съедают машинки. Второй тир.
-  artillery: {
-    speed: 2.4, turn: 2.2, radius: 0.6, cost: 800, buildTime: 16, kind: 'vehicle', hp: 200, weapon: 'artillery', sight: 8, ammo: 80,
-    materials: { metal: 16, blocks: 4, parts: 2 }, research: 'siege',
-  },
-  // Разрядник: тяжёлое шасси с разрядной башней. Катушку собирают из компонентов: в них харит, и без цеха её не сделать.
-  tesla: {
-    speed: 2, turn: 2.5, radius: 0.7, cost: 700, buildTime: 16, kind: 'heavy', hp: 500, materials: { metal: 15, silicon: 6, parts: 3 }, research: 'arcs',
-    mounts: [{ turret: 'arc', along: 0, across: 0 }],
-  },
-  // Носитель: колёсное шасси танка без своего оружия — на нём три ракетные турели и ремонтная. Ремонтной нужен компонент.
-  carrier: {
-    speed: 3, turn: 2.5, radius: 0.8, cost: 1200, buildTime: 20, kind: 'vehicle', hp: 700, materials: { metal: 25, silicon: 8, parts: 1 }, research: 'siege', ammo: 120,
-    mounts: [
-      { turret: 'rocket', along: 0.36, across: -0.27 },
-      { turret: 'rocket', along: 0.36, across: 0.27 },
-      { turret: 'rocket', along: -0.28, across: -0.27 },
-      { turret: 'repair', along: -0.28, across: 0.27 },
-    ],
-  },
-  // Машина снабжения: хвост армии. Медленная и крупная, с пулемётчиком против разведки; раздаёт патроны своим вокруг,
-  // а сама берёт их у грузовиков в поле, из хранилищ сети и быстрее всего — на станции поставки. Отсеки под топливо
-  // и аккумуляторы добавятся в accepts, когда их начнут тратить.
-  supplier: {
-    speed: 2, turn: 2.2, radius: 0.75, cost: 450, buildTime: 12, kind: 'vehicle', hp: 400, materials: { metal: 12, blocks: 4 }, sight: 7, ammo: 30,
-    inventory: 150, accepts: ['ammo'], supplies: { radius: 6, rate: 10 }, requires: ['supplyDepot'],
-    mounts: [{ turret: 'gunner', along: 0.3, across: 0 }],
-  },
-  // Летающие: им нужно топливо.
-  // Летающий грузовик: везёт меньше обычного, зато вдвое быстрее и напрямик — над болотами и горами. Его сбивает ПВО.
-  airTruck: { speed: 7, turn: 5, radius: 0.45, cost: 300, buildTime: 10, kind: 'air', hp: 100, sight: 8, inventory: 10, hauls: true, beam: { radius: 2, rate: 10, give: true, take: true }, materials: { fuel: 4 } },
-  drone: { speed: 7.5, turn: 6, radius: 0.35, cost: 220, buildTime: 6, kind: 'air', hp: 70, weapon: 'machinegun', materials: { silicon: 3, fuel: 4 }, ammo: 20 },
-  gunship: { speed: 5, turn: 3, radius: 0.55, cost: 500, buildTime: 12, kind: 'air', hp: 200, weapon: 'launcher', materials: { metal: 12, silicon: 4, fuel: 8 }, research: 'gunship', ammo: 50 },
-  // Бомбардировщик: сносит здания и колонны с воздуха, но сам по воздуху не бьёт и хрупок — его встречают ракеты,
-  // турели и зенитки. Второй тир.
-  bomber: {
-    speed: 5.5, turn: 2.5, radius: 0.7, cost: 700, buildTime: 14, kind: 'air', hp: 180, weapon: 'bomb', sight: 7, ammo: 70,
-    materials: { metal: 10, fuel: 12, parts: 2 }, research: 'bombing',
-  },
-} satisfies Record<string, UnitSpec>
+export const UNITS = units as Record<keyof typeof units, UnitSpec>
 
 export type UnitType = keyof typeof UNITS
 export const UNIT_TYPES = Object.keys(UNITS) as UnitType[]
 
-/**
- * Сколько места юнит занимает в лимите армии (Rules.armyLimit): пехота и рабочие — по одному, лёгкая техника — два,
- * тяжёлая и ударная авиация — три, носитель — четыре, машина снабжения — два, как лёгкая техника: она обслуживает армию. MCV не в счёт: базу поднять заново можно всегда.
- */
-export const SUPPLY: Record<UnitType, number> = {
-  mcv: 0,
-  builder: 1,
-  infantry: 1,
-  truck: 1,
-  flamer: 1,
-  rocketeer: 1,
-  buggy: 2,
-  flak: 2,
-  lancer: 2,
-  tank: 3,
-  artillery: 3,
-  tesla: 3,
-  carrier: 4,
-  supplier: 2,
-  airTruck: 2,
-  drone: 2,
-  gunship: 3,
-  bomber: 3,
-}
+/** Сколько места юнит занимает в лимите армии (Rules.armyLimit), см. UnitSpec.supply. */
+export const SUPPLY = Object.fromEntries(UNIT_TYPES.map((type) => [type, UNITS[type].supply])) as Record<UnitType, number>
 /** Описание вида юнита со всеми необязательными полями. */
 export const unitSpec = (type: UnitType): UnitSpec => UNITS[type]
 

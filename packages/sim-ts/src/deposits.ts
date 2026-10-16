@@ -1,7 +1,7 @@
 import type { Entity, World } from '@kharos/ecs'
+import deposits from '@kharos/base/deposits.json'
 import { Biome, biomeAt, hash, isBuildable, isCliffFoot, terrainAt, tileKey } from '@kharos/shared/terrain'
 import { Deposit, Position } from './components'
-import type { Resource } from './resources'
 import type { Sim } from './sim'
 
 /** Сторона клетки в тайлах: в каждой клетке мира не больше одного месторождения. */
@@ -15,39 +15,30 @@ export const DEPOSIT_SIZE = 2
 const DEPOSIT_CHANCE = 0.95
 
 /**
- * Виды месторождений: запас (от min до max) и сколько в секунду из него добывает шахта.
- * Одна шахта с одним грузовиком должна приносить заметный доход, поэтому копают быстро.
- * Запас конечный (§4.3 шаг 4): металла хватает на 20–40 минут работы шахты, поэтому за новыми месторождениями
- * приходится идти на чужую землю, а не сидеть на одном. Харит редок и дорог: запас мал, добыча медленная.
+ * Виды месторождений — данные мода base (packages/base/data/deposits.json): запас (от min до max), сколько в секунду
+ * из него добывает шахта и доли вида в каждом биоме (biomes).
  */
-export const DEPOSIT_KINDS = {
-  metal: { min: 1200, max: 2500, rate: 1 },
-  silicon: { min: 1200, max: 2500, rate: 1 },
-  fuel: { min: 800, max: 1600, rate: 0.8 },
-  kharite: { min: 200, max: 400, rate: 0.3 },
-  lithium: { min: 400, max: 800, rate: 0.5 },
-  uranium: { min: 300, max: 600, rate: 0.3 },
-} satisfies Partial<Record<Resource, { min: number; max: number; rate: number }>>
+export const DEPOSIT_KINDS = deposits as Record<keyof typeof deposits, DepositSpec>
+
+export interface DepositSpec {
+  min: number
+  max: number
+  rate: number
+  /** Доля этого вида среди месторождений биома, по имени биома из Biome (с маленькой буквы). */
+  biomes: Record<BiomeName, number>
+  about?: string
+}
 
 export type DepositKind = keyof typeof DEPOSIT_KINDS
 export const DEPOSIT_TYPES = Object.keys(DEPOSIT_KINDS) as DepositKind[]
 
-/**
- * Что чаще лежит в каком биоме: доли видов месторождений. У каждого биома свой приз (2026-10-12): харит — в эрге,
- * как пряность Dune в открытых песках; литий — на солончаках, как в соляных озёрах; уран — в рыжих пустошах; топливо —
- * в топях. Старт случайный, и обязательное есть везде: металл, кремний и топливо — в каждом биоме, харит вне эрга —
- * по 8%, вчетверо реже, чем в нём. Меньше нельзя: на 4% харита нет в 150 тайлах у каждой десятой точки, и база вдали
- * от эрга не открыла бы второй тир ничем, кроме закупки (вопрос 14 §6). Эрг — самый частый биом (треть карты), и
- * харита на карте столько же, сколько было при ровных долях. Литий и уран необязательны: вне своих биомов их по 2%.
- * Их доля отнята у обязательных видов, поэтому месторождений на карте больше (GeneratorConfig.depositChance).
- * Металл — частый вид везде: техника, стройблоки и патроны просят его втрое больше, чем кремния.
- */
-const BIOME_KINDS: Record<Biome, Record<DepositKind, number>> = {
-  [Biome.Erg]: { metal: 0.3, silicon: 0.18, fuel: 0.14, kharite: 0.34, lithium: 0.02, uranium: 0.02 },
-  [Biome.SaltFlats]: { metal: 0.32, silicon: 0.3, fuel: 0.14, kharite: 0.08, lithium: 0.14, uranium: 0.02 },
-  [Biome.RedWastes]: { metal: 0.4, silicon: 0.18, fuel: 0.14, kharite: 0.08, lithium: 0.02, uranium: 0.18 },
-  [Biome.Marsh]: { metal: 0.32, silicon: 0.18, fuel: 0.38, kharite: 0.08, lithium: 0.02, uranium: 0.02 },
-}
+type BiomeName = 'erg' | 'saltFlats' | 'redWastes' | 'marsh'
+const BIOME_NAMES: Record<Biome, BiomeName> = { [Biome.Erg]: 'erg', [Biome.SaltFlats]: 'saltFlats', [Biome.RedWastes]: 'redWastes', [Biome.Marsh]: 'marsh' }
+
+/** Что чаще лежит в каком биоме: доли видов месторождений, см. DepositSpec.biomes. */
+const BIOME_KINDS = Object.fromEntries(
+  Object.entries(BIOME_NAMES).map(([biome, name]) => [biome, Object.fromEntries(DEPOSIT_TYPES.map((kind) => [kind, DEPOSIT_KINDS[kind].biomes[name]]))]),
+) as unknown as Record<Biome, Record<DepositKind, number>>
 
 /** Вид месторождения по биому и случайному числу от 0 до 1. */
 function kindIn(biome: Biome, pick: number): DepositKind {

@@ -13,6 +13,7 @@
   "dependencies": {
     "@kharos/ecs": "*",
     "@kharos/shared": "*",
-    "@kharos/data": "*"
+    "@kharos/data": "*",
+    "@kharos/base": "*"
   }
 }

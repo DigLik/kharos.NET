@@ -10,6 +10,9 @@ import type { Sim } from './sim'
 import { inBounds } from './units'
 import { networkHas, returnToNetwork, takeFromNetwork } from './upgrades'
 
+/** Боеголовка ракетной шахты: у шахты она есть всегда. */
+const WARHEAD = BUILDINGS.silo.warhead!
+
 /**
  * Ядерный удар (§9 п. 4 design.md). Ракетная шахта собирает боеголовку, как техцентр тему: цена — кредиты и готовое
  * из сети труб шахты — списывается сразу, сборка идёт при полной энергии BuildingSpec.warhead.seconds секунд,
@@ -48,7 +51,7 @@ export const CRUISE = 2.5
 export const CLIMB = 3
 
 /** На какой высоте ракета, которая летит age секунд и которой осталось left тайлов до точки удара. */
-export const missileLift = (age: number, left: number) => CRUISE * Math.max(0, Math.min(1, age / CLIMB, left / (BUILDINGS.silo.warhead.speed * CLIMB)))
+export const missileLift = (age: number, left: number) => CRUISE * Math.max(0, Math.min(1, age / CLIMB, left / (WARHEAD.speed * CLIMB)))
 
 /** Боеголовка шахты этого вида; у других зданий — undefined. */
 const warheadOf = (sim: Sim, silo: Entity) => {
@@ -178,7 +181,7 @@ const flightLeft = (sim: Sim, missile: { x: number; y: number; toX: number; toY:
  */
 function meetTicks(sim: Sim, missile: { x: number; y: number; toX: number; toY: number }, x: number, y: number, speed: number) {
   const { step } = sim.time
-  const flight = BUILDINGS.silo.warhead.speed * step
+  const flight = WARHEAD.speed * step
   const reach = Math.hypot(missile.toX - missile.x, missile.toY - missile.y)
   const last = Math.ceil(reach / flight) - 1
   for (let k = 1; k < last; k++) {
@@ -230,7 +233,7 @@ function intercept(sim: Sim, power: () => ReadonlyMap<Entity, number>) {
     missile.hunted = time.tick + k
     if (k === 0) continue
     const reach = Math.hypot(missile.toX - missile.x, missile.toY - missile.y) || 1
-    const ahead = Math.min(reach, BUILDINGS.silo.warhead.speed * time.step * k)
+    const ahead = Math.min(reach, WARHEAD.speed * time.step * k)
     world.spawn(
       Chaser({
         fromX: best.x,
@@ -272,7 +275,7 @@ export function launchMissiles(sim: Sim) {
   }
   intercept(sim, power)
   // Ракета несёт боеголовку шахты: вид шахты один.
-  const { speed, blast } = BUILDINGS.silo.warhead
+  const { speed, blast } = WARHEAD
   const arrived: Entity[] = []
   const downed: Entity[] = []
   /** Игроки, чьё сейчас под ударом ракеты, кроме её хозяина: он точку удара знает и так. */

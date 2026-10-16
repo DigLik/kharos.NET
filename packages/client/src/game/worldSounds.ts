@@ -150,7 +150,7 @@ export function createWorldSounds(scene: Scene, audio: Audio) {
       if (tick < 0 || Math.abs(time.tick - tick) > JUMP) settled = clock + SETTLE
       const fresh = clock < settled
       tick = time.tick
-      const launchTicks = Math.round(BUILDINGS.silo.warhead.launch / time.step)
+      const launchTicks = Math.round(BUILDINGS.silo.warhead!.launch / time.step)
       const own = (entity: Entity) => world.get(entity, Owner)?.player === player
 
       // Шахты: створки, пар, двигатель, старт; своя боеголовка готова.

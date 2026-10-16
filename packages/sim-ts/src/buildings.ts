@@ -1,9 +1,10 @@
 import type { Entity, World } from '@kharos/ecs'
+import buildings from '@kharos/base/buildings.json'
 import { Terrain, isBuildable, isCliffFoot, terrainAt, tileKey } from '@kharos/shared/terrain'
 import { isOwn } from './common'
 import { Accumulator, Assembly, Building, Gate, Health, Interceptor, Inventory, Reactor, Repair, Owner, Position, Producer, Shield, Silo, Site, Wanted } from './components'
 import { equipStorage, type BeamSpec } from './inventory'
-import { ORE_SPECS, PRODUCT_SPECS, WARES, stockedFor, type Amounts, type Good, type Ore, type Product } from './resources'
+import type { Amounts, Good, Ore, Product } from './resources'
 import type { Sim } from './sim'
 import { mountTurrets, type MountSpec } from './turrets'
 import { isPaved, isRoadway } from './paved'
@@ -147,6 +148,22 @@ export interface BuildingSpec {
    * тайлов от его центра, когда та входит в этот круг; ракета-перехватчик летит speed тайлов в секунду. См. silos.ts.
    */
   intercept?: { radius: number; cost: number; materials: Amounts; seconds: number; speed: number; capacity: number }
+  /**
+   * Дерево технологий: здание появляется в списке строителя, когда у игрока стоят готовыми все здания из этого списка.
+   * Снесли нужное — новое такое не заложить, пока его не восстановят; построенное остаётся. Главное здание строители
+   * не ставят: его привозит MCV. Покрытия доступны всегда. Строки (BuildingType); имена сверяет тест.
+   */
+  requires?: readonly string[]
+  /**
+   * Исследование (Topic), которое открывает здание вдобавок к requires: без него строители его не ставят. Переработку
+   * открывает исследование её руды, цех — его изделия, армию — свои темы; шахту, космопорт и накопитель — открытия.
+   * Трубы и колодцы строители в меню не берут, их тянут: темы проверяет протяжка, см. pipeStroke.
+   */
+  research?: string
+  /** Место в меню строителя: без поля строители это здание не возводят. См. BUILDABLE. */
+  menu?: number
+  /** Пояснение к записи для того, кто правит данные; игре не нужно. */
+  about?: string
 }
 
 /** На сколько тайлов от своего центра расширяет зону готовая труба или колодец. */
@@ -157,170 +174,17 @@ export const UNDERGROUND_REACH = 10
 /** Сколько ресурсов помещается в производящем юнитов здании: материалы на очередной заказ. */
 const PRODUCER_HOLD = 100
 
-/**
- * Склад переработки поделён на два места: под руду и под готовое, по REFINERY_HOLD каждое. Общий склад вёл себя
- * непредсказуемо — накопленное готовое отнимало место у руды, и привёзший руду не мог разгрузиться. Руды помещается
- * полный кузов грузовика.
- */
-const REFINERY_HOLD = 30
-/** Сколько готового изделия держит цех, пока его не развезут: своё место, сырью оно не мешает. */
-const PLANT_OUTPUT = 30
-
-/**
- * Сколько боеприпасов держит оборонительная турель: 35–45 секунд непрерывного огня (см. WeaponSpec.ammo).
- * Хватает отбить налёт, но долгую осаду турель держит, только пока к ней подвозят патроны.
- */
-const TURRET_AMMO = 120
-const TURRET_STORE = { inventory: TURRET_AMMO, accepts: ['ammo'] as const, ammo: true }
-
-/**
- * Переработка одной руды: принимает только её и складывает её ресурс. Размер, цена и энергия — по руде:
- * металл нужен больше всего, и плавильня дешёвая, но громоздкая; харит редок и дорог, и обогатитель компактный,
- * но дорогой и прожорливый.
- */
-function refinery(ore: Ore, width: number, height: number, cost: number, power: number) {
-  return {
-    width, height, cost, power, inventory: REFINERY_HOLD * 2, refines: ore,
-    accepts: [ore, ORE_SPECS[ore].resource], limits: { [ore]: REFINERY_HOLD, [ORE_SPECS[ore].resource]: REFINERY_HOLD },
-  } as const satisfies BuildingSpec
-}
-
-/** Завод одного изделия: принимает сырьё его рецепта и складывает готовое — у каждого груза своё место. */
-function plant(product: Product) {
-  const limits: Amounts = { ...stockedFor(product), [product]: PLANT_OUTPUT }
-  return {
-    width: 2, height: 2, cost: 300, power: -3, inventory: Object.values(limits).reduce((sum, amount) => sum + amount!, 0), assembles: product,
-    accepts: [...Object.keys(PRODUCT_SPECS[product].recipe), product] as Good[], limits,
-  } as const satisfies BuildingSpec
-}
-
-/**
- * Хранилище одного груза: принимает только его. Склада «всего» нет — под каждый ресурс и каждое изделие
- * своё здание со своим размером и ценой: металла нужно больше всего, и двор под него просторный и дешёвый;
- * харит редок и дорог, его сейф маленький и дорогой.
- */
-function store(accepts: readonly Good[], width: number, height: number, cost: number, inventory: number) {
-  return { width, height, cost, inventory, accepts, stores: true } as const satisfies BuildingSpec
-}
-
 /** Сколько кредитов цены здания один строитель возводит за секунду: здание за 300 строится 15 секунд. */
 export const BUILD_RATE = 20
 
 /** Доля обычной прочности у оборонительной постройки на песке. */
 export const SAND_DURABILITY = 0.7
 
-export const BUILDINGS = {
-  // Доход главного здания не даёт остаться без кредитов совсем: на генератор он копит долго, но копит.
-  // Своего склада у главного здания нет: всё готовое лежит в хранилищах своего вида.
-  // Пушка на крыше держит всю зону главного здания: одиночкам и разведке к нему не подойти. Строители возводят его
-  // только в своей зоне и из тех же материалов, что MCV: новое место занимают MCV, а отстроенная база восстанавливает ядро.
-  command: { width: 3, height: 3, cost: 2000, materials: { blocks: 20, metal: 20 }, income: 0.2, zone: 12, sight: 12, produces: ['builder', 'truck'], mounts: [{ turret: 'core', along: 0, across: -1.125 }] },
-  // Переработка — по зданию на руду: каждое принимает только свою руду и выдаёт её ресурс, один передел
-  // (§4.3 шаг 5). Приём 1,5 руды/с — примерно полторы шахты металла: где поставить завод между шахтами
-  // и хранилищем, решает игрок. Руду держит про запас на кузов, готовое отдаёт по общим заявкам.
-  smelter: refinery('metalOre', 3, 3, 300, -3),
-  siliconWorks: refinery('siliconOre', 3, 2, 400, -4),
-  distillery: refinery('fuelOre', 2, 3, 400, -5),
-  enricher: refinery('khariteOre', 2, 2, 650, -7),
-  // Выпарка лития из рассола солончаков и урановая фабрика: второй слой, база работает и без них.
-  evaporator: refinery('lithiumOre', 3, 2, 500, -5),
-  uraniumMill: refinery('uraniumOre', 2, 2, 800, -8),
-  // Заводы изделий: каждый собирает своё изделие из ресурсов (§3.7 design.md). Склад общий на сырьё и готовое.
-  blockPlant: plant('blocks'),
-  ammoPlant: plant('ammo'),
-  partsPlant: plant('parts'),
-  rodPlant: plant('rods'),
-  // Машинный завод: машинки и тяжёлая техника. Строится из стройблоков: военная промышленность требует цеха.
-  factory: { width: 3, height: 3, cost: 450, power: -5, materials: { blocks: 10 }, produces: ['buggy', 'flak', 'lancer', 'supplier', 'tank', 'artillery', 'tesla', 'carrier', 'mcv'] },
-  // Лаборатория ведёт исследования: они открывают переработку, цеха, армию и уровни зданий. Нужна с самого начала —
-  // до плавильни, — поэтому дешёвая и без материалов; несколько лабораторий исследуют одну тему вместе, быстрее.
-  // Склад — под сырьё нынешней темы: его подвозят грузовики и трубы, см. requestsOf в logistics.ts.
-  lab: { width: 2, height: 2, cost: 300, power: -3, researches: true, inventory: 40 },
-  // Ремонтная станция чинит технику и здания вокруг себя — так же и за ту же цену, что строитель, и тоже не под
-  // огнём: это пункт обслуживания в тылу. Пехота рядом поправляется быстрее. Без энергии не работает.
-  repairStation: { width: 3, height: 3, cost: 500, power: -3, materials: { blocks: 8 }, repair: 5.5 },
-  // Станция поставки: здесь машины снабжения грузятся вчетверо быстрее, чем у хранилищ сети. Без неё машину снабжения
-  // не заказать.
-  supplyDepot: { width: 3, height: 2, cost: 350, materials: { blocks: 6 }, inventory: 300, accepts: ['ammo'], depot: true, beam: { radius: 3, rate: 40, give: true } },
-  // Аэродром выпускает летающих: им нужно топливо, бомбардировщику ещё и техцентр.
-  airfield: { width: 4, height: 3, cost: 500, power: -4, materials: { metal: 15, blocks: 5 }, produces: ['airTruck', 'drone', 'gunship', 'bomber'], rearms: true },
-  // Электростанция.
-  generator: { width: 2, height: 2, cost: 300, power: 10 },
-  // Накопитель держит минуту работы электростанции: база переживает снесённую станцию или перегруз, пока его хватает.
-  // Строится из лития: это его работа.
-  accumulator: { width: 2, height: 2, cost: 400, materials: { lithium: 20 }, battery: { capacity: 600, rate: 10 } },
-  // Реактор даёт шесть электростанций на 9 тайлах вместо 24 и жжёт стержень в минуту — около 90 кредитов сырья.
-  // Разрушенный с топливом взрывается: его ставят за стеной и в стороне.
-  reactor: {
-    width: 3, height: 3, cost: 2500, power: 60, materials: { blocks: 10, parts: 10 }, inventory: 4, accepts: ['rods'],
-    burns: { good: 'rods', seconds: 60 }, meltdown: { radius: 4, damage: 600 },
-  },
-  // Ракетная шахта: ядерный удар в любую точку карты (§9 п. 4 design.md). Боеголовка — 20 стержней: удар стоит урана
-  // на двадцать минут реактора. Ракета чуть быстрее дрона: от пуска до удара через всю карту около двух минут.
-  // Разрушенная с боеголовкой рвётся, как реактор, — без ядерного взрыва.
-  silo: {
-    width: 3, height: 3, cost: 3000, power: -10, materials: { blocks: 20, parts: 10 }, meltdown: { radius: 4, damage: 600 },
-    warhead: { cost: 2000, materials: { rods: 20, parts: 10 }, seconds: 180, launch: 30, speed: 8, blast: { radius: 12, core: 6, damage: 3000 } },
-  },
-  // Перехватчик: защита от ядерного удара. Без урана — его с орбиты не купить, и защита из урана оставила бы
-  // беззащитным каждого, кто сел не в рыжих пустошах. Дешевле удара (2100 против 5000 с лишним), но строится заранее.
-  // Держит четыре ракеты: залп из нескольких шахт один перехватчик тоже встречает.
-  interceptor: {
-    width: 2, height: 2, cost: 1500, power: -4, materials: { parts: 8 },
-    intercept: { radius: 80, cost: 600, materials: { parts: 4, fuel: 10 }, seconds: 60, speed: 30, capacity: 4 },
-  },
-  // Генератор материи — базовый доход: превращает энергию в кредиты. Первая электростанция окупает его быстро,
-  // дальше теснота делает каждый следующий всё дороже. Он страховка на случай, когда линий добычи нет (§4.3 шаг 3):
-  // одной электростанции хватает на два генератора.
-  matter: { width: 2, height: 2, cost: 250, power: -3, income: 1.5, crowding: true },
-  // Радар открывает туман далеко вокруг: так видно, кто идёт к базе, и куда бить артиллерией.
-  radar: { width: 2, height: 2, cost: 400, power: -3, sight: 14, scan: 60 },
-  windtrap: { width: 2, height: 2, cost: 300 },
-  barracks: { width: 3, height: 2, cost: 250, power: -2, produces: ['infantry', 'rocketeer', 'flamer'] },
-  // Шахта энергии не просит и начинает свою зону: тянуть к месторождению цепочку зданий не нужно.
-  // Добытое копится в шахте, пока его не выкачают грузовики.
-  mine: { width: 2, height: 2, cost: 300, zone: 7, extract: true, inventory: 60 },
-  // Хранилища: по одному на каждый ресурс и каждое изделие. Стройблоки громоздкие; боеприпасов делают много,
-  // и бункер под них вместительный; компоненты дорогие и мелкие.
-  metalYard: store(['metal'], 3, 2, 150, 400),
-  siliconStore: store(['silicon'], 2, 2, 150, 300),
-  fuelTank: store(['fuel'], 2, 2, 200, 300),
-  khariteVault: store(['kharite'], 1, 1, 250, 60),
-  lithiumStore: store(['lithium'], 2, 1, 200, 120),
-  uraniumCask: store(['uranium'], 1, 1, 300, 60),
-  blockYard: store(['blocks'], 2, 2, 150, 200),
-  ammoBunker: store(['ammo'], 2, 1, 200, 300),
-  partsLocker: store(['parts'], 1, 1, 200, 60),
-  rodRack: store(['rods'], 1, 1, 300, 40),
-  // Станция запроса: держит заказанный игроком груз там, где он нужен, — у дальней стройки, у турелей, у армии.
-  requestStation: { width: 2, height: 2, cost: 250, materials: { blocks: 4 }, inventory: 100, requester: true },
-  // Космопорт торгует: энергию просит всегда.
-  // Товар на продажу грузовики сгружают в трюм корабля. Строится из металла, а не из стройблоков: с него
-  // начинаются деньги, и первой продаже хватает одной линии металла — без цеха и кремния.
-  spaceport: { width: 3, height: 3, cost: 450, power: -5, materials: { metal: 20 }, trades: true, inventory: 400, accepts: WARES },
-  // Дешёвая стена не расширяет зону: иначе цепочкой стен можно было бы бесплатно протянуть контроль через карту.
-  wall: { width: 1, height: 1, cost: 30, hp: 400, defense: true, expand: 0, isolated: true },
-  gate: { width: 1, height: 1, cost: 90, hp: 400, defense: true, expand: 0, isolated: true, gate: true },
-  // Трубы связывают здания в сеть: по ним идут груз и энергия. Наземная дешёвая и хрупкая и перекрывает проезд,
-  // как стена; колодцы ведут подземный отрезок, под которым ездят и строят, а уязвимы только сами колодцы.
-  pipe: { width: 1, height: 1, cost: 5, hp: 60, expand: PIPE_REACH, sight: 1, pipe: 'surface' },
-  well: { width: 1, height: 1, cost: 40, hp: 250, expand: PIPE_REACH, sight: 1, pipe: 'well' },
-  // Узел связи подключает здания вокруг без труб: дороже трубы, просит энергию и уязвим — снесли узел, распалась сеть.
-  // Оборонительные турели используют то же оружие, что техника, и стреляют боеприпасами со своего склада.
-  // На песке все оборонительные постройки слабее.
-  turret: { width: 1, height: 1, cost: 250, hp: 450, defense: true, ...TURRET_STORE, mounts: [{ turret: 'gunner', along: 0, across: 0 }] },
-  rocketTurret: { width: 1, height: 1, cost: 300, hp: 400, defense: true, ...TURRET_STORE, mounts: [{ turret: 'rocket', along: 0, across: 0 }] },
-  // Лазерная турель — противотанковая: бьёт мгновенно и лучше всего по тяжёлой броне. Патронов не просит, а питается
-  // от энергии зоны: грузовики ей не нужны, но электростанция — нужна.
-  laserTurret: { width: 1, height: 1, cost: 400, hp: 450, defense: true, power: -2, mounts: [{ turret: 'laser', along: 0, across: 0 }] },
-  // Разрядная турель — против толпы: разряд бьёт цель и перескакивает на соседей, достаёт и до летающих, но недалеко.
-  // Как и лазерная, патронов не просит и стреляет энергией зоны, только берёт её больше.
-  arcTurret: { width: 1, height: 1, cost: 500, hp: 450, defense: true, power: -3, mounts: [{ turret: 'arc', along: 0, across: 0 }] },
-  // Генератор щита гасит урон по своим под куполом от стрелков снаружи: против артиллерии и бомбардировщиков,
-  // а не против штурма вплотную. Энергию берёт всегда; строится из компонентов.
-  shieldGenerator: { width: 2, height: 2, cost: 1200, power: -6, materials: { parts: 5 }, shield: { radius: 7, capacity: 4000, regen: 100 } },
-  cannonTurret: { width: 1, height: 1, cost: 450, hp: 500, defense: true, ...TURRET_STORE, mounts: [{ turret: 'cannon', along: 0, across: 0 }] },
-} satisfies Record<string, BuildingSpec>
+/**
+ * Виды зданий — данные мода base (packages/base/data/buildings.json). Там же у каждого вида дерево технологий
+ * (requires), открывающее его исследование (research) и место в меню строителя (menu).
+ */
+export const BUILDINGS = buildings as Record<keyof typeof buildings, BuildingSpec>
 
 export type BuildingType = keyof typeof BUILDINGS
 /** Описание вида здания со всеми необязательными полями. */
@@ -328,12 +192,8 @@ export const buildingSpec = (type: BuildingType): BuildingSpec => BUILDINGS[type
 /** Главное здание — Settlement Core: в него разворачивается MCV. */
 export const CORE: BuildingType = 'command'
 export const BUILDING_TYPES = Object.keys(BUILDINGS) as BuildingType[]
-/** Что возводят строители. Остальные здания появятся вместе с тем, для чего они нужны. */
-export const BUILDABLE: BuildingType[] = [
-  'generator', 'matter', 'mine', 'smelter', 'siliconWorks', 'distillery', 'enricher', 'evaporator', 'uraniumMill', 'blockPlant', 'ammoPlant', 'partsPlant', 'rodPlant',
-  'metalYard', 'siliconStore', 'fuelTank', 'khariteVault', 'lithiumStore', 'uraniumCask', 'blockYard', 'ammoBunker', 'partsLocker', 'rodRack', 'requestStation', 'accumulator', 'reactor', 'silo', 'spaceport', 'barracks', 'factory', 'airfield', 'lab',
-  'repairStation', 'supplyDepot', 'radar', 'wall', 'gate', 'turret', 'rocketTurret', 'cannonTurret', 'laserTurret', 'arcTurret', 'shieldGenerator', 'interceptor',
-]
+/** Что возводят строители, в порядке меню (BuildingSpec.menu). Остальные здания появятся вместе с тем, для чего они нужны. */
+export const BUILDABLE: BuildingType[] = BUILDING_TYPES.filter((type) => BUILDINGS[type].menu !== undefined).sort((a, b) => BUILDINGS[a].menu! - BUILDINGS[b].menu!)
 
 /** Выше этого уровня здания не улучшают. */
 export const MAX_LEVEL = 3
@@ -408,97 +268,15 @@ export const isSwitchable = (type: BuildingType) => (buildingSpec(type).power ??
 /** Труба ли это или колодец. */
 export const isPipe = (type: BuildingType) => !!buildingSpec(type).pipe
 
-/**
- * Дерево технологий: здание появляется в списке строителя, когда у игрока стоят готовыми все здания из его списка.
- * Снесли нужное — новое такое не заложить, пока его не восстановят; построенное остаётся. Главное здание
- * строители не ставят: его привозит MCV. Покрытия доступны всегда.
- */
-export const REQUIRES: Partial<Record<BuildingType, readonly BuildingType[]>> = {
-  generator: ['command'],
-  wall: ['command'],
-  gate: ['command'],
-  turret: ['radar'],
-  matter: ['generator'],
-  mine: ['generator'],
-  radar: ['generator'],
-  spaceport: ['generator'],
-  lab: ['generator'],
-  // Переработку открывает электростанция, а не шахта: так решили, когда руду возили и харвестеры (2026-10-07).
-  smelter: ['generator'],
-  siliconWorks: ['generator'],
-  distillery: ['generator'],
-  enricher: ['generator'],
-  evaporator: ['generator'],
-  uraniumMill: ['generator'],
-  accumulator: ['generator'],
-  metalYard: ['smelter'],
-  siliconStore: ['siliconWorks'],
-  fuelTank: ['distillery'],
-  khariteVault: ['enricher'],
-  lithiumStore: ['evaporator'],
-  uraniumCask: ['uraniumMill'],
-  blockPlant: ['smelter'],
-  ammoPlant: ['smelter'],
-  partsPlant: ['siliconWorks'],
-  rodPlant: ['uraniumMill'],
-  blockYard: ['blockPlant'],
-  ammoBunker: ['ammoPlant'],
-  partsLocker: ['partsPlant'],
-  rodRack: ['rodPlant'],
-  requestStation: ['blockPlant'],
-  barracks: ['radar'],
-  factory: ['radar'],
-  airfield: ['radar'],
-  rocketTurret: ['radar'],
-  cannonTurret: ['radar'],
-  repairStation: ['factory'],
-  supplyDepot: ['factory'],
-  laserTurret: ['radar'],
-  arcTurret: ['radar'],
-  reactor: ['uraniumMill'],
-  silo: ['rodPlant'],
-  // Перехватчик своей темы не просит: защита не должна ждать дерева. Радар нужен — им он видит ракету.
-  interceptor: ['radar'],
-}
+/** Дерево технологий по видам зданий: см. BuildingSpec.requires. */
+export const REQUIRES = Object.fromEntries(BUILDING_TYPES.flatMap((type) => (BUILDINGS[type].requires ? [[type, BUILDINGS[type].requires]] : []))) as Partial<
+  Record<BuildingType, readonly BuildingType[]>
+>
 
-/**
- * Какое исследование открывает здание вдобавок к REQUIRES: без него строители его не ставят. Переработку открывает
- * исследование её руды, цех — его изделия, армию — свои темы; шахту, космопорт и накопитель — открытия. Трубы и
- * колодцы строители в меню не берут, их тянут: темы проверяет протяжка, см. pipeStroke.
- */
-export const RESEARCH_FOR: Partial<Record<BuildingType, Topic>> = {
-  mine: 'prospecting',
-  spaceport: 'trade',
-  wall: 'walls',
-  gate: 'gates',
-  radar: 'radar',
-  pipe: 'pipes',
-  well: 'wells',
-  accumulator: 'accumulators',
-  smelter: 'metalOre',
-  siliconWorks: 'siliconOre',
-  distillery: 'fuelOre',
-  enricher: 'khariteOre',
-  evaporator: 'lithiumOre',
-  uraniumMill: 'uraniumOre',
-  blockPlant: 'blocks',
-  ammoPlant: 'ammo',
-  partsPlant: 'parts',
-  rodPlant: 'rods',
-  barracks: 'infantry',
-  turret: 'ammo',
-  rocketTurret: 'rockets',
-  factory: 'vehicles',
-  airfield: 'aviation',
-  repairStation: 'repair',
-  supplyDepot: 'vehicles',
-  laserTurret: 'lasers',
-  arcTurret: 'arcs',
-  cannonTurret: 'armor',
-  shieldGenerator: 'shields',
-  reactor: 'atom',
-  silo: 'warheads',
-}
+/** Какое исследование открывает здание: см. BuildingSpec.research. */
+export const RESEARCH_FOR = Object.fromEntries(BUILDING_TYPES.flatMap((type) => (BUILDINGS[type].research ? [[type, BUILDINGS[type].research]] : []))) as Partial<
+  Record<BuildingType, Topic>
+>
 
 /** Каких готовых зданий из списка у игрока нет. */
 export function missingBuildings(sim: Sim, player: number, needs: readonly BuildingType[] | undefined): BuildingType[] {

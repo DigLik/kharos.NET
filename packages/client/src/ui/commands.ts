@@ -803,7 +803,7 @@ export function commandsOf(
       about: t('grid.launchAbout'),
       active: silo.aiming,
       disabled: stage !== 'ready' && stage !== 'launching',
-      title: stage === 'launching' ? t('grid.launchRetarget') : stage === 'ready' ? t('grid.launchTip', { seconds: BUILDINGS.silo.warhead.launch }) : t('grid.launchNoWarhead'),
+      title: stage === 'launching' ? t('grid.launchRetarget') : stage === 'ready' ? t('grid.launchTip', { seconds: BUILDINGS.silo.warhead!.launch }) : t('grid.launchNoWarhead'),
       run: () => aim(silo.aiming ? null : entity),
     }
     if (stage === 'assembling') slots[CANCEL] = { label: t('grid.cancel'), title: t('grid.cancelWarheadTip'), run: () => send({ type: 'cancelWarhead', silo: entity }) }

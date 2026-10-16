@@ -1,3 +1,7 @@
+import resources from '@kharos/base/resources.json'
+import ores from '@kharos/base/ores.json'
+import products from '@kharos/base/products.json'
+
 /**
  * Что симуляция знает о грузе. Как он называется и выглядит, знает клиент: см. ui/names.ts.
  * Груз лежит на складах (Inventory) и возится грузовиками; см. inventory.ts и logistics.ts.
@@ -17,38 +21,21 @@ export interface ResourceSpec {
    * ссылаются на грузы; имя сверяет тест.
    */
   research?: string
+  /** Пояснение к записи для того, кто правит данные; игре не нужно. */
+  about?: string
 }
 
 /**
- * Готовые ресурсы: их продают через космопорт, из них строят здание и делают технику. Продажа — основной источник
- * кредитов, поэтому сырьё стоит дорого. Цены подняты вдвое (§4.3 шаг 1): линия добычи приносит вдвое больше,
- * а доля материалов в цене техники становится заметной.
+ * Готовые ресурсы — данные мода base (packages/base/data/resources.json): их продают через космопорт, из них строят
+ * здание и делают технику.
  */
-export const RESOURCE_SPECS = {
-  metal: { price: 10 },
-  silicon: { price: 10 },
-  fuel: { price: 12 },
-  // Харит редок и дорог: месторождения его малы, а добыча медленная.
-  kharite: { price: 60 },
-  // Литий и уран — второй слой, а не обязательный набор: база без них работает. Литий идёт на накопители энергии.
-  // Литий с орбиты продают только тому, кто изучил его выпарку.
-  lithium: { price: 30, research: 'lithiumOre' },
-  // Уран закупить нельзя: иначе реактор и ядерный заряд покупались бы за кредиты (§9 п. 4 design.md).
-  uranium: { price: 40, mined: true },
-} satisfies Record<string, ResourceSpec>
+export const RESOURCE_SPECS = resources as Record<keyof typeof resources, ResourceSpec>
 
 export type Resource = keyof typeof RESOURCE_SPECS
 export const RESOURCES = Object.keys(RESOURCE_SPECS) as Resource[]
 
-/** Виды руды и то, что из них выходит на переработке. */
-export const ORE_SPECS = {
-  metalOre: { resource: 'metal' },
-  siliconOre: { resource: 'silicon' },
-  fuelOre: { resource: 'fuel' },
-  khariteOre: { resource: 'kharite' },
-  lithiumOre: { resource: 'lithium' },
-  uraniumOre: { resource: 'uranium' },
-} satisfies Record<string, { resource: Resource }>
+/** Виды руды и то, что из них выходит на переработке: packages/base/data/ores.json. */
+export const ORE_SPECS = ores as Record<keyof typeof ores, { resource: Resource; about?: string }>
 
 export type Ore = keyof typeof ORE_SPECS
 export const ORES = Object.keys(ORE_SPECS) as Ore[]
@@ -66,19 +53,15 @@ export const ORE_OF = Object.fromEntries(ORES.map((ore) => [ORE_SPECS[ore].resou
 export interface ProductSpec {
   recipe: Partial<Record<Resource, number>>
   yield: number
+  /** Пояснение к записи для того, кто правит данные; игре не нужно. */
+  about?: string
 }
 
 /**
- * Изделия сборочного цеха — по одному на каждую петлю игры (§3.7 design.md): стройблоки — стройке, боеприпасы —
- * турелям, компоненты — верхнему тиру, стержни — реактору. Их не продают: космопорт торгует только ресурсами.
+ * Изделия сборочного цеха — данные мода base (packages/base/data/products.json), по одному на каждую петлю игры (§3.7
+ * design.md). Их не продают: космопорт торгует только ресурсами.
  */
-export const PRODUCT_SPECS = {
-  blocks: { recipe: { metal: 2, silicon: 1 }, yield: 1 },
-  ammo: { recipe: { metal: 1 }, yield: 10 },
-  parts: { recipe: { silicon: 2, kharite: 1 }, yield: 1 },
-  // Топливные стержни — реактору и боеголовке (§9 п. 4 design.md): второй слой, как и сам уран.
-  rods: { recipe: { uranium: 2, metal: 1 }, yield: 1 },
-} satisfies Record<string, ProductSpec>
+export const PRODUCT_SPECS = products as Record<keyof typeof products, ProductSpec>
 
 export type Product = keyof typeof PRODUCT_SPECS
 export const PRODUCTS = Object.keys(PRODUCT_SPECS) as Product[]

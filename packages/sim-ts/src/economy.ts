@@ -1,3 +1,4 @@
+import rewards from '@kharos/base/rewards.json'
 import type { Entity } from '@kharos/ecs'
 import { Player } from './components'
 import type { Sim } from './sim'
@@ -27,21 +28,11 @@ export function addCredits(sim: Sim, player: number, amount: number) {
 }
 
 /**
- * Награды: кредиты за то, что игрок сделал впервые. Каждая выдаётся игроку один раз за всю игру,
- * поэтому повторять действие ради денег бессмысленно. Ключи зданий совпадают с их видами.
+ * Награды — данные мода base (packages/base/data/rewards.json): кредиты за то, что игрок сделал впервые. Каждая
+ * выдаётся игроку один раз за всю игру, поэтому повторять действие ради денег бессмысленно. Ключи зданий совпадают с
+ * их видами.
  */
-export const REWARDS = {
-  /** Развернул MCV в главное здание. */
-  deploy: 250,
-  /** Произвёл первый юнит. */
-  unit: 50,
-  generator: 150,
-  matter: 200,
-  mine: 200,
-  metalYard: 50,
-  /** Первая продажа на космопорте: корабль улетел с товаром. */
-  sale: 100,
-} satisfies Record<string, number>
+export const REWARDS = Object.fromEntries(Object.entries(rewards).map(([key, { credits }]) => [key, credits])) as Record<keyof typeof rewards, number>
 
 export type Reward = keyof typeof REWARDS
 
