@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p . && tsc -p tsconfig.replica.json"
+  },
   "exports": {
     "./*": "./src/*.ts",
     "./style.css": "./src/style.css"

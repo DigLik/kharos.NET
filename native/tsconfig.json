@@ -1,4 +1,6 @@
 {
-  "extends": "../tsconfig.json",
-  "include": ["js"]
+  "extends": "../packages/tsconfig/dom.json",
+  "include": [
+    "js"
+  ]
 }

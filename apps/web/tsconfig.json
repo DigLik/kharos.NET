@@ -1,0 +1,6 @@
+{
+  "extends": "../../packages/tsconfig/dom.json",
+  "include": [
+    "main.ts"
+  ]
+}

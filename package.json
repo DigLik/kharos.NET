@@ -11,7 +11,8 @@
   "scripts": {
     "dev": "vite apps/web",
     "server": "bun apps/server/main.ts",
-    "build": "tsc && tsc -p tsconfig.sim.json && tsc -p tsconfig.server.json && vite build apps/web",
+    "typecheck": "bun run --filter '*' typecheck",
+    "build": "bun run typecheck && vite build apps/web",
     "bundle:native": "tsc -p native/tsconfig.json && vite build --config native/vite.config.ts",
     "preview": "vite preview apps/web",
     "test": "bun test",
@@ -21,7 +22,8 @@
   "devDependencies": {
     "@types/bun": "^1.4.2",
     "typescript": "^7.0.2",
-    "vite": "^8.3.2"
+    "vite": "^8.3.2",
+    "@kharos/tsconfig": "workspace:*"
   },
   "dependencies": {
     "acme-client": "^5.4.0",

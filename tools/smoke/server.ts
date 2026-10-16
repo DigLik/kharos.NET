@@ -9,6 +9,7 @@
 import { spawn } from 'node:child_process'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import type { Entity } from '@kharos/ecs'
 import { Owner, Position, Unit } from '@kharos/sim-ts/components'
 import { decodeServer, PROTOCOL_VERSION } from '@kharos/protocol'
 import { createReplica, type Replica } from '@kharos/client/net/replica'
@@ -68,7 +69,7 @@ const sim = replica!
 // Мир приходит снимком через несколько тиков после входа.
 await sleep(4000)
 
-const mine: number[] = []
+const mine: Entity[] = []
 for (const [entity, owner] of sim.world.query(Owner, Unit)) if (owner.player === player) mine.push(entity)
 if (!mine.length) fail(`своих юнитов нет, сущностей в мире ${sim.world.size}`)
 const unit = mine.find((entity) => sim.world.get(entity, Unit)!.type !== 'mcv') ?? mine[0]

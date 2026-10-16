@@ -17,6 +17,7 @@
         "acme-client": "^5.4.0",
       },
       "devDependencies": {
+        "@kharos/tsconfig": "workspace:*",
         "@types/bun": "^1.4.2",
         "typescript": "^7.0.2",
         "vite": "^8.3.2",
@@ -112,6 +113,10 @@
         "@kharos/shared": "workspace:*",
       },
     },
+    "packages/tsconfig": {
+      "name": "@kharos/tsconfig",
+      "version": "0.1.0",
+    },
   },
   "packages": {
     "@kharos/client": ["@kharos/client@workspace:packages/client"],
@@ -133,6 +138,8 @@
     "@kharos/shared": ["@kharos/shared@workspace:packages/shared"],
 
     "@kharos/sim-ts": ["@kharos/sim-ts@workspace:packages/sim-ts"],
+
+    "@kharos/tsconfig": ["@kharos/tsconfig@workspace:packages/tsconfig"],
 
     "@kharos/web": ["@kharos/web@workspace:apps/web"],
 

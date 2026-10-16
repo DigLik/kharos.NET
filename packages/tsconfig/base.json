@@ -1,10 +1,12 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": "Общее для всех пакетов. Окружения здесь нет (только ES2022): так собирается то, что обязано работать везде — симуляция, ECS, данные. Страница и сервер добавляют своё в dom.json и bun.json.",
   "compilerOptions": {
     "target": "ES2022",
     "useDefineForClassFields": true,
     "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"],
+    "lib": ["ES2022"],
+    "types": [],
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
@@ -17,6 +19,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
-  },
-  "include": ["packages/*/src", "apps/web/main.ts"]
+  }
 }

@@ -83,6 +83,10 @@ mods/, docs/, tools/, tests/ — как сейчас
 - `protocol` (протокол, кодек, рассылка, файл сохранения) пока держится за типы и структуры `sim-ts`; когда они
   станут данными и схемой, он сольётся с `shared`.
 - Файлы переезжают `git mv`, история сохраняется.
+- У каждого пакета и приложения свой `tsconfig.json`; общие настройки — в `packages/tsconfig`: `base` (без
+  окружения — так собираются `ecs`, `data`, `shared`, `sim-ts`), `dom` (страница и воркеры), `bun` (сервер; он же
+  проверяет без DOM всё, что сервер тянет, в том числе `host.ts`). Реплика клиента дополнительно проверяется без DOM
+  (`packages/client/tsconfig.replica.json`). `bun run typecheck` — во всех пакетах сразу.
 
 ### Правила в интерфейсе
 
@@ -112,7 +116,7 @@ mods/, docs/, tools/, tests/ — как сейчас
 
 Окно оболочки запускается только по согласию (оно на экране пользователя). Что ещё держится за пути `src/`:
 обе схемы CI (в схеме сервера `grep` по `packages/protocol/src/protocol.ts` и лицензия `packages/mods/src/luau.LICENSE.txt`),
-`tsconfig*.json`, `bunfig.toml` (`tests/setup.ts`), `native/vite.config.ts` и `native/js`, инструменты в `tools/`,
+`bunfig.toml` (`tests/setup.ts`), `native/vite.config.ts` и `native/js`, инструменты в `tools/`,
 бот в `/tmp/kharos-bot` (он не в репозитории — его пути обновляются вместе с шагом).
 
 ## 4. Три слоя
