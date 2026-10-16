@@ -91,8 +91,9 @@ TS-компонентов. Тесты, которые зовут TS-функци
 - [x] Г1. `sim-ts`: системы тика — именованным списком (`SimSystem`), `createSim(source, { systems })` подменяет их;
       `@kharos/ecs`: журнал операций мира (`World.journal`, `touch` пишет значение целиком) и его повтор
       (`World.replay`). Поведение то же.
-- [ ] Г2. Cargo workspace в корне, `native/` → `apps/native` (`docs/engine.md`, 9.2а); крейты `engine` (хранилище,
-      повторяющее TS-мир) и `sim-wasm`.
+- [x] Г2. Cargo workspace в корне, `native/` → `apps/native` (`docs/engine.md`, 9.2а); крейты `engine` (хранилище,
+      повторяющее TS-мир: номера, плотные массивы, удаление перестановкой, обход от меньшего, журнал) и `sim-wasm`
+      (плоские функции: `sim_new`, `sim_apply`, `sim_journal`, `sim_snapshot`). Сборка wasm — `bun run build:wasm`.
 - [ ] Г3. `packages/sim-rust`: `RustSim` — зеркало мира, загрузка и сохранение, смешанный прогон с нулём систем в Rust;
       `KHAROS_SIM=rust bun test` — 596 из 596.
 - [ ] Г4. Переключатель в хосте и сверка снимков.

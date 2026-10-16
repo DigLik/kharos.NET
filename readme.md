@@ -49,11 +49,11 @@ bun run stress         # нагрузка: время тика в бою дву�
 tools/smoke/all.sh     # всё разом: тесты, сборки как в CI, игра в headless Chrome (нужен Chrome), сервер с модом
 ```
 
-Нативная оболочка (окно на Rust вместо браузера) собирается отдельно, см. [native/README.md](native/README.md):
+Нативная оболочка (окно на Rust вместо браузера) собирается отдельно, см. [apps/native/README.md](apps/native/README.md):
 
 ```bash
 bun run bundle:native  # сборка игры для окна
-cd native && cargo run
+cargo run -p kharos-native
 ```
 
 ### Устройство репозитория

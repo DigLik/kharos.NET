@@ -1,5 +1,5 @@
 //! Текст холста: `fillText` и `measureText`. Шрифты — те же, что у страницы (`tools/fonts.py`): Ark Pixel и GNU Unifont,
-//! только целиком и с диска (`native/fonts`).
+//! только целиком и с диска (`apps/native/fonts`).
 //!
 //! Семейства — те, что знает CSS страницы (`packages/client/src/fonts.css`), и с тем же увеличением: у «Kharos Unifont 12» кегль 12
 //! даёт настоящие 16 точек Unifont — так он остаётся пиксельным рядом с Ark Pixel 12. Запасной шрифт выбирается по

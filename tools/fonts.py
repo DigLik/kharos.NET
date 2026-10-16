@@ -6,11 +6,11 @@
 - режет шрифты для страницы на куски woff2 по диапазонам Юникода (apps/web/public/fonts) и пишет к ним packages/client/src/fonts.css с
   `unicode-range`: браузер качает только куски, чьи буквы встретились, — латиница с кириллицей это 26 КБ, а иероглифы
   и Unifont приходят, лишь когда они понадобились;
-- кладёт полные OTF для нативной оболочки (native/fonts): её холст пишет текст сам (`fontdue`), с диска.
+- кладёт полные OTF для нативной оболочки (apps/native/fonts): её холст пишет текст сам (`fontdue`), с диска.
 
 Unifont рисует глифы в 16 точек — ровно высота строки Ark Pixel 12 (13 сверху, 3 снизу). Чтобы он оставался
 пиксельным в стеке шрифтов с Ark Pixel 12px, его семейства увеличены через `size-adjust`: у «Kharos Unifont 12» кегль
-12 даёт настоящие 16. Нативная оболочка знает те же семейства с тем же увеличением (см. native/src/canvas/text.rs).
+12 даёт настоящие 16. Нативная оболочка знает те же семейства с тем же увеличением (см. apps/native/src/canvas/text.rs).
 
 Запуск: python3 tools/fonts.py (нужен fontTools с brotli: pip install fonttools brotli).
 """
@@ -28,7 +28,7 @@ from fontTools.ttLib import TTFont
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / '.cache' / 'fonts'
 PUBLIC = ROOT / 'apps' / 'web' / 'public' / 'fonts'
-NATIVE = ROOT / 'native' / 'fonts'
+NATIVE = ROOT / 'apps' / 'native' / 'fonts'
 CSS = ROOT / 'packages' / 'client' / 'src' / 'fonts.css'
 
 ARK = '2026.09.25'
@@ -158,7 +158,7 @@ def main() -> None:
     NATIVE.mkdir(parents=True, exist_ok=True)
     for source, name in ((ark12, 'ark-pixel-12px.otf'), (ark10, 'ark-pixel-10px.otf'), (unifont, 'unifont.otf')):
         shutil.copy(source, NATIVE / name)
-    print(f'записано: {CSS.relative_to(ROOT)}, apps/web/public/fonts, native/fonts')
+    print(f'записано: {CSS.relative_to(ROOT)}, apps/web/public/fonts, apps/native/fonts')
 
 
 if __name__ == '__main__':

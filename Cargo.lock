@@ -1533,6 +1533,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "kharos-engine"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "kharos-native"
 version = "0.1.0"
 dependencies = [
@@ -1553,6 +1560,14 @@ dependencies = [
  "tokio",
  "web-audio-api",
  "winit",
+]
+
+[[package]]
+name = "kharos-sim-wasm"
+version = "0.1.0"
+dependencies = [
+ "kharos-engine",
+ "serde_json",
 ]
 
 [[package]]

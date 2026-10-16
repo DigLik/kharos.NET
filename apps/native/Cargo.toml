@@ -26,13 +26,3 @@ winit = "0.30"
 objc2 = "0.5.2"
 objc2-app-kit = { version = "0.2.2", features = ["NSApplication", "NSImage", "NSResponder"] }
 objc2-foundation = { version = "0.2.2", features = ["NSData"] }
-
-[profile.dev]
-opt-level = 1
-
-# Прод-сборка окна: символов у рантайма примерно четверть веса, и нужны они только отладчику — у стрипнутого
-# бинарника они сняты. Кода в одной части ещё плотнее (одна единица на крейт), но это редкая сборка, её зовут не к
-# каждой правке, а к выпуску.
-[profile.release]
-strip = "symbols"
-codegen-units = 1

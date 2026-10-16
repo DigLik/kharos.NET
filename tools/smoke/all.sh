@@ -16,7 +16,9 @@ rm -rf $OUT/out
 out=$(bun build apps/server/main.ts --target=bun --minify --outdir $OUT/out --entry-naming kharos-server-bun.js --asset-naming '[name].[ext]' 2>&1) && [ -f $OUT/out/luau.wasm ] && ok server-bundle || bad server-bundle "$out"
 out=$(bun build apps/server/main.ts --compile --minify --outfile $OUT/out/kharos-server 2>&1) && ok server-binary || bad server-binary "$out"
 out=$(bun run bundle:native 2>&1) && ok native-bundle || bad native-bundle "$out"
-out=$(cd native && cargo check 2>&1) && ok cargo-check || bad cargo-check "$out"
+out=$(cargo check -p kharos-native 2>&1) && ok cargo-check || bad cargo-check "$out"
+out=$(cargo test -p kharos-engine 2>&1) && ok cargo-test || bad cargo-test "$out"
+out=$(bun run build:wasm 2>&1) && ok sim-wasm || bad sim-wasm "$out"
 
 pkill -f "vite apps/web --port 5199"; pkill -f "vite preview apps/web --port 5200"; sleep 0.5
 (npx vite apps/web --port 5199 --strictPort > $OUT/vite.log 2>&1 &)

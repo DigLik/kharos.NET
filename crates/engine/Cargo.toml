@@ -1,0 +1,10 @@
+[package]
+name = "kharos-engine"
+version = "0.1.0"
+edition = "2021"
+license = "MPL-2.0"
+description = "Движок симуляции Kharos: хранилище мира, журнал, позже — сетки, пути, ход и обзор (docs/engine.md)"
+
+[dependencies]
+# preserve_order: поля компонентов идут в том порядке, в каком их записал TS, — хост сравнивает JSON компонентов текстом.
+serde_json = { version = "1", features = ["preserve_order"] }

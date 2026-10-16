@@ -4,7 +4,7 @@
 
 use winit::window::Icon;
 
-const PNG: &[u8] = include_bytes!("../../apps/web/public/favicon.png");
+const PNG: &[u8] = include_bytes!("../../web/public/favicon.png");
 
 /// Значок для окна: пиксели без умножения на альфу, как их ждёт winit. Не разобрался — окно идёт со значком системы.
 pub fn window_icon() -> Option<Icon> {

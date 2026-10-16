@@ -46,7 +46,7 @@ Vite выносит отдельными файлами рядом (`js/chunk-go
 
 ```bash
 bun run bundle:native   # из корня игры: проверка типов и сборка игры для окна
-cd native
+cd apps/native
 cargo run               # первая сборка долгая: скачивается готовый V8 (движок рантайма, ≈40 МБ) и Skia
 ```
 
@@ -73,15 +73,15 @@ V8: он линкуется статически (готовая библиот�
 нет: её вшивает в бинарник сборка Rust, и правку обёртки видно только после `cargo build`.
 
 Собирать V8 из исходников не нужно: скачивается готовая сборка (≈40 МБ, распакованная — 147 МБ) в
-`target/debug/gn_out/obj`. Если загрузка прервётся, сборка упадёт на `could not find native static library
+`target/debug/gn_out/obj` — в общем каталоге сборки Cargo workspace, в корне репозитория. Если загрузка прервётся, сборка упадёт на `could not find native static library
 rusty_v8`: контрольную сумму `build.rs` пишет до распаковки, и повторный запуск считает, что всё уже готово.
 Лечится вручную — распаковать оставшийся архив:
 
 ```bash
-gzip -dc target/debug/gn_out/obj/librusty_v8.tmp > target/debug/gn_out/obj/librusty_v8.a
+gzip -dc target/debug/gn_out/obj/librusty_v8.tmp > target/debug/gn_out/obj/librusty_v8.a  # из корня репозитория
 ```
 
-Формат кода Rust задаёт `rustfmt.toml` в этом каталоге: отступ в два пробела и основа Google — как у остального
+Формат кода Rust задаёт `rustfmt.toml` в корне репозитория (общий для всех крейтов): отступ в два пробела и основа Google — как у остального
 проекта задано в clang-format (`BasedOnStyle: Google, IndentWidth: 2, ColumnLimit: 0`), и переносов строк по длине нет:
 цепочки вызовов и литералы остаются одной строкой. Правки после себя прогоняют `cargo fmt`, он же и проверяет готовое
 (`cargo fmt --check`). Опции в файле стабильные: и `cargo fmt`, и rustfmt из редактора (rust-analyzer) пишут одинаково.
@@ -118,7 +118,7 @@ gzip -dc target/debug/gn_out/obj/librusty_v8.tmp > target/debug/gn_out/obj/libru
 Идут ли кадры ровно, видно замером — `KHAROS_PROFILE=1` (см. `src/profile.rs`): раз в секунду в журнал уходит строка.
 
 ```bash
-cd native
+cd apps/native
 KHAROS_PROFILE=1 KHAROS_MODE=sandbox cargo run
 ```
 
@@ -167,7 +167,7 @@ KHAROS_PROFILE=1 KHAROS_MODE=sandbox cargo run
 
 ```bash
 bun run bundle:native   # из корня игры
-cd native
+cd apps/native
 KHAROS_RECORD=~/shorts/clip.mp4 KHAROS_SCENE=battle KHAROS_HOUR=10 cargo run
 ```
 
@@ -225,7 +225,7 @@ KHAROS_RECORD=~/shorts/clip.mp4 KHAROS_SCENE=battle KHAROS_HOUR=10 cargo run
 мини-карта), но без самой игры. Проверка сверяет пиксели с ожидаемыми, поэтому по журналу видно, что прошло, а что нет:
 
 ```bash
-cd native
+cd apps/native
 KHAROS_SCRIPT=js/ui-smoke.js cargo run
 ```
 
@@ -248,7 +248,7 @@ KHAROS_SCRIPT=js/ui-smoke.js cargo run
 щелчки с `onended`. Слышно короткий тон и щелчки, а итог сверок — в журнале:
 
 ```bash
-cd native
+cd apps/native
 KHAROS_SCRIPT=js/audio-smoke.js cargo run
 ```
 
@@ -268,7 +268,7 @@ KHAROS_SCRIPT=js/audio-smoke.js cargo run
 целиком тот путь, которым интерфейс получает свои картинки:
 
 ```bash
-cd native
+cd apps/native
 KHAROS_SCRIPT=js/ui.bundle.js cargo run
 ```
 
@@ -300,7 +300,7 @@ KHAROS_SCRIPT=js/ui.bundle.js cargo run
 работа.
 
 ```bash
-cd native
+cd apps/native
 KHAROS_SCRIPT=js/hud.bundle.js cargo run
 ```
 

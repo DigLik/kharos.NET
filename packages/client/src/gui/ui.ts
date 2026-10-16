@@ -474,7 +474,7 @@ const writeClipboard = (text: string) => {
 
 /**
  * Интерфейс на холсте. target — холст игры: с него берутся указатель и нажатия (у оболочки они приходят туда же,
- * см. `__kharos_input` в native/js/prelude.js). Клавиши — с окна: поле ввода в фокусе забирает их себе первым.
+ * см. `__kharos_input` в apps/native/js/prelude.js). Клавиши — с окна: поле ввода в фокусе забирает их себе первым.
  */
 export function createGui(target: HTMLElement): Gui {
   const surface = document.createElement('canvas')

@@ -6,12 +6,12 @@ save.json*
 save.kharos*
 settings.json
 tls/
-native/target
-native/js/*.bundle.js
-native/js/chunk-*.js
-native/js/assets
+/target
+apps/native/js/*.bundle.js
+apps/native/js/chunk-*.js
+apps/native/js/assets
 
 .cache/
-native/fonts
+apps/native/fonts
 # Пакеты ставит Bun (bun.lock); lock-файл npm не нужен
 package-lock.json

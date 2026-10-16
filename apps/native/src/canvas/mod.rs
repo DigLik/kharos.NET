@@ -261,7 +261,7 @@ pub fn op_canvas_png(id: u32) -> String {
 
 /// Где лежат файлы страницы (`apps/web/public/` игры: значок и шрифты страницы): `KHAROS_PUBLIC`, иначе рядом с окном.
 fn public_dir() -> std::path::PathBuf {
-  std::env::var_os("KHAROS_PUBLIC").map(std::path::PathBuf::from).unwrap_or_else(|| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../apps/web/public"))
+  std::env::var_os("KHAROS_PUBLIC").map(std::path::PathBuf::from).unwrap_or_else(|| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../web/public"))
 }
 
 /// Картинка страницы (`new Image()` с `src`): PNG из `apps/web/public/` — в новый холст. Отдаёт номер холста, ширину и высоту;
