@@ -81,7 +81,7 @@ function inSight(sees: (x: number, y: number) => boolean, at: { x: number; y: nu
 }
 
 /** Здание как оно есть сейчас. */
-function snapshot(sim: Sim, entity: Entity): Remembered {
+export function snapshot(sim: Sim, entity: Entity): Remembered {
   const data: Record<string, object> = {}
   for (const component of SAVED) {
     const value = sim.world.get(entity, component)

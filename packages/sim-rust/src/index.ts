@@ -1,10 +1,14 @@
 import type { Component, Entity, JournalOp } from '@kharos/ecs'
 import { CHUNK_SIZE, chunkRevision, getChunk, tileKey, type Land } from '@kharos/shared/terrain'
+import { snapshot, updateBuildMemory, type BuildMemory, type Remembered } from '@kharos/sim-ts/buildMemory'
 import { BUILDINGS } from '@kharos/sim-ts/buildings'
 import * as components from '@kharos/sim-ts/components'
 import { Attached, Building, Owner, Position } from '@kharos/sim-ts/components'
-import type { Vision } from '@kharos/sim-ts/vision'
+import { landLayer, packTile } from '@kharos/sim-ts/landMemory'
 import { keyTile, type Paving } from '@kharos/sim-ts/paved'
+import { paveLayer } from '@kharos/sim-ts/paveMemory'
+import { createRecall, updateRecall, type Recall } from '@kharos/sim-ts/recall'
+import type { Vision } from '@kharos/sim-ts/vision'
 import { createSim, type Sim, type SimHooks, type SimOptions, type SimSave } from '@kharos/sim-ts/sim'
 
 /**
@@ -34,6 +38,10 @@ interface Exports {
   vision_players(id: number): number
   vision_forget(id: number, player: number): void
   vision_reset(id: number): void
+  memory_input(id: number, ptr: number, len: number): void
+  memory_take(id: number): number
+  build_memory_input(id: number, ptr: number, len: number): number
+  build_memory_take(id: number): number
   sim_free(id: number): void
   sim_apply(id: number, ptr: number, len: number): number
   sim_journal(id: number): number
@@ -236,6 +244,12 @@ function pavingMirror(paving: Paving): LayerMirror {
   }
 }
 
+/** Системы памяти слоёв (recall.ts): на Rust они идут через memory_input и memory_take. */
+const MEMORY_SYSTEMS = ['updateLandMemory', 'updatePaveMemory', 'updateBuildMemory']
+
+/** Копия знания игроков: тень памяти начинает с того же. */
+const copyKnown = ({ known }: Recall) => new Map([...known].map(([player, tiles]) => [player, new Map(tiles)]))
+
 /** Все компоненты симуляции по именам. */
 const COMPONENTS: ReadonlyMap<string, Component<any>> = new Map(
   Object.values(components)
@@ -263,6 +277,8 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
   const api = wasm.exports
   const available = systemsOf(api)
   const rust = new Map([...available].filter(([name]) => !options.rust || options.rust.includes(name)))
+  // Память слоёв сверяет с обзором Rust: без него её считает TS.
+  if (!rust.has('vision')) for (const name of MEMORY_SYSTEMS) rust.delete(name)
   const sim = (options.create ?? createSim)(source, {
     systems: (list) => list.map(([name, system]) => (rust.has(name) ? [name, () => runSystem(name)] : [name, system])),
   })
@@ -492,6 +508,7 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
 
   /** Система на Rust на своём месте в тике; обзор TS в режиме check повторяет её. */
   const runSystem = (name: string) => {
+    if (MEMORY_SYSTEMS.includes(name)) return runMemory(name)
     runRust(name, rust.get(name)!)
     if (name !== 'vision') return
     for (const player of rustPlayers()) opened.add(player)
@@ -526,6 +543,134 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
       visionChecked.set(player, counters)
     }
     for (const player of visionChecked.keys()) if (!players.includes(player)) visionChecked.delete(player)
+  }
+
+  /**
+   * Память о земле и о покрытии (recall.ts) считает Rust (docs/layers.md, С6), а в TS остаётся её зеркало: его читают
+   * хост, редактор и сохранение. TS досылает изменённые тайлы слоёв, исходные тайлы земли и то, что забыл редактор; Rust
+   * отвечает, что игроки узнали. Записи — по шесть чисел, см. memory_input и memory_take в crates/sim-wasm.
+   */
+  let memoryOps: number[] = []
+  const sendMemory = () => {
+    if (!memoryOps.length) return
+    const bytes = new Uint8Array(Float64Array.from(memoryOps).buffer)
+    memoryOps = []
+    withBytes(api, bytes, (ptr, len) => api.memory_input(id, ptr, len))
+  }
+  /** Тени памяти на TS для режима check: считаются тем же updateRecall, что и в TS-симуляции. */
+  const shadows = options.check ? [createRecall(copyKnown(sim.landMemory)), createRecall(copyKnown(sim.paveMemory))] : undefined
+  /** Повторяет в TS-памяти то, что узнали игроки в Rust; отдаёт узнанное по игрокам. */
+  const pullMemory = () => {
+    const learnedNow = new Map<number, Map<number, number>>()
+    const records = numbers(Float64Array, api.memory_take(id))
+    for (let i = 0; i < records.length; i += 6) {
+      const [layer, event, player, x, y, value] = records.subarray(i, i + 6)
+      const memory = layer === 0 ? sim.landMemory : sim.paveMemory
+      let known = memory.known.get(player)
+      if (!known) memory.known.set(player, (known = new Map()))
+      if (event === 0) continue
+      const key = tileKey(x, y)
+      if (event === 1) known.set(key, value)
+      else known.delete(key)
+      let learned = memory.learned.get(player)
+      if (!learned) memory.learned.set(player, (learned = new Set()))
+      learned.add(key)
+      let now = learnedNow.get(player)
+      if (!now) learnedNow.set(player, (now = new Map()))
+      now.set(key, event === 1 ? value : -1)
+    }
+    return learnedNow
+  }
+  /** Система памяти слоя на Rust: досылает изменённое с прошлого раза и забирает узнанное. */
+  const runMemory = (name: string) => {
+    if (name === 'updateBuildMemory') return runBuildMemory()
+    const land = name === 'updateLandMemory'
+    // Земля без правок: как в TS, сверять нечего, а изменённое копится до первой.
+    if (land && !sim.landMemory.original.size) return
+    const changed = land ? [...sim.landMemory.edited] : sim.paving.drain()
+    if (land) sim.landMemory.edited.clear()
+    else for (const key of changed) sim.paveMemory.changed.add(key)
+    for (const key of changed) memoryOps.push(0, land ? 0 : 1, 0, keyTile(key).x, keyTile(key).y, 0)
+    sendMemory()
+    runRust(name, rust.get(name)!)
+    const learned = pullMemory()
+    if (!shadows) return
+    const shadow = shadows[land ? 0 : 1]
+    updateRecall(sim, shadow, land ? landLayer(sim) : paveLayer(sim), changed)
+    checkMemory(name, land ? sim.landMemory : sim.paveMemory, shadow, learned)
+  }
+
+  /**
+   * Сверяет память Rust (её зеркало в TS) с тенью: игроков, сколько каждый знает и узнанное за этот запуск — тайлы и
+   * значения. Знание меняется только узнаванием и забыванием тайлов редактором (оно идёт в обе), так что этого
+   * хватает, чтобы они не разошлись незаметно.
+   */
+  const checkMemory = (name: string, memory: Recall, shadow: Recall, learned: Map<number, Map<number, number>>) => {
+    const fail = (what: string) => {
+      throw new Error(`Rust разошёлся с TS: ${name}, ${what}`)
+    }
+    const players = (recall: Recall) => [...recall.known.keys()].sort((a, b) => a - b).join(' ')
+    if (players(memory) !== players(shadow)) fail(`игроки ${players(memory)} против ${players(shadow)}`)
+    for (const [player, known] of memory.known) {
+      const theirs = shadow.known.get(player)!
+      if (known.size !== theirs.size) fail(`игрок ${player} знает ${known.size} тайлов против ${theirs.size}`)
+      const ours = learned.get(player) ?? new Map<number, number>()
+      const expected = shadow.learned.get(player) ?? new Set<number>()
+      if (ours.size !== expected.size) fail(`игрок ${player} узнал ${ours.size} тайлов против ${expected.size}`)
+      for (const key of expected) {
+        const { x, y } = keyTile(key)
+        const value = theirs.get(key) ?? -1
+        if (ours.get(key) !== value) fail(`игрок ${player}, тайл (${x}, ${y}): ${ours.get(key) ?? 'не узнан'} против ${value}`)
+      }
+    }
+    shadow.learned.clear()
+  }
+
+  /**
+   * Память о зданиях (buildMemory.ts): кто что запомнил и забыл, решает Rust, а снимок здания снимает TS — на том же
+   * мире этого мига, JSON тот же, что в TS-симуляции. TS досылает знание из сохранения и забытое игроками, начавшими
+   * заново (`build_memory_input`).
+   */
+  let buildOps: unknown[] = []
+  const sendBuildMemory = () => {
+    if (!buildOps.length) return
+    const code = withText(api, JSON.stringify(buildOps), (ptr, len) => api.build_memory_input(id, ptr, len))
+    buildOps = []
+    if (code !== 0) throw new Error(`sim.wasm не принял память о зданиях: ${code === 1 ? answer(api, api.out_ptr()) : 'нет симуляции'}`)
+  }
+  /** Тень памяти о зданиях на TS для режима check. */
+  const buildShadow: BuildMemory | undefined = options.check
+    ? { known: new Map([...sim.buildMemory.known].map(([player, known]) => [player, new Map(known)])), watched: new Map() }
+    : undefined
+  const runBuildMemory = () => {
+    sendBuildMemory()
+    runRust('updateBuildMemory', rust.get('updateBuildMemory')!)
+    const events = JSON.parse(answer(api, api.build_memory_take(id))) as [number, number, number][]
+    /** Снятое за запуск: игрокам, потерявшим здание из виду разом, — одна запись, как в TS. */
+    const taken = new Map<number, Remembered>()
+    const { known } = sim.buildMemory
+    for (const [player, entity, remember] of events) {
+      let theirs = known.get(player)
+      if (!remember) {
+        theirs?.delete(entity)
+        continue
+      }
+      if (!theirs) known.set(player, (theirs = new Map()))
+      let record = taken.get(entity)
+      if (!record) taken.set(entity, (record = snapshot(sim, entity as Entity)))
+      theirs.set(entity, record)
+    }
+    if (!buildShadow) return
+    updateBuildMemory(Object.create(sim, { buildMemory: { value: buildShadow } }) as Sim)
+    const fail = (what: string) => {
+      throw new Error(`Rust разошёлся с TS: updateBuildMemory, ${what}`)
+    }
+    for (const player of new Set([...known.keys(), ...buildShadow.known.keys()])) {
+      const ours = known.get(player) ?? new Map<number, Remembered>()
+      const expected = buildShadow.known.get(player) ?? new Map<number, Remembered>()
+      if (ours.size !== expected.size) fail(`игрок ${player} помнит ${[...ours.keys()].join(' ')} против ${[...expected.keys()].join(' ')}`)
+      for (const [entity, { parts }] of expected) if (ours.get(entity)?.parts !== parts) fail(`игрок ${player}, здание ${entity}: ${ours.get(entity)?.parts} против ${parts}`)
+    }
   }
 
   /** Система на Rust на своём месте в тике. */
@@ -645,6 +790,36 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
       withBytes(api, new Uint8Array(Uint32Array.from(shadow.map(player)).buffer), (ptr, len) => api.vision_explore(id, player, ptr, len))
     }
     ;(sim as { vision: Vision }).vision = vision
+  }
+  if (MEMORY_SYSTEMS.some((name) => rust.has(name))) {
+    // Память: исходные тайлы и знание игроков из сохранения, дальше — исходные тайлы по мере правок и забытое редактором.
+    const { original } = sim.landMemory
+    for (const [key, { tile }] of original) memoryOps.push(1, 0, 0, keyTile(key).x, keyTile(key).y, packTile(tile))
+    ;[sim.landMemory, sim.paveMemory].forEach(({ known }, layer) => {
+      for (const [player, tiles] of known) for (const [key, value] of tiles) memoryOps.push(3, layer, player, keyTile(key).x, keyTile(key).y, value)
+    })
+    const { set, delete: remove } = original
+    original.set = (key, value) => {
+      memoryOps.push(1, 0, 0, value.x, value.y, packTile(value.tile))
+      return set.call(original, key, value)
+    }
+    original.delete = (key) => {
+      memoryOps.push(2, 0, 0, keyTile(key).x, keyTile(key).y, 0)
+      if (shadows) for (const known of shadows[0].known.values()) known.delete(key)
+      return remove.call(original, key)
+    }
+  }
+  if (rust.has('updateBuildMemory')) {
+    for (const [player, known] of sim.buildMemory.known) for (const [entity, { x, y, type }] of known) buildOps.push(['know', player, entity, x, y, type])
+    // Игрок начинает заново (forgetBuildings) — Rust и тень забывают его тоже.
+    const { known } = sim.buildMemory
+    const remove = known.delete
+    known.delete = (player) => {
+      buildOps.push(['forget', player])
+      buildShadow?.known.delete(player)
+      buildShadow?.watched.delete(player)
+      return remove.call(known, player)
+    }
   }
   if (options.check) check()
 

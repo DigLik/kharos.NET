@@ -316,3 +316,100 @@ pub extern "C" fn vision_forget(id: u32, player: u32) {
 pub extern "C" fn vision_reset(id: u32) {
   with_sim(id, |sim| sim.vision.reset(&mut sim.layers));
 }
+
+// Память слоёв (crates/sim/src/recall.rs): 0 — земля, 1 — покрытие.
+
+fn memory(sim: &mut Sim, layer: f64) -> &mut kharos_sim::recall::Recall {
+  if layer == 0.0 {
+    &mut sim.land_memory
+  } else {
+    &mut sim.pave_memory
+  }
+}
+
+/// Досылает памяти слоёв то, что изменилось в TS: записи по шесть f64 — операция, слой, игрок, x, y, значение.
+/// Операции: 0 — тайл слоя изменился, 1 — исходный тайл земли (значение — хранимые байты одним числом), 2 — тайл
+/// земли забыт (правка редактора), 3 — знание игрока из сохранения.
+///
+/// # Safety
+/// ptr и len — буфер от `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn memory_input(id: u32, ptr: *const u8, len: usize) {
+  let values: Vec<f64> = std::slice::from_raw_parts(ptr, len).chunks_exact(8).map(|bytes| f64::from_le_bytes(bytes.try_into().unwrap())).collect();
+  with_sim(id, |sim| {
+    for record in values.chunks_exact(6) {
+      let [op, layer, player, x, y, value] = record.try_into().unwrap();
+      let (memory, tile) = (memory(sim, layer), (x as i32, y as i32));
+      match op as i32 {
+        0 => memory.change(tile),
+        1 => {
+          memory.original.insert(tile, value as u32);
+        }
+        2 => memory.forget(tile),
+        _ => memory.know(player as u32, tile, value as u32),
+      }
+    }
+  });
+}
+
+/// Что изменилось в памяти слоёв с прошлого вызова: записи по шесть f64 — слой, событие, игрок, x, y, значение.
+/// События: 0 — игроку заведена память, 1 — игрок узнал значение тайла, 2 — игрок узнал, что тайл как у всех.
+#[no_mangle]
+pub extern "C" fn memory_take(id: u32) -> *const u8 {
+  use kharos_sim::recall::Event;
+  let values = with_sim(id, |sim| {
+    let mut values = Vec::new();
+    for layer in [0.0, 1.0] {
+      for event in memory(sim, layer).take_events() {
+        values.extend_from_slice(&match event {
+          Event::Track { player } => [layer, 0.0, player as f64, 0.0, 0.0, 0.0],
+          Event::Learn { player, tile, value: Some(value) } => [layer, 1.0, player as f64, tile.0 as f64, tile.1 as f64, value as f64],
+          Event::Learn { player, tile, value: None } => [layer, 2.0, player as f64, tile.0 as f64, tile.1 as f64, 0.0],
+        });
+      }
+    }
+    values
+  })
+  .unwrap_or_default();
+  answer_numbers(&values, |value| value.to_le_bytes().to_vec())
+}
+
+// Память о зданиях (crates/sim/src/build_memory.rs).
+
+/// Досылает памяти о зданиях то, что изменилось в TS: JSON-массив операций — `["know", игрок, сущность, x, y, вид]`
+/// (из сохранения) и `["forget", игрок]` (игрок начинает заново). Коды — как у `sim_apply`.
+///
+/// # Safety
+/// ptr и len — буфер от `alloc` с UTF-8 внутри.
+#[no_mangle]
+pub unsafe extern "C" fn build_memory_input(id: u32, ptr: *const u8, len: usize) -> i32 {
+  use kharos_sim::build_memory::Ghost;
+  let bytes = std::slice::from_raw_parts(ptr, len);
+  code(with_sim(id, |sim| {
+    let ops: Vec<Value> = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+    for op in ops {
+      let field = |at: usize| op.get(at).and_then(Value::as_f64).unwrap_or(0.0);
+      match op.get(0).and_then(Value::as_str) {
+        Some("know") => sim.build_memory.know(field(1) as u32, field(2) as u32, Ghost { x: field(3), y: field(4), kind: op.get(5).and_then(Value::as_str).unwrap_or_default().to_string() }),
+        Some("forget") => sim.build_memory.forget_player(field(1) as u32),
+        _ => return Err(format!("память о зданиях: неизвестная операция {op}")),
+      }
+    }
+    Ok(())
+  }))
+}
+
+/// Что изменилось в памяти о зданиях с прошлого вызова: JSON `[[игрок, сущность, 1 — запомнил | 0 — забыл], …]`.
+#[no_mangle]
+pub extern "C" fn build_memory_take(id: u32) -> *const u8 {
+  use kharos_sim::build_memory::Event;
+  let events = with_sim(id, |sim| sim.build_memory.take_events()).unwrap_or_default();
+  let out: Vec<[u32; 3]> = events
+    .into_iter()
+    .map(|event| match event {
+      Event::Remember { player, entity } => [player, entity, 1],
+      Event::Forget { player, entity } => [player, entity, 0],
+    })
+    .collect();
+  STATE.with_borrow_mut(|state| answer(state, serde_json::to_vec(&out).unwrap()))
+}

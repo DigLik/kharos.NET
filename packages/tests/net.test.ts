@@ -200,6 +200,29 @@ test('чужое здание, ушедшее в туман, остаётся п
   expect(first.sim.world.alive(yard)).toBe(false)
 })
 
+test('хост забывает призрак, когда место снова на виду, а здание стоит', () => {
+  const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 256 }))
+  join(host)
+  join(host)
+  host.advance(STEP)
+  const eyes = unitsOf(host.sim as never, 1).map((entity) => host.sim.world.get(entity as never, Position)!)
+  const shift = (dx: number) => eyes.forEach((position) => (position.x += dx))
+  const { x, y } = eyes[0]
+  const yard = placeBuilding(host.sim.world, 'khariteVault', Math.floor(x) + 2, Math.floor(y), 2)
+  const settle = () => {
+    for (let i = 0; i < 8; i++) host.advance(STEP)
+  }
+  const remembers = () => host.sim.buildMemory.known.get(1)?.has(yard) ?? false
+  settle()
+  expect(remembers()).toBe(false)
+  shift(-60)
+  settle()
+  expect(remembers()).toBe(true)
+  shift(60)
+  settle()
+  expect(remembers()).toBe(false)
+})
+
 test('вернувшийся игрок видит призраками чужие здания, разведанные раньше, — и после перезапуска сервера', () => {
   const host = createHost(createSim({ generator: DEFAULT_CONFIG, size: 256 }))
   const first = join(host)

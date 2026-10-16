@@ -289,24 +289,29 @@ impl Vision {
 
   /// Ячейки стороной size, в которых игрок сейчас видит хоть один тайл, — ключами tileKey, в порядке открытия.
   pub fn seen_cells(&self, player: u32, size: i32) -> Vec<f64> {
+    self.seen(player, size).into_iter().map(|(x, y)| tile_key(x, y)).collect()
+  }
+
+  /// То же, что `seen_cells`, — номерами ячеек.
+  pub fn seen(&self, player: u32, size: i32) -> Vec<(i32, i32)> {
     let bounds = self.bounds;
-    let mut keys = Vec::new();
+    let mut cells = Vec::new();
     if !self.fog {
       for y in bounds.top.div_euclid(size)..=(bounds.bottom - 1).div_euclid(size) {
         for x in bounds.left.div_euclid(size)..=(bounds.right - 1).div_euclid(size) {
-          keys.push(tile_key(x, y));
+          cells.push((x, y));
         }
       }
-      return keys;
+      return cells;
     }
     let mut seen = HashSet::new();
     for &(x, y) in self.sights.get(&player).map_or(&[][..], |sight| &sight.lit) {
-      let key = tile_key(x.div_euclid(size), y.div_euclid(size));
-      if seen.insert(key.to_bits()) {
-        keys.push(key);
+      let cell = (x.div_euclid(size), y.div_euclid(size));
+      if seen.insert(cell) {
+        cells.push(cell);
       }
     }
-    keys
+    cells
   }
 
   /// Разведанное — длины чередующихся отрезков «не разведано», «разведано» по тайлам построчно (`map`).
@@ -364,7 +369,7 @@ impl Vision {
 }
 
 /// С кем у игрока союз (`alliesIn`): номера из Player.allies.
-fn allies_in(world: &World, player: u32) -> Vec<f64> {
+pub fn allies_in(world: &World, player: u32) -> Vec<f64> {
   for entity in world.query(&["Player"]) {
     if number(world, entity, "Player", "id") == Some(player as f64) {
       return world.get(entity, "Player").and_then(|info| info.get("allies")).and_then(|allies| allies.as_array()).map(|allies| allies.iter().filter_map(|other| other.as_f64()).collect()).unwrap_or_default();

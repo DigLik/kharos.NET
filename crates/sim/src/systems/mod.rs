@@ -1,6 +1,7 @@
 //! Системы на Rust по именам из порядка тика `sim-ts` (createSim). Каждая объявляет, какие компоненты читает и пишет:
 //! перед ней TS досылает в Rust именно их (docs/boundary.md, §4).
 
+use crate::recall::Source;
 use crate::{Sim, Time};
 
 mod turrets;
@@ -13,7 +14,7 @@ pub struct System {
 }
 
 /// Системы, которые уже на Rust.
-pub const SYSTEMS: &[System] = &[System { name: "followCarriers", reads: &["Attached", "Position", "Turret", "Unit", "Building"], run: |sim, time| turrets::follow_carriers(&mut sim.world, time) }, System { name: "restTurrets", reads: &["Turret", "Armed", "Repair"], run: |sim, time| turrets::rest_turrets(&mut sim.world, time) }, System { name: "vision", reads: &["Unit", "Owner", "Position", "Attached", "Building", "Site", "Off", "Scan", "Glare", "Player"], run: |sim, time| sim.vision.update(&sim.world, &mut sim.layers, time.tick as i64) }];
+pub const SYSTEMS: &[System] = &[System { name: "followCarriers", reads: &["Attached", "Position", "Turret", "Unit", "Building"], run: |sim, time| turrets::follow_carriers(&mut sim.world, time) }, System { name: "restTurrets", reads: &["Turret", "Armed", "Repair"], run: |sim, time| turrets::rest_turrets(&mut sim.world, time) }, System { name: "vision", reads: &["Unit", "Owner", "Position", "Attached", "Building", "Site", "Off", "Scan", "Glare", "Player"], run: |sim, time| sim.vision.update(&sim.world, &mut sim.layers, time.tick as i64) }, System { name: "updateLandMemory", reads: &[], run: |sim, time| sim.land_memory.update(&mut Source { land: &mut sim.land, layers: &sim.layers, world: &sim.world, vision: &sim.vision }, time.tick as i64) }, System { name: "updatePaveMemory", reads: &["Player"], run: |sim, time| sim.pave_memory.update(&mut Source { land: &mut sim.land, layers: &sim.layers, world: &sim.world, vision: &sim.vision }, time.tick as i64) }, System { name: "updateBuildMemory", reads: &["Owner", "Position", "Building"], run: |sim, time| sim.build_memory.update(&sim.world, &sim.vision, &sim.layers, &sim.occupancy, time.tick as i64) }];
 
 /// Что читает система; None — такой на Rust нет.
 pub fn reads(name: &str) -> Option<&'static [&'static str]> {

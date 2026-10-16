@@ -397,6 +397,17 @@ impl Land {
     chunk[index..index + 4].try_into().unwrap()
   }
 
+  /// Хранимые байты тайла — без выводимого (`tileBytes`): у не-гор третий байт и биты STEP_BIT, FOOT_BIT — нули. Так
+  /// тайл лежит в сохранении и ходит в правках.
+  pub fn stored(&mut self, x: i32, y: i32) -> [u8; 4] {
+    let [terrain, biome, peak, relief] = self.tile(x, y);
+    if terrain == MOUNTAIN {
+      [terrain, biome, peak, relief]
+    } else {
+      [terrain, biome, 0, relief & !DERIVED_BITS]
+    }
+  }
+
   /// Тип, ярус и обрывистость соседа для выводимого (`neighbor`).
   fn neighbor(&self, mut x: i32, mut y: i32, chunk: &[u8], chunk_x: i32, chunk_y: i32, peaks: &mut HashMap<(i32, i32), Vec<Peak>>) -> (u8, i32, bool) {
     let area = self.area;
