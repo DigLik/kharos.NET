@@ -1,6 +1,6 @@
 # Моды сервера
 
-Мод — папка с `init.luau`. Сервер загружает моды из `mods` в `settings.json`:
+Мод — папка с `init.luau`. Сервер загружает моды из `mods` в `settings.json`; путь — от рабочей папки сервера:
 
 ```json
 { "mods": ["mods/hello"] }
@@ -13,6 +13,6 @@
 
 API — таблица `kharos`, описание — [types/kharos.d.luau](types/kharos.d.luau). Подсказки и проверку типов в
 редакторе даёт [luau-lsp](https://github.com/JohnnyMorganz/luau-lsp): в VS Code — расширение «Luau Language
-Server», а в его настройке `luau-lsp.types.definitionFiles` — файл `mods/types/kharos.d.luau`.
+Server», а в его настройке `luau-lsp.types.definitionFiles` — файл [types/kharos.d.luau](types/kharos.d.luau).
 
-Пример — [hello/init.luau](hello/init.luau).
+Пример — [examples/hello/init.luau](examples/hello/init.luau): скопируйте папку `hello` в `mods` рядом с сервером.

@@ -4,7 +4,7 @@
  * сохранением — настоящие не трогаются.
  * bun tools/smoke/server.ts <команда сервера...>, например: bun tools/smoke/server.ts bun .cache/smoke/out/kharos-server-bun.js
  * SMOKE_MOD=<папка мода> — сервер запускается с этим модом, и в журнале ждётся строка SMOKE_MOD_LINE (по умолчанию —
- * та, что печатает mods/hello): так проверяется, что машина Luau (luau.wasm) у сборки на месте.
+ * та, что печатает packages/mods/examples/hello): так проверяется, что машина Luau (luau.wasm) у сборки на месте.
  */
 import { spawn } from 'node:child_process'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'

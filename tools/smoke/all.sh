@@ -29,8 +29,8 @@ bun tools/smoke/browser.ts "http://localhost:5200/?sandbox" $OUT/dist.png 6 4 > 
 SMOKE_NO_WORKERS=1 bun tools/smoke/browser.ts "http://localhost:5200/?sandbox" $OUT/inprocess.png 8 4 > $OUT/web.log && ok web-inprocess || bad web-inprocess "$(cat $OUT/web.log)"
 pkill -f "vite apps/web --port 5199"; pkill -f "vite preview apps/web --port 5200"
 
-# С модом mods/hello: машина Luau (luau.wasm) должна найтись и рядом с бандлом, и внутри бинарника.
-out=$(SMOKE_MOD=mods/hello bun tools/smoke/server.ts bun $OUT/out/kharos-server-bun.js 2>&1) && ok server-live-bundle || bad server-live-bundle "$out"
-out=$(SMOKE_MOD=mods/hello bun tools/smoke/server.ts $OUT/out/kharos-server 2>&1) && ok server-live-binary || bad server-live-binary "$out"
+# С модом из примера (packages/mods/examples/hello): машина Luau (luau.wasm) должна найтись и рядом с бандлом, и внутри бинарника.
+out=$(SMOKE_MOD=packages/mods/examples/hello bun tools/smoke/server.ts bun $OUT/out/kharos-server-bun.js 2>&1) && ok server-live-bundle || bad server-live-bundle "$out"
+out=$(SMOKE_MOD=packages/mods/examples/hello bun tools/smoke/server.ts $OUT/out/kharos-server 2>&1) && ok server-live-binary || bad server-live-binary "$out"
 # Из исходников, как `bun run server` при разработке.
-out=$(SMOKE_MOD=mods/hello bun tools/smoke/server.ts bun ./apps/server/main.ts 2>&1) && ok server-live-source || bad server-live-source "$out"
+out=$(SMOKE_MOD=packages/mods/examples/hello bun tools/smoke/server.ts bun ./apps/server/main.ts 2>&1) && ok server-live-source || bad server-live-source "$out"

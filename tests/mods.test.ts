@@ -143,6 +143,6 @@ test('хост раздаёт модам события мира, и мод пи
 })
 
 test('описания типов для мододелов совпадают со схемой (bun tools/modapi.ts)', () => {
-  expect(readFileSync(new URL('../mods/types/kharos.d.luau', import.meta.url), 'utf8')).toBe(luauDefinitions(MOD_API))
-  expect(readFileSync(new URL('../mods/types/kharos.d.ts', import.meta.url), 'utf8')).toBe(tsDefinitions(MOD_API))
+  expect(readFileSync(new URL('../packages/mods/types/kharos.d.luau', import.meta.url), 'utf8')).toBe(luauDefinitions(MOD_API))
+  expect(readFileSync(new URL('../packages/mods/types/kharos.d.ts', import.meta.url), 'utf8')).toBe(tsDefinitions(MOD_API))
 })

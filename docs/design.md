@@ -1422,11 +1422,11 @@ WebKitGTK на Linux медленный и это не настоящий нат
       схема. Наш контент оформляется модом `base` и грузится тем же путём.
       **[проба, 2026-10-16]** Машина есть: Luau 0.742 и привязка `packages/mods/src/luau.cpp` → `packages/mods/src/luau.wasm`
       (`bun tools/luau.ts`, нужен Emscripten; 681 КБ, gzip — 255 КБ), загрузчик без DOM `packages/mods/src/luau.ts`, схема и
-      описания типов `packages/mods/src/api.ts` → `mods/types/` (`bun tools/modapi.ts`), запуск модов с проверкой аргументов,
+      описания типов `packages/mods/src/api.ts` → `packages/mods/types/` (`bun tools/modapi.ts`), запуск модов с проверкой аргументов,
       сроками и отключением после трёх нарушений — `packages/mods/src/runtime.ts`. Машина своя у каждого мода (свой экземпляр
       wasm); срок — прерыванием Luau, после срока ошибкой кончается каждая точка, и `pcall` его не спасает; память —
       своим распределителем, после ошибки памяти — полная сборка. Симуляция кладёт события в `sim.events`, хост
-      раздаёт их модам; сервер берёт моды из `mods` в settings.json (папки с `init.luau`), пример — `mods/hello`.
+      раздаёт их модам; сервер берёт моды из `mods` в settings.json (папки с `init.luau`), пример — `packages/mods/examples/hello`.
       Проверено в Bun, в воркере Chrome и во всех трёх сборках сервера. Замер — `bun tools/modbench.ts`
       (Bun / Chrome): машина — 0,5 / 0,15 мс и 257 КБ; событие — 0,9 / 1,7 мкс; цикл Luau — в 9–10 раз медленнее JS;
       система над 10 тыс. юнитов со столбцами в `buffer` — 0,49 / 0,65 мс за проход (49 / 65 нс на юнита, вместе с
