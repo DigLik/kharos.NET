@@ -320,8 +320,9 @@ export function createHud(actions: () => HudActions, gui: Gui): Hud {
         const picture = Math.min(TILE, side - 8)
         const click = ui.button(id, { width: side, height: side, padding: 0, direction: 'stack', active: group?.selected, skin: open ? 'button-hover' : 'button', alpha: group ? undefined : open ? 0.85 : 0.5 }, () => {
           if (portrait) ui.box({ self: ['center', 'center'] }, () => ui.image(portrait, picture, picture))
-          ui.box({ self: ['start', 'start'], padding: [1, 0, 0, 2] }, () => ui.text(digit, { color: COLORS.gold, shadow: COLORS.ink }))
-          if (group) ui.box({ self: ['end', 'end'], padding: [0, 2, 1, 0] }, () => ui.text(String(group.count), { color: COLORS.bright, shadow: COLORS.ink }))
+          // Цифра и счётчик — внутри рамки в 4 пикселя, как у кнопки страницы (top: 1px; left: 2px от её края).
+          ui.box({ self: ['start', 'start'], padding: [5, 0, 0, 6] }, () => ui.text(digit, { color: COLORS.gold, shadow: COLORS.ink }))
+          if (group) ui.box({ self: ['end', 'end'], padding: [0, 6, 5, 0] }, () => ui.text(String(group.count), { color: COLORS.bright, shadow: COLORS.ink }))
         })
         ui.tip(id, group ? t('hud.groupTip', { digit }) : state.groupable ? t('hud.groupPutTip', { digit }) : t('hud.groupEmptyTip', { digit }))
         if (!click) continue

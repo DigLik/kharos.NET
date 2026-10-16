@@ -284,7 +284,7 @@ function info(ui: Ui, state: HudState, width: number, height: number, actions: B
               const unitId = `unit:${type}`
               const click = ui.button(unitId, { width: 40, height: 40, padding: 0, skin: 'well', direction: 'stack' }, () => {
                 ui.box({ self: ['center', 'center'] }, () => ui.image(unitCanvas(type, TILE), TILE, TILE))
-                if (count > 1) ui.box({ self: ['end', 'end'], padding: [0, 2] }, () => ui.text(String(count), { color: COLORS.bright, shadow: COLORS.ink }))
+                if (count > 1) ui.box({ self: ['end', 'end'], padding: [0, 5, 3, 0] }, () => ui.text(String(count), { color: COLORS.bright, shadow: COLORS.ink }))
               })
               ui.tip(unitId, t('hud.narrowTip', { name: t(`units.${type}`) }))
               if (click) actions.narrow(type, click.shift)
