@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import type { Entity } from '@kharos/ecs'
 import {
-  BUILDINGS, Beam, REWARDS, RELIEF_BELOW, DEPOSIT_CELL, DEPOSIT_KINDS, DEPOSIT_TYPES, Deposit, Hauler, Inventory, REFINE_RATE, REFINE_RATIO, RESOURCE_SPECS, SELL_SECONDS, TRUCK_CAPACITY, Trade, amountOf, canBuild, deliveredTo, gapBetween, canSell, isWalkable, stockOf, canPlace, createSim, creditsOf, depositAt, depositIn, depositNear, reserveLeft, rewardsOf,
+  BUILDINGS, Beam, REWARDS, RELIEF_BELOW, DEPOSIT_CELL, DEPOSIT_KINDS, Deposit, Hauler, Inventory, REFINE_RATE, REFINE_RATIO, RESOURCE_SPECS, SELL_SECONDS, TRUCK_CAPACITY, Trade, amountOf, canBuild, deliveredTo, gapBetween, canSell, isWalkable, stockOf, canPlace, createSim, creditsOf, depositAt, depositIn, depositNear, reserveLeft, rewardsOf,
   zonesOf, Owner, Position, Site, type BuildingType, type DepositSpot, type Good, type Sim,
 } from '@kharos/sim-ts'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
@@ -230,7 +230,7 @@ test('без переработки руда копится в шахте, а г
   seconds(sim, 30)
   expect(stockOf(sim, 1).items).toEqual({})
   expect(oreIn(sim, truck)).toBe(0)
-  expect(oreIn(sim, mine)).toBeGreaterThan(Math.min(DEPOSIT_KINDS.metal.rate * 25, BUILDINGS.mine.inventory - 1))
+  expect(oreIn(sim, mine)).toBeGreaterThan(Math.min(DEPOSIT_KINDS.metal.rate * 25, BUILDINGS.mine.inventory! - 1))
   expect(reserveLeft(sim, spot.x, spot.y)).toBeGreaterThan(0)
 })
 
@@ -288,7 +288,7 @@ test('хранилище конечно: грузовик берёт столь�
   // Руда шахты тут не при чём: у завода уже лежит готовый металл, а в кузове шахты — нет.
   sim.world.destroy(mine)
   const first = place(sim, 'metalYard', spot.x + 5, spot.y + 5)
-  const capacity = BUILDINGS.metalYard.inventory
+  const capacity = BUILDINGS.metalYard.inventory!
   sim.world.get(first, Inventory)!.items.metal = capacity - 5
   sim.world.get(refinery, Inventory)!.items.metal = TRUCK_CAPACITY
   const hauler = () => sim.world.get(truck, Hauler)!
@@ -362,7 +362,7 @@ test('космопорт продаёт по заявке: диспетчер ш
   seconds(sim, 2)
   expect(sim.world.has(port, Trade)).toBe(false)
   expect(delivered()).toBe(0)
-  const income = BUILDINGS.command.income * SELL_SECONDS
+  const income = BUILDINGS.command.income! * SELL_SECONDS
   expect(Math.abs(creditsOf(sim, 1) - before - 50 * RESOURCE_SPECS.metal.price - income - REWARDS.sale)).toBeLessThanOrEqual(1)
 
   // Грузовик, привязанный к шахте, на зов космопорта не идёт; заявку можно закрыть с тем, что привезли.

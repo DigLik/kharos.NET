@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import {
-  Assembly, Building, BUILDINGS, BUY_MARKUP, BUY_SECONDS, Health, Inventory, PRODUCT_SPECS, RESOURCE_SPECS, Trade, buyPrice, creditsOf, UNITS, WEAPONS, amountOf, canPlace, createSim, cycleSeconds,
+  Assembly, Building, BUILDINGS, BUY_MARKUP, BUY_SECONDS, Health, Inventory, RESOURCE_SPECS, Trade, buyPrice, creditsOf, UNITS, WEAPONS, amountOf, canPlace, createSim, cycleSeconds,
   hasRoom, stockOf, type BuildingType, type Good, type Sim,
 } from '@kharos/sim-ts'
 import { STORES, placeBuilding, storeFor } from '@kharos/sim-ts/buildings'
@@ -93,7 +93,7 @@ test('цех встаёт, когда готовому некуда лечь', (
 })
 
 test('новый завод выключен: сырья не заказывает; выключенный замирает посреди сборки, а сырьё увозят', () => {
-  const { sim, x, y, store, stash, buildings } = base(['ammoPlant'])
+  const { sim, x, y, stash, buildings } = base(['ammoPlant'])
   const [plant] = buildings
   stash({ metal: 30 })
   spawnUnit(sim, 'truck', 1, x + 2, y + 5)
@@ -127,7 +127,7 @@ test('новый завод выключен: сырья не заказывае
 })
 
 test('изделия не продаются: космопорт берёт только ресурсы', () => {
-  const { sim, store, stash, buildings } = base(['spaceport'])
+  const { sim, stash, buildings } = base(['spaceport'])
   const [port] = buildings
   stash({ blocks: 30, metal: 30 })
   sim.send(1, { type: 'sell', port, resource: 'blocks' as never, amount: 10 })
@@ -141,7 +141,7 @@ test('изделия не продаются: космопорт берёт то
 test('турель строится пустой, тратит патроны на выстрелы и без них молчит', () => {
   const sim = createSim(options)
   const defense = placeBuilding(sim.world, 'turret', 0, 0, 1)
-  const full = BUILDINGS.turret.inventory
+  const full = BUILDINGS.turret.inventory!
   expect(good(sim, defense, 'ammo')).toBe(0)
 
   // Пока патронов не подвезли, турель молчит.
@@ -154,7 +154,7 @@ test('турель строится пустой, тратит патроны н
   expect(sim.world.get(foe, Health)!.value).toBeLessThan(1)
 
   // Патроны кончились — новых выстрелов нет.
-  sim.world.get(defense, Inventory)!.items.ammo = WEAPONS.machinegun.ammo / 2
+  sim.world.get(defense, Inventory)!.items.ammo = WEAPONS.machinegun.ammo! / 2
   seconds(sim, 0.5)
   const stopped = sim.world.get(foe, Health)!.value
   seconds(sim, 2)
@@ -166,7 +166,7 @@ test('турель строится пустой, тратит патроны н
 test('расстрелявшая запас турель заказывает патроны, и грузовик везёт их из хранилища', () => {
   const { sim, x, y, store, stash, buildings } = base(['turret'])
   const [defense] = buildings
-  const full = BUILDINGS.turret.inventory
+  const full = BUILDINGS.turret.inventory!
   stash({ ammo: 100 })
   // Расстреляла меньше четверти — заказа ещё нет.
   sim.world.get(defense, Inventory)!.items.ammo = full - 20

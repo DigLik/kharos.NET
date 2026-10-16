@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
-import { BUILDINGS, GATE_CLOSE, Position, Site, canPlace, createSim, creditsOf, freeCredits, isOpenGate, isWalkable, wallStroke, type Sim } from '@kharos/sim-ts'
+import { BUILDINGS, GATE_CLOSE, Position, Site, canPlace, createSim, freeCredits, isOpenGate, isWalkable, wallStroke, type Sim } from '@kharos/sim-ts'
 import { addCredits } from '@kharos/sim-ts/economy'
 import { isWall, placeBuilding } from '@kharos/sim-ts/buildings'
 import { Gate } from '@kharos/sim-ts/components'

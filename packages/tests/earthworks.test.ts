@@ -12,7 +12,7 @@ const seconds = (sim: Sim, time: number) => {
 }
 
 /** Первый тайл от середины карты по спирали, где выполняется fits. */
-function near(sim: Sim, fits: (x: number, y: number) => boolean) {
+function near(fits: (x: number, y: number) => boolean) {
   for (let radius = 0; radius < 400; radius++) {
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === radius && fits(dx, dy)) return { x: dx, y: dy }
@@ -24,7 +24,7 @@ function near(sim: Sim, fits: (x: number, y: number) => boolean) {
 test('гору срывают целиком: строители работают с края, на её месте — скала; плата по числу её тайлов', () => {
   const sim = createSim(options)
   addCredits(sim, 1, 5000)
-  const at = near(sim, (x, y) => peakOf(sim.land, x, y) !== null)
+  const at = near((x, y) => peakOf(sim.land, x, y) !== null)
   const peak = peakOf(sim.land, at.x, at.y)!
   const tiles = peakTiles(sim, peak)
   const builders = addBuilders(sim, 1, Math.floor(peak.x), Math.floor(peak.y), 3)
@@ -46,7 +46,7 @@ test('обрыв сглаживают по кромке: рамка по под�
   const sim = createSim(options)
   addCredits(sim, 1, 5000)
   // Подножие, к которому можно подъехать: снизу проходимый тайл.
-  const foot = near(sim, (x, y) => isCliffFoot(sim.land, x, y) && isWalkable(sim, x, y + 2) && terrainAt(sim.land, x, y) !== Terrain.Mountain)
+  const foot = near((x, y) => isCliffFoot(sim.land, x, y) && isWalkable(sim, x, y + 2) && terrainAt(sim.land, x, y) !== Terrain.Mountain)
   expect(isWalkable(sim, foot.x, foot.y)).toBe(false)
   const builders = addBuilders(sim, 1, foot.x, foot.y + 3, 3)
   const credits = creditsOf(sim, 1)
@@ -65,7 +65,7 @@ test('обрыв сглаживают по кромке: рамка по под�
 test('отмена землеройной работы возвращает кредиты; без исследования — нельзя', () => {
   const sim = createSim(options)
   addCredits(sim, 1, 5000)
-  const at = near(sim, (x, y) => peakOf(sim.land, x, y) !== null)
+  const at = near((x, y) => peakOf(sim.land, x, y) !== null)
   const builders = addBuilders(sim, 1, at.x + 6, at.y, 1)
   const credits = creditsOf(sim, 1)
   sim.send(1, { type: 'dig', kind: 'peak', tiles: [at.x, at.y], builders: [] })

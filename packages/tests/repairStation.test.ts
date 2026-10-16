@@ -43,7 +43,7 @@ const damage = (sim: Sim, entity: Entity, to = 0.5) => (sim.world.get(entity, He
 
 test('станция чинит свою технику в радиусе за кредиты; дальнюю и чужую не чинит', () => {
   const { sim, station, cx, cy } = base()
-  const radius = BUILDINGS.repairStation.repair
+  const radius = BUILDINGS.repairStation.repair!
   const near = spawnUnit(sim, 'tank', 1, Math.floor(cx - radius + 1), Math.floor(cy))
   const far = spawnUnit(sim, 'tank', 1, Math.floor(cx - radius - 4), Math.floor(cy))
   for (const entity of [near, far]) damage(sim, entity)

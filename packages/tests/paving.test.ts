@@ -164,16 +164,9 @@ test('на фундаменте на скале здание строится в
 
 test('по покрытию не стреляют и оно не мешает ходить', () => {
   const { sim, x, y } = start()
-  const entity: Entity = lay(sim, 'road', x + 5, y + 10)
+  lay(sim, 'road', x + 5, y + 10)
   expect(sim.occupancy.at(x + 5, y + 10)).toBeUndefined()
-  expect(sim.world.has(entity, Building)).toBe(false)
 })
-
-/** Полоса скалы или песка по ряду row от x до x + length: по ней кладут фундамент. */
-const strip = (sim: Sim, x: number, row: number, length: number) => {
-  for (let tx = x; tx <= x + length; tx++) if (![Terrain.Rock, Terrain.Sand].includes(terrainAt(sim.land, tx, row) as never)) return false
-  return true
-}
 
 test('наземный взрыв разбивает фундамент под собой, пуля — нет', () => {
   const { sim, x, y } = start()

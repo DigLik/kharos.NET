@@ -173,14 +173,14 @@ test('космопорт до третьего уровня: выше — ещё
   void builder
   sim.send(1, { type: 'upgrade', building: port, builders: [] })
   until(sim, () => levelOf(sim.world, port) === 2)
-  expect(sim.world.get(port, Inventory)!.capacity).toBe(BUILDINGS.spaceport.inventory * 1.5)
+  expect(sim.world.get(port, Inventory)!.capacity).toBe(BUILDINGS.spaceport.inventory! * 1.5)
   // Блоков на третий уровень хватает, компонентов нет.
   expect(upgradeLack(sim, 1, port)).toBe('materials')
   stash({ parts: 8 })
   sim.send(1, { type: 'upgrade', building: port, builders: [] })
   until(sim, () => levelOf(sim.world, port) === MAX_LEVEL)
   expect(stockOf(sim, 1).items.parts ?? 0).toBe(0)
-  expect(sim.world.get(port, Inventory)!.capacity).toBe(BUILDINGS.spaceport.inventory * 2)
+  expect(sim.world.get(port, Inventory)!.capacity).toBe(BUILDINGS.spaceport.inventory! * 2)
   expect(isUpgradable(sim, 1, port)).toBe(false)
   sim.send(1, { type: 'upgrade', building: port, builders: [] })
   sim.advance(TICK)
@@ -204,7 +204,7 @@ test('уровень ускоряет переработку и добычу и 
   stash({ blocks: 10, metal: 100 })
   upgrade(sim, yard, builder)
   until(sim, () => levelOf(sim.world, yard) === 2)
-  expect(sim.world.get(yard, Inventory)!.capacity).toBe(BUILDINGS.metalYard.inventory * 1.5)
+  expect(sim.world.get(yard, Inventory)!.capacity).toBe(BUILDINGS.metalYard.inventory! * 1.5)
   expect(good(sim, yard, 'metal')).toBeGreaterThanOrEqual(100)
 
   // Шахта: добыча с месторождения — по уровню.

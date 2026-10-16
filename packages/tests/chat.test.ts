@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import type { Entity } from '@kharos/ecs'
 import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
 import { createHost } from '@kharos/host'
 import { CHAT_LENGTH, decodeServer, type ChatLine } from '@kharos/protocol'
@@ -53,7 +54,7 @@ test('сервер пишет в чат о поражении игрока од�
   const host = createHost(sim)
   const one = connect(host, 'Первый')
   const two = connect(host, 'Второй')
-  const doomed: number[] = []
+  const doomed: Entity[] = []
   for (const [entity, owner] of sim.world.query(Owner)) if (owner.player === two.peer.player && !sim.world.has(entity, Player)) doomed.push(entity)
   for (const entity of doomed) sim.world.destroy(entity)
   // Поражения хост проверяет раз в несколько тиков; advance за раз делает их немного.

@@ -90,7 +90,7 @@ test('стройка вплотную получает материалы без
   const site = siteAt(sim, x + 6, y + 3)!
   expect(networkOf(sim, site)).toBe(networkOf(sim, port))
   expect(networkOf(sim, port)).not.toBe(networkOf(sim, core))
-  const need = BUILDINGS.spaceport.materials.metal
+  const need = BUILDINGS.spaceport.materials!.metal!
   for (let i = 0; i < 400 && amountOf(sim.world.get(site, Inventory)!, 'metal') < need; i++) sim.advance(1 / 20)
   expect(amountOf(sim.world.get(site, Inventory)!, 'metal')).toBe(need)
   // Которой сети нет, той и материалов не везут.

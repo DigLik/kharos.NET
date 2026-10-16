@@ -10,7 +10,7 @@ import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { protection: 0 } }
 const TICK = 1 / 20
-const { radius, capacity, regen } = BUILDINGS.shieldGenerator.shield
+const { radius, capacity, regen } = BUILDINGS.shieldGenerator.shield!
 
 const seconds = (sim: Sim, time: number) => {
   for (let i = 0; i < Math.round(time / TICK); i++) sim.advance(TICK)

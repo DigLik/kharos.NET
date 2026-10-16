@@ -66,7 +66,7 @@ test('развёрнутое главное здание приносит наг
   const { sim } = start()
   expect(rewardsOf(sim, 1)).toEqual(['deploy'])
   expect(creditsOf(sim, 1)).toBe(STARTING_CREDITS + REWARDS.deploy)
-  expect(economyOf(sim, 1)).toEqual({ produced: 0, demand: 0, peak: 0, spare: 0, income: BUILDINGS.command.income, crowd: 0, stored: 0 })
+  expect(economyOf(sim, 1)).toEqual({ produced: 0, demand: 0, peak: 0, spare: 0, income: BUILDINGS.command.income!, crowd: 0, stored: 0 })
 
   seconds(sim, 50)
   expect(creditsOf(sim, 1)).toBe(STARTING_CREDITS + REWARDS.deploy + 10)
@@ -533,7 +533,7 @@ test('плавильня занята, пока есть руда и место 
   const { sim, x, y } = start()
   put(sim, 'generator', x + 6, y + 4)
   const smelter = put(sim, 'smelter', x + 6, y)
-  const power = -BUILDINGS.smelter.power
+  const power = -BUILDINGS.smelter.power!
   seconds(sim, 1)
   expect(economyOf(sim, 1)).toMatchObject({ demand: -idlePower(-power), peak: power })
   sim.world.get(smelter, Inventory)!.items.metalOre = 20

@@ -298,7 +298,7 @@ test('турель здания стоит выше стены и бьёт по�
 
 test('чужая стена летающих не укрывает: зенитка бьёт дрон за ней, дрон — пехоту за ней', () => {
   const sim = createSim(options)
-  const flak = spawnUnit(sim, 'flak', 1, 0, 0)
+  spawnUnit(sim, 'flak', 1, 0, 0)
   const wall = placeBuilding(sim.world, 'wall', 3, 0, 2)
   const drone = spawnUnit(sim, 'drone', 2, 6, 0)
   sim.send(2, { type: 'stance', units: [drone], stance: 'hold' })

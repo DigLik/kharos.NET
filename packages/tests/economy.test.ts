@@ -94,7 +94,7 @@ test('стройка ждёт материалов: без стройблоко�
   until(sim, () => materialShare(sim, site!) > 0)
   expect(sim.world.get(site!, Site)!.progress).toBeLessThanOrEqual(siteTicks('factory', TICK) * materialShare(sim, site!) + 1e-6)
   until(sim, () => !sim.world.has(site!, Site))
-  expect(oreIn(sim, store('blocks'), 'blocks')).toBeCloseTo(50 - BUILDINGS.factory.materials.blocks)
+  expect(oreIn(sim, store('blocks'), 'blocks')).toBeCloseTo(50 - BUILDINGS.factory.materials!.blocks!)
 })
 
 test('грузовик довозит материалы и на площадку, к которой строитель ещё не приступил', () => {
@@ -106,12 +106,12 @@ test('грузовик довозит материалы и на площадк�
   let site: Entity | undefined
   site = siteAt(sim, x, y + 4)
   spawnUnit(sim, 'truck', 1, x + 6, y + 8)
-  until(sim, () => oreIn(sim, site!, 'blocks') >= BUILDINGS.factory.materials.blocks - 1e-6)
-  expect(oreIn(sim, store('blocks'), 'blocks')).toBeCloseTo(50 - BUILDINGS.factory.materials.blocks)
+  until(sim, () => oreIn(sim, site!, 'blocks') >= BUILDINGS.factory.materials!.blocks! - 1e-6)
+  expect(oreIn(sim, store('blocks'), 'blocks')).toBeCloseTo(50 - BUILDINGS.factory.materials!.blocks!)
 })
 
 test('производство ждёт материалов первого заказа и тратит их в начале работы', () => {
-  const { sim, x, y, store, stash, buildings } = base(['factory'])
+  const { sim, store, stash, buildings } = base(['factory'])
   const [factory] = buildings
   sim.send(1, { type: 'produce', producer: factory, unit: 'tank' })
   seconds(sim, UNITS.tank.buildTime + 2)
@@ -126,12 +126,12 @@ test('производство ждёт материалов первого за
   }
   until(sim, () => tanks() > 0)
   // Привезли ровно на танк, и танк их забрал.
-  expect(oreIn(sim, store('metal'), 'metal') + oreIn(sim, factory, 'metal')).toBeCloseTo(40 - UNITS.tank.materials.metal)
-  expect(oreIn(sim, store('parts'), 'parts') + oreIn(sim, factory, 'parts')).toBeCloseTo(10 - UNITS.tank.materials.parts)
+  expect(oreIn(sim, store('metal'), 'metal') + oreIn(sim, factory, 'metal')).toBeCloseTo(40 - UNITS.tank.materials!.metal!)
+  expect(oreIn(sim, store('parts'), 'parts') + oreIn(sim, factory, 'parts')).toBeCloseTo(10 - UNITS.tank.materials!.parts!)
 })
 
 test('космопорт продаёт любой ресурс по его цене; первая продажа — награда', () => {
-  const { sim, x, y, store, stash, buildings } = base(['spaceport'])
+  const { sim, store, stash, buildings } = base(['spaceport'])
   const [port] = buildings
   stash({ metal: 30 })
   sim.send(1, { type: 'sell', port, resource: 'metal', amount: 20 })
@@ -163,11 +163,11 @@ test('переработка отправляет готовое в хранил
 })
 
 test('дробный остаток материалов довозят: завод не встаёт на 19,7 из 20', () => {
-  const { sim, x, y, store, stash, buildings } = base(['factory'])
+  const { sim, store, stash, buildings } = base(['factory'])
   const [factory] = buildings
   const inventory = sim.world.get(factory, Inventory)!
-  inventory.items.metal = UNITS.tank.materials.metal - 0.3
-  inventory.items.parts = UNITS.tank.materials.parts
+  inventory.items.metal = UNITS.tank.materials!.metal! - 0.3
+  inventory.items.parts = UNITS.tank.materials!.parts!
   stash({ metal: 10 })
   sim.send(1, { type: 'produce', producer: factory, unit: 'tank' })
   until(sim, () => sim.world.get(factory, Producer)!.progress > 0, 60)
@@ -226,7 +226,7 @@ test('чего нет в сети стройки, свободный грузо�
   until(sim, () => sim.world.get(truck, Hauler)!.from !== NONE)
   expect(sim.world.get(truck, Hauler)!.from).toBe(far!)
   until(sim, () => !sim.world.has(site!, Site))
-  expect(oreIn(sim, far!, 'blocks')).toBeCloseTo(50 - BUILDINGS.factory.materials.blocks)
+  expect(oreIn(sim, far!, 'blocks')).toBeCloseTo(50 - BUILDINGS.factory.materials!.blocks!)
 })
 
 test('грузу некуда деться — грузовик везёт его заказчику, а нет заказчика — обратно, и снова свободен', () => {
@@ -244,7 +244,7 @@ test('грузу некуда деться — грузовик везёт ег�
   sim.send(1, { type: 'produce', producer: factory, unit: 'buggy' })
   load()
   until(sim, () => cargo() < 1e-9, 60)
-  expect(oreIn(sim, factory, 'metal') + (sim.world.get(factory, Producer)!.progress > 0 ? UNITS.buggy.materials.metal : 0)).toBeGreaterThan(0)
+  expect(oreIn(sim, factory, 'metal') + (sim.world.get(factory, Producer)!.progress > 0 ? UNITS.buggy.materials!.metal! : 0)).toBeGreaterThan(0)
   // Заказчиков нет — обратно в переработку.
   sim.world.get(factory, Producer)!.queue.length = 0
   until(sim, () => sim.world.get(factory, Producer)!.queue.length === 0 && !sim.world.get(truck, Hauler)!.full, 60)
@@ -254,7 +254,7 @@ test('грузу некуда деться — грузовик везёт ег�
 })
 
 test('машинный завод строит MCV из стройблоков и металла, и тот разворачивается в новую базу', () => {
-  const { sim, x, y, stash, buildings } = base(['factory'])
+  const { sim, stash, buildings } = base(['factory'])
   const [factory] = buildings
   stash({ blocks: 40, metal: 40 })
   sim.send(1, { type: 'produce', producer: factory, unit: 'mcv' })
@@ -281,7 +281,7 @@ test('груз, который уже везут на переработку, з
   sim.world.get(first, Inventory)!.items.metalOre = room
   hauler.full = true
   expect(spaceFor(sim, second, smelter, 'metalOre')).toBeLessThanOrEqual(1e-9)
-  expect(refineryFor(sim, second, 'metalOre')).toBe(NONE)
+  expect(refineryFor(sim, second, 'metalOre')).toBe(NONE as Entity)
   // Свой груз грузовик у себя же места не отнимает.
   expect(spaceFor(sim, first, smelter, 'metalOre')).toBe(room)
 })

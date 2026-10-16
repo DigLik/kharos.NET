@@ -27,17 +27,13 @@
     "@kharos/tsconfig": "*"
   },
   "dependencies": {
-    "acme-client": "^5.4.0",
     "@kharos/ecs": "*",
     "@kharos/i18n": "*",
     "@kharos/shared": "*",
     "@kharos/sim-ts": "*",
     "@kharos/mods": "*",
-    "@kharos/data": "*",
-    "@kharos/base": "*",
     "@kharos/protocol": "*",
     "@kharos/host": "*",
-    "@kharos/sim-rust": "*",
     "@kharos/client": "*"
   }
 }

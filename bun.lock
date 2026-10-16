@@ -5,18 +5,14 @@
     "": {
       "name": "kharos",
       "dependencies": {
-        "@kharos/base": "*",
         "@kharos/client": "*",
-        "@kharos/data": "*",
         "@kharos/ecs": "*",
         "@kharos/host": "*",
         "@kharos/i18n": "*",
         "@kharos/mods": "*",
         "@kharos/protocol": "*",
         "@kharos/shared": "*",
-        "@kharos/sim-rust": "*",
         "@kharos/sim-ts": "*",
-        "acme-client": "^5.4.0",
       },
       "devDependencies": {
         "@kharos/tsconfig": "*",
@@ -36,6 +32,7 @@
         "@kharos/protocol": "*",
         "@kharos/shared": "*",
         "@kharos/sim-ts": "*",
+        "acme-client": "^5.4.0",
       },
     },
     "apps/web": {

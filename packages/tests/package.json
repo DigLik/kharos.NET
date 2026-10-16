@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Тесты всей игры под bun test; запускаются из корня (bunfig.toml грузит setup.ts)",
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
   "dependencies": {
     "@kharos/base": "*",
     "@kharos/client": "*",

@@ -10,6 +10,7 @@
     "./*": "./*.ts"
   },
   "dependencies": {
+    "acme-client": "^5.4.0",
     "@kharos/data": "*",
     "@kharos/host": "*",
     "@kharos/i18n": "*",

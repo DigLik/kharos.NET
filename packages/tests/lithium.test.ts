@@ -9,7 +9,7 @@ import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { protection: 0, techTree: false } }
 const TICK = 1 / 20
-const { capacity, rate } = BUILDINGS.accumulator.battery
+const { capacity, rate } = BUILDINGS.accumulator.battery!
 
 const seconds = (sim: Sim, time: number) => {
   for (let i = 0; i < Math.round(time / TICK); i++) sim.advance(TICK)

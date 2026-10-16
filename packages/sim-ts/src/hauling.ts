@@ -16,7 +16,7 @@ import { runCarry } from './carrying'
 import { dropItems, sweepDrops } from './drops'
 
 /** Сколько ресурсов помещается в грузовик. */
-export const TRUCK_CAPACITY = UNITS.truck.inventory
+export const TRUCK_CAPACITY = UNITS.truck.inventory!
 /** Раз во сколько тиков грузовик, не дотянувшийся до луча или не нашедший, куда выгрузиться, пробует снова. */
 const RETRY_TICKS = 20
 /** Раз во сколько тиков диспетчер раздаёт работу свободным грузовикам. */

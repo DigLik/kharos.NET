@@ -42,7 +42,7 @@ test('знак нехватки: завод с заказом без матер�
   // Заказа нет — заводу ничего не нужно; цех выключен с постройки.
   expect(lacksOf(sim, 1).size).toBe(0)
 
-  const [material] = Object.keys(UNITS.buggy.materials)
+  const [material] = Object.keys(UNITS.buggy.materials!)
   sim.send(1, { type: 'produce', producer: factory, unit: 'buggy' })
   seconds(sim, 0.5)
   expect(lacksOf(sim, 1).get(factory)).toBe(material as never)

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
+import type { Entity } from '@kharos/ecs'
 import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
 import { createHost, type Host } from '@kharos/host'
 import { decodeServer } from '@kharos/protocol'
@@ -47,7 +48,7 @@ const run = (host: Host, clients: { sim: Replica }[], seconds: number) => {
   }
 }
 const unitsOf = (sim: Sim, player: number) => {
-  const units: number[] = []
+  const units: Entity[] = []
   for (const [entity, , owner] of sim.world.query(Unit, Owner)) if (owner.player === player) units.push(entity)
   return units
 }

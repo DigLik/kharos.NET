@@ -7,14 +7,15 @@ test('сделка космопорта: ресурс, потом количес
   const trade: HudState['trade'] = {
     port: 7,
     order: null,
+    transfer: null,
     offers: [{ resource: 'metal', available: 130, here: 130, price: 10 }],
-    purchases: [{ resource: 'metal', price: 30, room: 200 }, { resource: 'fuel', price: 36, room: 0 }],
+    purchases: [{ resource: 'metal', price: 30, room: 200, research: null }, { resource: 'fuel', price: 36, room: 0, research: null }],
   }
   const state = { trade, credits: 1000, units: [], building: 'spaceport' } as unknown as HudState
-  let deal: Deal | null = null
+  let deal = null as Deal | null
   const sent: Command[] = []
   const nothing = () => {}
-  const actions = { send: (command: Command) => void sent.push(command), place: nothing, pave: nothing, route: nothing, serve: nothing, patrol: nothing, aim: nothing, open: nothing, pick: (next: Deal | null) => void (deal = next) }
+  const actions = { send: (command: Command) => void sent.push(command), place: nothing, pave: nothing, route: nothing, serve: nothing, patrol: nothing, aim: nothing, carry: nothing, deploy: nothing, draft: nothing, tech: nothing, open: nothing, pick: (next: Deal | null) => void (deal = next) }
   const grid = (page: 'sell' | 'buy') => commandsOf(state, page, actions, deal)
   const press = (page: 'sell' | 'buy', label: string) => grid(page).find((slot) => slot?.label === label)!.run()
 

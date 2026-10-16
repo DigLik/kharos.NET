@@ -196,7 +196,7 @@ function menu(gift: number[] | null, players: unknown[]) {
   const sent: Command[] = []
   const nothing = () => {}
   const actions = {
-    send: (command: Command) => void sent.push(command), place: nothing, pave: nothing, route: nothing, serve: nothing, patrol: nothing, aim: nothing,
+    send: (command: Command) => void sent.push(command), place: nothing, pave: nothing, route: nothing, serve: nothing, carry: nothing, patrol: nothing, aim: nothing, deploy: nothing, tech: nothing,
     open: (next: Page) => void (page = next), pick: nothing, draft: nothing,
   }
   const grid = (at: Page) => commandsOf(state, at, actions)

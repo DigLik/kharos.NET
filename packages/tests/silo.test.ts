@@ -15,7 +15,7 @@ import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { protection: 0, techTree: false } }
 const TICK = 1 / 20
-const { warhead } = BUILDINGS.silo
+const warhead = BUILDINGS.silo.warhead!
 
 const seconds = (sim: Sim, time: number) => {
   for (let i = 0; i < Math.round(time / TICK); i++) sim.advance(TICK)
@@ -247,7 +247,7 @@ test('пуск снимает с игрока защиту новичка', () =
 })
 
 test('шахту открывают техцентр, завод стержней и «Боеголовки» после «Атома»', () => {
-  expect(BUILDINGS.silo.warhead.blast.radius).toBe(12)
+  expect(warhead.blast.radius).toBe(12)
   const sim = createSim({ ...options, rules: { protection: 0, techTree: true } })
   expect(isUnlocked(sim, 1, 'silo')).toBe(false)
 })

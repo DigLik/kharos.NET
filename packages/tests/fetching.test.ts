@@ -74,7 +74,7 @@ test('строитель сам возит материал со склада н
   // Кузов — 10, космопорту нужно 20: два рейса.
   expect(carried).toBeLessThanOrEqual(10 + 1e-6)
   expect(sim.world.has(building, Site)).toBe(false)
-  expect(amountOf(sim.world.get(yard, Inventory)!, 'metal')).toBeCloseTo(50 - BUILDINGS.spaceport.materials.metal, 3)
+  expect(amountOf(sim.world.get(yard, Inventory)!, 'metal')).toBeCloseTo(50 - BUILDINGS.spaceport.materials!.metal!, 3)
   // Построил — и снова свободен, кузов пуст.
   expect(sim.world.has(builder, Fetch)).toBe(false)
   expect(amountOf(sim.world.get(builder, Inventory)!, 'metal')).toBeCloseTo(0, 3)

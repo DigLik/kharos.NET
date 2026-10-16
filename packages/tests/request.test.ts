@@ -112,7 +112,7 @@ test('кнопки заказа: груз, потом количество ша�
   type Deal = NonNullable<Parameters<typeof commandsOf>[3]>
   const request = { buildings: [5], wanted: { ammo: 60 }, have: { ammo: 20 }, capacity: 100 }
   const state = { request, credits: 0, units: [], building: 'requestStation' } as unknown as Parameters<typeof commandsOf>[0]
-  let deal: Deal | null = null
+  let deal = null as Deal | null
   const sent: unknown[] = []
   const nothing = () => {}
   const actions = { send: (command: unknown) => void sent.push(command), place: nothing, pave: nothing, route: nothing, serve: nothing, patrol: nothing, aim: nothing, deploy: nothing, draft: nothing, tech: nothing, open: nothing, pick: (next: Deal | null) => void (deal = next) } as unknown as Parameters<typeof commandsOf>[2]

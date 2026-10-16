@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
-import { Armed, Blast, Building, Builds, Carrier, activeRepairs, Health, Inventory, INFANTRY_REGEN, isFighter, Repair, wrap, Turret, Owner, Path, Position, Producer, Shot, UNITS, Unit, WEAPONS, buildingHp, canAttack, canPlace, createSim, driveBattle, isWalkable, powerStates, producibleBy, randomArmy, spawnBattle, zoneEconomies, grantResearch, type Sim } from '@kharos/sim-ts'
+import { Armed, Blast, Builds, Carrier, activeRepairs, Health, Inventory, INFANTRY_REGEN, isFighter, Repair, wrap, Turret, Owner, Path, Position, Producer, Shot, UNITS, Unit, WEAPONS, buildingHp, canAttack, canPlace, createSim, driveBattle, isWalkable, powerStates, producibleBy, randomArmy, spawnBattle, zoneEconomies, grantResearch, type Sim } from '@kharos/sim-ts'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
 import { REPAIR_PAUSE } from '@kharos/sim-ts/construction'
 import { addCredits } from '@kharos/sim-ts/economy'
@@ -498,7 +498,7 @@ test('строитель чинит повреждённую технику — 
   const to = sim.world.get(tank, Position)!
   // Вплотную строитель не подъезжает: ему достаточно дотянуться.
   expect(Math.hypot(from.x - to.x, from.y - to.y)).toBeGreaterThan(3)
-  expect(Math.hypot(from.x - to.x, from.y - to.y)).toBeLessThanOrEqual(UNITS.builder.repair + UNITS.tank.radius)
+  expect(Math.hypot(from.x - to.x, from.y - to.y)).toBeLessThanOrEqual(UNITS.builder.repair! + UNITS.tank.radius)
 
   // Сам себя строитель не чинит, не своего — тоже.
   sim.world.get(builder, Health)!.value = 0.5

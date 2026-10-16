@@ -7,7 +7,7 @@ import type { WeaponType } from '@kharos/sim-ts/weapons'
 import { createReplica, type Replica } from '@kharos/client/net/replica'
 import { Armed, Building, Ghost, Health, Inventory, NO_PAVE, Owner, Path, Player, Position, Producer, Unit, canDeploy, createSim, creditsOf, isWalkable, paveCode, shownTo } from '@kharos/sim-ts'
 import { STARTING_CREDITS } from '@kharos/sim-ts/economy'
-import { SAVED, Scan } from '@kharos/sim-ts/components'
+import { Scan } from '@kharos/sim-ts/components'
 import { connectAll } from '@kharos/sim-ts/piping'
 import { wireOf } from '@kharos/protocol/wire'
 import type { Entity } from '@kharos/ecs'
@@ -46,7 +46,7 @@ function join(host: Host, id?: string, name?: string) {
 }
 
 const unitsOf = (sim: Replica, player: number) => {
-  const units: number[] = []
+  const units: Entity[] = []
   for (const [entity] of sim.world.query(Unit)) if (sim.world.get(entity, Owner)?.player === player) units.push(entity)
   return units
 }

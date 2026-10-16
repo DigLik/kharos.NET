@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { canPlace, createSim, Path, Position } from '@kharos/sim-ts'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
@@ -6,7 +7,7 @@ import { orderGroupMove, spawnUnit } from '@kharos/sim-ts/units'
 
 test('большая армия сразу трогается, каждый юнит — к своему месту, и доходит', () => {
   const sim = createSim({ generator: DEFAULT_SETTINGS.generator, size: 1024 })
-  const units: number[] = []
+  const units: Entity[] = []
   for (let i = 0; i < 400; i++) units.push(spawnUnit(sim, i % 2 ? 'infantry' : 'buggy', 1, -40 + (i % 20), -10 + Math.floor(i / 20)))
   orderGroupMove(sim, units, 40, 0)
   const goals = new Set<string>()

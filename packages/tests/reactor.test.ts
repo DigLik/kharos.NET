@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test'
+import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { Building, Burst, Doomed, Health, Inventory, Off, Reactor, createSim, isWalkable, powerSupply, requestsOf, zoneEconomies, type Sim } from '@kharos/sim-ts'
 import { BUILDINGS, isUnlocked, levelGain, placeBuilding } from '@kharos/sim-ts/buildings'
@@ -10,9 +11,9 @@ import { throughJson } from './throughJson'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { protection: 0, techTree: false } }
 const TICK = 1 / 20
-const { power } = BUILDINGS.reactor
-const { seconds: ROD_SECONDS } = BUILDINGS.reactor.burns
-const { radius, damage } = BUILDINGS.reactor.meltdown
+const power = BUILDINGS.reactor.power!
+const { seconds: ROD_SECONDS } = BUILDINGS.reactor.burns!
+const { radius, damage } = BUILDINGS.reactor.meltdown!
 
 const seconds = (sim: Sim, time: number) => {
   for (let i = 0; i < Math.round(time / TICK); i++) sim.advance(TICK)
@@ -41,7 +42,7 @@ function base(rods = 0) {
   return { sim, x, y, reactor, radar }
 }
 
-const rodsIn = (sim: Sim, reactor: number) => sim.world.get(reactor, Inventory)!.items.rods ?? 0
+const rodsIn = (sim: Sim, reactor: Entity) => sim.world.get(reactor, Inventory)!.items.rods ?? 0
 
 test('реактор без стержней энергии не даёт', () => {
   const { sim, radar } = base()
@@ -85,7 +86,7 @@ test('реактор сам заказывает стержни у зоны, к�
   const { sim, reactor } = base(1)
   const wanted = requestsOf(sim, 1).filter((request) => request.to === reactor)
   expect(wanted.map((request) => request.resource)).toEqual(['rods'])
-  expect(wanted[0].amount).toBe(BUILDINGS.reactor.inventory - 1)
+  expect(wanted[0].amount).toBe(BUILDINGS.reactor.inventory! - 1)
 })
 
 test('разрушенный реактор с топливом взрывается и бьёт всех вокруг, своих тоже', () => {

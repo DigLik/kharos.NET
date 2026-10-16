@@ -19,7 +19,7 @@ test('мир переживает файл без потерь, и из файл
 
 test('свои разделы вызывающего доходят, незнакомые не мешают', async () => {
   const { sections } = await decodeSave(await encodeSave(world(), { HOST: { players: { a: 1 } }, ZZZZ: 'потом' }))
-  expect(readJson(sections.get('HOST'))).toEqual({ players: { a: 1 } })
+  expect(readJson<{ players: Record<string, number> }>(sections.get('HOST'))).toEqual({ players: { a: 1 } })
 })
 
 test('не сохранение, прежний JSON и версия новее игры — ошибки', async () => {
