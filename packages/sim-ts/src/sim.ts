@@ -267,7 +267,7 @@ export function createSim(source: SimOptions | SimSave, hooks: SimHooks = {}): S
     paving: createPaving(world),
     paveMemory: createPaveMemory('paveMemory' in source ? source.paveMemory : undefined),
     buildMemory: createBuildMemory('buildMemory' in source ? source.buildMemory : undefined),
-    vision: createVision(world, bounds, () => loop.time.tick, options.fog !== false),
+    vision: createVision(world, bounds, () => loop.time.tick, options.fog !== false, true),
     traces: createTraces(world, () => loop.time.tick, loop.time.step),
     rules,
     online: null,

@@ -27,8 +27,8 @@ test('игрок видит вокруг своих юнитов, а ушедш�
   expect(sim.vision.sees(2, 0, 0)).toBe(false)
 
   sim.world.get(scout, Position)!.x = 40
-  // Обзор пересчитывается раз в несколько тиков.
-  for (let i = 0; i < 4; i++) sim.advance(TICK)
+  // Обзор пересчитывается раз в несколько тиков, системой vision в конце тика.
+  for (let i = 0; i < 5; i++) sim.advance(TICK)
   expect(sim.vision.sees(1, 0, 0)).toBe(false)
   expect(sim.vision.explored(1, 0, 0)).toBe(true)
   expect(sim.vision.sees(1, 40, 0)).toBe(true)

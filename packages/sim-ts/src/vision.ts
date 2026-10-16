@@ -126,8 +126,13 @@ interface Sight {
   seen?: { tick: number; size: number; cells: Set<number> }
 }
 
-/** fog: false — тумана нет: каждому игроку видна вся карта, и считать обзор не нужно. */
-export function createVision(world: World, bounds: Bounds, tick: () => number, fog = true): Vision {
+/**
+ * fog: false — тумана нет: каждому игроку видна вся карта, и считать обзор не нужно. strict — обзор пересчитывается
+ * только в update (система vision хоста): тогда он не зависит от того, какая система спросила первой, и его можно
+ * считать где угодно — хоть в Rust (docs/layers.md, С5). Без strict — при первом вопросе после VISION_TICKS тиков:
+ * так копии клиента, у которой нет систем тика.
+ */
+export function createVision(world: World, bounds: Bounds, tick: () => number, fog = true, strict = false): Vision {
   const width = bounds.right - bounds.left
   const height = bounds.bottom - bounds.top
   const sights = new Map<number, Sight>()
@@ -152,13 +157,18 @@ export function createVision(world: World, bounds: Bounds, tick: () => number, f
     }
   }
 
-  /** Пересчитывает видимое игроком, если с прошлого подсчёта прошёл тик. */
-  const sightOf = (player: number) => {
+  /**
+   * Обзор игрока; settle — пересчитать, если с прошлого подсчёта прошло VISION_TICKS тиков. Новый игрок считается
+   * сразу, при первом вопросе.
+   */
+  const sightOf = (player: number, settle = !strict) => {
     let sight = sights.get(player)
     if (!sight) {
       sight = { cells: new Uint8Array(width * height), lit: [], tick: -1, changed: 0 }
       sights.set(player, sight)
+      settle = true
     }
+    if (!settle) return sight
     const now = tick()
     if (!fog) {
       if (sight.tick < 0) sight.cells.fill(VISIBLE)
@@ -287,7 +297,9 @@ export function createVision(world: World, bounds: Bounds, tick: () => number, f
     update() {
       const players = new Set<number>()
       for (const [, owner] of world.query(Owner, Position)) if (owner.player) players.add(owner.player)
-      for (const player of players) sightOf(player)
+      // Без ленивого пересчёта обзор игрока без юнитов и зданий (видит союзное и вспышки) обновляет тоже update.
+      if (strict) for (const player of sights.keys()) players.add(player)
+      for (const player of players) sightOf(player, true)
     },
     reset() {
       sights.clear()
