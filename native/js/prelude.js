@@ -219,6 +219,42 @@
     return owner
   }
 
+  /** Ошибка с именем, как у страницы: ею отмена отклоняет подключение (`AbortError`). */
+  globalThis.DOMException ??= class DOMException extends Error {
+    constructor(message = '', name = 'Error') {
+      super(message)
+      this.name = name
+    }
+  }
+
+  /** Отмена начатого: экран игры отменяет ею подключение к серверу, когда игрок уходит в меню. */
+  class AbortSignal {
+    constructor() {
+      listening(this)
+      this.aborted = false
+      this.reason = undefined
+      this.onabort = null
+    }
+
+    throwIfAborted() {
+      if (this.aborted) throw this.reason
+    }
+  }
+  globalThis.AbortSignal ??= AbortSignal
+  globalThis.AbortController ??= class AbortController {
+    signal = new AbortSignal()
+
+    abort(reason = new DOMException('отменено', 'AbortError')) {
+      const signal = this.signal
+      if (signal.aborted) return
+      signal.aborted = true
+      signal.reason = reason
+      const event = new Event('abort')
+      signal.onabort?.(event)
+      signal.dispatchEvent(event)
+    }
+  }
+
   /** Место на странице, которой пока нет: игре нужно, чтобы у него были слушатели и стиль. Разметку даст интерфейс. */
   const element = () => listening({ style: styleOf() })
 
@@ -253,6 +289,13 @@
   globalThis.PointerEvent ??= class PointerEvent extends MouseEvent {}
   globalThis.WheelEvent ??= class WheelEvent extends MouseEvent {}
   globalThis.KeyboardEvent ??= class KeyboardEvent extends UIEvent {}
+  /** Событие со своими данными (`detail`): им интерфейс зовёт свои звуки (см. `src/gui/ui.ts`). */
+  globalThis.CustomEvent ??= class CustomEvent extends Event {
+    constructor(type, init = {}) {
+      super(type, init)
+      this.detail = init.detail ?? null
+    }
+  }
   /** Виды мест страницы: игра проверяет ими, куда пришло нажатие (в поле ввода клавиши игре не достаются). */
   globalThis.Node ??= class Node {}
   globalThis.Element ??= class Element extends Node {}
@@ -324,6 +367,8 @@
         pointerId: 1,
         pointerType: 'mouse',
         isPrimary: true,
+        movementX: 0,
+        movementY: 0,
         target: surface,
         ...modifiers(),
         ...extra,
@@ -331,9 +376,11 @@
     switch (kind) {
       case 'move': {
         const ratio = globalThis.devicePixelRatio || 1
+        // Сдвиг с прошлого события — им правая кнопка тянет камеру.
+        const movement = { movementX: a / ratio - input.x, movementY: b / ratio - input.y }
         input.x = a / ratio
         input.y = b / ratio
-        bubble(pointer(PointerEvent, 'pointermove'), surface, document, globalThis)
+        bubble(pointer(PointerEvent, 'pointermove', movement), surface, document, globalThis)
         break
       }
       case 'leave':

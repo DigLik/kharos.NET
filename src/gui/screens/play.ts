@@ -60,13 +60,19 @@ export function createPlay(launch: PlayLaunch, settings: MapSettings, gui: Gui, 
   }
   window.addEventListener('keydown', onKey, true)
 
+  /** Игра остановилась на ошибке: экран её показывает, а журнал хранит стек — по нему видно, где упало. */
+  const stopped = (reason: unknown) => {
+    console.error('игра остановилась:', reason instanceof Error ? (reason.stack ?? reason.message) : reason)
+    error = reason
+  }
+
   const attempt = (secret?: string) => {
     connecting = launch.kind === 'server'
     startSession(launch.kind === 'server' && secret !== undefined ? { ...launch, password: secret } : launch, settings, abort.signal)
       .then((session) => {
         connecting = false
         if (closed) return session.sim.destroy()
-        game = createGame(stage(), settings, (reason) => (error = reason), session, { slot: launch.kind === 'save' ? launch.slot.id : undefined, overlay })
+        game = createGame(stage(), settings, stopped, session, { slot: launch.kind === 'save' ? launch.slot.id : undefined, overlay })
         game.onMenu = () => pause(true)
       })
       .catch((reason: unknown) => {
