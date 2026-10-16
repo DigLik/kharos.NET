@@ -2,6 +2,7 @@ import type { Component, Entity, JournalOp } from '@kharos/ecs'
 import { CHUNK_SIZE, chunkRevision, getChunk, tileKey, type Land } from '@kharos/shared/terrain'
 import { snapshot, updateBuildMemory, type BuildMemory, type Remembered } from '@kharos/sim-ts/buildMemory'
 import { BUILDINGS } from '@kharos/sim-ts/buildings'
+import { DEPOSIT_TYPES, type DepositLayer } from '@kharos/sim-ts/deposits'
 import * as components from '@kharos/sim-ts/components'
 import { Attached, Building, Owner, Position } from '@kharos/sim-ts/components'
 import { landLayer, packTile } from '@kharos/sim-ts/landMemory'
@@ -259,6 +260,56 @@ const TRACE_KINDS = Object.keys(TRACE_LIFE) as TraceKind[]
 /** Копия знания игроков: тень памяти начинает с того же. */
 const copyKnown = ({ known }: Recall) => new Map([...known].map(([player, tiles]) => [player, new Map(tiles)]))
 
+/**
+ * Месторождения (deposits.ts) — слой deposits: предметы по клеткам 40×40, у предмета — место (f64, f64), вид (u8,
+ * номер в DEPOSIT_TYPES) и запас (f64). Изменения ловятся на взятии и сбросе клеток (cells.set, cells.clear) и по номеру
+ * правки слоя: правки (добавить, убрать, загрузить) меняют клетки на месте, и тогда досылаются все — клеток немного, а
+ * правки редки.
+ */
+function depositsMirror(layer: DepositLayer): LayerMirror {
+  let dirty = new Set<number>()
+  let revision = layer.revision
+  const { cells } = layer
+  const { set, clear } = cells
+  cells.set = (key, spots) => {
+    dirty.add(key)
+    return set.call(cells, key, spots)
+  }
+  cells.clear = () => {
+    for (const key of cells.keys()) dirty.add(key)
+    clear.call(cells)
+  }
+  return {
+    layer: 'deposits',
+    owner: -1,
+    take() {
+      if (layer.revision !== revision) {
+        revision = layer.revision
+        for (const key of cells.keys()) dirty.add(key)
+      }
+      const keys = dirty
+      dirty = new Set()
+      return chunkList(keys)
+    },
+    all: () => chunkList([...cells].filter(([, spots]) => spots.length).map(([key]) => key)),
+    block(cellX, cellY) {
+      const spots = cells.get(tileKey(cellX, cellY)) ?? []
+      const bytes = new Uint8Array(spots.length * DEPOSIT_ITEM)
+      const view = new DataView(bytes.buffer)
+      spots.forEach((spot, i) => {
+        view.setFloat64(i * DEPOSIT_ITEM, spot.x, true)
+        view.setFloat64(i * DEPOSIT_ITEM + 8, spot.y, true)
+        view.setUint8(i * DEPOSIT_ITEM + 16, DEPOSIT_TYPES.indexOf(spot.kind))
+        view.setFloat64(i * DEPOSIT_ITEM + 17, spot.reserve, true)
+      })
+      return bytes
+    },
+  }
+}
+
+/** Байт на месторождение в слое: место, вид, запас. */
+const DEPOSIT_ITEM = 8 + 8 + 1 + 8
+
 /** Все компоненты симуляции по именам. */
 const COMPONENTS: ReadonlyMap<string, Component<any>> = new Map(
   Object.values(components)
@@ -319,7 +370,7 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
   }
 
   /** Слои TS, которые Rust повторяет. */
-  const mirrors: LayerMirror[] = [pavingMirror(sim.paving), occupancyMirror(sim)]
+  const mirrors: LayerMirror[] = [pavingMirror(sim.paving), occupancyMirror(sim), depositsMirror(sim.deposits)]
 
   /** Досылает Rust изменённое в слоях: землю и блоки зеркал. */
   const syncLayers = () => {
