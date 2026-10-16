@@ -7,6 +7,6 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
-    "@kharos/client": "workspace:*"
+    "@kharos/client": "*"
   }
 }

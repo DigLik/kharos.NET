@@ -14,8 +14,8 @@
     "./save": "./src/save.ts"
   },
   "dependencies": {
-    "@kharos/ecs": "workspace:*",
-    "@kharos/i18n": "workspace:*",
-    "@kharos/sim-ts": "workspace:*"
+    "@kharos/ecs": "*",
+    "@kharos/i18n": "*",
+    "@kharos/sim-ts": "*"
   }
 }

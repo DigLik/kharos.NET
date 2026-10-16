@@ -11,8 +11,8 @@
     "./*": "./src/*.ts"
   },
   "dependencies": {
-    "@kharos/ecs": "workspace:*",
-    "@kharos/shared": "workspace:*",
-    "@kharos/data": "workspace:*"
+    "@kharos/ecs": "*",
+    "@kharos/shared": "*",
+    "@kharos/data": "*"
   }
 }

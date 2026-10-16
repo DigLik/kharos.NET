@@ -11,12 +11,12 @@
     "./style.css": "./src/style.css"
   },
   "dependencies": {
-    "@kharos/data": "workspace:*",
-    "@kharos/ecs": "workspace:*",
-    "@kharos/host": "workspace:*",
-    "@kharos/i18n": "workspace:*",
-    "@kharos/protocol": "workspace:*",
-    "@kharos/shared": "workspace:*",
-    "@kharos/sim-ts": "workspace:*"
+    "@kharos/data": "*",
+    "@kharos/ecs": "*",
+    "@kharos/host": "*",
+    "@kharos/i18n": "*",
+    "@kharos/protocol": "*",
+    "@kharos/shared": "*",
+    "@kharos/sim-ts": "*"
   }
 }

@@ -13,6 +13,6 @@
     "./luau.wasm": "./src/luau.wasm"
   },
   "dependencies": {
-    "@kharos/sim-ts": "workspace:*"
+    "@kharos/sim-ts": "*"
   }
 }

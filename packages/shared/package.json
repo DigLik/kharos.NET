@@ -11,6 +11,6 @@
     "./settings": "./src/settings.ts"
   },
   "dependencies": {
-    "@kharos/data": "workspace:*"
+    "@kharos/data": "*"
   }
 }
