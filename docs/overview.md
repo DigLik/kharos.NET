@@ -186,8 +186,8 @@ Production-сборка создаётся командой `npm run build`: с�
 | `packages/client/src/net/replica.ts`, `packages/client/src/net/connect.ts` | Копия серверной симуляции в клиенте и подключение к серверу по WebSocket |
 | `packages/protocol/src/protocol.ts` | Сообщения между сервером и клиентом |
 | `packages/protocol/src/codec.ts`, `packages/protocol/src/wire.ts` | Двоичный кадр движения; какие компоненты и в каком виде уходят в сеть и кому |
-| `server/main.ts` | Сервер на Bun: WebSocket вокруг хоста, сохранение мира |
-| `server/settings.ts` | Настройки сервера из settings.json |
+| `apps/server/main.ts` | Сервер на Bun: WebSocket вокруг хоста, сохранение мира |
+| `apps/server/settings.ts` | Настройки сервера из settings.json |
 | `packages/client/src/gui/` | Интерфейс на холсте: ядро (`ui.ts` — немедленный режим, раскладка, ввод; `text.ts` — пиксельный текст), экраны и панели игрока |
 | `packages/client/src/ui/` | Общее для интерфейса: команды сетки, скины, запуск игры, сведения о юнитах |
 | `packages/client/src/game/hud.ts` | Состояние интерфейса игрока, собранное из симуляции и выделения |

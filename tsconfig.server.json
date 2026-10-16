@@ -4,5 +4,5 @@
     "lib": ["ES2022"],
     "types": ["bun"]
   },
-  "include": ["server", "packages/host/src/host.ts", "packages/protocol/src", "packages/client/src/net/replica.ts"]
+  "include": ["apps/server", "packages/host/src/host.ts", "packages/protocol/src", "packages/client/src/net/replica.ts"]
 }

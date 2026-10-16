@@ -13,8 +13,8 @@ echo "$out" | grep -E "^ *[0-9]+ (pass|fail)$" | tr '\n' ' '; echo
 echo "$out" | grep -q "^ 0 fail" && ok test || bad test "$out"
 out=$(bun run build 2>&1) && ok build || bad build "$out"
 rm -rf $OUT/out
-out=$(bun build server/main.ts --target=bun --minify --outdir $OUT/out --entry-naming kharos-server-bun.js --asset-naming '[name].[ext]' 2>&1) && [ -f $OUT/out/luau.wasm ] && ok server-bundle || bad server-bundle "$out"
-out=$(bun build server/main.ts --compile --minify --outfile $OUT/out/kharos-server 2>&1) && ok server-binary || bad server-binary "$out"
+out=$(bun build apps/server/main.ts --target=bun --minify --outdir $OUT/out --entry-naming kharos-server-bun.js --asset-naming '[name].[ext]' 2>&1) && [ -f $OUT/out/luau.wasm ] && ok server-bundle || bad server-bundle "$out"
+out=$(bun build apps/server/main.ts --compile --minify --outfile $OUT/out/kharos-server 2>&1) && ok server-binary || bad server-binary "$out"
 out=$(bun run bundle:native 2>&1) && ok native-bundle || bad native-bundle "$out"
 out=$(cd native && cargo check 2>&1) && ok cargo-check || bad cargo-check "$out"
 
@@ -32,3 +32,5 @@ pkill -f "vite apps/web --port 5199"; pkill -f "vite preview apps/web --port 520
 # С модом mods/hello: машина Luau (luau.wasm) должна найтись и рядом с бандлом, и внутри бинарника.
 out=$(SMOKE_MOD=mods/hello bun tools/smoke/server.ts bun $OUT/out/kharos-server-bun.js 2>&1) && ok server-live-bundle || bad server-live-bundle "$out"
 out=$(SMOKE_MOD=mods/hello bun tools/smoke/server.ts $OUT/out/kharos-server 2>&1) && ok server-live-binary || bad server-live-binary "$out"
+# Из исходников, как `bun run server` при разработке.
+out=$(SMOKE_MOD=mods/hello bun tools/smoke/server.ts bun ./apps/server/main.ts 2>&1) && ok server-live-source || bad server-live-source "$out"

@@ -19,7 +19,7 @@ import { setWorking } from '@kharos/sim-ts/assembly'
 import { put } from '@kharos/sim-ts/inventory'
 import { DEPOSIT_CELL, reserveLeft } from '@kharos/sim-ts/deposits'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
-import { SESSION_RULES } from '../../server/settings'
+import { SESSION_RULES } from '../../apps/server/settings'
 import { placeNearMine } from './economy'
 import { TICK, newSim, options, printTable, rings, round } from './lib'
 

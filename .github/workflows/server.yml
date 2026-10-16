@@ -28,14 +28,14 @@ jobs:
       - run: bun test
       # Один файл для тех, у кого уже стоит Bun, и самодостаточные бинарники под Linux.
       # Машина модов (luau.wasm) у бандла — отдельным файлом рядом, бинарники вшивают её в себя.
-      - run: bun build server/main.ts --target=bun --minify --outdir out --entry-naming kharos-server-bun.js --asset-naming '[name].[ext]'
+      - run: bun build apps/server/main.ts --target=bun --minify --outdir out --entry-naming kharos-server-bun.js --asset-naming '[name].[ext]'
       # Лицензии библиотек — из бандла в отдельный файл релиза: код чище, а условия лицензий соблюдены.
       - run: |
           perl -0ne 'print "$&\n\n" while m{/\*!.*?\*/}gs' out/kharos-server-bun.js > out/THIRD-PARTY-LICENSES.txt
           cat packages/mods/src/luau.LICENSE.txt >> out/THIRD-PARTY-LICENSES.txt
           perl -0pi -e 's{/\*!.*?\*/}{}gs' out/kharos-server-bun.js
-      - run: bun build server/main.ts --compile --minify --target=bun-linux-x64 --outfile out/kharos-server-linux-x64
-      - run: bun build server/main.ts --compile --minify --target=bun-linux-arm64 --outfile out/kharos-server-linux-arm64
+      - run: bun build apps/server/main.ts --compile --minify --target=bun-linux-x64 --outfile out/kharos-server-linux-x64
+      - run: bun build apps/server/main.ts --compile --minify --target=bun-linux-arm64 --outfile out/kharos-server-linux-arm64
       # Версия протокола в имени релиза: по ней видно, к каким клиентам сервер подходит.
       - id: version
         run: |
