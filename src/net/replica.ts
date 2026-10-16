@@ -224,6 +224,8 @@ export function createReplica(welcome: Extract<ServerMessage, { type: 'welcome' 
     land: undefined as unknown as Replica['land'],
     // Знание о правках карты держит хост: клиенту приходит уже то, что он знает.
     landMemory: createLandMemory(),
+    // События мира — для модов, а они живут на хосте.
+    events: [],
     // Месторождения присылает хост слоем целиком; пока не прислал — их нет.
     deposits: createDeposits(undefined, true),
     rules: undefined as unknown as Replica['rules'],

@@ -28,10 +28,12 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun test
       # Один файл для тех, у кого уже стоит Bun, и самодостаточные бинарники под Linux.
-      - run: bun build server/main.ts --target=bun --minify --outfile out/kharos-server-bun.js
+      # Машина модов (luau.wasm) у бандла — отдельным файлом рядом, бинарники вшивают её в себя.
+      - run: bun build server/main.ts --target=bun --minify --outdir out --entry-naming kharos-server-bun.js --asset-naming '[name].[ext]'
       # Лицензии библиотек — из бандла в отдельный файл релиза: код чище, а условия лицензий соблюдены.
       - run: |
           perl -0ne 'print "$&\n\n" while m{/\*!.*?\*/}gs' out/kharos-server-bun.js > out/THIRD-PARTY-LICENSES.txt
+          cat src/mods/luau.LICENSE.txt >> out/THIRD-PARTY-LICENSES.txt
           perl -0pi -e 's{/\*!.*?\*/}{}gs' out/kharos-server-bun.js
       - run: bun build server/main.ts --compile --minify --target=bun-linux-x64 --outfile out/kharos-server-linux-x64
       - run: bun build server/main.ts --compile --minify --target=bun-linux-arm64 --outfile out/kharos-server-linux-arm64
@@ -52,7 +54,7 @@ jobs:
             Сборка из ${{ github.sha }}. Клиент на GitHub Pages собран из того же коммита.
 
             - `kharos-server-linux-x64`, `kharos-server-linux-arm64` — запускаются без Bun: `PORT=8787 ./kharos-server-linux-x64`
-            - `kharos-server-bun.js` — для машины с Bun: `PORT=8787 bun kharos-server-bun.js`
+            - `kharos-server-bun.js` — для машины с Bun: `PORT=8787 bun kharos-server-bun.js`; с модами (`mods` в settings.json) рядом с ним нужен `luau.wasm`
             - `THIRD-PARTY-LICENSES.txt` — лицензии библиотек, вошедших в сервер
           files: out/*
       # Хранятся последние десять сборок сервера, старые релизы уходят вместе с тегами.

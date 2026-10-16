@@ -19,6 +19,7 @@ import { cleanChat, cleanName, type ChatLine, type PlayerInfo, type PlayerView, 
 import { PLAYER_ARG, parseCommand, type CommandInfo } from './chatCommands'
 import { hostText, type Text } from '../i18n'
 import { erase, putUnit, setCredits, setHealth } from '../sim/editor'
+import { createMods, type ModLimits, type ModSource } from '../mods/runtime'
 import { addCredits, pay } from '../sim/economy'
 import { freeTilesNear } from '../sim/units'
 
@@ -235,6 +236,8 @@ export interface HostOptions {
    * игре канал не тесен). Что не влезло, ждёт следующих тиков. Обязательное в бюджет не смотрит.
    */
   budget?: { ms?: number; bytes?: number }
+  /** Моды: скомпилированный luau.wasm (см. src/mods/luau.ts) и код модов. Их print и ошибки идут в log. */
+  mods?: { module: WebAssembly.Module; sources: readonly ModSource[]; limits?: ModLimits }
 }
 
 export interface Host {
@@ -450,6 +453,21 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
   const sendCommands = (send: Send) => send(JSON.stringify({ type: 'commands', commands: commandsFor(admins.has(send)), admin: admins.has(send) } satisfies ServerMessage))
   const serverName = (options.names ?? DEFAULT_NAMES).server
   const serverSay = (text: string) => broadcast([{ player: 0, name: serverName, text, system: true }])
+  const mods =
+    options.mods &&
+    createMods(
+      options.mods.module,
+      options.mods.sources,
+      {
+        say(text) {
+          const clean = cleanChat(text)
+          if (clean) serverSay(clean)
+        },
+        playerName: (who) => (names.has(who) || [...players.values()].includes(who) || who === player ? nameOf(who) : undefined),
+      },
+      ({ mod, kind, text }) => (options.log ?? console.info)(`[${mod}] ${kind === 'log' ? text : `${kind}: ${text}`}`),
+      options.mods.limits,
+    )
   /** Подключение по его reply: команде из игры нужно знать, кто её прислал. */
   const callers = new WeakMap<Caller, Send>()
   const usage = (command: HostCommand) => hostText('usage', { command: `/${[command.name, ...command.args].join(' ')}` })
@@ -1393,6 +1411,7 @@ export function createHost(first: Sim, player?: number, saved?: Omit<HostSave, '
     advance(seconds) {
       const began = performance.now()
       const ticks = sim.advance(seconds)
+      mods?.dispatch(sim.events)
       // Правки карты — только тем, кто их увидел, см. landMemory.ts. Узнанное игроками без вкладок уже в их памяти.
       const learned = new Map<number, string>()
       for (const player of new Set(peers.values())) {

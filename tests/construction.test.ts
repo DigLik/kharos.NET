@@ -12,6 +12,7 @@ import { addCredits } from '../src/sim/economy'
 import { spawnUnit } from '../src/sim/units'
 import { throughJson } from './throughJson'
 import { addBuilders } from './builders'
+import type { SimEvent } from '../src/sim/sim'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }
 const TICK = 1 / 20
@@ -79,8 +80,19 @@ test('строитель возводит здание: кредиты спис�
   expect(isWalkable(sim, site.x, site.y)).toBe(false)
   expect(sim.world.has(entity, Site)).toBe(true)
 
+  // События каждого advance — его собственные: копятся здесь, чтобы найти среди них конец стройки.
+  const events: SimEvent[] = []
+  const advance = sim.advance
+  sim.advance = (time) => {
+    const ticks = advance(time)
+    events.push(...sim.events)
+    return ticks
+  }
   seconds(sim, BUILDINGS.generator.cost / BUILD_RATE)
   expect(sim.world.has(entity, Site)).toBe(false)
+  // Готовое здание — событие для модов, ровно одно.
+  const position = sim.world.get(entity, Position)!
+  expect(events.filter((event) => event.type === 'built')).toEqual([{ type: 'built', entity, player: 1, building: 'generator', x: position.x, y: position.y }])
   // Списано по ходу — цена целиком; назад пришли награда за электростанцию и доход главного здания за стройку.
   const spent = credits + REWARDS.generator - creditsOf(sim, 1)
   expect(spent).toBeLessThanOrEqual(BUILDINGS.generator.cost)

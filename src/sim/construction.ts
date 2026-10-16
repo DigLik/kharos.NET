@@ -863,5 +863,6 @@ export function construct(sim: Sim) {
     if (buildingSpec(site.type).produces) world.add(entity, Producer)
     equip(world, entity, site.type)
     reward(sim, player, site.type)
+    sim.events.push({ type: 'built', entity, player, building: site.type, x: position.x, y: position.y })
   }
 }

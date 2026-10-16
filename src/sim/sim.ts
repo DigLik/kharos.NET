@@ -2,7 +2,7 @@ import { Loop, World, type System, type Time, type WorldSnapshot } from '../ecs'
 import type { WeatherOptions } from './weather'
 import { areaOf, createLand, loadLand, saveLand, type GeneratorConfig, type Land } from '../map/terrain'
 import { createLandMemory, saveLandMemory, updateLandMemory, type LandMemory, type LandMemorySave } from './landMemory'
-import { buildingSpec, createOccupancy, type Occupancy } from './buildings'
+import { buildingSpec, createOccupancy, type BuildingType, type Occupancy } from './buildings'
 import { equipStorage } from './inventory'
 import { fight, recover } from './combat'
 import { assemble } from './assembly'
@@ -186,6 +186,9 @@ export interface SimSave extends SimOptions {
   buildMemory?: BuildMemorySave
 }
 
+/** Что случилось в мире: событие для модов, см. src/mods/api.ts — поля те же, что у события в схеме. */
+export type SimEvent = { type: 'built'; entity: Entity; player: number; building: BuildingType; x: number; y: number }
+
 /**
  * Симуляция — вся игра без картинки и ввода: мир, местность, правила. Не знает про браузер,
  * поэтому одинаково работает в клиенте, в Web Worker и на сервере. Снаружи на неё влияют только
@@ -221,6 +224,8 @@ export interface Sim {
   send(player: number, command: Command): void
   /** Продвигает симуляцию на seconds реального времени. Возвращает число сделанных тиков. */
   advance(seconds: number): number
+  /** События последнего advance, по порядку: их хост раздаёт модам. Следующий advance начинает список заново. */
+  readonly events: SimEvent[]
   save(): SimSave
   destroy(): void
 }
@@ -344,7 +349,11 @@ export function createSim(source: SimOptions | SimSave): Sim {
     send(player, command) {
       queue.push({ player, command })
     },
-    advance: (seconds) => loop.advance(seconds),
+    advance(seconds) {
+      sim.events.length = 0
+      return loop.advance(seconds)
+    },
+    events: [],
     save: () => ({
       version: SAVE_VERSION,
       ...options,

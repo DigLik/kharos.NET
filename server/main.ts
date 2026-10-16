@@ -7,6 +7,9 @@ import { PROTOCOL_VERSION, type ServerMessage } from '../src/net/protocol'
 import { createSim } from '../src/sim'
 import { decodeSave, encodeSave, readJson } from '../src/save/file'
 import { defaultSettings, mergeSettings, type ServerSettings } from './settings'
+import { compileLuau } from '../src/mods/luau'
+import type { ModSource } from '../src/mods/runtime'
+import luauWasm from '../src/mods/luau.wasm' with { type: 'file' }
 import { TLS_CHECK_INTERVAL, TLS_MODES, obtainCertificate, readCertificate, tlsDomain, type Certificate } from './tls'
 
 /** Как часто сервер пишет в консоль, что с ним происходит, в секундах. */
@@ -75,6 +78,24 @@ function store() {
   return storing
 }
 
+/** Моды из settings.mods: init.luau каждой папки. Без модов машина Luau и не компилируется. */
+async function loadMods() {
+  const sources: ModSource[] = []
+  for (const folder of settings.mods) {
+    const path = `${folder.replace(/\/+$/, '')}/init.luau`
+    if (!existsSync(path)) {
+      console.log(`мод ${folder}: нет ${path} — пропущен`)
+      continue
+    }
+    sources.push({ name: folder.split('/').filter(Boolean).at(-1)!, source: readFileSync(path, 'utf8') })
+  }
+  if (!sources.length) return undefined
+  console.log(`моды: ${sources.map((mod) => mod.name).join(', ')}`)
+  // У бандла путь к машине — от него самого («./luau.wasm» рядом), у бинарника и в разработке — готовый.
+  const wasm = luauWasm.startsWith('./') ? `${import.meta.dir}/${luauWasm.slice(2)}` : luauWasm
+  return { module: await compileLuau(await Bun.file(wasm).arrayBuffer()), sources }
+}
+
 const saved = await load()
 // Карта и погода у сохранённого мира свои, а правила — из настроек: их можно менять между запусками.
 const { generator, size, fog, weather, rules } = settings
@@ -83,6 +104,7 @@ const host = createHost(saved ? createSim({ ...saved.sim, rules }) : createSim({
   log: (text) => console.log(text),
   names: { player: t('server.player'), server: t('server.name') },
   budget: { bytes: settings.sendRate > 0 ? settings.sendRate * 1024 : undefined },
+  mods: await loadMods(),
 })
 if (saved) console.log(`мир загружен из ${SAVE_PATH}: тик ${saved.sim.tick}, игроков ${Object.keys(saved.players).length}`)
 else console.log(`новый мир ${size}×${size}, seed ${generator.seed}`)

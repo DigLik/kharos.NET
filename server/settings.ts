@@ -38,6 +38,11 @@ export interface ServerSettings {
    * у игрока на экране, см. рассылку в src/net/host.ts. Ноль снимает ограничение.
    */
   sendRate: number
+  /**
+   * Моды: папки, в каждой — init.luau (см. src/mods). Путь — от рабочей папки сервера. Код модов выполняется на
+   * сервере в песочнице, игрокам ничего не ставится.
+   */
+  mods: string[]
 }
 
 /**
@@ -67,6 +72,7 @@ export const defaultSettings = (): ServerSettings => ({
   tls: { ...DEFAULT_TLS },
   limits: { ...DEFAULT_LIMITS },
   sendRate: DEFAULT_SEND_RATE,
+  mods: [],
 })
 
 /**
@@ -83,7 +89,11 @@ export function mergeSettings(defaults: ServerSettings, source: unknown, warning
     for (const [key, item] of Object.entries(value)) {
       const name = path ? `${path}.${key}` : key
       if (!(key in base)) warnings.push(`${name}: неизвестный параметр`)
-      else if (typeof result[key] === 'object') result[key] = merge(result[key] as object, item, name)
+      // Списки в настройках — строк.
+      else if (Array.isArray(result[key])) {
+        if (Array.isArray(item) && item.every((entry) => typeof entry === 'string')) result[key] = item
+        else warnings.push(`${name}: ожидался список строк`)
+      } else if (typeof result[key] === 'object') result[key] = merge(result[key] as object, item, name)
       else if (typeof item !== typeof result[key] || (typeof item === 'number' && !Number.isFinite(item))) warnings.push(`${name}: ожидалось ${typeof result[key]}`)
       else result[key] = item
     }
