@@ -1,5 +1,5 @@
 import type { Entity, World } from '@kharos/ecs'
-import { tileKey } from '../map/terrain'
+import { tileKey } from '@kharos/shared/terrain'
 import { Owner, Position, Unit } from './components'
 import { flies, type UnitType } from './units'
 

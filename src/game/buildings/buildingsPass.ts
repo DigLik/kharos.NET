@@ -1,5 +1,5 @@
 import { setBlend } from '../../gl'
-import { tileKey } from '../../map/terrain'
+import { tileKey } from '@kharos/shared/terrain'
 import { uploadAtlas, type AtlasFrame, type PackedAtlas, type Sprite } from '../../render/atlas'
 import type { Pass } from '../../render/renderer'
 import { createSpriteProgram, createSprites } from '../../render/sprites'

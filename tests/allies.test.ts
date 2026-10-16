@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { DEFAULT_CONFIG } from '../src/map/terrain'
+import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
 import { createHost, type Host } from '../src/net/host'
 import { decodeServer } from '../src/net/protocol'
 import { createReplica, type Replica } from '../src/net/replica'

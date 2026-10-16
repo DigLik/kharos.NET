@@ -1,0 +1,9 @@
+{
+  "name": "@kharos/shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    "./terrain": "./src/terrain.ts"
+  }
+}

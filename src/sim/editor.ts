@@ -1,5 +1,5 @@
 import type { Entity } from '@kharos/ecs'
-import { Biome, CLIFF_BIT, biomeAt, DUNE_SHIFT, MAX_PEAK_RADIUS, Terrain, isBuildable, batchLand, isCliffFoot, peakOf, setPeakTile, setTile, terrainAt, tileBytes, tileKey, type Dunes } from '../map/terrain'
+import { Biome, CLIFF_BIT, biomeAt, DUNE_SHIFT, MAX_PEAK_RADIUS, Terrain, isBuildable, batchLand, isCliffFoot, peakOf, setPeakTile, setTile, terrainAt, tileBytes, tileKey, type Dunes } from '@kharos/shared/terrain'
 import { BUILDINGS, canPlace, placeBuilding, type BuildingType } from './buildings'
 import { Attached, Builds, Building, Carrier, Ghost, Turret, Health, Inventory, Owner, Path, Player, Position, Unit } from './components'
 import { DEPOSIT_CELL, DEPOSIT_SIZE, addDeposit, depositAt, depositsIn, depositNear, dropDeposit, prepareDeposits, reserveLeft, type DepositKind, type DepositSpot } from './deposits'

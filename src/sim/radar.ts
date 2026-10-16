@@ -1,5 +1,5 @@
 import type { Entity, Time } from '@kharos/ecs'
-import { hash } from '../map/terrain'
+import { hash } from '@kharos/shared/terrain'
 import { BUILDINGS, buildingSpec, isReady, levelFactor, type BuildingType } from './buildings'
 import { Building, Off, Owner, Position, Scan } from './components'
 import { powerSupply } from './income'

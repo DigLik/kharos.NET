@@ -1,4 +1,4 @@
-import { hash } from '../map/terrain'
+import { hash } from '@kharos/shared/terrain'
 import { buildingSpec, siteAt } from './buildings'
 import { Building, Deposit, Position, Site } from './components'
 import { DEPOSIT_CELL, DEPOSIT_SIZE, addDeposit, cellOf, depositAt, depositsIn, dropDeposit, knowsDeposit, placeIn, reserveLeft, seesDeposit, type DepositSpot } from './deposits'

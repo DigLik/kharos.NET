@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Terrain, isCliffFoot, peakOf, terrainAt } from '../src/map/terrain'
+import { Terrain, isCliffFoot, peakOf, terrainAt } from '@kharos/shared/terrain'
 import { CLIFF_COST, Dig, PEAK_COST, canDig, createSim, creditsOf, isWalkable, peakTiles, type Sim } from '../src/sim'
 import { addCredits } from '../src/sim/economy'
 import { addBuilders } from './builders'

@@ -1,5 +1,5 @@
 import type { Entity, World } from '@kharos/ecs'
-import { tileKey } from '../map/terrain'
+import { tileKey } from '@kharos/shared/terrain'
 import { alliesIn } from './allies'
 import { BUILDINGS, buildingSpec } from './buildings'
 import { Attached, Batch, Building, Chaser, Glare, Mark, Missile, Off, Owner, Player, Position, Scan, Shot, Site, Unit } from './components'

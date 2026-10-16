@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_CONFIG } from '../src/map/terrain'
+import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
 import { createHost } from '../src/net/host'
 import { CHAT_LENGTH, decodeServer, type ChatLine } from '../src/net/protocol'
 import { complete } from '../src/net/chatCommands'

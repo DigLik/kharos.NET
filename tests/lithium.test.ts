@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Biome, biomeAt } from '../src/map/terrain'
+import { Biome, biomeAt } from '@kharos/shared/terrain'
 import { Accumulator, Inventory, TOPICS, Trade, buyResearch, createSim, depositIn, grantResearch, isWalkable, powerStates, powerSupply, zoneEconomies, type Sim } from '../src/sim'
 import { BUILDINGS, placeBuilding } from '../src/sim/buildings'
 import { addCredits } from '../src/sim/economy'

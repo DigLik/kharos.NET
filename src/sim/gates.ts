@@ -1,5 +1,5 @@
 import type { Entity, Time } from '@kharos/ecs'
-import { tileKey } from '../map/terrain'
+import { tileKey } from '@kharos/shared/terrain'
 import { buildingSpec } from './buildings'
 import { Building, Gate, Owner, Position, Site, Unit } from './components'
 import type { Sim } from './sim'

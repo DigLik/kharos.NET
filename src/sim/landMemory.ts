@@ -1,4 +1,4 @@
-import { patchSavedTile, saveLand, setTile, tileBytes, tileKey, type TileEdit } from '../map/terrain'
+import { patchSavedTile, saveLand, setTile, tileBytes, tileKey, type TileEdit } from '@kharos/shared/terrain'
 import { prepareDeposits } from './deposits'
 import { TRACE_CELL } from './traces'
 import type { Sim } from './sim'

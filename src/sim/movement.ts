@@ -1,5 +1,5 @@
 import type { DataOf, Entity, Time } from '@kharos/ecs'
-import { tileKey } from '../map/terrain'
+import { tileKey } from '@kharos/shared/terrain'
 import { allied } from './allies'
 import { onTurn, ownerOf, turnToward, wrap } from './common'
 import { Converting, Path, Position, Unit } from './components'

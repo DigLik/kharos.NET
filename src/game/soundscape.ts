@@ -1,7 +1,7 @@
 import type { Audio } from '../audio/audio'
 import type { SoundName } from '../audio/sounds'
 import type { Entity } from '@kharos/ecs'
-import { Biome, biomeAt } from '../map/terrain'
+import { Biome, biomeAt } from '@kharos/shared/terrain'
 import { Blast, Building, Mark, Owner, Position, Shot, Unit, alliesIn, buildingSpec, researchOf, unitSpec, type WeaponType } from '../sim'
 import { nearness, sideOf } from './hearing'
 import type { Scene } from './scene'

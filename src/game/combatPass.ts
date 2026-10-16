@@ -1,6 +1,6 @@
 import type { Entity } from '@kharos/ecs'
 import { setBlend } from '../gl'
-import { Biome, Terrain, biomeAt, terrainAt } from '../map/terrain'
+import { Biome, Terrain, biomeAt, terrainAt } from '@kharos/shared/terrain'
 import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atlas'
 import { createLineProgram, createLines } from '../render/lines'
 import { Pixmap } from '../render/pixmap'

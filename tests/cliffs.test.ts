@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_CONFIG, Terrain, isCliffFoot, setTile } from '../src/map/terrain'
+import { DEFAULT_CONFIG, Terrain, isCliffFoot, setTile } from '@kharos/shared/terrain'
 import { Position, canDeploy, createSim, type Sim } from '../src/sim'
 import { CORE, canPlace } from '../src/sim/buildings'
 import { canPave } from '../src/sim/paving'

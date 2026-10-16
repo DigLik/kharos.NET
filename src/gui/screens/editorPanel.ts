@@ -9,7 +9,7 @@ import { ordersAt } from '../../game/orders'
 import { placementOf } from '../../game/placing'
 import type { SceneEdit } from '../../game/scene'
 import { hasText, hostText, t, textOf, type Key } from '@kharos/i18n'
-import { Biome, Dunes as DUNES_OF, MAX_PEAK_RADIUS, Terrain, type Dunes } from '../../map/terrain'
+import { Biome, Dunes as DUNES_OF, MAX_PEAK_RADIUS, Terrain, type Dunes } from '@kharos/shared/terrain'
 import {
   Armed,
   BUILDING_TYPES,

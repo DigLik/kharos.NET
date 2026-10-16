@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Terrain, terrainAt } from '../src/map/terrain'
+import { Terrain, terrainAt } from '@kharos/shared/terrain'
 import {
   Armed, Building, Carrier, CONTROL_RADIUS, Health, Inventory, Position, Unit, SAND_DURABILITY, Site, Turret,
   canBuild, canPlace, createSim, durabilityOf, isWalkable, networkOf, siteAt, type BuildingType, type Sim,

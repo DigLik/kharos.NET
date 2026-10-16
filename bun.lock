@@ -7,6 +7,7 @@
       "dependencies": {
         "@kharos/ecs": "workspace:*",
         "@kharos/i18n": "workspace:*",
+        "@kharos/shared": "workspace:*",
         "acme-client": "^5.4.0",
       },
       "devDependencies": {
@@ -23,11 +24,17 @@
       "name": "@kharos/i18n",
       "version": "0.1.0",
     },
+    "packages/shared": {
+      "name": "@kharos/shared",
+      "version": "0.1.0",
+    },
   },
   "packages": {
     "@kharos/ecs": ["@kharos/ecs@workspace:packages/ecs"],
 
     "@kharos/i18n": ["@kharos/i18n@workspace:packages/i18n"],
+
+    "@kharos/shared": ["@kharos/shared@workspace:packages/shared"],
 
     "@oxc-project/types": ["@oxc-project/types@0.152.0", "", {}, "sha512-oM/5rLBm2tPkg0iBgkH/FOeR3PCDpY19GTgAZjMFM8h9WI9VW7cLgzp6nwtarYKmovavIQZ+Fe/RKX/8C8O/Rw=="],
 

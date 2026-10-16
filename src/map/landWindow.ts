@@ -1,6 +1,6 @@
 import { createTexture, type Texture } from '../gl'
 import type { Viewpoint } from '../render/renderer'
-import { CHUNK_SIZE, chunkRevision, getChunk, type Land } from './terrain'
+import { CHUNK_SIZE, chunkRevision, getChunk, type Land } from '@kharos/shared/terrain'
 
 /** Сторона текстуры-окна в тайлах. Должна совпадать с WINDOW в шейдерах. */
 export const WINDOW = 512

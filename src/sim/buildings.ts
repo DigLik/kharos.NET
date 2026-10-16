@@ -1,5 +1,5 @@
 import type { Entity, World } from '@kharos/ecs'
-import { Terrain, isBuildable, isCliffFoot, terrainAt, tileKey } from '../map/terrain'
+import { Terrain, isBuildable, isCliffFoot, terrainAt, tileKey } from '@kharos/shared/terrain'
 import { isOwn } from './common'
 import { Accumulator, Assembly, Building, Gate, Health, Interceptor, Inventory, Reactor, Repair, Owner, Position, Producer, Shield, Silo, Site, Wanted } from './components'
 import { equipStorage, type BeamSpec } from './inventory'

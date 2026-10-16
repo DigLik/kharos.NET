@@ -1,4 +1,4 @@
-import { DEFAULT_CONFIG, type GeneratorConfig } from '../src/map/terrain'
+import { DEFAULT_CONFIG, type GeneratorConfig } from '@kharos/shared/terrain'
 import { DEFAULT_LIMITS, type ConnectLimits } from '../src/net/limits'
 import type { Lang } from '@kharos/i18n'
 import { DEFAULT_SEND_RATE } from '../src/net/host'

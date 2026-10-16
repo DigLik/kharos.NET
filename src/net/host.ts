@@ -1,6 +1,6 @@
 import { applyEdit, type EditOp } from '../sim/editOps'
 import type { Entity } from '@kharos/ecs'
-import { Terrain, terrainAt, tileBytes } from '../map/terrain'
+import { Terrain, terrainAt, tileBytes } from '@kharos/shared/terrain'
 import { BUILDINGS, CORE, canPlace, UNIT_TYPES, creditsOf, flies, fromClient, isDefeated, type UnitType, notWalledIn, isWalkable, openSpawn, protect, protectedPlayers, shownBy, sightingOf, allied, alliesOf, breakAlliance, exitAlliance, offerAlliance, giftable, spawnStartingUnits, wipePlayer, type Command, type Sim, type Sighting, type SimSave } from '../sim'
 import { Armed, Attached, Blast, Building, Burst, Doomed, Gate, Glare, Health, Interceptor, Mark, Owner, Path, Player, Position, Scan, Shield, Shot, Silo, Transfer, Unit } from '../sim/components'
 import { pathOf, rememberedWire, seenBy, sharedWireOf, type Wired } from './wire'

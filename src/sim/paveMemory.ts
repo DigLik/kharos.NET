@@ -1,4 +1,4 @@
-import { tileKey } from '../map/terrain'
+import { tileKey } from '@kharos/shared/terrain'
 import { alliesIn } from './allies'
 import { TRACE_CELL } from './traces'
 import { NO_PAVE, keyTile, paveOwnerOf } from './paved'

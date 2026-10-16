@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_CONFIG, isBuildable, terrainAt } from '../src/map/terrain'
+import { DEFAULT_CONFIG, isBuildable, terrainAt } from '@kharos/shared/terrain'
 import { Deposit, Position, createSim, depositAt, type DepositSpot, type Sim } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
 import { addDeposit, fillDeposits, knowsDeposit, takeReserve } from '../src/sim/deposits'

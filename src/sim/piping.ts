@@ -1,5 +1,5 @@
 import type { Entity } from '@kharos/ecs'
-import { tileKey } from '../map/terrain'
+import { tileKey } from '@kharos/shared/terrain'
 import { BUILDINGS, RESEARCH_FOR, UNDERGROUND_REACH, buildingSpec, canPlace, placeBuilding, siteAt, type BuildingType } from './buildings'
 import { hasResearch } from './topics'
 import { Building, Owner, Position, Site } from './components'

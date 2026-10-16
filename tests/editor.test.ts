@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { Biome, DEFAULT_CONFIG, DUNE_SHIFT, biomeAt, Dunes, Terrain, isCliffFoot, peakOf, setTile, terrainAt, tileBytes } from '../src/map/terrain'
+import { Biome, DEFAULT_CONFIG, DUNE_SHIFT, biomeAt, Dunes, Terrain, isCliffFoot, peakOf, setTile, terrainAt, tileBytes } from '@kharos/shared/terrain'
 import { Attached, Building, Ghost, Path, canFight, Health, Inventory, Owner, Position, Unit, createSim, creditsOf, type Sim } from '../src/sim'
 import { addPlayer, brushTiles, playerCamera, setPlayerCamera, clearTasks, depositsInBox, orderNow, setFacing, setTurretFacing, turretFacings, depositUnder, entitiesIn, entityAt, erase, moveDeposit, moveGhost, moveGroup, moveUnit, paint, playersOf, putBuilding, putDeposit, putUnit, removeDeposit, setCredits, setDeposit, setHealth, setOwner, setStock } from '../src/sim/editor'
 import { depositAt, depositIn, depositNear, depositsIn, reserveLeft } from '../src/sim/deposits'

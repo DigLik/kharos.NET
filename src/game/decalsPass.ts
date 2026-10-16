@@ -1,5 +1,5 @@
 import { createProgram, createQuads, setBlend } from '../gl'
-import { Terrain, terrainAt } from '../map/terrain'
+import { Terrain, terrainAt } from '@kharos/shared/terrain'
 import { ready, uploadAtlas, type AtlasFrame, type PackedAtlas, type Sprite } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'

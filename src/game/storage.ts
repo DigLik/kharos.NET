@@ -1,4 +1,4 @@
-import type { GeneratorConfig } from '../map/terrain'
+import type { GeneratorConfig } from '@kharos/shared/terrain'
 import type { SimSave, WeatherOptions } from '../sim'
 import { decodeSave, encodeSave, readJson } from '../save/file'
 import { t } from '@kharos/i18n'

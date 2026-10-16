@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import { DEFAULT_CONFIG } from '../src/map/terrain'
+import { DEFAULT_CONFIG } from '@kharos/shared/terrain'
 import { MOD_API, luauDefinitions, tsDefinitions } from '../src/mods/api'
 import { compileLuau, createMachine, type MachineOptions } from '../src/mods/luau'
 import { createMods, DEFAULT_MOD_LIMITS, type ModReport } from '../src/mods/runtime'

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Terrain, terrainAt } from '../src/map/terrain'
+import { Terrain, terrainAt } from '@kharos/shared/terrain'
 import { Hauler, Inventory, amountOf, createSim, type Sim } from '../src/sim'
 import { placeBuilding } from '../src/sim/buildings'
 import { put } from '../src/sim/inventory'

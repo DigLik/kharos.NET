@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Terrain, isCliffFoot, terrainAt } from '../src/map/terrain'
+import { Terrain, isCliffFoot, terrainAt } from '@kharos/shared/terrain'
 import { Blast, Building, Health, Owner, Position, Unit, armyOf, createSim, creditsOf, isDefeated, spawnStartingUnits, type Sim } from '../src/sim'
 import { spawnUnit } from '../src/sim/units'
 import { placeBuilding } from '../src/sim/buildings'

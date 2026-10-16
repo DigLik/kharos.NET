@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { isBuildable, terrainAt } from '../src/map/terrain'
+import { isBuildable, terrainAt } from '@kharos/shared/terrain'
 import { Owner, Path, Position, UNITS, Unit, canPlace, createSim, isWalkable, spawnStartingUnits, type Sim, type UnitType } from '../src/sim'
 import { SEARCH_LIMIT, findPath, isClear, searchCut, searchedTiles, smoothPath, withSearchQuota } from '../src/sim/path'
 import { orderMove, spawnUnit } from '../src/sim/units'

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_CONFIG, Terrain, biomeAt, createLand, sampleTerrain, terrainAt } from '../src/map/terrain'
+import { DEFAULT_CONFIG, Terrain, biomeAt, createLand, sampleTerrain, terrainAt } from '@kharos/shared/terrain'
 
 test('предпросмотр местности совпадает с миром везде, кроме гор', () => {
   const config = { ...DEFAULT_CONFIG, seed: 4242, rockLevel: 0.5 }

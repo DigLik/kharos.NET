@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_CONFIG, Terrain, setTile } from '../src/map/terrain'
+import { DEFAULT_CONFIG, Terrain, setTile } from '@kharos/shared/terrain'
 import { createHost } from '../src/net/host'
 import { decodeServer } from '../src/net/protocol'
 import { createReplica, type Replica } from '../src/net/replica'

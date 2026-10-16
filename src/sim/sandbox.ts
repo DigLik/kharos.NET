@@ -1,4 +1,4 @@
-import { tileKey } from '../map/terrain'
+import { tileKey } from '@kharos/shared/terrain'
 import type { Entity } from '@kharos/ecs'
 import { BUILDINGS, buildingSpec, canPlace, placeBuilding, type BuildingType } from './buildings'
 import { Inventory } from './components'

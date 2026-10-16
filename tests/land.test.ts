@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { CHUNK_SIZE, DEFAULT_CONFIG, Terrain, applyEdits, areaOf, createLand, getChunk, loadLand, saveLand, setTile, terrainAt, tileBytes } from '../src/map/terrain'
+import { CHUNK_SIZE, DEFAULT_CONFIG, Terrain, applyEdits, areaOf, createLand, getChunk, loadLand, saveLand, setTile, terrainAt, tileBytes } from '@kharos/shared/terrain'
 
 const bounds = { left: -64, top: -64, right: 64, bottom: 64 }
 const area = areaOf(bounds)

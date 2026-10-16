@@ -1,6 +1,6 @@
 import { allied, alliances } from './allies'
 import type { Entity } from '@kharos/ecs'
-import { Biome, Terrain, biomeAt, terrainAt, tileKey } from '../map/terrain'
+import { Biome, Terrain, biomeAt, terrainAt, tileKey } from '@kharos/shared/terrain'
 import { isPaved } from './paved'
 import { dropCargo } from './drops'
 import { BUILDINGS, buildingSpec, isWall, type BuildingType } from './buildings'

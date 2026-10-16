@@ -1,4 +1,4 @@
-import { hash } from '../map/terrain'
+import { hash } from '@kharos/shared/terrain'
 import type { SimOptions } from './sim'
 
 /**

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../src/map/settings'
-import { Terrain, isCliffFoot, terrainAt } from '../src/map/terrain'
+import { Terrain, isCliffFoot, terrainAt } from '@kharos/shared/terrain'
 import {
   BUILDINGS, Building, Builds, CORE, Health, Owner, Player, SCAN_SIZE, Site, Unit, buildingSight, scanRadius,
   Busy, Inventory, Producer, Off, OVERLOAD_DAMAGE, idlePower, loadedPlants, overloadOf, RELIEF_BELOW, RELIEF_INCOME, REPAIR_COST, coreless, powerSupply, REPAIR_SPEED, canBuild, canDeploy, canPlace, createSim, creditsOf, economyOf, powerOf, powerStates, refundOf, rewardsOf, siteAt, zoneEconomies, zoneOf, zonesOf, spawnStartingUnits, type BuildingType, type Sim,

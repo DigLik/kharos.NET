@@ -1,5 +1,5 @@
 import type { Entity } from '@kharos/ecs'
-import { CLIFF_BIT, DUNE_SHIFT, Terrain, batchLand, peakOf, tileBytes, tileKey, type Dunes } from '../map/terrain'
+import { CLIFF_BIT, DUNE_SHIFT, Terrain, batchLand, peakOf, tileBytes, tileKey, type Dunes } from '@kharos/shared/terrain'
 import { isOwn } from './common'
 import { Dig, Owner, Position } from './components'
 import { addCredits, pay } from './economy'

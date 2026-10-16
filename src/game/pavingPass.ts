@@ -1,5 +1,5 @@
 import { setBlend } from '../gl'
-import { Terrain, peakOf, terrainAt } from '../map/terrain'
+import { Terrain, peakOf, terrainAt } from '@kharos/shared/terrain'
 import { ready, uploadAtlas, type PackedAtlas, type Sprite } from '../render/atlas'
 import { Pixmap } from '../render/pixmap'
 import type { Pass } from '../render/renderer'

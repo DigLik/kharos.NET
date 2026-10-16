@@ -1,4 +1,4 @@
-import { peakOf, tileKey } from '../map/terrain'
+import { peakOf, tileKey } from '@kharos/shared/terrain'
 import { BUILDINGS, CORE, canDeployAt, DEPOSIT_SIZE, Owner, Pave, PAVE_LIMIT, digsIn, paveOwnerAt, peakTiles, type DigKind, canBuild, canPlace, canPave, creditsOf, depositNear, paveCost, buildingWithin, pipeAt, pipeStroke, wallStroke, isWellPair, wellsKept, UNDERGROUND_REACH, type BuildingSpec, type BuildingType } from '../sim'
 import type { PaveTool, Scene } from './scene'
 

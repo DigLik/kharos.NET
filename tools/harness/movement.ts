@@ -14,7 +14,7 @@
  */
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '../../src/map/settings'
-import { Terrain, isCliffFoot, terrainAt } from '../../src/map/terrain'
+import { Terrain, isCliffFoot, terrainAt } from '@kharos/shared/terrain'
 import {
   BUILDINGS, Health, Path, Position, Repair, Shot, TRAINING_PLAYER, Unit, createSim, driveBattle, spawnBattle,
   type BuildingType, type Sim, type UnitType,

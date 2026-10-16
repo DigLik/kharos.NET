@@ -1,5 +1,5 @@
 import type { Entity } from '@kharos/ecs'
-import { tileKey } from '../map/terrain'
+import { tileKey } from '@kharos/shared/terrain'
 import { BUILDINGS, BUILD_RATE, CORE, applyLevel, buildingSpec, canPlace, durabilityOf, equip, isUnlocked, newBuilding, siteAt, upgradeCost, upgradeSpent, type BuildingSpec, type BuildingType } from './buildings'
 import { NONE, isOwn, onTurn, ownerOf, rectDistance, turnToward, wrap } from './common'
 import { Building, Builds, Converting, Dig, Fetch, Health, Inventory, Owner, Path, Pave, Position, Producer, Repair, Site, Trade, Unit, Upgrade } from './components'

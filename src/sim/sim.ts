@@ -1,6 +1,6 @@
 import { Loop, World, type System, type Time, type WorldSnapshot } from '@kharos/ecs'
 import type { WeatherOptions } from './weather'
-import { areaOf, createLand, loadLand, saveLand, type GeneratorConfig, type Land } from '../map/terrain'
+import { areaOf, createLand, loadLand, saveLand, type GeneratorConfig, type Land } from '@kharos/shared/terrain'
 import { createLandMemory, saveLandMemory, updateLandMemory, type LandMemory, type LandMemorySave } from './landMemory'
 import { buildingSpec, createOccupancy, type BuildingType, type Occupancy } from './buildings'
 import { equipStorage } from './inventory'

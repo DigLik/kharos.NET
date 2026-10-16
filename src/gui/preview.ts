@@ -3,7 +3,7 @@
 // заново не считается — только после паузы SETTLE.
 
 import { PALETTE } from '../game/minimap'
-import { Terrain, sampleTerrain, type GeneratorConfig } from '../map/terrain'
+import { Terrain, sampleTerrain, type GeneratorConfig } from '@kharos/shared/terrain'
 
 /** Сторона предпросмотра в пикселях холста. */
 const PREVIEW_SIZE = 256

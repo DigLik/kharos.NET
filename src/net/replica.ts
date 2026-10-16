@@ -1,7 +1,7 @@
 import type { EditOp } from '../sim/editOps'
 import type { CommandInfo } from './chatCommands'
 import { World, type Component, type Entity, type Time } from '@kharos/ecs'
-import { applyEdits, areaOf, createLand, loadLand, saveLand } from '../map/terrain'
+import { applyEdits, areaOf, createLand, loadLand, saveLand } from '@kharos/shared/terrain'
 import { inflate } from '../save/file'
 import { createDeposits, loadDeposits } from '../sim/deposits'
 import { createLandMemory } from '../sim/landMemory'
