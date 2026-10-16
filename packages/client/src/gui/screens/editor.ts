@@ -1,6 +1,6 @@
 // Редактор сохранений на холсте — игра в режиме бога: тот же холст, но симуляция стоит, а вместо нижней панели —
 // боковая (editorPanel.ts). Тумана нет; разведанное игроками сохраняется таким, каким было. Перенесено со страницы
-// (src/ui/EditorView.tsx).
+// (packages/client/src/ui/EditorView.tsx).
 
 import { createGame, type Game } from '../../game/game'
 import { stage } from '../../game/stage'

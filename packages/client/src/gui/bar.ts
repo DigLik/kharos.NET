@@ -1,5 +1,5 @@
 // Нижняя панель на холсте: мини-карта | сведения о выбранном | сетка команд 4×3. Перенесена со страницы
-// (src/ui/Hud.tsx) как была: те же размеры (--bar-inner 140, ячейка 132), рамки, подсказки и карточки ячеек.
+// (packages/client/src/ui/Hud.tsx) как была: те же размеры (--bar-inner 140, ячейка 132), рамки, подсказки и карточки ячеек.
 
 import type { HudState, Stack, TruckJob } from '../game/hud'
 import { goodCanvas } from '../game/goodIcons'

@@ -1,0 +1,19 @@
+{
+  "name": "@kharos/client",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts",
+    "./style.css": "./src/style.css"
+  },
+  "dependencies": {
+    "@kharos/data": "workspace:*",
+    "@kharos/ecs": "workspace:*",
+    "@kharos/host": "workspace:*",
+    "@kharos/i18n": "workspace:*",
+    "@kharos/protocol": "workspace:*",
+    "@kharos/shared": "workspace:*",
+    "@kharos/sim-ts": "workspace:*"
+  }
+}

@@ -1,5 +1,5 @@
 // Главное меню на холсте поверх слайдов симуляции (showcase.ts): продолжить последнюю игру, начать новую, сохранения,
-// сеть, настройки, об игре. Перенесено со страницы (src/ui/Menu.tsx) как было: те же окна, поля и кнопки.
+// сеть, настройки, об игре. Перенесено со страницы (packages/client/src/ui/Menu.tsx) как было: те же окна, поля и кнопки.
 
 import { createMenuMusic, type MenuMusic } from '../../audio/music'
 import { createSlot, deleteSave, exportSave, importSave, listSaves, renameSave, storeSave, type SaveSlot } from '../../game/storage'

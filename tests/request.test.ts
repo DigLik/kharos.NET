@@ -108,7 +108,7 @@ test('юниты в кругах станции запроса пополняю�
 })
 
 test('кнопки заказа: груз, потом количество шагами, не больше склада за вычетом других заказов', async () => {
-  const { commandsOf } = await import('../src/ui/commands')
+  const { commandsOf } = await import('@kharos/client/ui/commands')
   type Deal = NonNullable<Parameters<typeof commandsOf>[3]>
   const request = { buildings: [5], wanted: { ammo: 60 }, have: { ammo: 20 }, capacity: 100 }
   const state = { request, credits: 0, units: [], building: 'requestStation' } as unknown as Parameters<typeof commandsOf>[0]

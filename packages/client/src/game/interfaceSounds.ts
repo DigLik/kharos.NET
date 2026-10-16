@@ -69,7 +69,7 @@ export function createInterfaceSounds(sim: Sim, audio: Audio) {
   }
   document.addEventListener('pointerdown', down, true)
   document.addEventListener('pointerover', over)
-  // Кнопки интерфейса на холсте (src/gui): DOM-событий у них нет, звук приходит событием окна.
+  // Кнопки интерфейса на холсте (packages/client/src/gui): DOM-событий у них нет, звук приходит событием окна.
   const gui = (event: Event) => {
     const { disabled, group, hover } = (event as CustomEvent<GuiPress>).detail
     if (hover) play('hover', HOVER_VOLUME)

@@ -39,7 +39,7 @@ const RIGHT = 2
  * Alt+G — сетка тайлов.
  */
 /**
- * covered — лежит ли в точке холста панель интерфейса, нарисованного на холсте (src/gui): нажатия и колесо там
+ * covered — лежит ли в точке холста панель интерфейса, нарисованного на холсте (packages/client/src/gui): нажатия и колесо там
  * достаются ей, а не миру, — как у панелей страницы, которые лежат поверх холста.
  */
 export function createControls(canvas: HTMLCanvasElement, scene: Scene, motion: CameraMotion, covered: (x: number, y: number) => boolean = () => false) {

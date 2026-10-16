@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
-import { STEPS, currentStep, stepTarget, stepsDone } from '../src/game/firstSteps'
+import { STEPS, currentStep, stepTarget, stepsDone } from '@kharos/client/game/firstSteps'
 import { Building, Owner, Player, Position, Unit, createSim, depositAt, depositIn, spawnStartingUnits } from '@kharos/sim-ts'
 import { grantResearch } from '@kharos/sim-ts/research'
 import { spawnUnit } from '@kharos/sim-ts/units'

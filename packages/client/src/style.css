@@ -3,7 +3,7 @@
 :root {
   color-scheme: dark;
   /*
-   * Рамки, кнопки и монета рисуются кодом (src/ui/skin.ts) в переменные --skin-*. Шрифты — Ark Pixel (OFL,
+   * Рамки, кнопки и монета рисуются кодом (packages/client/src/ui/skin.ts) в переменные --skin-*. Шрифты — Ark Pixel (OFL,
    * public/fonts, кусками по unicode-range — см. fonts.css): 12-пиксельный — весь текст, 10-пиксельный вдвое
    * крупнее — заголовки (--font-title). Пиксель шрифта ложится на пиксели экрана, только когда размер кратен его
    * сетке: текст — 12px, заголовки — 20px. Чего в Ark Pixel нет (ники пишут чем угодно), рисует GNU Unifont —
@@ -11,7 +11,7 @@
    */
   font-family: "Ark Pixel 12", "Kharos Unifont 12", monospace;
   --font-title: "Ark Pixel 10", "Kharos Unifont 10", "Ark Pixel 12", monospace;
-  /* Тона — те же, что у скина (src/ui/skin.ts) и построек. Других оттенков в стилях нет. */
+  /* Тона — те же, что у скина (packages/client/src/ui/skin.ts) и построек. Других оттенков в стилях нет. */
   --ink: #0b111b;
   --night: #08111c;
   --well: #070d15;

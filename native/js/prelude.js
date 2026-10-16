@@ -289,7 +289,7 @@
   globalThis.PointerEvent ??= class PointerEvent extends MouseEvent {}
   globalThis.WheelEvent ??= class WheelEvent extends MouseEvent {}
   globalThis.KeyboardEvent ??= class KeyboardEvent extends UIEvent {}
-  /** Событие со своими данными (`detail`): им интерфейс зовёт свои звуки (см. `src/gui/ui.ts`). */
+  /** Событие со своими данными (`detail`): им интерфейс зовёт свои звуки (см. `packages/client/src/gui/ui.ts`). */
   globalThis.CustomEvent ??= class CustomEvent extends Event {
     constructor(type, init = {}) {
       super(type, init)

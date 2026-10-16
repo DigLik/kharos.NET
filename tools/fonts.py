@@ -3,7 +3,7 @@
 
 Что делает:
 - качает закреплённые версии в .cache/fonts (повторный запуск их не качает);
-- режет шрифты для страницы на куски woff2 по диапазонам Юникода (public/fonts) и пишет к ним src/fonts.css с
+- режет шрифты для страницы на куски woff2 по диапазонам Юникода (public/fonts) и пишет к ним packages/client/src/fonts.css с
   `unicode-range`: браузер качает только куски, чьи буквы встретились, — латиница с кириллицей это 26 КБ, а иероглифы
   и Unifont приходят, лишь когда они понадобились;
 - кладёт полные OTF для нативной оболочки (native/fonts): её холст пишет текст сам (`fontdue`), с диска.
@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / '.cache' / 'fonts'
 PUBLIC = ROOT / 'public' / 'fonts'
 NATIVE = ROOT / 'native' / 'fonts'
-CSS = ROOT / 'src' / 'fonts.css'
+CSS = ROOT / 'packages' / 'client' / 'src' / 'fonts.css'
 
 ARK = '2026.09.25'
 UNIFONT = '18.0.01'

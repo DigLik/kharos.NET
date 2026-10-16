@@ -190,7 +190,7 @@ export function paintGood(good: Good, put: (x: number, y: number, color: readonl
 const canvases = new Map<Good, HTMLCanvasElement>()
 const cache = new Map<Good, string>()
 
-/** Мини-иконка груза холстом: её рисует интерфейс на холсте (src/gui). Рисуется один раз. */
+/** Мини-иконка груза холстом: её рисует интерфейс на холсте (packages/client/src/gui). Рисуется один раз. */
 export function goodCanvas(good: Good) {
   let canvas = canvases.get(good)
   if (canvas) return canvas

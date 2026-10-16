@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
-import type { HudState } from '../src/game/hud'
+import type { HudState } from '@kharos/client/game/hud'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { createHost, type Host } from '@kharos/host'
 import { decodeServer } from '@kharos/protocol'
-import { createReplica, type Replica } from '../src/net/replica'
+import { createReplica, type Replica } from '@kharos/client/net/replica'
 import {
   BUILDINGS, Drop, Inventory, Position, Transfer, amountOf, canFerry, canPlace, canSell, createSim, creditsOf, offerAlliance, sendFerry,
   type BuildingType, type Command, type Sim,
@@ -12,7 +12,7 @@ import {
 import { placeBuilding } from '@kharos/sim-ts/buildings'
 import { addCredits } from '@kharos/sim-ts/economy'
 import { SELL_SECONDS, flightTicks, sell } from '@kharos/sim-ts/trade'
-import { commandsOf, type FerryDraft, type Page } from '../src/ui/commands'
+import { commandsOf, type FerryDraft, type Page } from '@kharos/client/ui/commands'
 
 const STEP = 1 / 20
 const options = { generator: DEFAULT_SETTINGS.generator, size: 256, fog: false, rules: { protection: 0, techTree: false } }

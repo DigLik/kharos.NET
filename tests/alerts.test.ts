@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { createAlerts } from '../src/game/alerts'
-import type { Scene } from '../src/game/scene'
+import { createAlerts } from '@kharos/client/game/alerts'
+import type { Scene } from '@kharos/client/game/scene'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { tileKey } from '@kharos/shared/terrain'
 import { DEPOSIT_TYPES, Health, Mark, Missile, Position, Shot, WARNING, createSim } from '@kharos/sim-ts'

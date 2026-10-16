@@ -1,5 +1,5 @@
 // Общие кусочки панелей на холсте: цвета, значок груза с числом, полоса готовности, монета, подпись клавиши. Вид — тот
-// же, что был у страницы (src/style.css): рамки скина, Ark Pixel, тени текста.
+// же, что был у страницы (packages/client/src/style.css): рамки скина, Ark Pixel, тени текста.
 
 import type { GridState } from '../game/hud'
 import { goodCanvas } from '../game/goodIcons'
@@ -8,7 +8,7 @@ import type { Good } from '@kharos/sim-ts'
 import { INK, skins } from '../ui/skin'
 import type { Run, TextStyle, Ui } from './ui'
 
-/** Цвета текста — те же переменные, что у страницы (src/style.css). */
+/** Цвета текста — те же переменные, что у страницы (packages/client/src/style.css). */
 export const COLORS = {
   ink: INK,
   bright: '#eef6ff',

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { Pixmap } from '../src/render/pixmap'
+import { Pixmap } from '@kharos/client/render/pixmap'
 
 /** Рисунок символами: # — закрашенный пиксель. */
 const picture = (image: Pixmap) => {

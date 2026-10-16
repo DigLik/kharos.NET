@@ -96,7 +96,7 @@ export type Setup = (gl: WebGL2RenderingContext) => Pass[]
  * onError получает ошибку, если после восстановления контекста проходы не удалось создать заново.
  * Ошибка при первом создании бросается из самого createRenderer.
  */
-/** Когда какой-нибудь рендер последний раз рисовал кадр, мс по performance.now: интерфейс без игры (src/gui/app.ts)
+/** Когда какой-нибудь рендер последний раз рисовал кадр, мс по performance.now: интерфейс без игры (packages/client/src/gui/app.ts)
  * кладёт себя в кадр сам, только если кадр не нарисовала игра. */
 let drawnAt = -Infinity
 export const lastDrawn = () => drawnAt

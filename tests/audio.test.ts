@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { ALL_LOOPS, ALL_LOOP_NAMES, ALL_SOUNDS as SOUNDS, ALL_SOUND_NAMES as SOUND_NAMES } from '../src/audio/sounds'
-import { DISTANT_NAMES, DISTANT_SOUNDS, NOISE_LEVEL, SOUND_VARIANTS, noiseLoop, reverbImpulse } from '../src/audio/synth'
+import { ALL_LOOPS, ALL_LOOP_NAMES, ALL_SOUNDS as SOUNDS, ALL_SOUND_NAMES as SOUND_NAMES } from '@kharos/client/audio/sounds'
+import { DISTANT_NAMES, DISTANT_SOUNDS, NOISE_LEVEL, SOUND_VARIANTS, noiseLoop, reverbImpulse } from '@kharos/client/audio/synth'
 
 const RATE = 44100
 

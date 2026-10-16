@@ -2,17 +2,17 @@
 // Запускается вместо игры: `KHAROS_SCRIPT=js/ui.bundle.js cargo run` (сборка — `bun run bundle:native`).
 //
 // Проверяются картинки, которые интерфейс рисует кодом: скин панелей (`installSkin`), значки грузов (`goodIcon`),
-// портреты юнитов и зданий, значки покрытия и уровней (см. `src/game/portraits.ts`). Живут они на двумерном холсте
+// портреты юнитов и зданий, значки покрытия и уровней (см. `packages/client/src/game/portraits.ts`). Живут они на двумерном холсте
 // (см. `src/canvas`), пиксели которого лежат в Rust: PNG у холста несжатый, поэтому по нему видно и сторону картинки,
 // и что она не пустая. Раскладка и рисование интерфейса проверяются отдельно — в самом интерфейсе окна (`js/hud.ts`).
 //
 // В конце картинки собираются мозаикой и уходят в окно (см. `js/show.ts`): числами видно, что холст нарисовал, а
 // глазами — что нарисовано. Проверка окна идёт по кадрам, поэтому итог печатается уже из кадра.
 
-import { GOOD_ICON, goodIcon } from '../../src/game/goodIcons'
-import { buildingPortrait, levelPortrait, pavePortrait, unitPortrait } from '../../src/game/portraits'
+import { GOOD_ICON, goodIcon } from '@kharos/client/game/goodIcons'
+import { buildingPortrait, levelPortrait, pavePortrait, unitPortrait } from '@kharos/client/game/portraits'
 import { BUILDING_TYPES, GOODS, UNIT_TYPES } from '@kharos/sim-ts'
-import { installSkin } from '../../src/ui/skin'
+import { installSkin } from '@kharos/client/ui/skin'
 import { fromUrl, type Image, paintedBytes } from './png'
 import { show, type Sheet } from './show'
 
@@ -45,7 +45,7 @@ const checkPicture = (name: string, url: string, side: number) => {
 // 1. Скин интерфейса: `installSkin` кладёт картинки переменными в корень документа, откуда их берут стили панелей.
 installSkin()
 const style = document.documentElement.style
-/** Рамки скина — 12×12 пикселей, монета — 8×8 (см. `src/ui/skin.ts`). */
+/** Рамки скина — 12×12 пикселей, монета — 8×8 (см. `packages/client/src/ui/skin.ts`). */
 const SKINS: [string, number][] = [
   ['panel', 12],
   ['well', 12],
@@ -64,10 +64,10 @@ for (const [name, side] of SKINS) {
   checkPicture(`скин «${name}»`, url.replace(/^url\(|\)$/g, ''), side)
 }
 
-// 2. Значки грузов: мини-иконки для складов, магазинов и перевозок (см. `src/game/goodIcons.ts`).
+// 2. Значки грузов: мини-иконки для складов, магазинов и перевозок (см. `packages/client/src/game/goodIcons.ts`).
 for (const ware of GOODS) checkPicture(`значок груза «${ware}»`, goodIcon(ware), GOOD_ICON)
 
-// 3. Портреты: юниты и здания, вписанные в квадрат панели выбранного (см. `src/game/portraits.ts`). Тут рисование
+// 3. Портреты: юниты и здания, вписанные в квадрат панели выбранного (см. `packages/client/src/game/portraits.ts`). Тут рисование
 // идёт тем же кодом, что на карте, — но без карты и без видеокарты: спрайт рисуется в пиксмап, а тот идёт на холст.
 for (const type of UNIT_TYPES) checkPicture(`портрет юнита «${type}»`, unitPortrait(type, 48), 48)
 for (const type of BUILDING_TYPES) checkPicture(`портрет здания «${type}»`, buildingPortrait(type, 64), 64)

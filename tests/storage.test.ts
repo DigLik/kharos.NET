@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from 'bun:test'
-import { createSlot, deleteSave, exportSave, importSave, listSaves, loadCamera, loadSave, resetSaveFiles, storeCamera, storeSave } from '../src/game/storage'
+import { createSlot, deleteSave, exportSave, importSave, listSaves, loadCamera, loadSave, resetSaveFiles, storeCamera, storeSave } from '@kharos/client/game/storage'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { createSim } from '@kharos/sim-ts'
 

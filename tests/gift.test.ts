@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import type { HudState } from '../src/game/hud'
+import type { HudState } from '@kharos/client/game/hud'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { createHost } from '@kharos/host'
 import { decodeServer } from '@kharos/protocol'
-import { createReplica, type Replica } from '../src/net/replica'
+import { createReplica, type Replica } from '@kharos/client/net/replica'
 import {
   Doomed, Hauler, Inventory, Owner, Path, Tactics, amountOf, canPlace, createSim, fromClient, giftable, handOver, offerAlliance,
   type BuildingType, type Command, type Sim,
@@ -13,7 +13,7 @@ import { NONE } from '@kharos/sim-ts/common'
 import { addCredits } from '@kharos/sim-ts/economy'
 import { turretsOf } from '@kharos/sim-ts/turrets'
 import { spawnUnit } from '@kharos/sim-ts/units'
-import { commandsOf, type Page } from '../src/ui/commands'
+import { commandsOf, type Page } from '@kharos/client/ui/commands'
 
 const STEP = 1 / 20
 const options = { generator: DEFAULT_SETTINGS.generator, size: 256, fog: false, rules: { protection: 0, techTree: false } }

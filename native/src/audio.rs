@@ -20,7 +20,7 @@ use web_audio_api::context::{AudioContext, AudioContextOptions, AudioContextStat
 use web_audio_api::node::{AudioBufferSourceNode, AudioDestinationNode, AudioNode, AudioScheduledSourceNode, BiquadFilterNode, BiquadFilterType, ConvolverNode, DynamicsCompressorNode, GainNode, OscillatorNode, OscillatorType, StereoPannerNode};
 use web_audio_api::{AudioBuffer, AudioBufferOptions, AudioParam};
 
-/// Узел графа. Виды — те, что берёт звук игры (`src/audio`); номер вида тот же, что у обёртки (`KIND` в `js/audio.js`).
+/// Узел графа. Виды — те, что берёт звук игры (`packages/client/src/audio`); номер вида тот же, что у обёртки (`KIND` в `js/audio.js`).
 enum Node {
   Destination(AudioDestinationNode),
   Gain(GainNode),

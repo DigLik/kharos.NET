@@ -11,7 +11,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Owner, Position, Unit } from '@kharos/sim-ts/components'
 import { decodeServer, PROTOCOL_VERSION } from '@kharos/protocol'
-import { createReplica, type Replica } from '../../src/net/replica'
+import { createReplica, type Replica } from '@kharos/client/net/replica'
 
 const [command, ...args] = process.argv.slice(2)
 if (!command) throw new Error('bun tools/smoke/server.ts <команда сервера...>')

@@ -31,6 +31,7 @@
     "@kharos/mods": "workspace:*",
     "@kharos/data": "workspace:*",
     "@kharos/protocol": "workspace:*",
-    "@kharos/host": "workspace:*"
+    "@kharos/host": "workspace:*",
+    "@kharos/client": "workspace:*"
   }
 }

@@ -78,7 +78,7 @@ export const SKIN_SCALE = 2
 
 let drawn: Record<SkinName, HTMLCanvasElement> | null = null
 
-/** Картинки скина холстами: их рисует интерфейс на холсте (src/gui) — девятью частями, как border-image. */
+/** Картинки скина холстами: их рисует интерфейс на холсте (packages/client/src/gui) — девятью частями, как border-image. */
 export function skins(): Record<SkinName, HTMLCanvasElement> {
   return (drawn ??= paintSkins())
 }

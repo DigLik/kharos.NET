@@ -1,20 +1,20 @@
 // Точка входа нативной игры: собранная игра в рантайме окна. Переписанного здесь нет: без переменных окружения окно
-// запускает то же приложение, что страница (src/gui/app.ts), — загрузку, главное меню над витриной, игру, редактор;
+// запускает то же приложение, что страница (packages/client/src/gui/app.ts), — загрузку, главное меню над витриной, игру, редактор;
 // весь интерфейс рисуется на холсте. KHAROS_MODE открывает игру сразу, минуя меню. KHAROS_SCENE — сценка витрины без
 // интерфейса, для роликов: крошечный мир считает сам рантайм, без хоста, сценка сама ведёт своё действие.
 // В конце — проверка, что нарисованное дошло до драйвера: та же, что у проверки фундамента (см. README).
 
-import { createGame, simOptions, type Game } from '../../src/game/game'
-import { loadArt } from '../../src/game/loadArt'
-import { stage } from '../../src/game/stage'
+import { createGame, simOptions, type Game } from '@kharos/client/game/game'
+import { loadArt } from '@kharos/client/game/loadArt'
+import { stage } from '@kharos/client/game/stage'
 import { DEFAULT_SETTINGS, type MapSettings } from '@kharos/shared/settings'
-import { createSlot } from '../../src/game/storage'
-import { startApp } from '../../src/gui/app'
+import { createSlot } from '@kharos/client/game/storage'
+import { startApp } from '@kharos/client/gui/app'
 import { LOCAL_PLAYER, type GameMode } from '@kharos/host/local'
-import { lastDrawn } from '../../src/render/renderer'
+import { lastDrawn } from '@kharos/client/render/renderer'
 import { SCENES, createSim, type Scene, type SceneName } from '@kharos/sim-ts'
 import { loadLang, preferredLang } from '@kharos/i18n'
-import type { Launch } from '../../src/ui/launch'
+import type { Launch } from '@kharos/client/ui/launch'
 
 /** Что окно сказало до начала игры (см. `game_options` в `src/main.rs`): сценка, час суток и ровные ли часы. */
 type Options = { fixed?: boolean; scene?: string | null; hour?: number | null; mode?: string | null }

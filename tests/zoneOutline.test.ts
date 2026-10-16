@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { outlineOf } from '../src/game/cursorPass'
+import { outlineOf } from '@kharos/client/game/cursorPass'
 
 /** Та же граница перебором каждой точки по всем кругам. */
 function slow(zone: number[]) {

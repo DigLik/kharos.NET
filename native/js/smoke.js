@@ -56,7 +56,7 @@ function program(vertex, fragment) {
   return handle
 }
 
-/** Обходит юниформы программы: имена, размеры и виды — как это делает `src/gl/program.ts`. */
+/** Обходит юниформы программы: имена, размеры и виды — как это делает `packages/client/src/gl/program.ts`. */
 function* uniforms(handle) {
   const count = gl.getProgramParameter(handle, gl.ACTIVE_UNIFORMS)
   for (let index = 0; index < count; index++) {

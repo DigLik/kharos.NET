@@ -11,7 +11,7 @@ use deno_core::{JsRuntime, ModuleSpecifier, RuntimeOptions};
 /// Обёртка браузерного API (`js/prelude.js`): то, что в браузере даёт страница, — холст, кадры, таймеры, `console`
 /// и состояние WebGL. Файл кладётся в двоичный файл: рядом с ним на диске ничего не нужно.
 const PRELUDE: &str = include_str!("../js/prelude.js");
-/// Звук — Web Audio API поверх `src/audio.rs` (`js/audio.js`): идёт следом за обёрткой, тоже из двоичного файла.
+/// Звук — Web Audio API поверх `packages/client/src/audio.rs` (`js/audio.js`): идёт следом за обёрткой, тоже из двоичного файла.
 const AUDIO: &str = include_str!("../js/audio.js");
 
 pub struct Engine {

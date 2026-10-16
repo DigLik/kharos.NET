@@ -1,5 +1,5 @@
-// Звук для нативной игры — Web Audio API в том объёме, что берёт `src/audio`: контекст, узлы, их параметры с
-// расписанием и записи. Сам граф и вывод на устройство — в Rust (`src/audio.rs`, крейт `web-audio-api`), а здесь
+// Звук для нативной игры — Web Audio API в том объёме, что берёт `packages/client/src/audio`: контекст, узлы, их параметры с
+// расписанием и записи. Сам граф и вывод на устройство — в Rust (`packages/client/src/audio.rs`, крейт `web-audio-api`), а здесь
 // классы в форме браузерных: игра заводит звук так же, как на странице.
 //
 // Узлы и записи Rust держит по номерам. Когда игра отпускает объект, его номер отпускается и в Rust
@@ -10,7 +10,7 @@
 (() => {
   const ops = globalThis.Deno.core.ops
 
-  /** Номера видов узлов и имён параметров — те же, что у Rust (`Node` и `Node::param` в `src/audio.rs`). */
+  /** Номера видов узлов и имён параметров — те же, что у Rust (`Node` и `Node::param` в `packages/client/src/audio.rs`). */
   const KIND = { destination: 0, gain: 1, oscillator: 2, source: 3, biquad: 4, panner: 5, convolver: 6, compressor: 7 }
   const PARAM = { gain: 0, frequency: 1, detune: 2, Q: 3, playbackRate: 4, pan: 5, threshold: 6, ratio: 7, knee: 8, attack: 9, release: 10 }
   /** Виды фильтров и волн по порядку — тот же порядок у Rust (`op_audio_set`). */

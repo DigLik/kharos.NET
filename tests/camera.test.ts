@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { Camera } from '../src/game/camera'
-import { CameraMotion } from '../src/game/cameraMotion'
+import { Camera } from '@kharos/client/game/camera'
+import { CameraMotion } from '@kharos/client/game/cameraMotion'
 
 const FRAME = 1 / 60
 

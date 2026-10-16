@@ -1,23 +1,23 @@
 // Интерфейс в нативном окне: панель собрана деревом (`dom.ts`), разложена (`layout.ts`) и нарисована (`draw.ts`) —
 // тот же путь, каким пойдёт и настоящий HUD, но пока одним компонентом. Компонент — панель сведений о выделенном
-// (см. `src/ui/Hud.tsx`): портрет в утопленном окне, значки грузов, кнопки и монета кредитов. Ни подписей, ни
+// (см. `packages/client/src/ui/Hud.tsx`): портрет в утопленном окне, значки грузов, кнопки и монета кредитов. Ни подписей, ни
 // событий здесь ещё нет: шрифта и ввода у оболочки нет (см. README), и это следующие шаги.
 //
 // Запускается вместо собранной игры: `KHAROS_SCRIPT=js/hud.bundle.js cargo run` (сборка — `bun run bundle:native`).
 // Проверка идёт по числам: сверяются места узлов (раскладка), цвета на холсте (рисование) и то же самое в окне —
 // значит панель не только нарисована, но и показана.
 
-import { goodIcon } from '../../src/game/goodIcons'
-import { unitPortrait } from '../../src/game/portraits'
+import { goodIcon } from '@kharos/client/game/goodIcons'
+import { unitPortrait } from '@kharos/client/game/portraits'
 import { GOODS, UNIT_TYPES } from '@kharos/sim-ts'
-import { installSkin } from '../../src/ui/skin'
+import { installSkin } from '@kharos/client/ui/skin'
 import { box, createDocument, Element, type Document, type Node, picture } from './dom'
 import { draw } from './draw'
 import { frame, layout } from './layout'
 import { address, fromUrl } from './png'
 import { show } from './show'
 
-/** Сторона портрета и кнопок — те же, что у браузерной панели (см. `PORTRAIT` в `src/ui/Hud.tsx`). */
+/** Сторона портрета и кнопок — те же, что у браузерной панели (см. `PORTRAIT` в `packages/client/src/ui/Hud.tsx`). */
 const PORTRAIT = 96
 const BUTTON = 24
 /** Ячейка значка: у страницы это квадрат 40 со своим фоном, а сам значок груза — 10 пикселей (см. `.bar__units`). */
@@ -48,7 +48,7 @@ const cell = (icon: Element): Element =>
  * Разметка — кодом, стили — при узле: у оболочки нет ни таблицы стилей, ни разметки (см. `docs/design.md`, 10.4).
  */
 function bar(document: Document): Parts {
-  // Монета — картинка скина целиком, а не рамка: у страницы она лежит фоном 16×16 (см. `.hud__coin` в `src/style.css`).
+  // Монета — картинка скина целиком, а не рамка: у страницы она лежит фоном 16×16 (см. `.hud__coin` в `packages/client/src/style.css`).
   const coin = address(document.documentElement.style.getPropertyValue('--skin-coin'))
   const portrait = picture(unitPortrait(UNIT_TYPES[0], PORTRAIT))
   const well = box({ width: 104, height: 104, padding: 4, skin: 'well' }, portrait)
