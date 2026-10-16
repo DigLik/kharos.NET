@@ -17,7 +17,7 @@ out=$(bun build apps/server/main.ts --target=bun --minify --outdir $OUT/out --en
 out=$(bun build apps/server/main.ts --compile --minify --outfile $OUT/out/kharos-server 2>&1) && ok server-binary || bad server-binary "$out"
 out=$(bun run bundle:native 2>&1) && ok native-bundle || bad native-bundle "$out"
 out=$(cargo check -p kharos-native 2>&1) && ok cargo-check || bad cargo-check "$out"
-out=$(cargo test -p kharos-engine 2>&1) && ok cargo-test || bad cargo-test "$out"
+out=$(cargo test -p kharos-engine -p kharos-sim 2>&1) && ok cargo-test || bad cargo-test "$out"
 out=$(bun run build:wasm 2>&1) && ok sim-wasm || bad sim-wasm "$out"
 # Те же тесты против Rust-симуляции: обёртка сверяет Rust с TS после каждого advance (docs/boundary.md).
 out=$(KHAROS_SIM=rust bun test --timeout 60000 2>&1)

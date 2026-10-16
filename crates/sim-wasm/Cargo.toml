@@ -10,4 +10,5 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 kharos-engine = { path = "../engine" }
+kharos-sim = { path = "../sim" }
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }

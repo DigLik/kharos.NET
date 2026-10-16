@@ -134,3 +134,25 @@ pub unsafe extern "C" fn sim_order(id: u32, ptr: *const u8, len: usize) -> *cons
   let json = with_sim(id, |world| Value::from(world.query(&[key])).to_string()).unwrap_or_default();
   STATE.with_borrow_mut(|state| answer(state, json.into_bytes()))
 }
+
+/// Системы, которые уже на Rust: JSON-список `{ name, reads }` — имя в порядке тика и что она читает.
+#[no_mangle]
+pub extern "C" fn sim_systems() -> *const u8 {
+  let list: Vec<Value> = kharos_sim::SYSTEMS.iter().map(|system| serde_json::json!({ "name": system.name, "reads": system.reads })).collect();
+  STATE.with_borrow_mut(|state| answer(state, Value::from(list).to_string().into_bytes()))
+}
+
+/// Выполняет систему на Rust (имя — UTF-8 в буфере от `alloc`) в тике tick длиной step секунд. 0 — выполнена,
+/// 1 — такой на Rust нет, 2 — нет симуляции.
+///
+/// # Safety
+/// ptr и len — буфер от `alloc` с UTF-8 внутри.
+#[no_mangle]
+pub unsafe extern "C" fn sim_run(id: u32, ptr: *const u8, len: usize, tick: f64, step: f64) -> i32 {
+  let name = std::str::from_utf8(std::slice::from_raw_parts(ptr, len)).unwrap_or_default();
+  match with_sim(id, |world| kharos_sim::run(world, name, kharos_sim::Time { tick: tick as u64, step })) {
+    Some(true) => 0,
+    Some(false) => 1,
+    None => 2,
+  }
+}

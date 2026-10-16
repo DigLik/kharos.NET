@@ -5,7 +5,9 @@ import { createSim, type Sim, type SimHooks, type SimOptions, type SimSave } fro
 /**
  * Rust-симуляция за интерфейсом Sim (docs/boundary.md). Внутри — обычная sim-ts: её мир, обзор, земля и памяти служат
  * зеркалами, а Rust (crates/sim-wasm) держит свой мир и повторяет TS-мир операция в операцию — номера, порядок в
- * хранилищах, данные. Пока систем на Rust нет, тик целиком идёт в TS, и Rust после каждого advance догоняет его.
+ * хранилищах, данные. Системы, уже перенесённые на Rust (crates/sim), идут в Rust на своём месте в тике: перед каждой
+ * TS досылает то, что она читает, после — её журнал повторяется в TS-мире. Остальные идут в TS, и после advance Rust
+ * догоняет всё.
  */
 
 /** Плоские функции sim.wasm, см. crates/sim-wasm. */
@@ -21,6 +23,8 @@ interface Exports {
   sim_journal(id: number): number
   sim_snapshot(id: number): number
   sim_order(id: number, ptr: number, len: number): number
+  sim_systems(): number
+  sim_run(id: number, ptr: number, len: number, tick: number, step: number): number
 }
 
 /** Экземпляр sim.wasm: один на сколько угодно симуляций. */
@@ -60,9 +64,15 @@ const COMPONENTS: ReadonlyMap<string, Component<any>> = new Map(
     .map((component) => [component.key, component]),
 )
 
+/** Системы, которые уже на Rust: имя в порядке тика → что она читает. */
+const systemsOf = (api: Exports) =>
+  new Map((JSON.parse(answer(api, api.sim_systems())) as { name: string; reads: string[] }[]).map(({ name, reads }) => [name, new Set(reads)]))
+
 export interface RustSimOptions {
   /** Сверять Rust с TS после каждого advance: снимок мира и порядок каждого хранилища. Для тестов: это дорого. */
   check?: boolean
+  /** Какие из перенесённых систем идут в Rust; без поля — все. Пустой список — тик целиком в TS. */
+  rust?: readonly string[]
   /** Чем создаётся внутренняя sim-ts: тест подменяет createSim, а обёртке нужна настоящая. */
   create?: (source: SimOptions | SimSave, hooks?: SimHooks) => Sim
 }
@@ -73,7 +83,11 @@ const finalizer = new FinalizationRegistry<{ api: Exports; id: number }>(({ api,
 export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, options: RustSimOptions = {}): Sim {
   const api = wasm.exports
   const id = api.sim_new()
-  const sim = (options.create ?? createSim)(source)
+  const available = systemsOf(api)
+  const rust = new Map([...available].filter(([name]) => !options.rust || options.rust.includes(name)))
+  const sim = (options.create ?? createSim)(source, {
+    systems: (list) => list.map(([name, system]) => (rust.has(name) ? [name, () => runRust(name, rust.get(name)!)] : [name, system])),
+  })
   const { world } = sim
   finalizer.register(sim, { api, id }, sim)
 
@@ -113,12 +127,16 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
     }
   }
 
-  /** Догоняет Rust: состав — по журналу, данные — сверкой JSON всего, что Rust знает, с нынешним TS. */
-  const sync = () => {
+  /**
+   * Догоняет Rust: состав — по журналу, данные — сверкой JSON с нынешним TS: только компонентов keys, если они даны
+   * (то, что читает следующая система на Rust), иначе — всего, что Rust знает.
+   */
+  const sync = (keys?: ReadonlySet<string>) => {
     const ops = pending
     pending = []
     for (const [entity, data] of known) {
       for (const [key, json] of data) {
+        if (keys && !keys.has(key)) continue
         const current = JSON.stringify(world.get(entity as Entity, COMPONENTS.get(key)!))
         if (current === json) continue
         data.set(key, current)
@@ -127,6 +145,45 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
       }
     }
     apply(ops)
+  }
+
+  /** Повторяет в TS-мире журнал Rust: что сделала система на Rust. В журнал TS эти операции не идут — Rust их знает. */
+  const pull = () => {
+    const ops = JSON.parse(answer(api, api.sim_journal(id))) as Parameters<typeof world.replay>[0][]
+    if (!ops.length) return
+    world.journal = undefined
+    try {
+      for (const op of ops) {
+        world.replay(op, COMPONENTS)
+        switch (op[0]) {
+          case 'spawn':
+            known.set(op[1], new Map())
+            break
+          case 'destroy':
+            known.delete(op[1])
+            break
+          case 'remove':
+            known.get(op[1])?.delete(op[2])
+            break
+          case 'add':
+          case 'set': {
+            // Rust знает значение таким, каким его теперь видит TS: Rust кладёт поля поверх так же.
+            const value = world.get(op[1] as Entity, COMPONENTS.get(op[2])!)
+            if (value !== undefined) known.get(op[1])?.set(op[2], JSON.stringify(value))
+          }
+        }
+      }
+    } finally {
+      world.journal = note
+    }
+  }
+
+  /** Система на Rust на своём месте в тике. */
+  const runRust = (name: string, reads: ReadonlySet<string>) => {
+    sync(reads)
+    const code = withText(api, name, (ptr, len) => api.sim_run(id, ptr, len, sim.time.tick, sim.time.step))
+    if (code !== 0) throw new Error(`sim.wasm: системы ${name} нет (${code})`)
+    pull()
   }
 
   /** Сверяет Rust с TS: снимок и порядок каждого хранилища. Бросает на первом расхождении. */
@@ -169,8 +226,6 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
     }
   }
   apply(start)
-  // Rust ведёт свой журнал для систем на Rust; пока их нет, он только копится — сбрасываем.
-  api.sim_journal(id)
   world.journal = note
   if (options.check) check()
 
@@ -178,7 +233,6 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
   sim.advance = (seconds) => {
     const ticks = advance(seconds)
     sync()
-    api.sim_journal(id)
     if (options.check) check()
     return ticks
   }

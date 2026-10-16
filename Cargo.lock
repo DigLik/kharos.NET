@@ -1563,10 +1563,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "kharos-sim"
+version = "0.1.0"
+dependencies = [
+ "kharos-engine",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "kharos-sim-wasm"
 version = "0.1.0"
 dependencies = [
  "kharos-engine",
+ "kharos-sim",
  "serde_json",
 ]
 

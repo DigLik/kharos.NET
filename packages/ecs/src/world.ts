@@ -386,9 +386,10 @@ export class World {
 
   /**
    * Повторяет операцию чужого журнала (см. journal): так зеркало повторяет мир другой симуляции в том же порядке.
-   * components — компоненты по именам; операции с незнакомым компонентом пропускаются.
+   * components — компоненты по именам; операции с незнакомым компонентом пропускаются. Данные add и set — JSON-текст
+   * или уже разобранный объект.
    */
-  replay(op: JournalOp, components: ReadonlyMap<string, Component<any>>) {
+  replay(op: JournalOp | [op: 'add' | 'set', entity: number, key: string, data: object], components: ReadonlyMap<string, Component<any>>) {
     switch (op[0]) {
       case 'spawn': {
         const entity = op[1] as Entity
@@ -410,8 +411,9 @@ export class World {
     const component = components.get(op[2])
     if (!component) return
     const entity = op[1] as Entity
-    if (op[0] === 'add') this.add(entity, component(JSON.parse(op[3])))
-    else if (op[0] === 'set') this.set(entity, component, JSON.parse(op[3]))
+    const data = op[0] === 'add' || op[0] === 'set' ? (typeof op[3] === 'string' ? JSON.parse(op[3]) : op[3]) : undefined
+    if (op[0] === 'add') this.add(entity, component(data))
+    else if (op[0] === 'set') this.set(entity, component, data)
     else this.remove(entity, component)
   }
 
