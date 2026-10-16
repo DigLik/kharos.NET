@@ -1,10 +1,10 @@
-//! Значок окна — тот же, что у вкладки страницы (`public/favicon.png`), вшитый в окно: без него система ставит свой.
+//! Значок окна — тот же, что у вкладки страницы (`apps/web/public/favicon.png`), вшитый в окно: без него система ставит свой.
 //! На Windows и в Linux значок задаётся окну (`with_window_icon`); на macOS окну значка нет — его показывает Док, и
 //! у окна без пакета приложения (`.app`) его ставит само приложение через AppKit.
 
 use winit::window::Icon;
 
-const PNG: &[u8] = include_bytes!("../../public/favicon.png");
+const PNG: &[u8] = include_bytes!("../../apps/web/public/favicon.png");
 
 /// Значок для окна: пиксели без умножения на альфу, как их ждёт winit. Не разобрался — окно идёт со значком системы.
 pub fn window_icon() -> Option<Icon> {

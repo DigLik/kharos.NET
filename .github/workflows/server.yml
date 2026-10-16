@@ -8,8 +8,7 @@ on:
       - 'docs/**'
       - '**.md'
       - 'LICENSE'
-      - 'public/**'
-      - 'index.html'
+      - 'apps/web/**'
   workflow_dispatch:
 
 permissions:

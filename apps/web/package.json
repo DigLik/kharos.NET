@@ -1,0 +1,9 @@
+{
+  "name": "@kharos/web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "@kharos/client": "workspace:*"
+  }
+}

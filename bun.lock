@@ -22,6 +22,13 @@
         "vite": "^8.3.2",
       },
     },
+    "apps/web": {
+      "name": "@kharos/web",
+      "version": "0.1.0",
+      "dependencies": {
+        "@kharos/client": "workspace:*",
+      },
+    },
     "packages/client": {
       "name": "@kharos/client",
       "version": "0.1.0",
@@ -111,6 +118,8 @@
     "@kharos/shared": ["@kharos/shared@workspace:packages/shared"],
 
     "@kharos/sim-ts": ["@kharos/sim-ts@workspace:packages/sim-ts"],
+
+    "@kharos/web": ["@kharos/web@workspace:apps/web"],
 
     "@oxc-project/types": ["@oxc-project/types@0.152.0", "", {}, "sha512-oM/5rLBm2tPkg0iBgkH/FOeR3PCDpY19GTgAZjMFM8h9WI9VW7cLgzp6nwtarYKmovavIQZ+Fe/RKX/8C8O/Rw=="],
 

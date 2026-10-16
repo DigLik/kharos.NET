@@ -1043,7 +1043,7 @@
   globalThis.OffscreenCanvas ??= class OffscreenCanvas extends CanvasElement {}
 
   /**
-   * Картинка страницы (`new Image()`, `<img>`): PNG из `public/` игры читает Rust сразу в холст (см.
+   * Картинка страницы (`new Image()`, `<img>`): PNG из `apps/web/public/` игры читает Rust сразу в холст (см.
    * `op_canvas_load_image`), и рисуют её как холст — `drawImage` берёт номер. Файл читается тут же, а `load` (или
    * `error`) приходит задачей позже — как у браузера: слушатель, поставленный после `src`, его не пропустит.
    */

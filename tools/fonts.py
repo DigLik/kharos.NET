@@ -3,7 +3,7 @@
 
 Что делает:
 - качает закреплённые версии в .cache/fonts (повторный запуск их не качает);
-- режет шрифты для страницы на куски woff2 по диапазонам Юникода (public/fonts) и пишет к ним packages/client/src/fonts.css с
+- режет шрифты для страницы на куски woff2 по диапазонам Юникода (apps/web/public/fonts) и пишет к ним packages/client/src/fonts.css с
   `unicode-range`: браузер качает только куски, чьи буквы встретились, — латиница с кириллицей это 26 КБ, а иероглифы
   и Unifont приходят, лишь когда они понадобились;
 - кладёт полные OTF для нативной оболочки (native/fonts): её холст пишет текст сам (`fontdue`), с диска.
@@ -27,7 +27,7 @@ from fontTools.ttLib import TTFont
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / '.cache' / 'fonts'
-PUBLIC = ROOT / 'public' / 'fonts'
+PUBLIC = ROOT / 'apps' / 'web' / 'public' / 'fonts'
 NATIVE = ROOT / 'native' / 'fonts'
 CSS = ROOT / 'packages' / 'client' / 'src' / 'fonts.css'
 
@@ -150,7 +150,7 @@ def main() -> None:
         covered,
     )
     header = (
-        '/* Создано tools/fonts.py — руками не править. Ark Pixel и GNU Unifont, лицензия OFL (public/fonts).\n'
+        '/* Создано tools/fonts.py — руками не править. Ark Pixel и GNU Unifont, лицензия OFL (apps/web/public/fonts).\n'
         ' * Куски по unicode-range: браузер качает только те, чьи буквы встретились на странице. */\n\n'
     )
     CSS.write_text(header + '\n'.join(rules))
@@ -158,7 +158,7 @@ def main() -> None:
     NATIVE.mkdir(parents=True, exist_ok=True)
     for source, name in ((ark12, 'ark-pixel-12px.otf'), (ark10, 'ark-pixel-10px.otf'), (unifont, 'unifont.otf')):
         shutil.copy(source, NATIVE / name)
-    print(f'записано: {CSS.relative_to(ROOT)}, public/fonts, native/fonts')
+    print(f'записано: {CSS.relative_to(ROOT)}, apps/web/public/fonts, native/fonts')
 
 
 if __name__ == '__main__':
