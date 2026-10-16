@@ -92,6 +92,19 @@ test('цех встаёт, когда готовому некуда лечь', (
   expect(hasRoom(sim, plant)).toBe(false)
 })
 
+test('без энергии начатая сборка стоит: сырьё на неё ушло один раз, следующее не трогается', () => {
+  const { sim, buildings } = base(['blockPlant'])
+  const [workshop] = buildings
+  for (const [entity, building] of sim.world.query(Building)) if (building.type === 'generator') sim.world.destroy(entity)
+  Object.assign(sim.world.get(workshop, Inventory)!.items, { metal: 4, silicon: 2 })
+  sim.send(1, { type: 'work', building: workshop, on: true })
+  seconds(sim, 1)
+  expect([good(sim, workshop, 'metal'), good(sim, workshop, 'silicon')]).toEqual([2, 1])
+  expect(sim.world.get(workshop, Assembly)!.progress).toBeGreaterThan(0)
+  seconds(sim, cycleSeconds('blocks') * 2)
+  expect([good(sim, workshop, 'metal'), good(sim, workshop, 'silicon'), good(sim, workshop, 'blocks')]).toEqual([2, 1, 0])
+})
+
 test('новый завод выключен: сырья не заказывает; выключенный замирает посреди сборки, а сырьё увозят', () => {
   const { sim, x, y, stash, buildings } = base(['ammoPlant'])
   const [plant] = buildings
