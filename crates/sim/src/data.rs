@@ -6,20 +6,47 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+/// Турель на юните или здании: её вид.
+#[derive(Deserialize)]
+pub struct Mount {
+  pub turret: String,
+}
+
 #[derive(Deserialize)]
 pub struct BuildingSpec {
   pub width: f64,
   pub height: f64,
+  pub sight: Option<f64>,
+  #[serde(default)]
+  pub mounts: Vec<Mount>,
 }
 
 #[derive(Deserialize)]
 pub struct TurretSpec {
   pub turn: f64,
+  pub weapon: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct UnitSpec {
+  /// Класс: infantry, vehicle, heavy, air.
+  pub kind: String,
+  pub sight: Option<f64>,
+  pub weapon: Option<String>,
+  #[serde(default)]
+  pub mounts: Vec<Mount>,
+}
+
+#[derive(Deserialize)]
+pub struct WeaponSpec {
+  pub range: f64,
 }
 
 pub struct Data {
   pub buildings: HashMap<String, BuildingSpec>,
   pub turrets: HashMap<String, TurretSpec>,
+  pub units: HashMap<String, UnitSpec>,
+  pub weapons: HashMap<String, WeaponSpec>,
   /// Слои мода base в порядке объявления (docs/layers.md).
   pub layers: Vec<LayerSpec>,
 }
@@ -29,7 +56,7 @@ fn table<T: for<'a> Deserialize<'a>>(name: &str, json: &str) -> HashMap<String, 
 }
 
 /// Данные мода base, вшитые в сборку.
-pub static DATA: LazyLock<Data> = LazyLock::new(|| Data { buildings: table("buildings", include_str!("../../../packages/base/data/buildings.json")), turrets: table("turrets", include_str!("../../../packages/base/data/turrets.json")), layers: LayerSpec::parse_all(include_str!("../../../packages/base/data/layers.json")).unwrap_or_else(|error| panic!("layers.json: {error}")) });
+pub static DATA: LazyLock<Data> = LazyLock::new(|| Data { buildings: table("buildings", include_str!("../../../packages/base/data/buildings.json")), turrets: table("turrets", include_str!("../../../packages/base/data/turrets.json")), units: table("units", include_str!("../../../packages/base/data/units.json")), weapons: table("weapons", include_str!("../../../packages/base/data/weapons.json")), layers: LayerSpec::parse_all(include_str!("../../../packages/base/data/layers.json")).unwrap_or_else(|error| panic!("layers.json: {error}")) });
 
 #[cfg(test)]
 mod tests {

@@ -6,10 +6,12 @@ pub use kharos_engine::math;
 pub mod occupancy;
 pub mod systems;
 mod values;
+pub mod vision;
 
 use kharos_engine::terrain::{GeneratorConfig, Land, LandArea};
 use kharos_engine::{Change, Layers, Owner, World};
 use occupancy::Occupancy;
+use vision::{Bounds, Vision};
 
 pub use systems::{reads, run, SYSTEMS};
 
@@ -28,15 +30,19 @@ pub struct Sim {
   pub layers: Layers,
   /// Занятость тайлов зданиями — выводимый слой `occupancy`; обновляется в `settle`.
   pub occupancy: Occupancy,
+  /// Обзор игроков — слои игрока `sight` и `explored`.
+  pub vision: Vision,
 }
 
 impl Sim {
-  /// Новая симуляция на земле из генератора config с картой мира area (в чанках).
-  pub fn new(config: GeneratorConfig, area: LandArea) -> Self {
+  /// Новая симуляция на земле из генератора config с картой мира area (в чанках); bounds — границы карты в тайлах,
+  /// fog — есть ли туман войны.
+  pub fn new(config: GeneratorConfig, area: LandArea, bounds: Bounds, fog: bool) -> Self {
     let mut world = World::new();
     let layers = Layers::new(data::DATA.layers.clone());
     let occupancy = Occupancy::new(&mut world, &layers);
-    Self { world, land: Land::new(config, area), layers, occupancy }
+    let vision = Vision::new(&layers, bounds, fog);
+    Self { world, land: Land::new(config, area), layers, occupancy, vision }
   }
 
   /// Доводит выводимые слои до мира: разбирает события наблюдателей по порядку. Зовётся после чужого журнала и после
@@ -69,7 +75,7 @@ mod tests {
   #[test]
   fn land_chunks_come_as_layer_changes() {
     let config: GeneratorConfig = serde_json::from_str(r#"{"seed":7,"zoneScale":300,"zoneWarp":60,"swampLevel":-0.3,"rockLevel":0.3,"biomeScale":500,"peakChance":0.01,"peakMinRadius":1,"peakMaxRadius":2,"doubleChance":0.3,"tripleChance":0.1,"saltSwampShift":0,"saltRockShift":0,"saltPeakFactor":1,"redSwampShift":0,"redRockShift":0,"redPeakFactor":1,"marshSwampShift":0,"marshRockShift":0,"marshPeakFactor":1,"tierStep":0.2,"cliffScale":40,"cliffShare":0.5}"#).unwrap();
-    let mut sim = Sim::new(config, LandArea { left: -1, top: -1, width: 2, height: 2 });
+    let mut sim = Sim::new(config, LandArea { left: -1, top: -1, width: 2, height: 2 }, Bounds { left: -32, top: -32, right: 32, bottom: 32 }, true);
     let bytes = vec![7u8; CHUNK_BYTES];
     let changes = decode(&encode(&[Change { layer: "land".into(), owner: Owner::World, x: 0, y: -1, bytes: bytes.clone() }])).unwrap();
     sim.apply(&changes).unwrap();

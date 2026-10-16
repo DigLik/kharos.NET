@@ -13,7 +13,7 @@ pub struct System {
 }
 
 /// Системы, которые уже на Rust.
-pub const SYSTEMS: &[System] = &[System { name: "followCarriers", reads: &["Attached", "Position", "Turret", "Unit", "Building"], run: |sim, time| turrets::follow_carriers(&mut sim.world, time) }, System { name: "restTurrets", reads: &["Turret", "Armed", "Repair"], run: |sim, time| turrets::rest_turrets(&mut sim.world, time) }];
+pub const SYSTEMS: &[System] = &[System { name: "followCarriers", reads: &["Attached", "Position", "Turret", "Unit", "Building"], run: |sim, time| turrets::follow_carriers(&mut sim.world, time) }, System { name: "restTurrets", reads: &["Turret", "Armed", "Repair"], run: |sim, time| turrets::rest_turrets(&mut sim.world, time) }, System { name: "vision", reads: &["Unit", "Owner", "Position", "Attached", "Building", "Site", "Off", "Scan", "Glare", "Player"], run: |sim, time| sim.vision.update(&sim.world, &mut sim.layers, time.tick as i64) }];
 
 /// Что читает система; None — такой на Rust нет.
 pub fn reads(name: &str) -> Option<&'static [&'static str]> {

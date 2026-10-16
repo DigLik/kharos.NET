@@ -6,6 +6,7 @@
 
 use kharos_engine::terrain::{GeneratorConfig, LandArea};
 use kharos_engine::{layers, Op, Owner};
+use kharos_sim::vision::Bounds;
 use kharos_sim::Sim;
 use serde_json::Value;
 use std::cell::RefCell;
@@ -59,13 +60,14 @@ pub extern "C" fn out_len() -> usize {
 }
 
 /// Новая симуляция на земле из генератора (JSON `GeneratorConfig` в буфере от `alloc`) с картой мира — областью
-/// чанков left, top, width, height (`LandArea`); отдаёт её номер, -1 — настройки не читаются (ответ — текст ошибки).
+/// чанков left, top, width, height (`LandArea`), границами карты в тайлах и туманом (fog ≠ 0); отдаёт её номер, -1 — настройки не читаются (ответ — текст ошибки).
 /// Журнал своих операций она ведёт сразу.
 ///
 /// # Safety
 /// ptr и len — буфер от `alloc` с UTF-8 внутри.
 #[no_mangle]
-pub unsafe extern "C" fn sim_new(ptr: *const u8, len: usize, left: i32, top: i32, width: i32, height: i32) -> i32 {
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn sim_new(ptr: *const u8, len: usize, left: i32, top: i32, width: i32, height: i32, bounds_left: i32, bounds_top: i32, bounds_right: i32, bounds_bottom: i32, fog: i32) -> i32 {
   let config = match serde_json::from_slice::<GeneratorConfig>(std::slice::from_raw_parts(ptr, len)) {
     Ok(config) => config,
     Err(error) => {
@@ -76,7 +78,8 @@ pub unsafe extern "C" fn sim_new(ptr: *const u8, len: usize, left: i32, top: i32
     }
   };
   STATE.with_borrow_mut(|state| {
-    let mut sim = Sim::new(config, LandArea { left, top, width, height });
+    let bounds = Bounds { left: bounds_left, top: bounds_top, right: bounds_right, bottom: bounds_bottom };
+    let mut sim = Sim::new(config, LandArea { left, top, width, height }, bounds, fog != 0);
     sim.world.record(true);
     match state.sims.iter().position(Option::is_none) {
       Some(at) => {
@@ -232,4 +235,84 @@ pub unsafe extern "C" fn land_area(ptr: *const u8, len: usize, left: i32, top: i
     Err(_) => Vec::new(),
   };
   STATE.with_borrow_mut(|state| answer(state, out))
+}
+
+// Обзор (crates/sim/src/vision.rs) — для TS-обёртки Vision в packages/sim-rust.
+
+/// Ответ числами little-endian.
+fn answer_numbers<T: Copy>(values: &[T], bytes: impl Fn(T) -> Vec<u8>) -> *const u8 {
+  let out = values.iter().flat_map(|&value| bytes(value)).collect();
+  STATE.with_borrow_mut(|state| answer(state, out))
+}
+
+/// Заводит игроку обзор и считает его на мире этого мига, если его ещё нет (первый вопрос в TS).
+#[no_mangle]
+pub extern "C" fn vision_open(id: u32, player: u32, tick: f64) {
+  with_sim(id, |sim| sim.vision.open(&sim.world, &mut sim.layers, player, tick as i64, false));
+}
+
+/// Видит ли игрок тайл сейчас: 1 — да.
+#[no_mangle]
+pub extern "C" fn vision_sees(id: u32, player: u32, x: f64, y: f64) -> i32 {
+  with_sim(id, |sim| sim.vision.sees(&sim.layers, player, x, y)).unwrap_or(false) as i32
+}
+
+/// Бывал ли тайл в виду игрока: 1 — да.
+#[no_mangle]
+pub extern "C" fn vision_explored(id: u32, player: u32, x: f64, y: f64) -> i32 {
+  with_sim(id, |sim| sim.vision.explored(&sim.layers, player, x, y)).unwrap_or(false) as i32
+}
+
+/// Тайлы карты построчно: 0 — не разведан, 1 — разведан, 2 — виден.
+#[no_mangle]
+pub extern "C" fn vision_cells(id: u32, player: u32) -> *const u8 {
+  let cells = with_sim(id, |sim| sim.vision.cells(&sim.layers, player)).unwrap_or_default();
+  STATE.with_borrow_mut(|state| answer(state, cells))
+}
+
+/// Сколько раз менялось открытое игроком.
+#[no_mangle]
+pub extern "C" fn vision_changed(id: u32, player: u32) -> u32 {
+  with_sim(id, |sim| sim.vision.changed(player)).unwrap_or(0)
+}
+
+/// Ячейки стороной size, где игрок видит хоть тайл: ключи tileKey, f64.
+#[no_mangle]
+pub extern "C" fn vision_seen(id: u32, player: u32, size: i32) -> *const u8 {
+  let keys = with_sim(id, |sim| sim.vision.seen_cells(player, size)).unwrap_or_default();
+  answer_numbers(&keys, |key| key.to_le_bytes().to_vec())
+}
+
+/// Разведанное отрезками: u32.
+#[no_mangle]
+pub extern "C" fn vision_map(id: u32, player: u32) -> *const u8 {
+  let runs = with_sim(id, |sim| sim.vision.map(&sim.layers, player)).unwrap_or_default();
+  answer_numbers(&runs, |run| run.to_le_bytes().to_vec())
+}
+
+/// Отмечает разведанным отрезки map (u32 little-endian в буфере от `alloc`).
+///
+/// # Safety
+/// ptr и len — буфер от `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn vision_explore(id: u32, player: u32, ptr: *const u8, len: usize) {
+  let runs: Vec<u32> = std::slice::from_raw_parts(ptr, len).chunks_exact(4).map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap())).collect();
+  with_sim(id, |sim| sim.vision.explore(&mut sim.layers, player, &runs));
+}
+
+/// Игроки с обзором в порядке появления: u32.
+#[no_mangle]
+pub extern "C" fn vision_players(id: u32) -> *const u8 {
+  let players = with_sim(id, |sim| sim.vision.players().to_vec()).unwrap_or_default();
+  answer_numbers(&players, |player| player.to_le_bytes().to_vec())
+}
+
+#[no_mangle]
+pub extern "C" fn vision_forget(id: u32, player: u32) {
+  with_sim(id, |sim| sim.vision.forget(&mut sim.layers, player));
+}
+
+#[no_mangle]
+pub extern "C" fn vision_reset(id: u32) {
+  with_sim(id, |sim| sim.vision.reset(&mut sim.layers));
 }

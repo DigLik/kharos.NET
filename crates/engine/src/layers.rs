@@ -318,6 +318,12 @@ impl Layers {
 
   // Сетка.
 
+  /// Байты чанка сетки (cx, cy в чанках): тайлы построчно, у тайла — каналы подряд; None — чанка нет (одни нули).
+  /// Для чтения подряд: поиск чанка — один на 32 тайла строки, а не на каждый.
+  pub fn chunk(&self, id: LayerId, owner: Owner, cx: i32, cy: i32) -> Option<&[u8]> {
+    self.layers[id].blocks(owner)?.get(&(cx, cy)).map(Vec::as_slice)
+  }
+
   /// Значение канала channel тайла (x, y); нет чанка — ноль.
   pub fn get(&self, id: LayerId, owner: Owner, x: i32, y: i32, channel: usize) -> f64 {
     let layer = &self.layers[id];

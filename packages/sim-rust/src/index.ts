@@ -2,7 +2,8 @@ import type { Component, Entity, JournalOp } from '@kharos/ecs'
 import { CHUNK_SIZE, chunkRevision, getChunk, tileKey, type Land } from '@kharos/shared/terrain'
 import { BUILDINGS } from '@kharos/sim-ts/buildings'
 import * as components from '@kharos/sim-ts/components'
-import { Building, Position } from '@kharos/sim-ts/components'
+import { Attached, Building, Owner, Position } from '@kharos/sim-ts/components'
+import type { Vision } from '@kharos/sim-ts/vision'
 import { keyTile, type Paving } from '@kharos/sim-ts/paved'
 import { createSim, type Sim, type SimHooks, type SimOptions, type SimSave } from '@kharos/sim-ts/sim'
 
@@ -21,7 +22,18 @@ interface Exports {
   dealloc(ptr: number, len: number): void
   out_ptr(): number
   out_len(): number
-  sim_new(ptr: number, len: number, left: number, top: number, width: number, height: number): number
+  sim_new(ptr: number, len: number, left: number, top: number, width: number, height: number, boundsLeft: number, boundsTop: number, boundsRight: number, boundsBottom: number, fog: number): number
+  vision_open(id: number, player: number, tick: number): void
+  vision_sees(id: number, player: number, x: number, y: number): number
+  vision_explored(id: number, player: number, x: number, y: number): number
+  vision_cells(id: number, player: number): number
+  vision_changed(id: number, player: number): number
+  vision_seen(id: number, player: number, size: number): number
+  vision_map(id: number, player: number): number
+  vision_explore(id: number, player: number, ptr: number, len: number): void
+  vision_players(id: number): number
+  vision_forget(id: number, player: number): void
+  vision_reset(id: number): void
   sim_free(id: number): void
   sim_apply(id: number, ptr: number, len: number): number
   sim_journal(id: number): number
@@ -252,11 +264,15 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
   const available = systemsOf(api)
   const rust = new Map([...available].filter(([name]) => !options.rust || options.rust.includes(name)))
   const sim = (options.create ?? createSim)(source, {
-    systems: (list) => list.map(([name, system]) => (rust.has(name) ? [name, () => runRust(name, rust.get(name)!)] : [name, system])),
+    systems: (list) => list.map(([name, system]) => (rust.has(name) ? [name, () => runSystem(name)] : [name, system])),
   })
   const { world, land } = sim
   const area = land.area!
-  const id = withText(api, JSON.stringify(land.config), (ptr, len) => api.sim_new(ptr, len, area.left, area.top, area.width, area.height))
+  const { bounds } = sim
+  const fog = sim.options.fog !== false
+  const id = withText(api, JSON.stringify(land.config), (ptr, len) =>
+    api.sim_new(ptr, len, area.left, area.top, area.width, area.height, bounds.left, bounds.top, bounds.right, bounds.bottom, fog ? 1 : 0),
+  )
   if (id < 0) throw new Error(`sim.wasm не принял настройки генератора: ${answer(api, api.out_ptr())}`)
   finalizer.register(sim, { api, id }, sim)
 
@@ -391,6 +407,127 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
     }
   }
 
+  /**
+   * Обзор TS, пока обзор считает Rust: в режиме check он повторяет то же — заводит игроков в тот же миг и считается
+   * системой vision после Rust, — и сверка сравнивает их. Без check он остаётся тем, чем его загрузил createSim.
+   */
+  const shadow = sim.vision
+  /** Игроки, чей обзор Rust уже завёл: остальных при первом вопросе заводит vision_open — на мире этого мига. */
+  const opened = new Set<number>()
+  const ensure = (player: number) => {
+    if (opened.has(player)) return
+    sync()
+    api.vision_open(id, player, sim.time.tick)
+    opened.add(player)
+    if (options.check) shadow.cells(player)
+  }
+  const numbers = <T extends Float64Array | Uint32Array>(Type: { new (buffer: ArrayBuffer): T }, ptr: number) =>
+    new Type(api.memory.buffer.slice(ptr, ptr + api.out_len()))
+  const rustPlayers = () => Array.from(numbers(Uint32Array, api.vision_players(id)))
+
+  /** Обзор из Rust за интерфейсом Vision (docs/layers.md, С5): системы TS спрашивают его, а считает Rust. */
+  const vision: Vision = {
+    sees(player, x, y) {
+      ensure(player)
+      return api.vision_sees(id, player, x, y) === 1
+    },
+    seer(player) {
+      ensure(player)
+      return (x, y) => api.vision_sees(id, player, x, y) === 1
+    },
+    explored(player, x, y) {
+      ensure(player)
+      return api.vision_explored(id, player, x, y) === 1
+    },
+    seesEntity(player, entity) {
+      const parent = world.get(entity, Attached)?.parent
+      const target = parent === undefined ? entity : (parent as Entity)
+      if (world.get(target, Owner)?.player === player) return true
+      const position = world.get(target, Position)
+      if (!position) return false
+      const building = world.get(target, Building)
+      if (!building) return vision.sees(player, position.x, position.y)
+      const { width: w, height: h } = BUILDINGS[building.type]
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (vision.sees(player, position.x + x, position.y + y)) return true
+      return false
+    },
+    cells(player) {
+      ensure(player)
+      const ptr = api.vision_cells(id, player)
+      const cells = new Uint8Array(api.memory.buffer, ptr, api.out_len()).slice()
+      return { cells, changed: api.vision_changed(id, player) }
+    },
+    seenCells(player, size) {
+      ensure(player)
+      return new Set(numbers(Float64Array, api.vision_seen(id, player, size)))
+    },
+    exploredIn(player, x, y, w, h) {
+      for (let tileY = Math.floor(y); tileY < y + h; tileY++) for (let tileX = Math.floor(x); tileX < x + w; tileX++) if (vision.explored(player, tileX, tileY)) return true
+      return false
+    },
+    map(player) {
+      ensure(player)
+      return Array.from(numbers(Uint32Array, api.vision_map(id, player)))
+    },
+    explore(player, map) {
+      ensure(player)
+      withBytes(api, new Uint8Array(Uint32Array.from(map).buffer), (ptr, len) => api.vision_explore(id, player, ptr, len))
+      if (options.check) shadow.explore(player, map)
+    },
+    players: rustPlayers,
+    update: () => runSystem('vision'),
+    reset() {
+      api.vision_reset(id)
+      opened.clear()
+      visionChecked.clear()
+      if (options.check) shadow.reset()
+    },
+    forget(player) {
+      api.vision_forget(id, player)
+      opened.delete(player)
+      visionChecked.delete(player)
+      if (options.check) shadow.forget(player)
+    },
+  }
+
+  /** Система на Rust на своём месте в тике; обзор TS в режиме check повторяет её. */
+  const runSystem = (name: string) => {
+    runRust(name, rust.get(name)!)
+    if (name !== 'vision') return
+    for (const player of rustPlayers()) opened.add(player)
+    if (options.check) shadow.update()
+  }
+
+  /** Счётчики changed обзора обеих сторон на последней сверке: игрок → «Rust TS». */
+  const visionChecked = new Map<number, string>()
+
+  /**
+   * Сверяет обзор Rust с обзором TS: игроков по порядку и тайлы каждого. Открытое меняется только с changed (разведанное
+   * растёт из открытого, explore тоже растит changed), поэтому тайлы сравниваются, только когда счётчик сдвинулся хоть у
+   * одной стороны: на большой карте это мегабайт на игрока.
+   */
+  const checkVision = () => {
+    if (!rust.has('vision')) return
+    const players = rustPlayers()
+    const expected = shadow.players()
+    if (players.join(' ') !== expected.join(' ')) throw new Error(`Rust разошёлся с TS: обзор у игроков ${players.join(' ')} против ${expected.join(' ')}`)
+    const width = bounds.right - bounds.left
+    for (const player of players) {
+      const theirs = shadow.cells(player)
+      const counters = `${api.vision_changed(id, player)} ${theirs.changed}`
+      if (visionChecked.get(player) === counters) continue
+      const ptr = api.vision_cells(id, player)
+      const ours = new Uint8Array(api.memory.buffer, ptr, api.out_len())
+      let at = ours.length === theirs.cells.length ? -1 : 0
+      for (let i = 0; i < ours.length && at < 0; i++) if (ours[i] !== theirs.cells[i]) at = i
+      if (at >= 0) {
+        throw new Error(`Rust разошёлся с TS: обзор игрока ${player}, тайл (${bounds.left + (at % width)}, ${bounds.top + Math.floor(at / width)}): ${ours[at]} против ${theirs.cells[at]}`)
+      }
+      visionChecked.set(player, counters)
+    }
+    for (const player of visionChecked.keys()) if (!players.includes(player)) visionChecked.delete(player)
+  }
+
   /** Система на Rust на своём месте в тике. */
   const runRust = (name: string, reads: ReadonlySet<string>) => {
     sync(reads)
@@ -446,6 +583,7 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
   const check = () => {
     checkLand()
     checkLayers()
+    checkVision()
     const keys = [...COMPONENTS.keys()]
     const rust = JSON.parse(answer(api, api.sim_snapshot(id))) as { next: number; entities: [number, Record<string, unknown>][] }
     const ts = world.snapshot([...COMPONENTS.values()])
@@ -500,6 +638,14 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
   }
   apply(start)
   world.journal = note
+  if (rust.has('vision')) {
+    for (const player of shadow.players()) {
+      api.vision_open(id, player, sim.time.tick)
+      opened.add(player)
+      withBytes(api, new Uint8Array(Uint32Array.from(shadow.map(player)).buffer), (ptr, len) => api.vision_explore(id, player, ptr, len))
+    }
+    ;(sim as { vision: Vision }).vision = vision
+  }
   if (options.check) check()
 
   const advance = sim.advance
