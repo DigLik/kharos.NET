@@ -15,3 +15,4 @@ apps/native/js/assets
 apps/native/fonts
 # Пакеты ставит Bun (bun.lock); lock-файл npm не нужен
 package-lock.json
+.claude/settings.local.json
