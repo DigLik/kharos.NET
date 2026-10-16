@@ -8,7 +8,7 @@ import { createHost } from '@kharos/host'
 import type { ServerMessage } from '@kharos/protocol'
 import { createSim } from '@kharos/sim-ts'
 
-const module = await compileLuau(readFileSync(new URL('../packages/mods/src/luau.wasm', import.meta.url)))
+const module = await compileLuau(readFileSync(new URL('../mods/src/luau.wasm', import.meta.url)))
 
 /** Машина с функциями say и echo: say копит строки, echo отдаёт аргумент обратно. */
 function machine(options: Partial<MachineOptions> = {}) {
@@ -143,6 +143,6 @@ test('хост раздаёт модам события мира, и мод пи
 })
 
 test('описания типов для мододелов совпадают со схемой (bun tools/modapi.ts)', () => {
-  expect(readFileSync(new URL('../packages/mods/types/kharos.d.luau', import.meta.url), 'utf8')).toBe(luauDefinitions(MOD_API))
-  expect(readFileSync(new URL('../packages/mods/types/kharos.d.ts', import.meta.url), 'utf8')).toBe(tsDefinitions(MOD_API))
+  expect(readFileSync(new URL('../mods/types/kharos.d.luau', import.meta.url), 'utf8')).toBe(luauDefinitions(MOD_API))
+  expect(readFileSync(new URL('../mods/types/kharos.d.ts', import.meta.url), 'utf8')).toBe(tsDefinitions(MOD_API))
 })

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { defaultSettings, mergeSettings } from '../apps/server/settings'
-import { needsRenewal, sslipName } from '../apps/server/tls'
+import { defaultSettings, mergeSettings } from '@kharos/server/settings'
+import { needsRenewal, sslipName } from '@kharos/server/tls'
 
 test('настройки сервера: известное берётся, опечатки и чужие типы пропускаются с предупреждением', () => {
   const defaults = defaultSettings()

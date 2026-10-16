@@ -1,7 +1,7 @@
 /**
  * Описания типов API модов для редактора мододела — по схеме packages/mods/src/api.ts: packages/mods/types/kharos.d.luau (luau-lsp,
  * «definitionFiles») и packages/mods/types/kharos.d.ts (для будущей машины TS/JS). Схема поменялась — запустить заново;
- * tests/mods.test.ts сверяет файлы со схемой.
+ * packages/tests/mods.test.ts сверяет файлы со схемой.
  *
  * Запуск: bun tools/modapi.ts
  */

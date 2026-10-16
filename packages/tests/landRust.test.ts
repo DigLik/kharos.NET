@@ -4,7 +4,7 @@ import { DEFAULT_CONFIG, areaOf, createLand, getChunk, type GeneratorConfig } fr
 import { loadSimWasm, rustLand } from '@kharos/sim-rust'
 
 /** Сборка sim.wasm: bun run build:wasm. Без неё сверку не с чем делать. */
-const WASM = `${import.meta.dir}/../target/wasm32-unknown-unknown/release/kharos_sim_wasm.wasm`
+const WASM = `${import.meta.dir}/../../target/wasm32-unknown-unknown/release/kharos_sim_wasm.wasm`
 
 /** Сколько байт земли Rust и TS расходятся на карте; первое расхождение — в сообщении. */
 function compare(config: GeneratorConfig, half: number) {

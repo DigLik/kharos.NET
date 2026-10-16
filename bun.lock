@@ -29,13 +29,13 @@
       "name": "@kharos/server",
       "version": "0.1.0",
       "dependencies": {
-        "@kharos/data": "workspace:*",
-        "@kharos/host": "workspace:*",
-        "@kharos/i18n": "workspace:*",
-        "@kharos/mods": "workspace:*",
-        "@kharos/protocol": "workspace:*",
-        "@kharos/shared": "workspace:*",
-        "@kharos/sim-ts": "workspace:*",
+        "@kharos/data": "*",
+        "@kharos/host": "*",
+        "@kharos/i18n": "*",
+        "@kharos/mods": "*",
+        "@kharos/protocol": "*",
+        "@kharos/shared": "*",
+        "@kharos/sim-ts": "*",
       },
     },
     "apps/web": {
@@ -53,13 +53,13 @@
       "name": "@kharos/client",
       "version": "0.1.0",
       "dependencies": {
-        "@kharos/data": "workspace:*",
-        "@kharos/ecs": "workspace:*",
-        "@kharos/host": "workspace:*",
-        "@kharos/i18n": "workspace:*",
-        "@kharos/protocol": "workspace:*",
-        "@kharos/shared": "workspace:*",
-        "@kharos/sim-ts": "workspace:*",
+        "@kharos/data": "*",
+        "@kharos/ecs": "*",
+        "@kharos/host": "*",
+        "@kharos/i18n": "*",
+        "@kharos/protocol": "*",
+        "@kharos/shared": "*",
+        "@kharos/sim-ts": "*",
       },
     },
     "packages/data": {
@@ -74,13 +74,13 @@
       "name": "@kharos/host",
       "version": "0.1.0",
       "dependencies": {
-        "@kharos/data": "workspace:*",
-        "@kharos/ecs": "workspace:*",
-        "@kharos/i18n": "workspace:*",
-        "@kharos/mods": "workspace:*",
-        "@kharos/protocol": "workspace:*",
-        "@kharos/shared": "workspace:*",
-        "@kharos/sim-ts": "workspace:*",
+        "@kharos/data": "*",
+        "@kharos/ecs": "*",
+        "@kharos/i18n": "*",
+        "@kharos/mods": "*",
+        "@kharos/protocol": "*",
+        "@kharos/shared": "*",
+        "@kharos/sim-ts": "*",
       },
     },
     "packages/i18n": {
@@ -91,16 +91,16 @@
       "name": "@kharos/mods",
       "version": "0.1.0",
       "dependencies": {
-        "@kharos/sim-ts": "workspace:*",
+        "@kharos/sim-ts": "*",
       },
     },
     "packages/protocol": {
       "name": "@kharos/protocol",
       "version": "0.1.0",
       "dependencies": {
-        "@kharos/ecs": "workspace:*",
-        "@kharos/i18n": "workspace:*",
-        "@kharos/sim-ts": "workspace:*",
+        "@kharos/ecs": "*",
+        "@kharos/i18n": "*",
+        "@kharos/sim-ts": "*",
       },
     },
     "packages/shared": {
@@ -127,6 +127,23 @@
         "@kharos/data": "*",
         "@kharos/ecs": "*",
         "@kharos/shared": "*",
+      },
+    },
+    "packages/tests": {
+      "name": "@kharos/tests",
+      "version": "0.1.0",
+      "dependencies": {
+        "@kharos/base": "*",
+        "@kharos/client": "*",
+        "@kharos/ecs": "*",
+        "@kharos/host": "*",
+        "@kharos/i18n": "*",
+        "@kharos/mods": "*",
+        "@kharos/protocol": "*",
+        "@kharos/server": "*",
+        "@kharos/shared": "*",
+        "@kharos/sim-rust": "*",
+        "@kharos/sim-ts": "*",
       },
     },
     "packages/tsconfig": {
@@ -158,6 +175,8 @@
     "@kharos/sim-rust": ["@kharos/sim-rust@workspace:packages/sim-rust"],
 
     "@kharos/sim-ts": ["@kharos/sim-ts@workspace:packages/sim-ts"],
+
+    "@kharos/tests": ["@kharos/tests@workspace:packages/tests"],
 
     "@kharos/tsconfig": ["@kharos/tsconfig@workspace:packages/tsconfig"],
 

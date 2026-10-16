@@ -71,7 +71,7 @@ apps/
   web/                 — index.html, public, Vite
   server/              — сервер на Bun (нынешний server/)
   native/              — оболочка, член Cargo workspace
-mods/, docs/, tools/, tests/ — как сейчас
+mods/, docs/, tools/ — как сейчас; тесты — packages/tests
 ```
 
 Правила:
@@ -117,7 +117,7 @@ mods/, docs/, tools/, tests/ — как сейчас
 
 Окно оболочки запускается только по согласию (оно на экране пользователя). Что ещё держится за пути `src/`:
 обе схемы CI (в схеме сервера `grep` по `packages/protocol/src/protocol.ts` и лицензия `packages/mods/src/luau.LICENSE.txt`),
-`bunfig.toml` (`tests/setup.ts`), `apps/native/vite.config.ts` и `apps/native/js`, инструменты в `tools/`,
+`bunfig.toml` (`packages/tests/setup.ts`), `apps/native/vite.config.ts` и `apps/native/js`, инструменты в `tools/`,
 бот в `/tmp/kharos-bot` (он не в репозитории — его пути обновляются вместе с шагом).
 
 ## 4. Три слоя
@@ -244,7 +244,7 @@ ABI выводится из той же схемы, что и привязки L
       изделия, темы, месторождения, награды — по файлу на таблицу. `REQUIRES`, `RESEARCH_FOR`, `SUPPLY` и порядок
       меню строителя стали полями записей (`requires`, `research`, `supply`, `menu`), пояснения — полем `about`.
       Модули `sim-ts` читают JSON и отдают прежние имена: клиент и тесты не менялись. Схема пока — типы TS (`UnitSpec`
-      и др.) и `tests/base.test.ts`: поля, ссылки и правила переработки, цехов и хранилищ. Остались TS: `DEFAULT_RULES`
+      и др.) и `packages/tests/base.test.ts`: поля, ссылки и правила переработки, цехов и хранилищ. Остались TS: `DEFAULT_RULES`
       (`@kharos/data/rules`) и ходовые (М1, `docs/movement.md`) — переедут с крейтом (9.5), там же структуры serde.
 - [ ] 9.4. **Граница `Sim` и переключатель** (§2): `host` выбирает реализацию; тесты гоняются против обеих; сверка
       снимков. **[решено, 2026-10-16]** Граница — нынешний интерфейс `Sim`, Rust за ним — через зеркало TS-мира и

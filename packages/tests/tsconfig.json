@@ -1,6 +1,6 @@
 {
   "//": "Для редактора: тесты под Bun, с типами страницы. В bun run typecheck пока не входит — в тестах 50 старых ошибок типов (см. docs/code-review.md).",
-  "extends": "../packages/tsconfig/dom.json",
+  "extends": "../tsconfig/dom.json",
   "compilerOptions": {
     "types": [
       "bun",

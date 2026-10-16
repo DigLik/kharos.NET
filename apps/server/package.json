@@ -6,6 +6,9 @@
   "scripts": {
     "typecheck": "tsc -p ."
   },
+  "exports": {
+    "./*": "./*.ts"
+  },
   "dependencies": {
     "@kharos/data": "*",
     "@kharos/host": "*",

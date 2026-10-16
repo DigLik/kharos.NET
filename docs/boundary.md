@@ -82,7 +82,7 @@ TS-компонентов. Тесты, которые зовут TS-функци
 - **wasm без связки.** `crates/sim-wasm` собирается `cargo build --target wasm32-unknown-unknown` и отдаёт плоские
   функции (выделить и освободить буфер, создать мир, применить журнал, тик, взять журнал). Данные — байтами через
   память модуля. Без `wasm-bindgen`: меньше инструментов, тот же подход, что у `luau.wasm`.
-- **Тесты:** `KHAROS_SIM=rust bun test` — `tests/setup.ts` подменяет `createSim` (`mock.module`) на `RustSim`.
+- **Тесты:** `KHAROS_SIM=rust bun test` — `packages/tests/setup.ts` подменяет `createSim` (`mock.module`) на `RustSim`.
 - **Хост:** настройка сервера `sim` в `settings.json`, адрес страницы `?sim=rust`, переменная окна (`docs/engine.md`, §2).
 - **Сверка:** инструмент гоняет обе симуляции на одних командах и сравнивает снимки, дробные — с допуском; печатает
   первое расхождение.

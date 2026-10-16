@@ -9,7 +9,7 @@ await loadLang('ru')
 // обычных пяти секунд на тест: KHAROS_SIM=rust bun test --timeout 60000.
 if (process.env.KHAROS_SIM === 'rust') {
   const { createRustSim, loadSimWasm } = await import('@kharos/sim-rust')
-  const wasm = loadSimWasm(await Bun.file(`${import.meta.dir}/../target/wasm32-unknown-unknown/release/kharos_sim_wasm.wasm`).arrayBuffer())
+  const wasm = loadSimWasm(await Bun.file(`${import.meta.dir}/../../target/wasm32-unknown-unknown/release/kharos_sim_wasm.wasm`).arrayBuffer())
   const sim = await import('@kharos/sim-ts/sim')
   const index = await import('@kharos/sim-ts')
   // Настоящая createSim — значением, до подмены: обёртка строит на ней свою sim-ts.
