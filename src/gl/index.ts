@@ -5,7 +5,7 @@ export type { Program, Uniforms, UniformValue } from './program'
 export { SCREEN_VERTEX, createQuads, drawQuad } from './quads'
 export { forgetContext, isShared, shared } from './shared'
 export type { Quads } from './quads'
-export { bindScreen, createTarget, createTexture } from './texture'
+export { bindScreen, createTarget, createTexture, drawOffscreen } from './texture'
 export type { Target, Texture, TextureOptions } from './texture'
 
 /** Контекст WebGL 2 без сглаживания и буфера глубины: порядок отрисовки задают проходы. */

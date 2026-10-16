@@ -1,4 +1,4 @@
-import { createContext } from '../gl'
+import { createContext, drawOffscreen } from '../gl'
 import { DEFAULT_SETTINGS, type MapSettings } from '../map/settings'
 import { LOCAL_PLAYER } from '../net/local'
 import { uploadAtlasSlowly, uploadSteps } from '../render/atlas'
@@ -95,25 +95,27 @@ async function prepare(art: Art, onProgress: (share: number) => void, settings: 
       for (const pass of built.passes) pass.destroy()
       built.landWindow.destroy()
 
-      // Первый кадр — тоже работа видеокарты: цели отрисовки создаются, шейдеры впервые исполняются. Холста на
-      // странице ещё нет, и кадр — в один пиксель.
+      // Первый кадр — тоже работа видеокарты: цели отрисовки создаются, шейдеры впервые исполняются. На холсте в
+      // это время экран загрузки: кадр (и чистка за ним в renderer.destroy) идёт мимо него, в цель в один пиксель.
       let landWindow = built.landWindow
       const renderer = createRenderer(canvas, (context) => {
         const next = finish(stagePasses(context, scene, art, false))
         landWindow = next.landWindow
         return next.passes
       })
-      try {
-        const { width, height } = renderer.resize()
-        scene.camera.width = width
-        scene.camera.height = height
-        landWindow.update(sim.land, scene.camera, width, height)
-        renderer.draw(scene.camera, 0, 0)
-        await settle(gl)
-      } finally {
-        renderer.destroy()
-        landWindow.destroy()
-      }
+      await drawOffscreen(gl, async () => {
+        try {
+          const { width, height } = renderer.resize()
+          scene.camera.width = width
+          scene.camera.height = height
+          landWindow.update(sim.land, scene.camera, width, height)
+          renderer.draw(scene.camera, 0, 0)
+          await settle(gl)
+        } finally {
+          renderer.destroy()
+          landWindow.destroy()
+        }
+      })
     } finally {
       sim.destroy()
     }

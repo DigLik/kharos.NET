@@ -97,8 +97,35 @@ export function createTarget(gl: WebGL2RenderingContext): Target {
   }
 }
 
-/** Дальнейшая отрисовка идёт на экран. */
+/** Экран, подменённый целью: туда идёт «экранная» отрисовка контекста, см. drawOffscreen. */
+const offscreen = new WeakMap<WebGL2RenderingContext, Target>()
+
+/**
+ * Пока идёт work, отрисовка «на экран» этого контекста идёт мимо холста — в цель в один пиксель. Так прогрев
+ * (warmUp.ts) рисует пробный кадр и чистит за собой, не трогая экран загрузки, что в это время на холсте.
+ */
+export async function drawOffscreen<T>(gl: WebGL2RenderingContext, work: () => Promise<T>): Promise<T> {
+  const target = createTarget(gl)
+  target.bind(1, 1)
+  offscreen.set(gl, target)
+  try {
+    return await work()
+  } finally {
+    offscreen.delete(gl)
+    target.destroy()
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+  }
+}
+
+/** Дальнейшая отрисовка идёт на экран (или на его подмену — см. drawOffscreen). */
 export function bindScreen(gl: WebGL2RenderingContext) {
+  const target = offscreen.get(gl)
+  if (target) {
+    target.bind(1, 1)
+    // Проходы ждут экранного размера: лишнее место за пределами цели просто отбрасывается.
+    gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
+    return
+  }
   gl.bindFramebuffer(gl.FRAMEBUFFER, null)
   gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
 }

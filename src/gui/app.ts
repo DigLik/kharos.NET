@@ -11,7 +11,7 @@ import { loadSounds } from '../audio/loadSounds'
 import { loadArt } from '../game/loadArt'
 import { stage } from '../game/stage'
 import { warmUp } from '../game/warmUp'
-import { bindScreen, createContext } from '../gl'
+import { createContext } from '../gl'
 import { t } from '../i18n'
 import { DEFAULT_SETTINGS } from '../map/settings'
 import { graphics } from '../render/graphics'
@@ -94,7 +94,9 @@ export function startApp(root: HTMLElement, options: AppOptions = {}) {
       canvas.width = width
       canvas.height = height
     }
-    bindScreen(gl)
+    // Прямо на холст, а не bindScreen: прогрев в это время подменяет экран целью (drawOffscreen).
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight)
     gl.clearColor(NIGHT[0], NIGHT[1], NIGHT[2], 1)
     gl.clear(gl.COLOR_BUFFER_BIT)
     // Проходу интерфейса кадр не нужен: он кладёт холст во весь экран.
@@ -119,7 +121,9 @@ export function startApp(root: HTMLElement, options: AppOptions = {}) {
         ui.box({ skin: 'well', width, height: 24, padding: 4, direction: 'row' }, () => {
           // Заполнение — полосами по 8 пикселей, как индикаторы на зданиях.
           const fill = Math.floor((width - 8) * share)
-          for (let x = 0; x < fill; x += 8) ui.box({ width: Math.min(6, fill - x), height: 16, background: COLORS.teamMid, padding: [0, 2, 0, 0] })
+          ui.box({ direction: 'row', gap: 2 }, () => {
+            for (let x = 0; x < fill; x += 8) ui.box({ width: Math.min(6, fill - x), height: 16, background: COLORS.teamMid })
+          })
         })
         if (ready) {
           if (menuButton(ui, 'loading:proceed', t('common.resume'), { primary: true, width: 160, height: 40 })) proceed()
@@ -185,6 +189,8 @@ export function startApp(root: HTMLElement, options: AppOptions = {}) {
       loadArt((value) => ((art = value), progress())).then((drawn) => warmUp(drawn, (value) => ((gpu = value), progress()))),
       loadSounds((value) => ((sound = value), progress())),
     ]).then(() => {
+      // Доли — оценка: какая-то часть могла не дослать последнюю. Готово — значит полоса полная.
+      share = 1
       ready = true
       if (options.skipContinue) proceed()
     })
@@ -207,7 +213,8 @@ export function startApp(root: HTMLElement, options: AppOptions = {}) {
       const density = pixelDensity()
       if (gui.frame(width, height, density, (ui) => screen!.draw(ui))) changed = true
     }
-    if (performance.now() - lastDrawn() > DRAWN_RECENTLY) presentSelf(now)
+    // Экран загрузки кладёт в кадр само приложение всегда: игры ещё нет, а пробный кадр прогрева идёт мимо холста.
+    if (screen === loading || performance.now() - lastDrawn() > DRAWN_RECENTLY) presentSelf(now)
   }
   requestAnimationFrame(tick)
 }
