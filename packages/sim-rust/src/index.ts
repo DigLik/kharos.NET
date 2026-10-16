@@ -1,6 +1,7 @@
 import type { Component, Entity, JournalOp } from '@kharos/ecs'
 import { CHUNK_SIZE, chunkRevision, getChunk, tileKey, type Land } from '@kharos/shared/terrain'
 import * as components from '@kharos/sim-ts/components'
+import { keyTile, type Paving } from '@kharos/sim-ts/paved'
 import { createSim, type Sim, type SimHooks, type SimOptions, type SimSave } from '@kharos/sim-ts/sim'
 
 /**
@@ -27,6 +28,7 @@ interface Exports {
   sim_systems(): number
   sim_run(id: number, ptr: number, len: number, tick: number, step: number): number
   sim_layers(id: number, ptr: number, len: number): number
+  sim_layer(id: number, ptr: number, len: number, owner: number): number
   sim_chunk(id: number, chunkX: number, chunkY: number): number
   land_area(ptr: number, len: number, left: number, top: number, right: number, bottom: number): number
 }
@@ -111,6 +113,89 @@ export function encodeChanges(changes: readonly LayerChange[]): Uint8Array {
 /** Чанк земли изменением слоя land. */
 const landChange = (land: Land, x: number, y: number): LayerChange => ({ layer: 'land', owner: -1, x, y, bytes: getChunk(land, x, y) })
 
+/** Изменения из буфера `layers::encode`, см. encodeChanges. */
+export function decodeChanges(bytes: Uint8Array): LayerChange[] {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  const changes: LayerChange[] = []
+  let at = 4
+  for (let n = view.getUint32(0, true); n > 0; n--) {
+    const name = bytes[at++]
+    const layer = decoder.decode(bytes.subarray(at, at + name))
+    at += name
+    const size = view.getUint32(at + 12, true)
+    changes.push({ layer, owner: view.getInt32(at, true), x: view.getInt32(at + 4, true), y: view.getInt32(at + 8, true), bytes: bytes.slice(at + 16, at + 16 + size) })
+    at += 16 + size
+  }
+  return changes
+}
+
+/**
+ * Слой TS, который зеркало досылает в Rust (docs/layers.md, С2): блоки, изменённые с прошлого раза, и байты блока в
+ * формате слоя. Новый слой в зеркале — ещё один такой объект.
+ */
+interface LayerMirror {
+  layer: string
+  /** Игрок; -1 — слой мира. */
+  owner: number
+  /** Блоки, изменённые с прошлого вызова: x, y блока. */
+  take(): [number, number][]
+  /** Все непустые блоки: для начала и сверки. */
+  all(): [number, number][]
+  /** Байты блока в формате слоя; пустые — блока нет. */
+  block(x: number, y: number): Uint8Array
+}
+
+/** Чанк тайла по ключу tileKey тайла. */
+const chunkOf = (key: number) => {
+  const { x, y } = keyTile(key)
+  return tileKey(Math.floor(x / CHUNK_SIZE), Math.floor(y / CHUNK_SIZE))
+}
+
+/** Чанки по ключам tileKey — координатами. */
+const chunkList = (keys: Iterable<number>) => [...keys].map((key): [number, number] => [keyTile(key).x, keyTile(key).y])
+
+/** Покрытие (paved.ts) — слой paving: код тайла (paveCode) в u16. Изменения ловятся на lay, lift и clear. */
+function pavingMirror(paving: Paving): LayerMirror {
+  let dirty = new Set<number>()
+  const { lay, lift, clear } = paving
+  paving.lay = (x, y, code) => {
+    lay(x, y, code)
+    dirty.add(chunkOf(tileKey(x, y)))
+  }
+  paving.lift = (x, y) => {
+    lift(x, y)
+    dirty.add(chunkOf(tileKey(x, y)))
+  }
+  paving.clear = () => {
+    for (const [key] of paving.tiles()) dirty.add(chunkOf(key))
+    clear()
+  }
+  return {
+    layer: 'paving',
+    owner: -1,
+    take() {
+      const keys = dirty
+      dirty = new Set()
+      return chunkList(keys)
+    },
+    all: () => chunkList(new Set(Array.from(paving.tiles(), ([key]) => chunkOf(key)))),
+    block(chunkX, chunkY) {
+      const bytes = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * 2)
+      const view = new DataView(bytes.buffer)
+      let laid = false
+      for (let y = 0; y < CHUNK_SIZE; y++) {
+        for (let x = 0; x < CHUNK_SIZE; x++) {
+          const code = paving.laid(chunkX * CHUNK_SIZE + x, chunkY * CHUNK_SIZE + y)
+          if (!code) continue
+          view.setUint16((y * CHUNK_SIZE + x) * 2, code, true)
+          laid = true
+        }
+      }
+      return laid ? bytes : new Uint8Array(0)
+    },
+  }
+}
+
 /** Все компоненты симуляции по именам. */
 const COMPONENTS: ReadonlyMap<string, Component<any>> = new Map(
   Object.values(components)
@@ -164,6 +249,19 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
     if (code !== 0) throw new Error(`sim.wasm не принял слои: ${code === 1 ? answer(api, api.out_ptr()) : 'нет симуляции'}`)
   }
 
+  /** Слои TS, которые Rust повторяет. */
+  const mirrors: LayerMirror[] = [pavingMirror(sim.paving)]
+
+  /** Досылает Rust изменённое в слоях: землю и блоки зеркал. */
+  const syncLayers = () => {
+    syncLand()
+    const changes: LayerChange[] = []
+    for (const mirror of mirrors) {
+      for (const [x, y] of mirror.take()) changes.push({ layer: mirror.layer, owner: mirror.owner, x, y, bytes: mirror.block(x, y) })
+    }
+    applyLayers(changes)
+  }
+
   /** Правка карты, которую Rust уже знает: чанки с правкой новее — изменённые. */
   let landRevision = land.revision
   /** Досылает Rust чанки земли, изменённые с прошлого раза, — вместе с соседями, у которых пересчиталось выводимое. */
@@ -208,7 +306,7 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
    * (то, что читает следующая система на Rust), иначе — всего, что Rust знает.
    */
   const sync = (keys?: ReadonlySet<string>) => {
-    syncLand()
+    syncLayers()
     const ops = pending
     pending = []
     for (const [entity, data] of known) {
@@ -285,9 +383,31 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
     })
   }
 
-  /** Сверяет Rust с TS: снимок, порядок каждого хранилища и землю. Бросает на первом расхождении. */
+  /** Сверяет слои зеркал: блоки Rust и TS. Пустой блок (одни нули) и отсутствующий — одно и то же. */
+  const checkLayers = () => {
+    for (const mirror of mirrors) {
+      const ptr = withText(api, mirror.layer, (at, len) => api.sim_layer(id, at, len, mirror.owner))
+      const filled = (bytes: Uint8Array) => bytes.some((byte) => byte !== 0)
+      const rust = new Map(
+        decodeChanges(new Uint8Array(api.memory.buffer, ptr, api.out_len()))
+          .filter(({ bytes }) => filled(bytes))
+          .map(({ x, y, bytes }) => [`${x}, ${y}`, bytes]),
+      )
+      const ts = new Map(mirror.all().map(([x, y]) => [`${x}, ${y}`, mirror.block(x, y)]))
+      for (const [block, bytes] of ts) if (!filled(bytes)) ts.delete(block)
+      for (const block of new Set([...rust.keys(), ...ts.keys()])) {
+        const a = rust.get(block)
+        const b = ts.get(block)
+        const at = !a || !b ? -1 : a.findIndex((byte, i) => byte !== b[i])
+        if (!a || !b || at >= 0) throw new Error(`Rust разошёлся с TS: слой ${mirror.layer}, блок (${block}): ${!a ? 'нет в Rust' : !b ? 'нет в TS' : `байт ${at}: ${a[at]} против ${b[at]}`}`)
+      }
+    }
+  }
+
+  /** Сверяет Rust с TS: снимок, порядок каждого хранилища, землю и слои. Бросает на первом расхождении. */
   const check = () => {
     checkLand()
+    checkLayers()
     const keys = [...COMPONENTS.keys()]
     const rust = JSON.parse(answer(api, api.sim_snapshot(id))) as { next: number; entities: [number, Record<string, unknown>][] }
     const ts = world.snapshot([...COMPONENTS.values()])
@@ -318,6 +438,11 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
     const x = area.left + (n % area.width)
     const y = area.top + Math.floor(n / area.width)
     if (loaded || land.revisions.has(tileKey(x, y))) initial.push(landChange(land, x, y))
+  }
+  // Слои зеркал — все непустые блоки: сохранение уже легло в TS.
+  for (const mirror of mirrors) {
+    mirror.take()
+    for (const [x, y] of mirror.all()) initial.push({ layer: mirror.layer, owner: mirror.owner, x, y, bytes: mirror.block(x, y) })
   }
   applyLayers(initial)
   // Мир: всё, что уже есть, — сущности по возрастанию, затем каждое хранилище в его порядке.

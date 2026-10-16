@@ -164,14 +164,15 @@ pub enum Owner {
 }
 
 impl Owner {
-  fn code(self) -> i64 {
+  pub fn code(self) -> i64 {
     match self {
       Owner::World => -1,
       Owner::Player(player) => player as i64,
     }
   }
 
-  fn from_code(code: i64) -> Owner {
+  /// Владелец по коду формата изменений: -1 (любое отрицательное) — мир, иначе — игрок.
+  pub fn from_code(code: i64) -> Owner {
     if code < 0 {
       Owner::World
     } else {
@@ -412,18 +413,21 @@ impl Layers {
   /// Все блоки сохраняемых слоёв владельца: мира или одного игрока. Тот же формат, что у изменений.
   pub fn save(&self, owner: Owner) -> Vec<Change> {
     let mut changes = Vec::new();
-    for layer in &self.layers {
-      if !layer.spec.save || (owner == Owner::World) != (layer.spec.scope == Scope::World) {
-        continue;
-      }
-      let Some(blocks) = layer.blocks(owner) else { continue };
-      let mut keys: Vec<_> = blocks.keys().copied().collect();
-      keys.sort();
-      for (x, y) in keys {
-        changes.push(Change { layer: layer.spec.name.clone(), owner, x, y, bytes: blocks[&(x, y)].clone() });
+    for (id, layer) in self.layers.iter().enumerate() {
+      if layer.spec.save && (owner == Owner::World) == (layer.spec.scope == Scope::World) {
+        changes.extend(self.blocks(id, owner));
       }
     }
     changes
+  }
+
+  /// Все блоки экземпляра слоя по порядку координат — изменениями, как их применил бы `apply`. Для сохранения и сверки.
+  pub fn blocks(&self, id: LayerId, owner: Owner) -> Vec<Change> {
+    let layer = &self.layers[id];
+    let Some(blocks) = layer.blocks(owner) else { return Vec::new() };
+    let mut keys: Vec<_> = blocks.keys().copied().collect();
+    keys.sort();
+    keys.into_iter().map(|(x, y)| Change { layer: layer.spec.name.clone(), owner, x, y, bytes: blocks[&(x, y)].clone() }).collect()
   }
 
   /// Применяет чужое изменение (зеркало, загрузка). В свои изменения оно не идёт: та сторона о нём уже знает.

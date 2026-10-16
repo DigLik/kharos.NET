@@ -5,7 +5,7 @@
 //! ответа и отдаёт его начало; длина — `out_len`. Буфер живёт до следующего ответа.
 
 use kharos_engine::terrain::{GeneratorConfig, LandArea};
-use kharos_engine::{layers, Op};
+use kharos_engine::{layers, Op, Owner};
 use kharos_sim::Sim;
 use serde_json::Value;
 use std::cell::RefCell;
@@ -186,6 +186,18 @@ pub unsafe extern "C" fn sim_run(id: u32, ptr: *const u8, len: usize, tick: f64,
 pub unsafe extern "C" fn sim_layers(id: u32, ptr: *const u8, len: usize) -> i32 {
   let bytes = std::slice::from_raw_parts(ptr, len);
   code(with_sim(id, |sim| sim.apply(&layers::decode(bytes)?)))
+}
+
+/// Все блоки слоя (имя — UTF-8 в буфере от `alloc`) владельца owner (-1 — мир) — в формате `layers::encode`; пусто —
+/// нет симуляции или слоя. Для сверки зеркала слоёв.
+///
+/// # Safety
+/// ptr и len — буфер от `alloc` с UTF-8 внутри.
+#[no_mangle]
+pub unsafe extern "C" fn sim_layer(id: u32, ptr: *const u8, len: usize, owner: i32) -> *const u8 {
+  let name = std::str::from_utf8(std::slice::from_raw_parts(ptr, len)).unwrap_or_default();
+  let bytes = with_sim(id, |sim| sim.layers.id(name).map(|layer| layers::encode(&sim.layers.blocks(layer, Owner::from_code(owner as i64))))).flatten().unwrap_or_default();
+  STATE.with_borrow_mut(|state| answer(state, bytes))
 }
 
 /// Чанк земли симуляции (в чанках) с выводимым — 4096 байт, как `getChunk` в TS; пусто — нет симуляции. Для сверки.
