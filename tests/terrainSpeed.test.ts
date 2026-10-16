@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { Biome, Terrain, biomeAt, isCliffFoot, terrainAt } from '@kharos/shared/terrain'
 import { Health, createSim, isWalkable } from '@kharos/sim-ts'
 import { findPath, smoothPath } from '@kharos/sim-ts/path'

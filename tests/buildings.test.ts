@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { BUILDING_ART, WALL_CONNECTION } from '../src/game/buildings/buildingArt'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { Pixmap } from '../src/render/pixmap'
 import { BUILDING_TYPES, canPlace, createSim, type Sim } from '@kharos/sim-ts'
 import { placeBuilding } from '@kharos/sim-ts/buildings'

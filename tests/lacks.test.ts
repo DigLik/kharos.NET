@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { lacksOf, runningLow } from '../src/game/lacks'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { BUILDINGS, Inventory, Owner, Position, Site, UNITS, canPlace, createSim, type BuildingType, type Sim } from '@kharos/sim-ts'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
 import { Assembly } from '@kharos/sim-ts/components'

@@ -1,4 +1,4 @@
-import type { BattleConfig } from '../map/settings'
+import type { BattleConfig } from '@kharos/shared/settings'
 import { createSim, driveBattle, openSpawn, randomArmy, spawnBattle, spawnSandbox, spawnStartingUnits, type Sim, type SimOptions, type SimSave } from '@kharos/sim-ts'
 import { createHost, type Host, type HostNames, type Peer } from './host'
 

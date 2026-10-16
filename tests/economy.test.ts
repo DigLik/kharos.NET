@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import {
   BUILDINGS, DEPOSIT_TYPES, Inventory, Producer, RESOURCE_SPECS, SELL_SECONDS, Site, UNITS, Unit, amountOf, awaitsMaterials, canPlace, createSim, creditsOf,
   canSupply, depositIn, materialShare, siteAt, siteTicks, type BuildingType, type Sim,

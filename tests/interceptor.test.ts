@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import {
   BUILDINGS, Burst, Chaser, Health, Interceptor, Inventory, Mark, Missile, Off, Silo, canPlace, createSim, creditsOf, interceptorLack, isUnlocked, offerAlliance,
   type BuildingType, type Sim,

@@ -7,7 +7,7 @@
 import { createGame, simOptions, type Game } from '../../src/game/game'
 import { loadArt } from '../../src/game/loadArt'
 import { stage } from '../../src/game/stage'
-import { DEFAULT_SETTINGS, type MapSettings } from '../../src/map/settings'
+import { DEFAULT_SETTINGS, type MapSettings } from '@kharos/shared/settings'
 import { createSlot } from '../../src/game/storage'
 import { startApp } from '../../src/gui/app'
 import { LOCAL_PLAYER, type GameMode } from '../../src/net/local'

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { canPlace, createSim, Path, Position } from '@kharos/sim-ts'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
 import { orderGroupMove, spawnUnit } from '@kharos/sim-ts/units'

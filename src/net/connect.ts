@@ -1,4 +1,4 @@
-import type { BattleConfig } from '../map/settings'
+import type { BattleConfig } from '@kharos/shared/settings'
 import type { SimOptions, SimSave } from '@kharos/sim-ts'
 import { createLocalServer, type LocalControl, type LocalNotice, type LocalPort, type LocalSetup } from './local'
 import { PROTOCOL_VERSION, decodeServer } from './protocol'

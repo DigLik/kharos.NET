@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { OLDEST_VERSION, decodeSave, encodeSave, jsonSection, packSections, readJson, unpackSections } from '../src/save/file'
 import { SAVE_VERSION, createSim, spawnStartingUnits } from '@kharos/sim-ts'
 

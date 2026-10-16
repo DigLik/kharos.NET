@@ -3,7 +3,7 @@
  * Сцены ставятся той же симуляцией и на той же карте, что и в игре: харнесс ничего не подкручивает.
  */
 import type { Entity } from '@kharos/ecs'
-import { DEFAULT_SETTINGS } from '../../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { BUILDINGS, Building, Position, Site, canPlace, createSim, isWalkable, type BuildingType, type Sim } from '@kharos/sim-ts'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
 

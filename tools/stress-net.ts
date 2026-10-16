@@ -3,7 +3,7 @@
  * Печатает время тика хоста вместе с рассылкой и сколько байт в секунду уходит игроку. Туман выключен: игрок видит всё.
  * bun tools/stress-net.ts [N] [игроков]
  */
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { createHost } from '../src/net/host'
 import { createSim, Unit, Owner } from '@kharos/sim-ts'
 import { spawnUnit } from '@kharos/sim-ts/units'

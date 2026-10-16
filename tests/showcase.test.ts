@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { BUILDABLE, REQUIRES } from '@kharos/sim-ts/buildings'
 import { PLAN } from '@kharos/sim-ts/showcase'
 import { Building, Owner, SCENES, stanceOf, Site, TRAINING_PLAYER, Unit, createSim, type Sim, type SceneName } from '@kharos/sim-ts'

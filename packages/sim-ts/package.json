@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@kharos/ecs": "workspace:*",
-    "@kharos/shared": "workspace:*"
+    "@kharos/shared": "workspace:*",
+    "@kharos/data": "workspace:*"
   }
 }

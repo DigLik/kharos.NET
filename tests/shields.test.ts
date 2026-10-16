@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { Health, Position, SHIELD_DOWN, Shield, Shot, WEAPONS, createSim, domes, isWalkable, offerAlliance, type Sim } from '@kharos/sim-ts'
 import { BUILDINGS, placeBuilding } from '@kharos/sim-ts/buildings'
 import { addCredits } from '@kharos/sim-ts/economy'

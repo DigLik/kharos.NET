@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { Health, INFANTRY_REGEN, Owner, Position, Site, createSim, isWalkable, type Sim } from '@kharos/sim-ts'
 import { BUILDINGS, placeBuilding } from '@kharos/sim-ts/buildings'
 import { STATION_REGEN } from '@kharos/sim-ts/combat'

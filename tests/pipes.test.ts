@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { Terrain, terrainAt } from '@kharos/shared/terrain'
 import { Assembly, BUILDINGS, Batch, Building, Builds, Inventory, Orders, Site, Trade, createSim, refundOf, type Sim } from '@kharos/sim-ts'
 import { placeBuilding, siteAt } from '@kharos/sim-ts/buildings'

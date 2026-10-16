@@ -2,7 +2,7 @@
  * Нагрузка: две армии по N юнитов сходятся в бою. Печатает время тика с приказом и обычного тика.
  * bun run stress [N] [расстояние]
  */
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { createSim, Path, Position, Unit, Owner } from '@kharos/sim-ts'
 import { spawnUnit } from '@kharos/sim-ts/units'
 

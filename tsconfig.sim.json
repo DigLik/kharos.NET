@@ -4,5 +4,5 @@
     "lib": ["ES2022"],
     "types": []
   },
-  "include": ["packages/sim-ts/src", "packages/ecs/src", "packages/shared/src"]
+  "include": ["packages/sim-ts/src", "packages/ecs/src", "packages/shared/src", "packages/data/src"]
 }

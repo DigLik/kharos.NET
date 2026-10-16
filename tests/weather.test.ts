@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { createSim, weatherAt, type SimOptions } from '@kharos/sim-ts'
 import { throughJson } from './throughJson'
 

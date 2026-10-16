@@ -20,6 +20,7 @@ import { cancelUpgrade } from './upgrades'
 import { refundQueue } from './production'
 import { buyPrice, refundPurchase } from './trade'
 import { UNITS, clearGround, isWalkable, orderMove, standingUnits, unitsIn } from './units'
+import { REPAIR_COST } from '@kharos/data/rules'
 
 /** С какого расстояния до основания свободный строитель сам берётся за стройку или разбор, в тайлах. */
 export const WORK_RADIUS = 10
@@ -77,15 +78,8 @@ export function canBuild(sim: Sim, player: number, type: BuildingType, x: number
   return !outOfControl(sim, player, type, x, y)
 }
 
-/** Во сколько раз чинить быстрее, чем строить, по умолчанию: полностью разбитое чинится за половину времени стройки. См. Sim.rules. */
-export const REPAIR_SPEED = 2
-/** Какую долю цены здания или юнита стоит починить его с нуля до целого, по умолчанию. Платят по мере починки. См. Sim.rules. */
-export const REPAIR_COST = 0.5
-/**
- * Сколько секунд после попадания цель не чинится, по умолчанию. Иначе один строитель за стеной отменяет осаду:
- * он возвращает больше прочности в секунду, чем бьёт отряд. Ремонт — между боями, а не под огнём. См. Sim.rules.
- */
-export const REPAIR_PAUSE = 3
+// Числа ремонта по умолчанию — данные (@kharos/data/rules); стройка отдаёт их и дальше, как раньше.
+export { REPAIR_COST, REPAIR_PAUSE, REPAIR_SPEED } from '@kharos/data/rules'
 
 /** Попадали ли по этому в последние repairPause секунд: по такому не работают и к нему не едут. */
 function underFire(sim: Sim, entity: Entity) {

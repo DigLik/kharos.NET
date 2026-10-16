@@ -1,6 +1,6 @@
 import { beforeEach, expect, test } from 'bun:test'
 import { createSlot, deleteSave, exportSave, importSave, listSaves, loadCamera, loadSave, resetSaveFiles, storeCamera, storeSave } from '../src/game/storage'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { createSim } from '@kharos/sim-ts'
 
 const memory = new Map<string, string>()

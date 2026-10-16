@@ -3,7 +3,7 @@
  * bun build tools/bench.ts --target=node --outfile=<файл>.mjs, потом bun <файл>.mjs и node <файл>.mjs.
  * Замеры: экономика тестовой базы 5 минут и бой двух армий по N юнитов минуту. Печатает строку JSON: время тика в мс.
  */
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { createSim, type Sim } from '@kharos/sim-ts'
 import { spawnSandbox } from '@kharos/sim-ts/sandbox'
 import { spawnUnit } from '@kharos/sim-ts/units'

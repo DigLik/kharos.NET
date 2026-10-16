@@ -13,7 +13,7 @@
  *               и не стоит ли кто-то с приказом вечно. Долгий: около минуты.
  */
 import type { Entity } from '@kharos/ecs'
-import { DEFAULT_SETTINGS } from '../../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { Terrain, isCliffFoot, terrainAt } from '@kharos/shared/terrain'
 import {
   BUILDINGS, Health, Path, Position, Repair, Shot, TRAINING_PLAYER, Unit, createSim, driveBattle, spawnBattle,

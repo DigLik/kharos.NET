@@ -5,7 +5,7 @@ import type { SoundName } from '../src/audio/sounds'
 import { Camera } from '../src/game/camera'
 import { createMotors } from '../src/game/motors'
 import type { Scene } from '../src/game/scene'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { Position, createSim } from '@kharos/sim-ts'
 import { spawnUnit } from '@kharos/sim-ts/units'
 

@@ -177,7 +177,7 @@ Production-сборка создаётся командой `npm run build`: с�
 | `packages/shared/src/terrain.ts` | Генератор местности |
 | `src/map/landWindow.ts` | Окно местности вокруг камеры: текстура тайлов для шейдеров |
 | `src/map/terrain.frag`, `src/map/terrainPass.ts` | Отрисовка местности |
-| `src/map/settings.ts` | Настройки мира по умолчанию: генератор, размер, отрисовка, бой, правила |
+| `packages/shared/src/settings.ts`, `packages/data/src/rules.ts` | Настройки мира по умолчанию: генератор, размер, отрисовка, бой; правила мира и их значения |
 | `src/weather/` | Осадки и освещение |
 | `src/net/host.ts` | Хост: симуляция и подключённые игроки. Про сокеты не знает, поэтому годится и серверу, и воркеру локальной игры |
 | `packages/sim-ts/src/traces.ts`, `src/game/decalsPass.ts` | Следы на земле: что оставила симуляция и как это рисуется |

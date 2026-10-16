@@ -1,6 +1,6 @@
 import type { Alerts } from './alerts'
 import type { Entity } from '@kharos/ecs'
-import type { MapSettings } from '../map/settings'
+import type { MapSettings } from '@kharos/shared/settings'
 import type { BuildingType, DepositKind, DigKind, Good, PaveKind, Sim, Weather } from '@kharos/sim-ts'
 import type { Camera } from './camera'
 

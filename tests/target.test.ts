@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { Armed, Hauler, Orders, Path, Position, canPlace, createSim, depositIn, resolveOrder, type Sim } from '@kharos/sim-ts'
 import { dropItems } from '@kharos/sim-ts/drops'
 import { spawnUnit } from '@kharos/sim-ts/units'

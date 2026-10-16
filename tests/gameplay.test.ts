@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import {
   BUILDINGS, DEPOSIT_KINDS, Owner, RESOURCE_SPECS, TRUCK_CAPACITY, UNITS, Unit,
   createSim, driveBattle, isWalkable, spawnBattle, type Sim, type UnitType,

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { isCliffFoot } from '@kharos/shared/terrain'
 import {
   Building, CORE, Converting, Deploys, Owner, Path, Player, Position, Producer, UNITS, Unit,

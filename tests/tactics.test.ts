@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { Terrain, terrainAt } from '@kharos/shared/terrain'
 import { Armed, Carrier, Health, Orders, Path, Position, Tactics, createSim, type Sim } from '@kharos/sim-ts'
 import { spawnUnit, type UnitType } from '@kharos/sim-ts/units'

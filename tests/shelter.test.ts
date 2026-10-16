@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { createHost } from '../src/net/host'
 import { decodeServer, type PlayerInfo } from '../src/net/protocol'
 import { Armed, Health, canAttack, createSim, isWalkable, protect, protectionLeft, resolveOrder, type Sim } from '@kharos/sim-ts'

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { World, component } from '@kharos/ecs'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { Building, Pave, Position, canPlace, createSim, type Sim } from '@kharos/sim-ts'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
 import { addCredits } from '@kharos/sim-ts/economy'

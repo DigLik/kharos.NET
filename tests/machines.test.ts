@@ -4,7 +4,7 @@ import type { LoopName } from '../src/audio/synth'
 import { createMachines } from '../src/game/machines'
 import { Camera } from '../src/game/camera'
 import type { Scene } from '../src/game/scene'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { createSim } from '@kharos/sim-ts'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
 

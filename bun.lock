@@ -5,6 +5,7 @@
     "": {
       "name": "kharos",
       "dependencies": {
+        "@kharos/data": "workspace:*",
         "@kharos/ecs": "workspace:*",
         "@kharos/i18n": "workspace:*",
         "@kharos/mods": "workspace:*",
@@ -17,6 +18,10 @@
         "typescript": "^7.0.2",
         "vite": "^8.3.2",
       },
+    },
+    "packages/data": {
+      "name": "@kharos/data",
+      "version": "0.1.0",
     },
     "packages/ecs": {
       "name": "@kharos/ecs",
@@ -36,17 +41,23 @@
     "packages/shared": {
       "name": "@kharos/shared",
       "version": "0.1.0",
+      "dependencies": {
+        "@kharos/data": "workspace:*",
+      },
     },
     "packages/sim-ts": {
       "name": "@kharos/sim-ts",
       "version": "0.1.0",
       "dependencies": {
+        "@kharos/data": "workspace:*",
         "@kharos/ecs": "workspace:*",
         "@kharos/shared": "workspace:*",
       },
     },
   },
   "packages": {
+    "@kharos/data": ["@kharos/data@workspace:packages/data"],
+
     "@kharos/ecs": ["@kharos/ecs@workspace:packages/ecs"],
 
     "@kharos/i18n": ["@kharos/i18n@workspace:packages/i18n"],

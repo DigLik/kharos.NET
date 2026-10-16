@@ -4,7 +4,7 @@
 import { createMenuMusic, type MenuMusic } from '../../audio/music'
 import { createSlot, deleteSave, exportSave, importSave, listSaves, renameSave, storeSave, type SaveSlot } from '../../game/storage'
 import { t, currentLang, type Key } from '@kharos/i18n'
-import { DEFAULT_SETTINGS } from '../../map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { DEFAULT_CONFIG, PEAK_RADIUS_LIMIT, type GeneratorConfig } from '@kharos/shared/terrain'
 import { isInsecure } from '../../net/connect'
 import { NAME_LENGTH, PROTOCOL_VERSION, cleanName } from '../../net/protocol'

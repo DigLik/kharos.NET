@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_SETTINGS } from '../src/map/settings'
+import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { Building, Burst, Doomed, Health, Inventory, Off, Reactor, createSim, isWalkable, powerSupply, requestsOf, zoneEconomies, type Sim } from '@kharos/sim-ts'
 import { BUILDINGS, isUnlocked, levelGain, placeBuilding } from '@kharos/sim-ts/buildings'
 import { buildingHp } from '@kharos/sim-ts/combat'

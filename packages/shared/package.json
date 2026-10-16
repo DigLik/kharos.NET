@@ -4,6 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "exports": {
-    "./terrain": "./src/terrain.ts"
+    "./terrain": "./src/terrain.ts",
+    "./settings": "./src/settings.ts"
+  },
+  "dependencies": {
+    "@kharos/data": "workspace:*"
   }
 }
