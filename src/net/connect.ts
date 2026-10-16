@@ -1,6 +1,7 @@
 import type { BattleConfig } from '@kharos/shared/settings'
 import type { SimOptions, SimSave } from '@kharos/sim-ts'
-import { createLocalServer, type LocalControl, type LocalNotice, type LocalPort, type LocalSetup } from './local'
+import type { LocalControl, LocalNotice, LocalSetup } from './local'
+import { openLocalPort, sharedLocalPort } from './port'
 import { PROTOCOL_VERSION, decodeServer } from '@kharos/protocol'
 import { createReplica, type Replica } from './replica'
 import { t, textOf } from '@kharos/i18n'
@@ -136,8 +137,8 @@ export function connect(url: string, lag = 0, name = '', password = '', signal?:
  * открытой игры. Если не играют — воркер ничего не делает: мир возьмут из сохранения при входе.
  */
 export function reloadLocal(name: string, save: SimSave) {
-  if (typeof SharedWorker === 'undefined') return
-  const { port } = new SharedWorker(new URL('./local.worker.ts', import.meta.url), { type: 'module', name })
+  const port = sharedLocalPort(name)
+  if (!port) return
   port.postMessage({ type: 'reload', save } satisfies LocalControl)
   port.close()
 }
@@ -145,12 +146,7 @@ export function reloadLocal(name: string, save: SimSave) {
 export function connectLocal(setup: LocalSetup, onSave: (save: SimSave) => void, name: string): Promise<Session> {
   return new Promise((resolve) => {
     // Общий воркер, если браузер их умеет; нет — обычный; нет и его (нативная оболочка) — хост в том же потоке.
-    let port: LocalPort
-    if (typeof SharedWorker !== 'undefined') {
-      port = new SharedWorker(new URL('./local.worker.ts', import.meta.url), { type: 'module', name }).port as unknown as LocalPort
-    } else if (typeof Worker !== 'undefined') {
-      port = new Worker(new URL('./local.worker.ts', import.meta.url), { type: 'module', name }) as unknown as LocalPort
-    } else port = inProcess()
+    const port = openLocalPort(name)
     const control = (message: LocalControl) => port.postMessage(message)
     const leave = () => control({ type: 'leave' })
     let sim: Replica | undefined
@@ -177,27 +173,4 @@ export function connectLocal(setup: LocalSetup, onSave: (save: SimSave) => void,
     // Чем хост подписывает игрока без ника и свои сообщения — на языке игрока: воркер словаря не знает.
     control({ type: 'start', ...setup, names: { player: t('server.player'), server: t('server.name') } })
   })
-}
-
-/**
- * Хост локальной игры в том же потоке — когда воркеров нет (нативная оболочка): тот же хост, что в воркере, а вкладка
- * говорит с ним парой портов, как через postMessage: посылка доходит следующей задачей и копией, а не тем же массивом.
- */
-function inProcess(): LocalPort {
-  const deliver = (port: LocalPort, data: unknown) => {
-    const copy = data instanceof Uint8Array ? data.slice() : data
-    setTimeout(() => port.onmessage?.({ data: copy }), 0)
-  }
-  const tab: LocalPort = { onmessage: null, postMessage: (data) => deliver(host, data) }
-  const host: LocalPort = { onmessage: null, postMessage: (data) => deliver(tab, data) }
-  const server = createLocalServer()
-  server.connect(host)
-  // Как воркер локальной игры (local.worker.ts): хост продвигает мир 20 раз в секунду по часам вкладки.
-  let last = performance.now()
-  setInterval(() => {
-    const now = performance.now()
-    server.advance((now - last) / 1000)
-    last = now
-  }, 1000 / 20)
-  return tab
 }

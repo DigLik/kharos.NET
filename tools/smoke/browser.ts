@@ -2,6 +2,8 @@
  * Игра в headless Chrome: открыть адрес, после загрузки нажать Enter (экран загрузки → игра или меню), подождать и
  * снять кадр. Печатает ошибки страницы (исключения и console.error); код выхода 1, если они были.
  * bun tools/smoke/browser.ts <url> <файл снимка> [секунд до Enter] [секунд после]. Путь к Chrome — CHROME.
+ * SMOKE_NO_WORKERS=1 — страница без Worker и SharedWorker, как в нативной оболочке: локальная игра идёт хостом в том же
+ * потоке.
  */
 import { spawn } from 'node:child_process'
 import { rmSync } from 'node:fs'
@@ -48,6 +50,7 @@ const send = (method: string, params: object = {}) =>
 
 await send('Runtime.enable')
 await send('Page.enable')
+if (process.env.SMOKE_NO_WORKERS) await send('Page.addScriptToEvaluateOnNewDocument', { source: 'delete globalThis.SharedWorker; delete globalThis.Worker' })
 await send('Page.navigate', { url })
 await sleep(Number(loadSeconds) * 1000)
 for (const type of ['keyDown', 'keyUp']) await send('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })

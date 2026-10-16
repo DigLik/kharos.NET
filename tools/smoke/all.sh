@@ -25,6 +25,8 @@ for i in {1..20}; do curl -s -o /dev/null http://localhost:5199/ && curl -s -o /
 bun tools/smoke/browser.ts "http://localhost:5199/?sandbox" $OUT/dev.png 8 4 > $OUT/web.log && ok web-dev || bad web-dev "$(cat $OUT/web.log)"
 bun tools/smoke/browser.ts "http://localhost:5200/" $OUT/menu.png 6 4 > $OUT/web.log && ok web-menu || bad web-menu "$(cat $OUT/web.log)"
 bun tools/smoke/browser.ts "http://localhost:5200/?sandbox" $OUT/dist.png 6 4 > $OUT/web.log && ok web-dist || bad web-dist "$(cat $OUT/web.log)"
+# Без воркеров, как в нативной оболочке: хост локальной игры — в том же потоке.
+SMOKE_NO_WORKERS=1 bun tools/smoke/browser.ts "http://localhost:5200/?sandbox" $OUT/inprocess.png 8 4 > $OUT/web.log && ok web-inprocess || bad web-inprocess "$(cat $OUT/web.log)"
 pkill -f "vite --port 5199"; pkill -f "vite preview --port 5200"
 
 # С модом mods/hello: машина Luau (luau.wasm) должна найтись и рядом с бандлом, и внутри бинарника.
