@@ -452,3 +452,28 @@ pub extern "C" fn traces_take(id: u32) -> *const u8 {
   .unwrap_or_default();
   answer_numbers(&values, |value| value.to_le_bytes().to_vec())
 }
+
+// Что Rust пока берёт у TS (docs/boundary.md).
+
+/// Доли энергии потребителей (`powerSupply`): пары f64 — сущность и доля.
+///
+/// # Safety
+/// ptr и len — буфер от `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn sim_power(id: u32, ptr: *const u8, len: usize) {
+  let values: Vec<f64> = std::slice::from_raw_parts(ptr, len).chunks_exact(8).map(|bytes| f64::from_le_bytes(bytes.try_into().unwrap())).collect();
+  with_sim(id, |sim| sim.power = values.chunks_exact(2).map(|pair| (pair[0] as u32, pair[1])).collect());
+}
+
+/// Правила мира — JSON `Rules`. Коды — как у `sim_apply`.
+///
+/// # Safety
+/// ptr и len — буфер от `alloc` с UTF-8 внутри.
+#[no_mangle]
+pub unsafe extern "C" fn sim_rules(id: u32, ptr: *const u8, len: usize) -> i32 {
+  let bytes = std::slice::from_raw_parts(ptr, len);
+  code(with_sim(id, |sim| {
+    sim.rules = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
+    Ok(())
+  }))
+}

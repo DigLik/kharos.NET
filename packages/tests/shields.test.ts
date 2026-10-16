@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { Health, Position, SHIELD_DOWN, Shield, Shot, WEAPONS, createSim, domes, isWalkable, offerAlliance, type Sim } from '@kharos/sim-ts'
 import { BUILDINGS, placeBuilding } from '@kharos/sim-ts/buildings'
 import { addCredits } from '@kharos/sim-ts/economy'
+import { powerSupply } from '@kharos/sim-ts/income'
 import { absorb } from '@kharos/sim-ts/shields'
 import { spawnUnit } from '@kharos/sim-ts/units'
 import { throughJson } from './throughJson'
@@ -114,6 +115,18 @@ test('без энергии и выключенный купол гаснет', 
   sim.world.destroy(generator)
   seconds(sim, 0.5)
   expect(charge(sim, shield)).toBe(0)
+})
+
+test('при нехватке энергии купол растёт медленнее — на долю энергии зоны', () => {
+  const { sim, x, y, shield } = base(0)
+  // Ещё три радара: энергии электростанции на всех не хватает.
+  for (const dx of [14, 16, 18]) placeBuilding(sim.world, 'radar', x + dx, y + 9, 1)
+  seconds(sim, TICK)
+  const share = powerSupply(sim).get(shield)!
+  expect(share).toBeLessThan(0.9)
+  const before = charge(sim, shield)
+  seconds(sim, 1)
+  expect(charge(sim, shield) - before).toBeCloseTo(regen * share, 0)
 })
 
 test('щит переживает сохранение', () => {

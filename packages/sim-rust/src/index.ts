@@ -3,6 +3,7 @@ import { CHUNK_SIZE, chunkRevision, getChunk, tileKey, type Land } from '@kharos
 import { snapshot, updateBuildMemory, type BuildMemory, type Remembered } from '@kharos/sim-ts/buildMemory'
 import { BUILDINGS } from '@kharos/sim-ts/buildings'
 import { DEPOSIT_TYPES, type DepositLayer } from '@kharos/sim-ts/deposits'
+import { powerSupply } from '@kharos/sim-ts/income'
 import * as components from '@kharos/sim-ts/components'
 import { Attached, Building, Owner, Position } from '@kharos/sim-ts/components'
 import { landLayer, packTile } from '@kharos/sim-ts/landMemory'
@@ -47,6 +48,8 @@ interface Exports {
   build_memory_take(id: number): number
   traces_add(id: number, ptr: number, len: number): number
   traces_take(id: number): number
+  sim_power(id: number, ptr: number, len: number): void
+  sim_rules(id: number, ptr: number, len: number): number
   sim_free(id: number): void
   sim_apply(id: number, ptr: number, len: number): number
   sim_journal(id: number): number
@@ -250,6 +253,9 @@ function pavingMirror(paving: Paving): LayerMirror {
     },
   }
 }
+
+/** Системы на Rust, которым нужна доля энергии потребителей (powerSupply): её досылает TS. */
+const POWERED = new Set(['scan', 'chargeShields'])
 
 /** Системы памяти слоёв (recall.ts): на Rust они идут через memory_input и memory_take. */
 const MEMORY_SYSTEMS = ['updateLandMemory', 'updatePaveMemory', 'updateBuildMemory']
@@ -823,9 +829,29 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
     if (traceList.length !== shadowTraces.all().length) fail('живых', traceList.length, shadowTraces.all().length)
   }
 
+  /** Правила мира, какими их знает Rust: JSON. */
+  let rulesSent = ''
+  /**
+   * Что Rust пока берёт у TS: правила, если поменялись, и — системам, которым нужна энергия, — долю энергии каждого
+   * потребителя. Хозяйства зон считает TS, и доля берётся в тот же миг, когда её спросила бы система в TS.
+   */
+  const lend = (name: string) => {
+    const rules = JSON.stringify(sim.rules)
+    if (rules !== rulesSent) {
+      const code = withText(api, rules, (ptr, len) => api.sim_rules(id, ptr, len))
+      if (code !== 0) throw new Error(`sim.wasm не принял правила: ${code === 1 ? answer(api, api.out_ptr()) : 'нет симуляции'}`)
+      rulesSent = rules
+    }
+    if (!POWERED.has(name)) return
+    const pairs: number[] = []
+    for (const [entity, share] of powerSupply(sim)) pairs.push(entity, share)
+    withBytes(api, new Uint8Array(Float64Array.from(pairs).buffer), (ptr, len) => api.sim_power(id, ptr, len))
+  }
+
   /** Система на Rust на своём месте в тике. */
   const runRust = (name: string, reads: ReadonlySet<string>) => {
     sync(reads)
+    lend(name)
     const code = withText(api, name, (ptr, len) => api.sim_run(id, ptr, len, sim.time.tick, sim.time.step))
     if (code !== 0) throw new Error(`sim.wasm: системы ${name} нет (${code})`)
     pull()

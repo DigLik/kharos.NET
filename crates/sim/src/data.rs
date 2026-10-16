@@ -24,6 +24,23 @@ pub struct BuildingSpec {
   pub gate: bool,
   /// Реактор: что жжёт и сколько секунд горит единица.
   pub burns: Option<Burns>,
+  /// Радар: на сколько тайлов разведывает вспышками.
+  pub scan: Option<f64>,
+  /// Генератор щита.
+  pub shield: Option<ShieldSpec>,
+}
+
+#[derive(Deserialize)]
+pub struct ShieldSpec {
+  pub radius: f64,
+  pub capacity: f64,
+  pub regen: f64,
+}
+
+/// Насколько уровень здания усиливает его (`levelFactor`).
+pub const LEVEL_BONUS: f64 = 0.5;
+pub fn level_factor(level: f64) -> f64 {
+  1.0 + LEVEL_BONUS * (level - 1.0)
 }
 
 #[derive(Deserialize)]

@@ -12,7 +12,8 @@ mod values;
 pub mod vision;
 
 use kharos_engine::terrain::{GeneratorConfig, Land, LandArea};
-use kharos_engine::{Change, Layers, Owner, World};
+use kharos_engine::{Change, Entity, Layers, Owner, World};
+use std::collections::HashMap;
 use build_memory::BuildMemory;
 use occupancy::Occupancy;
 use recall::{Kind, Recall};
@@ -45,6 +46,11 @@ pub struct Sim {
   pub build_memory: BuildMemory,
   /// Следы на земле — предметы слоя `traces` (traces.rs).
   pub traces: Traces,
+  /// На какую долю от полной скорости работает каждый потребитель энергии (`powerSupply`). Хозяйства зон пока считает
+  /// TS: она досылает это перед системами, которым нужна энергия (docs/boundary.md).
+  pub power: HashMap<Entity, f64>,
+  /// Правила мира (`Rules` в @kharos/data/rules) — как их прислал TS.
+  pub rules: serde_json::Value,
 }
 
 impl Sim {
@@ -57,7 +63,7 @@ impl Sim {
     let vision = Vision::new(&layers, bounds, fog);
     let pave_memory = Recall::new(Kind::Paving(layers.id("paving").expect("нет слоя paving")));
     let traces = Traces::new(&layers);
-    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces }
+    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, power: HashMap::new(), rules: serde_json::Value::Null }
   }
 
   /// Доводит выводимые слои до мира: разбирает события наблюдателей по порядку. Зовётся после чужого журнала и после
@@ -66,6 +72,11 @@ impl Sim {
     for event in self.world.take_events() {
       self.occupancy.handle(&event, &mut self.layers);
     }
+  }
+
+  /// Число из правил мира; нет такого — ноль.
+  pub fn rule(&self, name: &str) -> f64 {
+    self.rules.get(name).and_then(serde_json::Value::as_f64).unwrap_or(0.0)
   }
 
   /// Применяет изменения слоёв от той стороны (зеркало TS, загрузка): чанки земли — в землю, остальное — в слои.

@@ -463,6 +463,10 @@ test('радар разведывает вспышками в своём рад�
   const reach = (spot: { x: number; y: number }) => Math.hypot(spot.x - center.x, spot.y - center.y)
   for (const spot of spots) expect(reach(spot)).toBeLessThanOrEqual(scanRadius('radar') + 0.1)
   expect(spots.some((spot) => reach(spot) > buildingSight('radar') + SCAN_SIZE)).toBe(true)
+  // Места ложатся по кругу ровно, а не кучей у радара: в среднем — две трети радиуса и дальше: неразведанное
+  // радар ищет сперва, а оно дальше. Кучей у радара вышло бы ближе.
+  const mean = spots.reduce((sum, spot) => sum + reach(spot), 0) / spots.length
+  expect(mean).toBeGreaterThan(scanRadius('radar') * 0.68)
   // Вспышка погасла, а место осталось разведанным.
   seconds(sim, 3)
   expect(sim.vision.explored(1, spots[0].x, spots[0].y)).toBe(true)
