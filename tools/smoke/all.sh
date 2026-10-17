@@ -1,12 +1,13 @@
 #!/bin/zsh
 # Всё рабочее разом: тесты, сборки как в CI (клиент, сервер бандлом и бинарником, оболочка), игра в Chrome с Vite и из
 # dist (песочница и меню), сервер вживую с репликой. Печатает OK или FAIL по каждой проверке; кадры — в .cache/smoke.
-# Запуск из корня: tools/smoke/all.sh
+# Запуск из корня: tools/smoke/all.sh. Код выхода — число упавших проверок: ноль, только если прошли все.
 cd "${0:A:h}/../.."
 OUT=.cache/smoke
 mkdir -p $OUT
 ok() { echo "OK   $1" }
-bad() { echo "FAIL $1"; echo "$2" | tail -30 }
+failed=0
+bad() { echo "FAIL $1"; echo "$2" | tail -30; failed=$((failed + 1)) }
 
 out=$(bun test 2>&1)
 echo "$out" | grep -E "^ *[0-9]+ (pass|fail)$" | tr '\n' ' '; echo
@@ -42,3 +43,4 @@ out=$(SMOKE_MOD=packages/mods/examples/hello bun tools/smoke/server.ts bun $OUT/
 out=$(SMOKE_MOD=packages/mods/examples/hello bun tools/smoke/server.ts $OUT/out/kharos-server 2>&1) && ok server-live-binary || bad server-live-binary "$out"
 # Из исходников, как `bun run server` при разработке.
 out=$(SMOKE_MOD=packages/mods/examples/hello bun tools/smoke/server.ts bun ./apps/server/main.ts 2>&1) && ok server-live-source || bad server-live-source "$out"
+exit $failed
