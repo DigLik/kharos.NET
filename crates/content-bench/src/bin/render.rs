@@ -3,7 +3,7 @@
 //! `base/moves/wheels.luau` двигает всех каждый кадр. Вертикальной синхронизации нет: кадр идёт сразу за кадром. Через
 //! SECONDS секунд печатает время кадра по частям и закрывается.
 //!
-//!   cargo run -p content-bench --release --bin render [юнитов] [plain|day|night] [проверок тени]
+//!   cargo run -p content-bench --release --bin render [юнитов] [plain|day|night|night-old] [качество теней]
 //!
 //! plain — только спрайты одним вызовом с инстансингом. day и night — кадр, как в Kharos сейчас
 //! (packages/client/src/weather/lightingPass.ts, game/units/unitsPass.ts): земля, тени юнитов, спрайты с палитрой
@@ -36,10 +36,14 @@ const PHASES: usize = 2;
 const COLUMNS: usize = 16;
 const SECONDS: f64 = 10.0;
 const WARMUP: f64 = 2.0;
+/// На каком тике снимать кадр для RENDER_SHOT.
+const SHOT_TICK: u64 = 60;
 
 // Огни багги — как UNIT_LIGHTS.buggy в unitArt.ts: две фары (along, across, glow) и луч.
 const LAMPS: [(f32, f32, f32); 2] = [(7.0, -2.0, 2.0), (7.0, 2.0, 2.0)];
-const BEAM: (f32, f32, f32, f32, f32) = (10.0, 60.0, 4.0, 0.28, 1.0); // along, length, near, spread, level
+// Луч стоит за корпусом: капсула багги из buggy.luau доходит до 11,5 текселя от центра, а в Kharos источник ставят так,
+// чтобы свой юнит его не загораживал (along 10 там — у меньшего корпуса).
+const BEAM: (f32, f32, f32, f32, f32) = (13.0, 60.0, 4.0, 0.28, 1.0); // along, length, near, spread, level
 const LIGHT_COLOR: [f32; 3] = [0xa8 as f32 / 255.0, 0xd0 as f32 / 255.0, 1.0];
 const BLOOM_COLOR: [f32; 3] = [0x5a as f32 / 255.0, 0xa9 as f32 / 255.0, 1.0];
 /// Ночь: цвет карты освещённости без огней (lightTint(0)) и ореолы в полную силу.
@@ -212,6 +216,76 @@ void main() {{
   )
 }
 
+// Быстрый луч. Квадрат — трапеция ровно по конусу луча с запасом в тексель: вне конуса шейдер всё равно ничего не
+// рисует, а фрагментов так в несколько раз меньше; vTexel тот же, что у квадрата вокруг источника.
+const BEAM_FAST_VS: &str = r#"
+layout(location = 0) in vec2 aCorner;
+layout(location = 1) in vec4 aBeam;
+layout(location = 2) in vec4 aCone;
+out vec2 vTexel;
+flat out vec4 vBeam;
+flat out vec4 vCone;
+void main() {
+  vBeam = aBeam;
+  vCone = aCone;
+  float along = mix(-1.0, aBeam.z + 1.0, aCorner.x);
+  float width = aCone.z + max(along, 0.0) * aCone.w + 1.0;
+  float across = (aCorner.y * 2.0 - 1.0) * width;
+  vTexel = aCone.xy * along + vec2(-aCone.y, aCone.x) * across;
+  vec2 tile = aBeam.xy + vTexel / TEXELS_PER_TILE;
+  gl_Position = vec4(tile.x * uScale.x, -tile.y * uScale.y, 0.0, 1.0);
+}
+"#;
+
+/// Быстрый луч: тень проверяется раз в spacing текселей пути до источника (ближним — меньше проверок, а не 40 на
+/// каждый), и поиск кончается, как только тень найдена.
+fn beam_fast_fs(spacing: f32) -> String {
+  format!(
+    r#"
+in vec2 vTexel;
+flat in vec4 vBeam;
+flat in vec4 vCone;
+uniform vec3 uColor;
+uniform sampler2D uOccluders;
+out vec4 finalColor;
+const float LEVELS = 5.0;
+const float BAYER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+const float SPACING = {spacing:.3};
+const int MAX_STEPS = 64;
+const float SKIP = 1.5;
+void main() {{
+  ivec2 cell = ivec2(floor(vTexel));
+  vec2 texel = vec2(cell) + 0.5;
+  vec2 direction = vCone.xy;
+  float along = dot(texel, direction);
+  float across = abs(dot(texel, vec2(-direction.y, direction.x)));
+  float side = across / (vCone.z + max(along, 0.0) * vCone.w);
+  float value = pow(max(0.0, 1.0 - length(texel) / vBeam.z), 1.5) * max(0.0, 1.0 - side * side);
+  if (along <= 0.0 || value <= 0.0) discard;
+  vec2 from = vBeam.xy + texel / TEXELS_PER_TILE;
+  vec2 to = vBeam.xy + direction * SKIP / TEXELS_PER_TILE;
+  int steps = max(1, int(ceil(max(length(texel) - SKIP, 0.0) / SPACING)));
+  bool outside = false;
+  for (int i = 0; i < MAX_STEPS; i++) {{
+    if (i >= steps) break;
+    // Последняя проверка — ровно у источника: фара, закопанная в соседа, гаснет при любом шаге.
+    vec2 tile = mix(from, to, float(i + 1) / float(steps));
+    vec2 uv = vec2(tile.x * uScale.x, -tile.y * uScale.y) * 0.5 + 0.5;
+    bool solid = textureLod(uOccluders, uv, 0.0).r > 0.5;
+    if (!solid) outside = true;
+    else if (outside) discard;
+  }}
+  float dither = (BAYER[(cell.y & 3) * 4 + (cell.x & 3)] + 0.5) / 16.0;
+  float stepped = min(1.0, floor(value * LEVELS + dither) / LEVELS);
+  float texelPixels = 1.0 / max(fwidth(vTexel.x), 0.0001);
+  float detail = clamp(texelPixels * 2.0 - 1.0, 0.0, 1.0);
+  float alpha = mix(value, stepped, detail) * vBeam.w;
+  finalColor = vec4(uColor * alpha, alpha);
+}}
+"#
+  )
+}
+
 const BLIT_VS: &str = r#"
 out vec2 vUv;
 void main() {
@@ -360,6 +434,7 @@ struct Gpu {
   atlas: glow::Texture,
   land: glow::Texture,
   occluders: Target,
+  occluder_size: (i32, i32),
   lightmap: Target,
   size: (i32, i32),
 }
@@ -378,7 +453,10 @@ struct Times {
 enum Mode {
   Plain,
   Day,
+  /// Быстрые лучи: param — через сколько текселей пути проверка тени.
   Night,
+  /// Лучи, как в Kharos сейчас: param — проверок тени на тексель.
+  NightOld,
 }
 
 struct Frame {
@@ -391,7 +469,7 @@ struct Frame {
 struct Bench {
   units: usize,
   mode: Mode,
-  steps: u32,
+  param: f32,
   gpu: Option<Gpu>,
   sim: Option<Sim>,
   frame: Frame,
@@ -417,9 +495,13 @@ unsafe fn program(gl: &glow::Context, vertex: &str, fragment: &str) -> glow::Pro
 }
 
 unsafe fn texture(gl: &glow::Context, width: i32, height: i32, pixels: Option<&[u8]>) -> glow::Texture {
+  texture_as(gl, width, height, pixels, glow::RGBA8, glow::RGBA)
+}
+
+unsafe fn texture_as(gl: &glow::Context, width: i32, height: i32, pixels: Option<&[u8]>, internal: u32, format: u32) -> glow::Texture {
   let texture = gl.create_texture().unwrap();
   gl.bind_texture(glow::TEXTURE_2D, Some(texture));
-  gl.tex_image_2d(glow::TEXTURE_2D, 0, glow::RGBA8 as i32, width, height, 0, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(pixels));
+  gl.tex_image_2d(glow::TEXTURE_2D, 0, internal as i32, width, height, 0, format, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(pixels));
   for (name, value) in [(glow::TEXTURE_MIN_FILTER, glow::NEAREST), (glow::TEXTURE_MAG_FILTER, glow::NEAREST), (glow::TEXTURE_WRAP_S, glow::CLAMP_TO_EDGE), (glow::TEXTURE_WRAP_T, glow::CLAMP_TO_EDGE)] {
     gl.tex_parameter_i32(glow::TEXTURE_2D, name, value as i32);
   }
@@ -427,7 +509,11 @@ unsafe fn texture(gl: &glow::Context, width: i32, height: i32, pixels: Option<&[
 }
 
 unsafe fn target(gl: &glow::Context, width: i32, height: i32) -> Target {
-  let texture = texture(gl, width, height, None);
+  target_as(gl, width, height, glow::RGBA8, glow::RGBA)
+}
+
+unsafe fn target_as(gl: &glow::Context, width: i32, height: i32, internal: u32, format: u32) -> Target {
+  let texture = texture_as(gl, width, height, None, internal, format);
   let framebuffer = gl.create_framebuffer().unwrap();
   gl.bind_framebuffer(glow::FRAMEBUFFER, Some(framebuffer));
   gl.framebuffer_texture_2d(glow::FRAMEBUFFER, glow::COLOR_ATTACHMENT0, glow::TEXTURE_2D, Some(texture), 0);
@@ -523,9 +609,9 @@ impl Gpu {
       return;
     }
 
-    // Карты силуэтов и освещённости — в сетке местности: 16 текселей на тайл.
+    // Карта освещённости — в сетке местности: 16 текселей на тайл; карта силуэтов — своего размера.
     let (map_width, map_height) = ((WIDTH as f32 * TEXELS) as i32, (HEIGHT as f32 * TEXELS) as i32);
-    gl.viewport(0, 0, map_width, map_height);
+    gl.viewport(0, 0, self.occluder_size.0, self.occluder_size.1);
     gl.bind_framebuffer(glow::FRAMEBUFFER, Some(self.occluders.framebuffer));
     gl.clear_color(0.0, 0.0, 0.0, 0.0);
     gl.clear(glow::COLOR_BUFFER_BIT);
@@ -533,6 +619,7 @@ impl Gpu {
 
     gl.enable(glow::BLEND);
     gl.blend_func(glow::ONE, glow::ONE);
+    gl.viewport(0, 0, map_width, map_height);
     gl.bind_framebuffer(glow::FRAMEBUFFER, Some(self.lightmap.framebuffer));
     gl.clear_color(NIGHT[0], NIGHT[1], NIGHT[2], 1.0);
     gl.clear(glow::COLOR_BUFFER_BIT);
@@ -583,10 +670,19 @@ impl Bench {
     sim.step();
     let simulated = Instant::now();
     let frame = &mut self.frame;
-    sim.instances(&mut frame.sprites, &mut frame.spots, &mut frame.blooms, &mut frame.beams, self.mode == Mode::Night);
+    sim.instances(&mut frame.sprites, &mut frame.spots, &mut frame.blooms, &mut frame.beams, matches!(self.mode, Mode::Night | Mode::NightOld));
     let built = Instant::now();
     unsafe { gpu.draw(self.mode, frame) };
     let drawn = Instant::now();
+    // RENDER_SHOT=файл.png — кадр на тике SHOT_TICK картинкой, без замера: сравнить, что рисуют разные варианты.
+    if let Ok(path) = std::env::var("RENDER_SHOT") {
+      if sim.tick == SHOT_TICK {
+        gpu.shot(&path);
+        self.done = true;
+        event_loop.exit();
+        return;
+      }
+    }
     gpu.surface.swap_buffers(&gpu.context).unwrap();
     let swapped = Instant::now();
 
@@ -612,16 +708,12 @@ impl Bench {
       let mode = match self.mode {
         Mode::Plain => "только спрайты".to_owned(),
         Mode::Day => "день: земля, тени, палитра".to_owned(),
-        Mode::Night => format!("ночь: фары и лучи, {} проверок тени", self.steps),
+        Mode::Night => format!("ночь: быстрые лучи, проверка тени раз в {} текселя", self.param),
+        Mode::NightOld => format!("ночь: лучи, как сейчас, {} проверок тени", self.param),
       };
       println!("{} юнитов, {mode}, окно {}×{} пикселей, {} кадров за {SECONDS} с", self.units, gpu.size.0, gpu.size.1, t.frames);
       println!("  кадр: {frame:.3} мс — {:.0} кадров в секунду", 1000.0 / frame);
       println!("  ход на Luau: {:.3} мс, сборка инстансов: {:.3} мс, отправка в GL: {:.3} мс, swap (ждёт видеокарту): {:.3} мс", t.sim / n, t.build / n, t.draw / n, t.swap / n);
-      // RENDER_SHOT=файл.png — последний кадр картинкой: проверить, что рисуется то, что меряется.
-      if let Ok(path) = std::env::var("RENDER_SHOT") {
-        unsafe { gpu.draw(self.mode, &self.frame) };
-        gpu.shot(&path);
-      }
       self.done = true;
       event_loop.exit();
     }
@@ -655,7 +747,7 @@ impl ApplicationHandler for Bench {
         land: program(&gl, LAND_VS, LAND_FS),
         sprite: program(&gl, SPRITE_VS, SPRITE_FS),
         spot: program(&gl, SPOT_VS, SPOT_FS),
-        beam: program(&gl, BEAM_VS, &beam_fs(self.steps)),
+        beam: if self.mode == Mode::NightOld { program(&gl, BEAM_VS, &beam_fs(self.param as u32)) } else { program(&gl, BEAM_FAST_VS, &beam_fast_fs(self.param)) },
         blit: program(&gl, BLIT_VS, BLIT_FS),
       };
       let atlas = texture(&gl, atlas_width as i32, atlas_height as i32, Some(&pixels));
@@ -671,9 +763,12 @@ impl ApplicationHandler for Bench {
       let (beam_vao, beam_data) = instanced(&gl, corners, &[4, 4]);
       let empty_vao = gl.create_vertex_array().unwrap();
       let (map_width, map_height) = ((WIDTH as f32 * TEXELS) as i32, (HEIGHT as f32 * TEXELS) as i32);
-      let occluders = target(&gl, map_width, map_height);
+      // Быстрым лучам карта силуэтов — один канал: лучу нужен только бит «есть преграда». Вполовину по сторонам она
+      // давала около 10%, но грубые силуэты дотягивались до самого источника и гасили лучи.
+      let occluder_size = (map_width, map_height);
+      let occluders = if self.mode == Mode::NightOld { target(&gl, map_width, map_height) } else { target_as(&gl, map_width, map_height, glow::R8, glow::RED) };
       let lightmap = target(&gl, map_width, map_height);
-      Gpu { window, surface, context, gl, programs, sprite_vao, sprite_data, spot_vao, spot_data, beam_vao, beam_data, empty_vao, atlas, land, occluders, lightmap, size }
+      Gpu { window, surface, context, gl, programs, sprite_vao, sprite_data, spot_vao, spot_data, beam_vao, beam_data, empty_vao, atlas, land, occluders, occluder_size, lightmap, size }
     };
     self.sim = Some(sim);
     self.gpu = Some(gpu);
@@ -700,11 +795,12 @@ fn main() {
   let mode = match args.next().as_deref() {
     Some("plain") => Mode::Plain,
     Some("day") => Mode::Day,
+    Some("night-old") => Mode::NightOld,
     _ => Mode::Night,
   };
-  let steps = args.next().and_then(|steps| steps.parse().ok()).unwrap_or(40);
+  let param = args.next().and_then(|param| param.parse().ok()).unwrap_or(if mode == Mode::NightOld { 40.0 } else { 3.0 });
   let event_loop = EventLoop::new().unwrap();
   let frame = Frame { sprites: Vec::new(), spots: Vec::new(), blooms: Vec::new(), beams: Vec::new() };
-  let mut bench = Bench { units, mode, steps, gpu: None, sim: None, frame, started: None, last: None, times: Times::default(), done: false };
+  let mut bench = Bench { units, mode, param, gpu: None, sim: None, frame, started: None, last: None, times: Times::default(), done: false };
   event_loop.run_app(&mut bench).unwrap();
 }
