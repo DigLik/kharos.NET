@@ -1,0 +1,10 @@
+# Синтетический замер подхода «движок на Rust, контент на Luau» (docs/content.md): 10 тыс. юнитов, ходовая — система
+# Luau над столбцами, юнит — данные и чертёж. Запуск: cargo run -p content-bench --release
+[package]
+name = "content-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+mlua = { version = "0.12", features = ["luau", "luau-jit"] }
