@@ -1,7 +1,7 @@
 //! Турели на носителях (turrets.ts): встают на свои места и доворачиваются по корпусу.
 
 use crate::data::DATA;
-use crate::math::turn_toward;
+use crate::math::{js_cos, js_sin, turn_toward};
 use crate::values::{entity, number, patch, text};
 use crate::Time;
 use kharos_engine::{Entity, World};
@@ -34,8 +34,8 @@ pub fn follow_carriers(world: &mut World, _time: Time) {
     let along = number(world, turret, "Attached", "along").unwrap_or(0.0);
     let across = number(world, turret, "Attached", "across").unwrap_or(0.0);
     // Как mountedAt: тот же порядок действий — тот же результат до последнего знака.
-    let mounted_x = cx + along * facing.cos() - across * facing.sin();
-    let mounted_y = cy + along * facing.sin() + across * facing.cos();
+    let mounted_x = cx + along * js_cos(facing) - across * js_sin(facing);
+    let mounted_y = cy + along * js_sin(facing) + across * js_cos(facing);
     world.set(turret, "Position", patch([("x", mounted_x), ("y", mounted_y)]));
   }
   // Состав мира меняется после обхода.

@@ -6,11 +6,13 @@ pub mod data;
 pub mod inventory;
 pub use kharos_engine::math;
 pub mod occupancy;
+pub mod path;
 pub mod recall;
 pub mod systems;
 pub mod traces;
 mod values;
 pub mod vision;
+pub mod walk;
 
 use kharos_engine::terrain::{GeneratorConfig, Land, LandArea};
 use kharos_engine::{Change, Entity, Layers, Owner, World};
@@ -52,6 +54,8 @@ pub struct Sim {
   pub power: HashMap<Entity, f64>,
   /// Правила мира (`Rules` в @kharos/data/rules) — как их прислал TS.
   pub rules: serde_json::Value,
+  /// Поиски пути: счёт осмотренного и норма тика (path.rs).
+  pub search: path::Search,
 }
 
 impl Sim {
@@ -64,7 +68,7 @@ impl Sim {
     let vision = Vision::new(&layers, bounds, fog);
     let pave_memory = Recall::new(Kind::Paving(layers.id("paving").expect("нет слоя paving")));
     let traces = Traces::new(&layers);
-    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, power: HashMap::new(), rules: serde_json::Value::Null }
+    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, power: HashMap::new(), rules: serde_json::Value::Null, search: path::Search::default() }
   }
 
   /// Доводит выводимые слои до мира: разбирает события наблюдателей по порядку. Зовётся после чужого журнала и после
@@ -113,6 +117,16 @@ mod tests {
     // Вне карты и не того размера — ошибка, а не тихий пропуск: зеркало разошлось бы молча.
     assert!(sim.apply(&[Change { layer: "land".into(), owner: Owner::World, x: 5, y: 0, bytes: bytes.clone() }]).is_err());
     assert!(sim.apply(&[Change { layer: "land".into(), owner: Owner::World, x: 0, y: 0, bytes: vec![0; 10] }]).is_err());
+  }
+
+  #[test]
+  fn group_places_go_every_other_tile() {
+    let mut sim = Sim::new(config(), LandArea { left: -1, top: -1, width: 2, height: 2 }, Bounds { left: -32, top: -32, right: 32, bottom: 32 }, true);
+    let bounds = sim.vision.bounds;
+    let mut ground = walk::Ground::new(&mut sim.land, &sim.layers, &sim.world, &sim.occupancy, bounds, &sim.rules);
+    // Летающим годится любой тайл карты: места кольцом вокруг (0, 0) — через тайл, рядом с местом остаётся проход.
+    let tiles = ground.free_tiles_near(0, 0, 4, 1, None, true);
+    assert_eq!(tiles, [-2, -2, 0, -2, 2, -2, -2, 0]);
   }
 
   #[test]

@@ -63,6 +63,10 @@ pub struct TurretSpec {
 pub struct UnitSpec {
   /// Класс: infantry, vehicle, heavy, air.
   pub kind: String,
+  /// Скорость, тайлов в секунду; поворот, радиан в секунду; радиус, тайлов.
+  pub speed: f64,
+  pub turn: f64,
+  pub radius: f64,
   pub sight: Option<f64>,
   pub weapon: Option<String>,
   #[serde(default)]

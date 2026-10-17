@@ -23,6 +23,8 @@ out=$(bun run build:wasm 2>&1) && ok sim-wasm || bad sim-wasm "$out"
 out=$(KHAROS_SIM=rust bun test --timeout 60000 2>&1)
 echo "$out" | grep -E "^ *[0-9]+ (pass|fail)$" | tr '\n' ' '; echo
 echo "$out" | grep -q "^ 0 fail" && ok test-rust || bad test-rust "$out"
+# Сверка целого мира: сцены в TS и в Rust, сохранения раз в секунду игры. Ловит расхождения, которых не видят тесты.
+out=$(bun tools/compare.ts 30 2>&1) && ok compare || bad compare "$out"
 
 pkill -f "vite apps/web --port 5199"; pkill -f "vite preview apps/web --port 5200"; sleep 0.5
 (npx vite apps/web --port 5199 --strictPort > $OUT/vite.log 2>&1 &)
