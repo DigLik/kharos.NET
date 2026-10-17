@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
-import { Health, Inventory, Position, amountOf, canPlace, createSim, type Rules, type Sim } from '@kharos/sim-ts'
+import { Health, Inventory, Path, Position, amountOf, canPlace, createSim, type Rules, type Sim } from '@kharos/sim-ts'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
 import { Magazine, Tactics } from '@kharos/sim-ts/components'
 import { connectAll } from '@kharos/sim-ts/piping'
@@ -92,7 +92,14 @@ test('пустой вне сети сам идёт за боеприпасами
   // Пустой ищет снабжение не сразу, а в свой черёд.
   seconds(sim, 3)
   expect(sim.world.get(tank, Tactics)!.resupply).toBe(true)
-  until(sim, () => ammo(sim, tank) >= magazineOf('tank') - 1e-6)
+  // Встав у хранилища, он стоит, пока не наполнит магазин: возвращаться на место ему рано.
+  let stood = false
+  until(sim, () => {
+    if (ammo(sim, tank) > 0 && !sim.world.has(tank, Path)) stood = true
+    if (stood) expect(sim.world.has(tank, Path) && ammo(sim, tank) < magazineOf('tank') - 1e-6).toBe(false)
+    return ammo(sim, tank) >= magazineOf('tank') - 1e-6
+  })
+  expect(stood).toBe(true)
   expect(stock(sim, bunker)).toBeCloseTo(200 - magazineOf('tank'))
   until(sim, () => Math.hypot(sim.world.get(tank, Position)!.x - home.x, sim.world.get(tank, Position)!.y - home.y) < 2)
   expect(sim.world.get(tank, Tactics)!.resupply).toBe(false)

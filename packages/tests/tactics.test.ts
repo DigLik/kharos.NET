@@ -267,3 +267,47 @@ test('точка патруля на здании засчитывается, к
   expect(legs.size).toBe(2)
   expect((searchedTiles() - before) / (30 * 20)).toBeLessThan(1000)
 })
+
+test('ушедший в погоню вставший без цели за полсекунды идёт на своё место и, придя, забывает о нём', () => {
+  const { sim, x, y } = field()
+  // Каждый в четырёх тайлах от своего места.
+  const units = [0, 1, 2, 3, 4].map((i) => put(sim, 'infantry', 1, x + 2 + i * 3, y + 2))
+  units.forEach((entity, i) => sim.world.add(entity, Tactics({ away: true, homeX: x + 2 + i * 3, homeY: y - 2 })))
+  seconds(sim, 0.55)
+  for (const entity of units) expect(sim.world.has(entity, Path)).toBe(true)
+  seconds(sim, 8)
+  units.forEach((entity, i) => {
+    expect(Math.hypot(at(sim, entity).x - (x + 2.5 + i * 3), at(sim, entity).y - (y - 1.5))).toBeLessThan(0.6)
+    expect(sim.world.get(entity, Tactics)!.away).toBe(false)
+  })
+})
+
+test('к месту за стенами юнит подходит, сколько можно, и забывает о нём', () => {
+  const { sim, x, y } = field()
+  // Место — внутри кольца стен.
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (Math.max(Math.abs(dx), Math.abs(dy)) === 2) placeBuilding(sim.world, 'wall', x + 20 + dx, y + dy, 1)
+  const ours = put(sim, 'infantry', 1, x + 5, y)
+  sim.world.add(ours, Tactics({ away: true, homeX: x + 20, homeY: y }))
+  seconds(sim, 10)
+  expect(sim.world.get(ours, Tactics)!.away).toBe(false)
+  expect(sim.world.has(ours, Path)).toBe(false)
+  expect(at(sim, ours).x).toBeLessThan(x + 18)
+})
+
+test('патрульный, встретив врага, встаёт и бьёт его, а не идёт по обходу дальше', () => {
+  const { sim, x, y } = field()
+  const ours = put(sim, 'infantry', 1, x + 2, y)
+  sim.send(1, { type: 'patrol', units: [ours], points: [x + 36, y] })
+  const foe = put(sim, 'tank', 2, x + 12, y + 3)
+  sim.send(2, { type: 'stance', units: [foe], stance: 'passive' })
+  let fought = false
+  let far = 0
+  for (let i = 0; i < 20 / TICK && sim.world.alive(foe); i++) {
+    sim.advance(TICK)
+    if (sim.world.get(ours, Armed)!.target === foe) fought = true
+    if (fought && sim.world.alive(foe)) far = Math.max(far, at(sim, ours).x - x)
+  }
+  expect(fought).toBe(true)
+  // Встал там, откуда достаёт: пока цель жива, патруль ждёт.
+  expect(far).toBeLessThan(10)
+})
