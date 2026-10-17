@@ -1,4 +1,4 @@
-//! Синтетический замер подхода «движок на Rust, контент на Luau» (docs/content.md). Движок держит 10 тыс. юнитов
+//! Синтетический замер подхода «движок на Rust, контент на Luau» (docs/content.md). Движок держит юнитов (по умолчанию 10 тыс.)
 //! столбцами; ходовая `base/moves/wheels.luau` двигает их системой над столбцами, юнит `base/units/buggy.luau` даёт
 //! данные и облик. Меряется: та же система на Rust, на Luau столбцами (с копированием в буферы и без), Luau с вызовом
 //! на юнита — с нативной компиляцией Luau и без неё (на iOS её нет) — и чертёж юнита на 64 направления.
@@ -8,10 +8,12 @@ mod probe;
 use mlua::{Buffer, Function, Lua, Table, UserData, UserDataMethods, Value};
 use std::time::Instant;
 
-const UNITS: usize = 10_000;
 const TICKS: u64 = 200;
 const DT: f64 = 0.05;
 const TURN: f64 = std::f64::consts::PI * 2.0;
+
+/// Сколько юнитов: первый аргумент запуска, по умолчанию 10 тыс.
+static UNITS: std::sync::LazyLock<usize> = std::sync::LazyLock::new(|| std::env::args().nth(1).and_then(|count| count.parse().ok()).unwrap_or(10_000));
 
 /// Столбцы движка: у юнита место, поворот и цель.
 #[derive(Clone)]
@@ -27,11 +29,11 @@ impl Columns {
   fn new() -> Self {
     let spread = |i: usize, salt: usize| ((i * 2654435761 + salt) % 500) as f64 + 0.5;
     Self {
-      x: (0..UNITS).map(|i| spread(i, 1)).collect(),
-      y: (0..UNITS).map(|i| spread(i, 7)).collect(),
-      facing: vec![0.0; UNITS],
-      tx: (0..UNITS).map(|i| spread(i, 13)).collect(),
-      ty: (0..UNITS).map(|i| spread(i, 29)).collect(),
+      x: (0..*UNITS).map(|i| spread(i, 1)).collect(),
+      y: (0..*UNITS).map(|i| spread(i, 7)).collect(),
+      facing: vec![0.0; *UNITS],
+      tx: (0..*UNITS).map(|i| spread(i, 13)).collect(),
+      ty: (0..*UNITS).map(|i| spread(i, 29)).collect(),
     }
   }
 }
@@ -48,7 +50,7 @@ fn retarget(i: usize, tick: u64) -> (f64, f64) {
 /// Та же ходовая, что в wheels.luau, на Rust: точка отсчёта.
 fn move_rust(c: &mut Columns, speed: f64, turn: f64, tick: u64) {
   let (step, turn) = (speed * DT, turn * DT);
-  for i in 0..UNITS {
+  for i in 0..*UNITS {
     let (px, py) = (c.x[i], c.y[i]);
     let (mut dx, mut dy) = (c.tx[i] - px, c.ty[i] - py);
     if dx * dx + dy * dy < 0.25 {
@@ -159,7 +161,7 @@ fn run(native: bool) -> mlua::Result<()> {
   for (name, buffer) in [("x", &x), ("y", &y), ("facing", &facing), ("tx", &tx), ("ty", &ty)] {
     ctx.set(name, buffer.clone())?;
   }
-  ctx.set("n", UNITS)?;
+  ctx.set("n", *UNITS)?;
   ctx.set("speed", speed)?;
   ctx.set("turn", turn)?;
   ctx.set("dt", DT)?;
@@ -185,7 +187,7 @@ fn run(native: bool) -> mlua::Result<()> {
   let step: Function = wheels.get("step")?;
   let mut columns = Columns::new();
   let each = per_tick(|_| {
-    for i in 0..UNITS {
+    for i in 0..*UNITS {
       let (px, py, face): (f64, f64, f64) = step.call((columns.x[i], columns.y[i], columns.facing[i], columns.tx[i], columns.ty[i], speed * DT, turn * DT)).unwrap();
       columns.x[i] = px;
       columns.y[i] = py;
@@ -216,7 +218,7 @@ fn run(native: bool) -> mlua::Result<()> {
 }
 
 fn main() -> mlua::Result<()> {
-  println!("{UNITS} юнитов, {TICKS} тиков по {DT} с");
+  println!("{} юнитов, {TICKS} тиков по {DT} с", *UNITS);
   let mut columns = Columns::new();
   let rust = per_tick(|tick| move_rust(&mut columns, 4.0, 3.0, tick));
   println!("Rust (точка отсчёта): {rust:.3} мс на тик");
