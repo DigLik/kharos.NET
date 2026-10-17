@@ -48,6 +48,8 @@ interface Exports {
   build_memory_take(id: number): number
   traces_add(id: number, ptr: number, len: number): number
   traces_take(id: number): number
+  traces_pending(id: number): number
+  paving_take(id: number): number
   sim_power(id: number, ptr: number, len: number): void
   sim_rules(id: number, ptr: number, len: number): number
   sim_free(id: number): void
@@ -255,7 +257,7 @@ function pavingMirror(paving: Paving): LayerMirror {
 }
 
 /** Системы на Rust, которым нужна доля энергии потребителей (powerSupply): её досылает TS. */
-const POWERED = new Set(['scan', 'chargeShields', 'recover', 'refine', 'assemble'])
+const POWERED = new Set(['scan', 'chargeShields', 'recover', 'refine', 'assemble', 'fight'])
 
 /** Системы памяти слоёв (recall.ts): на Rust они идут через memory_input и memory_take. */
 const MEMORY_SYSTEMS = ['updateLandMemory', 'updatePaveMemory', 'updateBuildMemory']
@@ -345,6 +347,8 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
   const rust = new Map([...available].filter(([name]) => !options.rust || options.rust.includes(name)))
   // Память слоёв сверяет с обзором Rust: без него её считает TS.
   if (!rust.has('vision')) for (const name of MEMORY_SYSTEMS) rust.delete(name)
+  // Бой оставляет следы: они в Rust, только если следы держит он.
+  if (!rust.has('traces')) rust.delete('fight')
   const sim = (options.create ?? createSim)(source, {
     systems: (list) => list.map(([name, system]) => (rust.has(name) ? [name, () => runSystem(name)] : [name, system])),
   })
@@ -855,6 +859,26 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
     const code = withText(api, name, (ptr, len) => api.sim_run(id, ptr, len, sim.time.tick, sim.time.step))
     if (code !== 0) throw new Error(`sim.wasm: системы ${name} нет (${code})`)
     pull()
+    if (name === 'fight') pullFight()
+  }
+
+  /**
+   * Что бой на Rust сделал вне мира: снятые плиты фундамента — покрытие держит TS — и оставленные следы. Следы обёртка
+   * сразу держит в списке, как оставленные из TS, а тень TS в режиме check получает их так же, как получила бы от боя TS.
+   */
+  const pullFight = () => {
+    const lifted = numbers(Float64Array, api.paving_take(id))
+    for (let i = 0; i < lifted.length; i += 2) sim.paving.lift(lifted[i], lifted[i + 1])
+    const pending = numbers(Float64Array, api.traces_pending(id))
+    for (let i = 0; i < pending.length; i += 10) {
+      const record = pending.subarray(i, i + 10)
+      if (traceLaid.has(record[0])) continue
+      const trace = traceOf(record)
+      keepTrace(trace)
+      if (!options.check) continue
+      const { id: _, tick: __, ...laid } = trace
+      shadowTraces.add(laid as Parameters<Traces['add']>[0])
+    }
   }
 
   /** Чанки карты, уже сверенные с Rust: номер в области → правка, на которой сверен. */

@@ -9,6 +9,7 @@ import {
 import { orderMove, spawnUnit, terrainSpeed } from '@kharos/sim-ts/units'
 import { canDeploy } from '@kharos/sim-ts/conversion'
 import { breakSlabs } from '@kharos/sim-ts/combat'
+import { Burst } from '@kharos/sim-ts/components'
 import { settlePave } from '@kharos/sim-ts/paved'
 import { addBuilders } from './builders'
 import { throughJson } from './throughJson'
@@ -180,6 +181,16 @@ test('наземный взрыв разбивает фундамент под �
   breakSlabs(sim, x + 5, y + 10.5, 3)
   expect(slab(4)).toBe(false)
   expect(slab(6)).toBe(false)
+})
+
+test('взрыв в бою разбивает фундамент вокруг себя, дальние плиты целы', () => {
+  const { sim, x, y } = start()
+  for (let dx = 0; dx < 5; dx++) lay(sim, 'foundation', x + 3 + dx, y + 10)
+  const slab = (dx: number) => isPaved(sim, 'foundation', x + dx, y + 10)
+  // Авария радиусом 2 в середине полосы: плиты, чьи центры ближе тайла, уходят, дальние остаются.
+  sim.world.spawn(Position({ x: x + 5.5, y: y + 10.5 }), Burst({ radius: 2, damage: 0 }))
+  sim.advance(1 / 20)
+  expect([3, 4, 5, 6, 7].map(slab)).toEqual([true, false, false, false, true])
 })
 
 test('MCV разворачивается на фундаменте, лежащем на песке', () => {

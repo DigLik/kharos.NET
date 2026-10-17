@@ -92,6 +92,11 @@ impl Traces {
     Some(item)
   }
 
+  /// Следы, оставленные с конца прошлого тика: в конце этого они станут fresh.
+  pub fn pending(&self) -> &[Item] {
+    &self.pending
+  }
+
   /// Следы, оставленные в последнем тике.
   pub fn fresh(&self) -> &[Item] {
     &self.fresh

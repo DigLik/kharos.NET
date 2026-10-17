@@ -32,6 +32,20 @@ pub struct BuildingSpec {
   pub scan: Option<f64>,
   /// Генератор щита.
   pub shield: Option<ShieldSpec>,
+  /// Цена в кредитах; прочность — своя или от цены (`buildingHp`).
+  pub cost: f64,
+  pub hp: Option<f64>,
+  /// Турели стреляют боеприпасами со склада здания.
+  #[serde(default)]
+  pub ammo: bool,
+  /// Взрыв при гибели: у реактора с топливом и у шахты с готовой боеголовкой.
+  pub meltdown: Option<Meltdown>,
+}
+
+#[derive(Deserialize)]
+pub struct Meltdown {
+  pub radius: f64,
+  pub damage: f64,
 }
 
 #[derive(Deserialize)]
@@ -56,6 +70,7 @@ pub struct Burns {
 #[derive(Deserialize)]
 pub struct TurretSpec {
   pub turn: f64,
+  pub radius: f64,
   pub weapon: Option<String>,
 }
 
@@ -71,11 +86,32 @@ pub struct UnitSpec {
   pub weapon: Option<String>,
   #[serde(default)]
   pub mounts: Vec<Mount>,
+  /// Прочность в единицах урона.
+  pub hp: f64,
+  /// Полный магазин; нет — стреляет бесплатно.
+  pub ammo: Option<f64>,
 }
 
+/// Оружие (weapons.ts): поля — как в WeaponSpec там.
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WeaponSpec {
+  pub shot: String,
   pub range: f64,
+  pub damage: f64,
+  pub reload: f64,
+  pub speed: Option<f64>,
+  pub splash: Option<f64>,
+  pub chain: Option<f64>,
+  pub min_range: Option<f64>,
+  #[serde(default)]
+  pub lob: bool,
+  pub air: bool,
+  #[serde(default)]
+  pub only_air: bool,
+  #[serde(default)]
+  pub vs: HashMap<String, f64>,
+  pub ammo: Option<f64>,
 }
 
 /// Изделие сборочного цеха: рецепт на одну сборку и сколько она даёт.

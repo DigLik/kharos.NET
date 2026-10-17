@@ -56,6 +56,20 @@ test('артиллерия из-за купола бьёт в щит, а не в
   for (const entity of [shield, generator, radar]) expect(health(sim, entity)).toBe(1)
 })
 
+test('купол, пробитый в бою, гаснет на SHIELD_DOWN секунд', () => {
+  const { sim, y, shield, radar, cx } = base()
+  const gun = spawnUnit(sim, 'artillery', 2, Math.floor(cx - radius - 3), y + 10)
+  sim.send(2, { type: 'attack', units: [gun], target: radar })
+  const down = () => sim.world.get(shield, Shield)!.down
+  // Как только снаряд в полёте, запаса купола остаётся на одно попадание.
+  for (let i = 0; i < 12 / TICK && !sim.world.count(Shot); i++) sim.advance(TICK)
+  sim.world.get(shield, Shield)!.charge = 1
+  for (let i = 0; i < 12 / TICK && down() <= sim.time.tick; i++) sim.advance(TICK)
+  expect(charge(sim, shield)).toBe(0)
+  // Погас в прошлом тике: до подъёма — SHIELD_DOWN секунд от него.
+  expect(down() - sim.time.tick).toBe(SHIELD_DOWN / TICK - 1)
+})
+
 test('кто зашёл под купол, бьёт мимо щита', () => {
   const { sim, y, shield, radar, cx } = base()
   const soldier = spawnUnit(sim, 'infantry', 2, Math.floor(cx - 5), y + 13)

@@ -453,6 +453,20 @@ pub extern "C" fn traces_take(id: u32) -> *const u8 {
   answer_numbers(&values, |value| value.to_le_bytes().to_vec())
 }
 
+/// Следы, оставленные с конца прошлого тика, — по десять f64, как в traces_take: их оставляют и системы Rust (бой).
+#[no_mangle]
+pub extern "C" fn traces_pending(id: u32) -> *const u8 {
+  let values = with_sim(id, |sim| sim.traces.pending().iter().flat_map(|item| item.fields.iter().copied().chain([item.x, item.y])).collect::<Vec<f64>>()).unwrap_or_default();
+  answer_numbers(&values, |value| value.to_le_bytes().to_vec())
+}
+
+/// Плиты покрытия, снятые системами Rust (бой), парами f64 x, y: покрытие держит TS, обёртка снимает их и там.
+#[no_mangle]
+pub extern "C" fn paving_take(id: u32) -> *const u8 {
+  let values = with_sim(id, |sim| std::mem::take(&mut sim.lifted).into_iter().flat_map(|(x, y)| [x as f64, y as f64]).collect::<Vec<f64>>()).unwrap_or_default();
+  answer_numbers(&values, |value| value.to_le_bytes().to_vec())
+}
+
 // Что Rust пока берёт у TS (docs/boundary.md).
 
 /// Доли энергии потребителей (`powerSupply`): пары f64 — сущность и доля.

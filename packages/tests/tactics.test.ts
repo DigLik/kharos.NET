@@ -5,6 +5,7 @@ import { Terrain, terrainAt } from '@kharos/shared/terrain'
 import { Armed, Carrier, Health, Orders, Path, Position, Tactics, createSim, type Sim } from '@kharos/sim-ts'
 import { spawnUnit, type UnitType } from '@kharos/sim-ts/units'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { LEASH } from '@kharos/sim-ts/tactics'
 import { searchedTiles } from '@kharos/sim-ts/path'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024 }
@@ -84,7 +85,14 @@ test('в обороне юнит не гонится дальше поводка
   sim.world.get(ours, Armed)!.chase = true
   sim.world.add(ours, Tactics({ away: true, homeX: x + 3, homeY: y }))
   sim.send(2, { type: 'move', units: [foe], x: x + 38, y })
-  seconds(sim, 20)
+  let farthest = 0
+  for (let i = 0; i < 20 / TICK; i++) {
+    sim.advance(TICK)
+    farthest = Math.max(farthest, at(sim, ours).x - (x + 3.5))
+  }
+  // Погнался, но погоню бросил у поводка: дальше — только доехал начатый путь.
+  expect(farthest).toBeGreaterThan(LEASH)
+  expect(farthest).toBeLessThan(LEASH * 2)
   expect(Math.abs(at(sim, ours).x - (x + 3.5))).toBeLessThan(1.5)
   expect(sim.world.get(ours, Armed)!.target).toBe(-1)
 })
@@ -310,4 +318,19 @@ test('патрульный, встретив врага, встаёт и бьё�
   expect(fought).toBe(true)
   // Встал там, откуда достаёт: пока цель жива, патруль ждёт.
   expect(far).toBeLessThan(10)
+})
+
+test('патрульный под огнём издалека отвечает стрелку, хоть и идёт по обходу', () => {
+  const { sim, x, y } = field()
+  const ours = put(sim, 'infantry', 1, x + 2, y + 3)
+  sim.send(1, { type: 'patrol', units: [ours], points: [x + 36, y + 3] })
+  // Ракетчик бьёт дальше, чем пехотинец видит с места: без ответа на огонь тот прошёл бы мимо.
+  const foe = put(sim, 'rocketeer', 2, x + 18, y - 3)
+  sim.send(2, { type: 'stance', units: [foe], stance: 'hold' })
+  let answered = false
+  for (let i = 0; i < 10 / TICK && sim.world.alive(ours); i++) {
+    sim.advance(TICK)
+    if (sim.world.get(ours, Armed)?.target === foe) answered = true
+  }
+  expect(answered).toBe(true)
 })

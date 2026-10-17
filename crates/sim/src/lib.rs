@@ -2,6 +2,7 @@
 //! (docs/boundary.md, §4): система на Rust стоит на своём месте в порядке тика, а остальные пока идут в TS.
 
 pub mod build_memory;
+pub mod common;
 pub mod components;
 pub mod data;
 pub mod inventory;
@@ -57,6 +58,8 @@ pub struct Sim {
   pub rules: serde_json::Value,
   /// Поиски пути: счёт осмотренного и норма тика (path.rs).
   pub search: path::Search,
+  /// Плиты покрытия, снятые системами Rust (бой): покрытие пока держит TS, обёртка снимает их и там.
+  pub lifted: Vec<(i32, i32)>,
 }
 
 impl Sim {
@@ -69,7 +72,7 @@ impl Sim {
     let vision = Vision::new(&layers, bounds, fog);
     let pave_memory = Recall::new(Kind::Paving(layers.id("paving").expect("нет слоя paving")));
     let traces = Traces::new(&layers);
-    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, power: HashMap::new(), rules: serde_json::Value::Null, search: path::Search::default() }
+    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, power: HashMap::new(), rules: serde_json::Value::Null, search: path::Search::default(), lifted: Vec::new() }
   }
 
   /// Доводит выводимые слои до мира: разбирает события наблюдателей по порядку. Зовётся после чужого журнала и после
@@ -83,6 +86,11 @@ impl Sim {
   /// Число из правил мира; нет такого — ноль.
   pub fn rule(&self, name: &str) -> f64 {
     self.rules.get(name).and_then(serde_json::Value::as_f64).unwrap_or(0.0)
+  }
+
+  /// Флаг из правил мира; нет такого — false.
+  pub fn flag(&self, name: &str) -> bool {
+    self.rules.get(name).and_then(serde_json::Value::as_bool).unwrap_or(false)
   }
 
   /// Применяет изменения слоёв от той стороны (зеркало TS, загрузка): чанки земли — в землю, остальное — в слои.
