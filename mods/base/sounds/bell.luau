@@ -8,10 +8,8 @@ return {
 		s:osc("sine", s.note * 2.76):to(s:gain(0.3)):to(env)
 		s:osc("sine", s.note * 5.4):to(s:gain(0.08)):to(env)
 		env:to(s:out())
-		local echo = s:delay(0.5)
-		local feedback = s:gain(0.4)
-		env:to(s:gain(0.35)):to(echo)
-		echo:to(feedback):to(echo)
-		echo:to(s:out())
+		-- Эхо — два отвода без петли.
+		env:to(s:gain(0.35)):to(s:delay(0.5)):to(s:out())
+		env:to(s:gain(0.14)):to(s:delay(1.0)):to(s:out())
 	end,
 }
