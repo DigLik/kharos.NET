@@ -1,0 +1,704 @@
+//! Хост: мир и правила из модов (docs/mods.md, «Хост»). Каждый тик:
+//!
+//! 1. приказы игроков — обработчики `commands` видов;
+//! 2. системы видов по порядку (`systems`): движок собирает сущности по `query`, отдаёт их столбцы буферами, после
+//!    системы забирает назад столбцы компонентов из `write`, потом выполняет её команды (`ctx:spawn`, `ctx:set` …) и
+//!    раздаёт события (`ctx:emit` → `on` видов);
+//! 3. сигналы (`ctx:signal`) копятся для клиентов: выстрел, взрыв, готовый юнит — им звучать и вспыхивать.
+
+use crate::schema::{ComponentId, Kind, Schema};
+use crate::world::{decode, encode_checked, Entity, World};
+use kharos_content::vm::function;
+use kharos_content::{Content, Mod, Side};
+use mlua::{AnyUserData, Function, Lua, LuaSerdeExt, MultiValue, Table, UserData, UserDataFields, UserDataMethods, Value};
+use serde_json::{Map, Value as Json};
+use std::cell::RefCell;
+use std::collections::{BTreeMap, HashMap};
+use std::rc::Rc;
+
+/// Сигнал клиентам: имя и что к нему приложено.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Signal {
+  pub name: String,
+  pub payload: Json,
+}
+
+/// Система вида.
+struct System {
+  /// `раздел/вид.ключ` — для сообщений и `after`/`before`.
+  name: String,
+  key: String,
+  proto: Table,
+  query: Vec<ComponentId>,
+  /// Условия на числовые поля: компонент, столбец, значение.
+  filter: Vec<(ComponentId, usize, f64)>,
+  write: Vec<ComponentId>,
+  every: u64,
+  /// Сколько времени система заняла: сборка столбцов, Luau, возврат столбцов и команды — в секундах, всего.
+  spent: [f64; 4],
+  after: Vec<String>,
+  before: Vec<String>,
+  run: Function,
+}
+
+/// Отложенная команда системы или обработчика.
+enum Op {
+  Spawn(Entity, Vec<(ComponentId, Map<String, Json>)>),
+  Destroy(Entity),
+  Add(Entity, ComponentId, Map<String, Json>),
+  Set(Entity, ComponentId, Map<String, Json>),
+  Remove(Entity, ComponentId),
+}
+
+/// Что общее у хоста и `ctx` в скриптах.
+pub struct State {
+  pub world: World,
+  ops: Vec<Op>,
+  events: Vec<(String, Json)>,
+  pub signals: Vec<Signal>,
+  pub tick: u64,
+  pub dt: f64,
+  rng: u64,
+  /// Места сущностей по клеткам для `ctx:near`; None — устарела.
+  grid: Option<Grid>,
+}
+
+/// Клетки 4 × 4 тайла: сущности с Position.
+struct Grid {
+  cells: HashMap<(i32, i32), Vec<(Entity, f64, f64)>>,
+}
+
+const CELL: f64 = 4.0;
+
+impl Grid {
+  fn build(world: &World) -> Self {
+    let position = world.schema.id("Position").expect("Position");
+    let store = &world.stores[position];
+    let mut cells: HashMap<(i32, i32), Vec<(Entity, f64, f64)>> = HashMap::new();
+    for (row, &entity) in store.entities.iter().enumerate() {
+      let (x, y) = (store.nums[0][row], store.nums[1][row]);
+      cells.entry(((x / CELL).floor() as i32, (y / CELL).floor() as i32)).or_default().push((entity, x, y));
+    }
+    Self { cells }
+  }
+}
+
+pub struct Host {
+  pub content: Content,
+  /// Партия — вид из `games/`.
+  pub game: String,
+  pub state: Rc<RefCell<State>>,
+  systems: Vec<System>,
+  handlers: HashMap<String, Vec<(String, Function)>>,
+  commands: HashMap<String, (String, Function)>,
+  orders: Vec<(u32, String, Json)>,
+  ctx: AnyUserData,
+  /// Что `ctx.storage` — память модов, уходит в сохранение.
+  storage: Table,
+}
+
+/// Ошибка тика или загрузки: где и что.
+pub type Error = String;
+
+fn lua_error(what: impl std::fmt::Display) -> impl FnOnce(mlua::Error) -> Error {
+  move |error| format!("{what}: {error}")
+}
+
+impl Host {
+  /// Загружает моды на стороне хоста и собирает схему, системы, команды и обработчики. game — вид из `games/`: из
+  /// партий правила берутся только у неё.
+  pub fn new(mods: Vec<Mod>, game: &str, seed: u64) -> Result<Self, Error> {
+    let content = Content::load(Side::Host, mods).map_err(|error| error.to_string())?;
+    if content.id("games", game).is_none() {
+      return Err(format!("нет партии games/{game}"));
+    }
+    let schema = Rc::new(schema_of(&content)?);
+    let state = Rc::new(RefCell::new(State { world: World::new(schema.clone()), ops: Vec::new(), events: Vec::new(), signals: Vec::new(), tick: 0, dt: 0.05, rng: seed.max(1), grid: None }));
+    let lua = &content.lua;
+    let storage = lua.create_table().map_err(lua_error("storage"))?;
+    let game_table = content.get("games", game).expect("партия");
+    let ctx = lua.create_userdata(Ctx { state: state.clone(), protos: content.protos.clone(), game: game_table, storage: storage.clone(), list: content.list.iter().map(|proto| (proto.section.clone(), proto.name.clone())).collect() }).map_err(lua_error("ctx"))?;
+
+    let mut systems = Vec::new();
+    let mut handlers: HashMap<String, Vec<(String, Function)>> = HashMap::new();
+    let mut commands = HashMap::new();
+    for proto in content.list.iter().filter(|proto| proto.section != "games" || proto.name == game) {
+      let table = content.by_id(proto.id).expect("вид");
+      let label = format!("{}/{}", proto.section, proto.name);
+      if let Some(list) = table.get::<Option<Table>>("systems").map_err(lua_error(format!("{label}.systems")))? {
+        let mut keys: Vec<(String, Table)> = list.pairs::<String, Table>().collect::<mlua::Result<_>>().map_err(lua_error(format!("{label}.systems: система — таблица")))?;
+        keys.sort_by(|a, b| a.0.cmp(&b.0));
+        for (key, spec) in keys {
+          systems.push(system_of(lua, &schema, &state, &label, key, spec, table.clone())?);
+        }
+      }
+      if let Some(on) = table.get::<Option<Table>>("on").map_err(lua_error(format!("{label}.on")))? {
+        let mut list: Vec<(String, Function)> = on.pairs::<String, Function>().collect::<mlua::Result<_>>().map_err(lua_error(format!("{label}.on: обработчик — функция")))?;
+        list.sort_by(|a, b| a.0.cmp(&b.0));
+        for (event, handler) in list {
+          handlers.entry(event).or_default().push((label.clone(), handler));
+        }
+      }
+      if let Some(list) = table.get::<Option<Table>>("commands").map_err(lua_error(format!("{label}.commands")))? {
+        for pair in list.pairs::<String, Function>() {
+          let (name, handler) = pair.map_err(lua_error(format!("{label}.commands: команда — функция")))?;
+          commands.insert(name, (label.clone(), handler));
+        }
+      }
+    }
+    let systems = order_systems(systems)?;
+    Ok(Self { content, game: game.to_string(), state, systems, handlers, commands, orders: Vec::new(), ctx, storage })
+  }
+
+  pub fn lua(&self) -> &Lua {
+    &self.content.lua
+  }
+
+  /// Имена систем по порядку тика.
+  pub fn system_names(&self) -> Vec<String> {
+    self.systems.iter().map(|system| system.name.clone()).collect()
+  }
+
+  /// Начало партии: `start(ctx, партия)` вида из `games/` и событие `start`.
+  pub fn start(&mut self) -> Result<(), Error> {
+    let game = self.game.clone();
+    let game = game.as_str();
+    let table = self.content.get("games", game).ok_or_else(|| format!("нет партии games/{game}"))?;
+    if let Some(start) = function(&table, "start").map_err(lua_error(format!("games/{game}.start")))? {
+      start.call::<()>((&self.ctx, &table)).map_err(lua_error(format!("games/{game}.start")))?;
+      self.settle(&format!("games/{game}.start"))?;
+    }
+    self.emit("start", serde_json::json!({ "game": game }))
+  }
+
+  /// Игрок вошёл: событие `player_joined { player }`.
+  pub fn join(&mut self, player: u32) -> Result<(), Error> {
+    self.emit("player_joined", serde_json::json!({ "player": player }))
+  }
+
+  /// Приказ игрока: выполнится в начале следующего тика.
+  pub fn send(&mut self, player: u32, name: &str, args: Json) {
+    self.orders.push((player, name.to_string(), args));
+  }
+
+  /// Событие от движка: обработчики видов и их команды.
+  pub fn emit(&mut self, name: &str, payload: Json) -> Result<(), Error> {
+    self.state.borrow_mut().events.push((name.to_string(), payload));
+    self.settle(name)
+  }
+
+  /// Один тик длиной dt секунд.
+  pub fn tick(&mut self, dt: f64) -> Result<(), Error> {
+    {
+      let mut state = self.state.borrow_mut();
+      state.tick += 1;
+      state.dt = dt;
+      state.signals.clear();
+      state.grid = None;
+    }
+    for (player, name, args) in std::mem::take(&mut self.orders) {
+      let Some((label, handler)) = self.commands.get(&name).cloned() else { continue };
+      let args = self.lua().to_value(&args).map_err(lua_error(format!("приказ {name}")))?;
+      handler.call::<()>((&self.ctx, player, args)).map_err(lua_error(format!("{label}.commands.{name}")))?;
+      self.settle(&format!("{label}.commands.{name}"))?;
+    }
+    let tick = self.state.borrow().tick;
+    for index in 0..self.systems.len() {
+      if tick % self.systems[index].every != 0 {
+        continue;
+      }
+      self.run_system(index)?;
+    }
+    Ok(())
+  }
+
+  fn run_system(&mut self, index: usize) -> Result<(), Error> {
+    let started = clock();
+    let system = &self.systems[index];
+    let lua = &self.content.lua;
+    let (query, rows) = {
+      let state = self.state.borrow();
+      let world = &state.world;
+      let mut entities = world.query(&system.query);
+      if !system.filter.is_empty() {
+        entities.retain(|&entity| system.filter.iter().all(|&(component, slot, value)| world.stores[component].row(entity).is_some_and(|row| world.stores[component].nums[slot][row] == value)));
+      }
+      let query = columns(lua, world, &system.query, &entities).map_err(lua_error(&system.name))?;
+      (query, entities)
+    };
+    let built = clock();
+    system.run.call::<()>((&query, &self.ctx, &system.proto)).map_err(lua_error(&system.name))?;
+    let ran = clock();
+    if !system.write.is_empty() && !rows.is_empty() {
+      let mut state = self.state.borrow_mut();
+      write_back(&mut state.world, &query, &system.write, &rows).map_err(lua_error(&system.name))?;
+      if system.write.contains(&state.world.schema.id("Position").expect("Position")) {
+        state.grid = None;
+      }
+    }
+    let written = clock();
+    let name = system.name.clone();
+    self.settle(&name)?;
+    let spent = &mut self.systems[index].spent;
+    for (slot, (from, to)) in [(started, built), (built, ran), (ran, written), (written, clock())].into_iter().enumerate() {
+      spent[slot] += to - from;
+    }
+    Ok(())
+  }
+
+  /// Время систем с начала, в миллисекундах: имя и четыре части — сборка столбцов, Luau, возврат столбцов, команды
+  /// и события.
+  pub fn timings(&self) -> Vec<(String, [f64; 4])> {
+    self.systems.iter().map(|system| (system.name.clone(), system.spent.map(|seconds| seconds * 1000.0))).collect()
+  }
+
+  /// Выполняет отложенные команды и раздаёт события, пока они есть.
+  fn settle(&mut self, after: &str) -> Result<(), Error> {
+    for _ in 0..64 {
+      apply(&mut self.state.borrow_mut()).map_err(|error| format!("{after}: {error}"))?;
+      let events = std::mem::take(&mut self.state.borrow_mut().events);
+      if events.is_empty() {
+        return Ok(());
+      }
+      for (name, payload) in events {
+        let Some(list) = self.handlers.get(&name).cloned() else { continue };
+        let value = self.lua().to_value(&payload).map_err(lua_error(&name))?;
+        for (label, handler) in list {
+          handler.call::<()>((&self.ctx, value.clone())).map_err(lua_error(format!("{label}.on.{name}")))?;
+          apply(&mut self.state.borrow_mut()).map_err(|error| format!("{label}.on.{name}: {error}"))?;
+        }
+      }
+    }
+    Err(format!("{after}: события порождают друг друга без конца"))
+  }
+
+  /// Сигналы последнего тика.
+  pub fn signals(&self) -> Vec<Signal> {
+    self.state.borrow().signals.clone()
+  }
+
+  /// Память модов (`ctx.storage`) — JSON для сохранения.
+  pub fn storage(&self) -> Result<Json, Error> {
+    self.lua().from_value(Value::Table(self.storage.clone())).map_err(lua_error("storage"))
+  }
+}
+
+/// Секунды от произвольного начала — для замеров.
+fn clock() -> f64 {
+  #[cfg(not(target_arch = "wasm32"))]
+  {
+    use std::sync::OnceLock;
+    static START: OnceLock<std::time::Instant> = OnceLock::new();
+    START.get_or_init(std::time::Instant::now).elapsed().as_secs_f64()
+  }
+  #[cfg(target_arch = "wasm32")]
+  {
+    0.0
+  }
+}
+
+/// Схема: компоненты движка и всё, что объявили виды в `components`.
+fn schema_of(content: &Content) -> Result<Schema, Error> {
+  let mut schema = Schema::new();
+  for proto in &content.list {
+    let table = content.by_id(proto.id).expect("вид");
+    let label = format!("{}/{}", proto.section, proto.name);
+    let Some(components) = table.get::<Option<Table>>("components").map_err(lua_error(format!("{label}.components")))? else { continue };
+    let mut list: Vec<(String, Table)> = components.pairs::<String, Table>().collect::<mlua::Result<_>>().map_err(lua_error(format!("{label}.components: компонент — таблица полей")))?;
+    list.sort_by(|a, b| a.0.cmp(&b.0));
+    for (component, fields) in list {
+      let mut fields: Vec<(String, Value)> = fields.pairs::<String, Value>().collect::<mlua::Result<_>>().map_err(lua_error(format!("{label}.components.{component}")))?;
+      fields.sort_by(|a, b| a.0.cmp(&b.0));
+      for (field, default) in fields {
+        let default: Json = content.lua.from_value(default).map_err(lua_error(format!("{label}.components.{component}.{field}")))?;
+        schema.declare(&component, &field, default).map_err(|error| format!("{label}: {error}"))?;
+      }
+    }
+  }
+  Ok(schema)
+}
+
+fn system_of(lua: &Lua, schema: &Schema, state: &Rc<RefCell<State>>, label: &str, key: String, spec: Table, proto: Table) -> Result<System, Error> {
+  let name = format!("{label}.{key}");
+  let component = |component: &str| schema.id(component).ok_or_else(|| format!("{name}: нет компонента {component}"));
+  let names = |field: &str| -> Result<Vec<String>, Error> { Ok(spec.get::<Option<Vec<String>>>(field).map_err(lua_error(format!("{name}.{field}")))?.unwrap_or_default()) };
+  let query = names("query")?.iter().map(|one| component(one)).collect::<Result<Vec<_>, _>>()?;
+  let write = names("write")?.iter().map(|one| component(one)).collect::<Result<Vec<_>, _>>()?;
+  if let Some(missing) = write.iter().find(|id| !query.contains(id)) {
+    return Err(format!("{name}: write.{} нет в query", schema.components[*missing].name));
+  }
+  let mut filter = Vec::new();
+  if let Some(conditions) = spec.get::<Option<Table>>("where").map_err(lua_error(format!("{name}.where")))? {
+    for pair in conditions.pairs::<String, Table>() {
+      let (component_name, fields) = pair.map_err(lua_error(format!("{name}.where")))?;
+      let id = component(&component_name)?;
+      for field_pair in fields.pairs::<String, Value>() {
+        let (field_name, value) = field_pair.map_err(lua_error(format!("{name}.where.{component_name}")))?;
+        let field = schema.components[id].field(&field_name).filter(|field| field.kind.columnar()).ok_or_else(|| format!("{name}: where — нет числового поля {component_name}.{field_name}"))?;
+        let json: Json = lua.from_value(value).map_err(lua_error(&name))?;
+        let number = encode_checked(&mut state.borrow_mut().world.strings, field.kind, &json).ok_or_else(|| format!("{name}: where.{component_name}.{field_name} — не того вида"))?;
+        filter.push((id, field.slot, number));
+      }
+    }
+  }
+  let every = spec.get::<Option<u64>>("every").map_err(lua_error(format!("{name}.every")))?.unwrap_or(1).max(1);
+  let order = |field: &str| -> Result<Vec<String>, Error> { Ok(spec.get::<Option<StringOrList>>(field).map_err(lua_error(format!("{name}.{field}")))?.map(|list| list.0).unwrap_or_default()) };
+  let (after, before) = (order("after")?, order("before")?);
+  let run = function(&spec, "run").map_err(lua_error(&name))?.ok_or_else(|| format!("{name}: нет run"))?;
+  Ok(System { name, key, proto, query, filter, write, every, spent: [0.0; 4], after, before, run })
+}
+
+/// Порядок систем: `after` и `before` — ключи (`drive`) или полные имена (`moves/wheels.drive`); иначе — по видам.
+fn order_systems(systems: Vec<System>) -> Result<Vec<System>, Error> {
+  let count = systems.len();
+  let matches = |system: &System, name: &str| system.key == name || system.name == name;
+  let mut needs: Vec<Vec<usize>> = vec![Vec::new(); count];
+  let specs: Vec<(Vec<String>, Vec<String>)> = systems.iter().map(|system| (system.after.clone(), system.before.clone())).collect();
+  for (index, (after, before)) in specs.iter().enumerate() {
+    for name in after {
+      let found: Vec<usize> = (0..count).filter(|&other| other != index && matches(&systems[other], name)).collect();
+      if found.is_empty() {
+        return Err(format!("{}: after — нет системы {name}", systems[index].name));
+      }
+      needs[index].extend(found);
+    }
+    for name in before {
+      let found: Vec<usize> = (0..count).filter(|&other| other != index && matches(&systems[other], name)).collect();
+      if found.is_empty() {
+        return Err(format!("{}: before — нет системы {name}", systems[index].name));
+      }
+      for other in found {
+        needs[other].push(index);
+      }
+    }
+  }
+  let mut done = vec![false; count];
+  let mut order = Vec::with_capacity(count);
+  while order.len() < count {
+    let Some(next) = (0..count).find(|&index| !done[index] && needs[index].iter().all(|&need| done[need])) else {
+      let stuck: Vec<&str> = (0..count).filter(|&index| !done[index]).map(|index| systems[index].name.as_str()).collect();
+      return Err(format!("системы ждут друг друга по кругу: {}", stuck.join(", ")));
+    };
+    done[next] = true;
+    order.push(next);
+  }
+  let mut slots: Vec<Option<System>> = systems.into_iter().map(Some).collect();
+  Ok(order.into_iter().map(|index| slots[index].take().expect("система")).collect())
+}
+
+/// Строка или список строк.
+struct StringOrList(Vec<String>);
+
+impl mlua::FromLua for StringOrList {
+  fn from_lua(value: Value, lua: &Lua) -> mlua::Result<Self> {
+    match value {
+      Value::String(text) => Ok(Self(vec![text.to_str()?.to_string()])),
+      other => Ok(Self(Vec::<String>::from_lua(other, lua)?)),
+    }
+  }
+}
+
+/// Таблица запроса: `n`, `entity` и по компоненту — таблица буферов f64 его числовых полей.
+fn columns(lua: &Lua, world: &World, components: &[ComponentId], entities: &[Entity]) -> mlua::Result<Table> {
+  let query = lua.create_table()?;
+  query.raw_set("n", entities.len())?;
+  query.raw_set("entity", lua.create_buffer(entities.iter().flat_map(|&entity| (entity as f64).to_le_bytes()).collect::<Vec<u8>>())?)?;
+  for &component in components {
+    let def = &world.schema.components[component];
+    let store = &world.stores[component];
+    let rows: Vec<usize> = entities.iter().map(|&entity| store.row(entity).expect("сущность из запроса")).collect();
+    let table = lua.create_table()?;
+    for field in def.fields.iter().filter(|field| field.kind.columnar()) {
+      let column = &store.nums[field.slot];
+      let mut bytes = Vec::with_capacity(rows.len() * 8);
+      for &row in &rows {
+        bytes.extend_from_slice(&column[row].to_le_bytes());
+      }
+      table.raw_set(field.name.as_str(), lua.create_buffer(bytes)?)?;
+    }
+    query.raw_set(def.name.as_str(), table)?;
+  }
+  Ok(query)
+}
+
+/// Забирает из буферов запроса столбцы компонентов write.
+fn write_back(world: &mut World, query: &Table, write: &[ComponentId], entities: &[Entity]) -> mlua::Result<()> {
+  let schema = world.schema.clone();
+  for &component in write {
+    let def = &schema.components[component];
+    let table: Table = query.raw_get(def.name.as_str())?;
+    let rows: Vec<usize> = entities.iter().map(|&entity| world.stores[component].row(entity).expect("сущность из запроса")).collect();
+    for field in def.fields.iter().filter(|field| field.kind.columnar()) {
+      let buffer: mlua::Buffer = table.raw_get(field.name.as_str())?;
+      let bytes = buffer.to_vec();
+      let column = &mut world.stores[component].nums[field.slot];
+      for (at, &row) in rows.iter().enumerate() {
+        column[row] = f64::from_le_bytes(bytes[at * 8..at * 8 + 8].try_into().expect("8 байт"));
+      }
+    }
+  }
+  Ok(())
+}
+
+/// Выполняет отложенные команды по порядку.
+fn apply(state: &mut State) -> Result<(), Error> {
+  let position = state.world.schema.id("Position").expect("Position");
+  for op in std::mem::take(&mut state.ops) {
+    match op {
+      Op::Spawn(entity, components) => {
+        state.world.revive(entity);
+        for (component, values) in components {
+          state.world.add(entity, component, &values)?;
+        }
+        state.grid = None;
+      }
+      Op::Destroy(entity) => {
+        state.world.destroy(entity);
+        state.grid = None;
+      }
+      // Пропавшей к этому времени сущности команды не нужны: её мог убрать кто-то раньше в том же тике.
+      Op::Add(entity, component, values) => {
+        if state.world.alive(entity) {
+          state.world.add(entity, component, &values)?;
+          state.grid = if component == position { None } else { state.grid.take() };
+        }
+      }
+      Op::Set(entity, component, values) => {
+        if state.world.alive(entity) && state.world.has(entity, component) {
+          state.world.set(entity, component, &values)?;
+          state.grid = if component == position { None } else { state.grid.take() };
+        }
+      }
+      Op::Remove(entity, component) => state.world.remove(entity, component),
+    }
+  }
+  Ok(())
+}
+
+/// `ctx` в скриптах хоста.
+struct Ctx {
+  state: Rc<RefCell<State>>,
+  protos: Table,
+  /// Вид партии из `games/`.
+  game: Table,
+  storage: Table,
+  /// Раздел и имя вида по номеру.
+  list: Vec<(String, String)>,
+}
+
+impl Ctx {
+  fn component(&self, name: &str) -> mlua::Result<ComponentId> {
+    self.state.borrow().world.schema.id(name).ok_or_else(|| mlua::Error::runtime(format!("нет компонента {name}")))
+  }
+
+  /// Вид по значению: таблица вида, номер или `раздел/имя`.
+  fn proto(&self, kind: &Value) -> mlua::Result<(u32, Table)> {
+    let id = match kind {
+      Value::Table(table) => table.get::<u32>("id")?,
+      Value::Integer(id) => *id as u32,
+      Value::Number(id) => *id as u32,
+      Value::String(text) => {
+        let text = text.to_str()?.to_string();
+        let (section, name) = text.split_once('/').ok_or_else(|| mlua::Error::runtime(format!("вид «{text}»: нужно раздел/имя")))?;
+        self.list.iter().position(|(s, n)| s == section && n == name).ok_or_else(|| mlua::Error::runtime(format!("нет вида {text}")))? as u32
+      }
+      other => return Err(mlua::Error::runtime(format!("вид — таблица, номер или раздел/имя, а не {}", other.type_name()))),
+    };
+    let (section, name) = self.list.get(id as usize).ok_or_else(|| mlua::Error::runtime(format!("нет вида с номером {id}")))?;
+    let table = self.protos.get::<Table>(section.as_str())?.get::<Table>(name.as_str())?;
+    Ok((id, table))
+  }
+
+  /// Значения компонентов из таблицы `{ Компонент = { поле = значение } }`.
+  fn components(&self, lua: &Lua, table: Table) -> mlua::Result<BTreeMap<String, Map<String, Json>>> {
+    let mut result = BTreeMap::new();
+    for pair in table.pairs::<String, Value>() {
+      let (component, values) = pair?;
+      let values: Json = lua.from_value(values)?;
+      let values = match values {
+        Json::Object(map) => map,
+        // Пустая таблица Luau — и пустой список, и пустой объект.
+        Json::Array(list) if list.is_empty() => Map::new(),
+        other => return Err(mlua::Error::runtime(format!("{component}: нужны поля, а не {other}"))),
+      };
+      result.insert(component, values);
+    }
+    Ok(result)
+  }
+
+  fn values(&self, lua: &Lua, values: Option<Value>) -> mlua::Result<Map<String, Json>> {
+    match values {
+      None | Some(Value::Nil) => Ok(Map::new()),
+      Some(value) => match lua.from_value::<Json>(value)? {
+        Json::Object(map) => Ok(map),
+        Json::Array(list) if list.is_empty() => Ok(Map::new()),
+        other => Err(mlua::Error::runtime(format!("нужны поля, а не {other}"))),
+      },
+    }
+  }
+
+  fn random(&self) -> f64 {
+    let mut state = self.state.borrow_mut();
+    // splitmix64: один и тот же ряд на всех платформах.
+    state.rng = state.rng.wrapping_add(0x9E3779B97F4A7C15);
+    let mut z = state.rng;
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
+    z ^= z >> 31;
+    (z >> 11) as f64 / (1u64 << 53) as f64
+  }
+}
+
+fn entity_of(value: f64) -> mlua::Result<Entity> {
+  if value >= 1.0 && value.fract() == 0.0 && value <= u32::MAX as f64 {
+    Ok(value as Entity)
+  } else {
+    Err(mlua::Error::runtime(format!("{value} — не номер сущности")))
+  }
+}
+
+impl UserData for Ctx {
+  fn add_fields<F: UserDataFields<Self>>(fields: &mut F) {
+    fields.add_field_method_get("tick", |_, this| Ok(this.state.borrow().tick));
+    fields.add_field_method_get("dt", |_, this| Ok(this.state.borrow().dt));
+    fields.add_field_method_get("storage", |_, this| Ok(this.storage.clone()));
+    fields.add_field_method_get("protos", |_, this| Ok(this.protos.clone()));
+    fields.add_field_method_get("game", |_, this| Ok(this.game.clone()));
+  }
+
+  fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
+    // Новая сущность вида kind: компоненты из `entity` вида (таблица или функция от вида), поверх — fields. kind = nil —
+    // сущность без вида (игрок, память механики). Номер известен сразу, а появится сущность после системы.
+    methods.add_method("spawn", |lua, this, (kind, fields): (Value, Option<Table>)| {
+      let mut components = BTreeMap::new();
+      if !kind.is_nil() {
+        let (id, proto) = this.proto(&kind)?;
+        let template = match proto.get::<Value>("entity")? {
+          Value::Function(make) => make.call::<Option<Table>>(&proto)?,
+          Value::Table(table) => Some(table),
+          Value::Nil => None,
+          other => return Err(mlua::Error::runtime(format!("entity вида — таблица или функция, а не {}", other.type_name()))),
+        };
+        if let Some(table) = template {
+          components = this.components(lua, table)?;
+        }
+        components.insert("Proto".into(), Map::from_iter([("id".to_string(), Json::from(id))]));
+      }
+      if let Some(fields) = fields {
+        for (component, values) in this.components(lua, fields)? {
+          components.entry(component).or_default().extend(values);
+        }
+      }
+      let mut list = Vec::new();
+      for (component, values) in components {
+        list.push((this.component(&component)?, values));
+      }
+      let mut state = this.state.borrow_mut();
+      let entity = state.world.reserve();
+      state.ops.push(Op::Spawn(entity, list));
+      Ok(entity)
+    });
+    methods.add_method("destroy", |_, this, entity: f64| {
+      this.state.borrow_mut().ops.push(Op::Destroy(entity_of(entity)?));
+      Ok(())
+    });
+    methods.add_method("add", |lua, this, (entity, component, values): (f64, String, Option<Value>)| {
+      let op = Op::Add(entity_of(entity)?, this.component(&component)?, this.values(lua, values)?);
+      this.state.borrow_mut().ops.push(op);
+      Ok(())
+    });
+    methods.add_method("set", |lua, this, (entity, component, values): (f64, String, Value)| {
+      let op = Op::Set(entity_of(entity)?, this.component(&component)?, this.values(lua, Some(values))?);
+      this.state.borrow_mut().ops.push(op);
+      Ok(())
+    });
+    methods.add_method("remove", |_, this, (entity, component): (f64, String)| {
+      let op = Op::Remove(entity_of(entity)?, this.component(&component)?);
+      this.state.borrow_mut().ops.push(op);
+      Ok(())
+    });
+    // Значение компонента сейчас — таблицей; нет — nil. Изменения в буферах идущей системы сюда ещё не попали.
+    methods.add_method("get", |lua, this, (entity, component): (f64, String)| {
+      let id = this.component(&component)?;
+      let value = this.state.borrow().world.get(entity_of(entity)?, id);
+      match value {
+        Some(map) => lua.to_value(&Json::Object(map)),
+        None => Ok(Value::Nil),
+      }
+    });
+    methods.add_method("has", |_, this, (entity, component): (f64, String)| {
+      let id = this.component(&component)?;
+      Ok(this.state.borrow().world.has(entity_of(entity)?, id))
+    });
+    methods.add_method("alive", |_, this, entity: f64| Ok(entity_of(entity).is_ok_and(|entity| this.state.borrow().world.alive(entity))));
+    // Запрос из системы: та же таблица столбцов, только на чтение.
+    methods.add_method("query", |lua, this, components: Vec<String>| {
+      let ids = components.iter().map(|name| this.component(name)).collect::<mlua::Result<Vec<_>>>()?;
+      let state = this.state.borrow();
+      let entities = state.world.query(&ids);
+      columns(lua, &state.world, &ids, &entities)
+    });
+    // Сущности с Position в круге (x, y, r), по возрастанию номеров; components — ещё и с ними.
+    methods.add_method("near", |_, this, (x, y, radius, components): (f64, f64, f64, Option<Vec<String>>)| {
+      let ids = components.unwrap_or_default().iter().map(|name| this.component(name)).collect::<mlua::Result<Vec<_>>>()?;
+      let mut state = this.state.borrow_mut();
+      if state.grid.is_none() {
+        state.grid = Some(Grid::build(&state.world));
+      }
+      let grid = state.grid.as_ref().expect("сетка");
+      let mut found = Vec::new();
+      let (left, right) = (((x - radius) / CELL).floor() as i32, ((x + radius) / CELL).floor() as i32);
+      let (top, bottom) = (((y - radius) / CELL).floor() as i32, ((y + radius) / CELL).floor() as i32);
+      for cy in top..=bottom {
+        for cx in left..=right {
+          for &(entity, ex, ey) in grid.cells.get(&(cx, cy)).map(Vec::as_slice).unwrap_or(&[]) {
+            if (ex - x).powi(2) + (ey - y).powi(2) <= radius * radius && ids.iter().all(|&id| state.world.has(entity, id)) {
+              found.push(entity);
+            }
+          }
+        }
+      }
+      found.sort_unstable();
+      Ok(found)
+    });
+    // Номер строки для сравнения со столбцом поля `Str` и обратно.
+    methods.add_method("id", |_, this, text: String| Ok(this.state.borrow_mut().world.strings.id(&text)));
+    methods.add_method("text", |_, this, id: f64| Ok(this.state.borrow().world.strings.text(id as u32).to_string()));
+    methods.add_method("proto", |_, this, kind: Value| Ok(this.proto(&kind)?.1));
+    methods.add_method("emit", |lua, this, (name, payload): (String, Option<Value>)| {
+      let payload: Json = lua.from_value(payload.unwrap_or(Value::Nil))?;
+      this.state.borrow_mut().events.push((name, payload));
+      Ok(())
+    });
+    methods.add_method("signal", |lua, this, (name, payload): (String, Option<Value>)| {
+      let payload: Json = lua.from_value(payload.unwrap_or(Value::Nil))?;
+      this.state.borrow_mut().signals.push(Signal { name, payload });
+      Ok(())
+    });
+    // Случайное, одинаковое у всех, кто считает тот же мир: random() — [0, 1), random(n) — 1..n, random(a, b) — a..b.
+    methods.add_method("random", |_, this, args: MultiValue| {
+      let value = this.random();
+      let numbers: Vec<f64> = args.iter().filter_map(|value| value.as_f64()).collect();
+      Ok(match numbers.as_slice() {
+        [] => value,
+        [n] => (value * n.floor()).floor() + 1.0,
+        [a, b, ..] => a.floor() + (value * (b.floor() - a.floor() + 1.0)).floor(),
+      })
+    });
+    methods.add_method("count", |_, this, component: String| {
+      let id = this.component(&component)?;
+      Ok(this.state.borrow().world.stores[id].len())
+    });
+  }
+}
+
+/// Значение поля компонента для отладки и сохранений — JSON.
+pub fn field_json(world: &World, entity: Entity, component: ComponentId, field: &str) -> Option<Json> {
+  let def = world.schema.components[component].field(field)?;
+  let store = &world.stores[component];
+  let row = store.row(entity)?;
+  Some(match def.kind {
+    Kind::Any => store.anys[def.slot][row].clone(),
+    kind => decode(&world.strings, kind, store.nums[def.slot][row]),
+  })
+}

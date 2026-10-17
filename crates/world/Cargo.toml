@@ -1,0 +1,12 @@
+# Мир столбцами и хост правил из модов (docs/content.md, К3; docs/mods.md, «Хост»).
+[package]
+name = "kharos-world"
+version = "0.1.0"
+edition = "2021"
+license = "MPL-2.0"
+description = "Мир Kharos столбцами по схеме из модов и хост: системы, команды, события, сигналы"
+
+[dependencies]
+kharos-content = { path = "../content" }
+mlua = { version = "0.12", features = ["luau", "luau-jit", "serde"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }

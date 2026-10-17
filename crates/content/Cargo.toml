@@ -1,0 +1,13 @@
+# Моды Kharos (docs/content.md, docs/mods.md): машина Luau с песочницей, поиск модов и порядок по зависимостям,
+# загрузка видов по разделам, правка чужих видов. Общее для хоста (правила) и клиента (подача).
+[package]
+name = "kharos-content"
+version = "0.1.0"
+edition = "2021"
+license = "MPL-2.0"
+description = "Моды Kharos: Luau, разделы, виды, два прохода загрузки"
+
+[dependencies]
+mlua = { version = "0.12", features = ["luau", "luau-jit", "serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }

@@ -1,0 +1,11 @@
+--!strict
+-- Мод base — сама игра Kharos: юниты, здания, механики и подача. Движок без него — пустое поле.
+
+return {
+	name = "base",
+	version = "0.1.0",
+	title = "Kharos",
+	-- Партия по умолчанию — вид из games/.
+	game = "skirmish",
+	requires = {},
+}
