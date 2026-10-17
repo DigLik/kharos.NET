@@ -109,6 +109,17 @@ test('разрушенный реактор с топливом взрывает
   expect(sim.world.get(far, Health)!.value).toBe(1)
 })
 
+test('реактор с топливом, добитый перегрузом, тоже взрывается', () => {
+  const { sim, x, y, reactor } = base(2)
+  // Восемь мельниц урана просят 64 при 60 горящего стержня: перегруз, а прочности у реактора — на один тик износа.
+  for (let i = 0; i < 8; i++) placeBuilding(sim.world, 'uraniumMill', x + 8 + (i % 4) * 2, y + 2 + Math.floor(i / 4) * 2, 1)
+  sim.advance(TICK)
+  sim.world.get(reactor, Health)!.value = 1e-9
+  sim.advance(TICK)
+  expect(sim.world.has(reactor, Building)).toBe(false)
+  expect([...sim.world.query(Burst)].length).toBe(1)
+})
+
 test('пустой реактор при разрушении не взрывается', () => {
   const { sim, x, y, reactor } = base()
   const own = placeBuilding(sim.world, 'generator', x + 7, y + 3, 1)

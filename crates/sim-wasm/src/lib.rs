@@ -485,6 +485,31 @@ pub extern "C" fn paving_take(id: u32) -> *const u8 {
 
 // Что Rust пока берёт у TS (docs/boundary.md).
 
+/// Хозяйства зон тика для `earn` и кто в сети, f64: число игроков в сети (−1 — все) и они сами, затем зоны — игрок,
+/// доход, перегруз, число зданий и они сами.
+///
+/// # Safety
+/// ptr и len — буфер от `alloc`.
+#[no_mangle]
+pub unsafe extern "C" fn sim_books(id: u32, ptr: *const u8, len: usize) {
+  let values: Vec<f64> = std::slice::from_raw_parts(ptr, len).chunks_exact(8).map(|bytes| f64::from_le_bytes(bytes.try_into().unwrap())).collect();
+  with_sim(id, |sim| {
+    let mut at = 1;
+    let online = values[0];
+    sim.online = (online >= 0.0).then(|| {
+      at += online as usize;
+      values[1..at].iter().map(|&player| player as u64).collect()
+    });
+    sim.books.clear();
+    while at + 4 <= values.len() {
+      let count = values[at + 3] as usize;
+      let buildings = values[at + 4..at + 4 + count].iter().map(|&entity| entity as u32).collect();
+      sim.books.push(kharos_sim::systems::earn::Book { player: values[at], income: values[at + 1], overload: values[at + 2], buildings });
+      at += 4 + count;
+    }
+  });
+}
+
 /// Доли энергии потребителей (`powerSupply`): пары f64 — сущность и доля.
 ///
 /// # Safety

@@ -3,7 +3,7 @@ import { CHUNK_SIZE, chunkRevision, getChunk, tileKey, type Land } from '@kharos
 import { snapshot, updateBuildMemory, type BuildMemory, type Remembered } from '@kharos/sim-ts/buildMemory'
 import { BUILDINGS } from '@kharos/sim-ts/buildings'
 import { DEPOSIT_TYPES, type DepositLayer } from '@kharos/sim-ts/deposits'
-import { powerSupply } from '@kharos/sim-ts/income'
+import { overloadOf, powerSupply, zoneEconomies } from '@kharos/sim-ts/income'
 import { allGrids, allZones, type Zone } from '@kharos/sim-ts/zones'
 import * as components from '@kharos/sim-ts/components'
 import { Attached, Building, Owner, Position } from '@kharos/sim-ts/components'
@@ -52,6 +52,7 @@ interface Exports {
   traces_pending(id: number): number
   paving_take(id: number): number
   sim_power(id: number, ptr: number, len: number): void
+  sim_books(id: number, ptr: number, len: number): void
   sim_rules(id: number, ptr: number, len: number): number
   sim_free(id: number): void
   sim_apply(id: number, ptr: number, len: number): number
@@ -848,10 +849,21 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
       if (code !== 0) throw new Error(`sim.wasm не принял правила: ${code === 1 ? answer(api, api.out_ptr()) : 'нет симуляции'}`)
       rulesSent = rules
     }
+    if (name === 'earn') sendBooks()
     if (!POWERED.has(name)) return
     const pairs: number[] = []
     for (const [entity, share] of powerSupply(sim)) pairs.push(entity, share)
     withBytes(api, new Uint8Array(Float64Array.from(pairs).buffer), (ptr, len) => api.sim_power(id, ptr, len))
+  }
+
+  /** Хозяйства зон тика и кто в сети — для дохода (`earn`): берутся в тот же миг, что взяла бы его система в TS. */
+  const sendBooks = () => {
+    const values: number[] = sim.online ? [sim.online.size, ...sim.online] : [-1]
+    for (const [player, zones] of allGrids(sim)) {
+      const economies = zoneEconomies(sim, player)
+      zones.forEach((zone, i) => values.push(player, economies[i].income, overloadOf(economies[i]), zone.buildings.length, ...zone.buildings))
+    }
+    withBytes(api, new Uint8Array(Float64Array.from(values).buffer), (ptr, len) => api.sim_books(id, ptr, len))
   }
 
   /** Система на Rust на своём месте в тике. */

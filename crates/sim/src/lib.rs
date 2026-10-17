@@ -64,6 +64,10 @@ pub struct Sim {
   pub lifted: Vec<(i32, i32)>,
   /// Сети труб и энергосети (zones.rs).
   pub zones: zones::Zones,
+  /// Хозяйства зон этого тика — их пока считает TS и досылает перед `earn` (docs/boundary.md).
+  pub books: Vec<systems::earn::Book>,
+  /// Кто из игроков в сети; None — все (`Sim.online`).
+  pub online: Option<std::collections::HashSet<u64>>,
 }
 
 impl Sim {
@@ -76,7 +80,7 @@ impl Sim {
     let vision = Vision::new(&layers, bounds, fog);
     let pave_memory = Recall::new(Kind::Paving(layers.id("paving").expect("нет слоя paving")));
     let traces = Traces::new(&layers);
-    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, power: HashMap::new(), rules: serde_json::Value::Null, search: path::Search::default(), lifted: Vec::new(), zones: zones::Zones::default() }
+    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, power: HashMap::new(), rules: serde_json::Value::Null, search: path::Search::default(), lifted: Vec::new(), zones: zones::Zones::default(), books: Vec::new(), online: None }
   }
 
   /// Доводит выводимые слои до мира: разбирает события наблюдателей по порядку. Зовётся после чужого журнала и после

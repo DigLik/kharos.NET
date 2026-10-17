@@ -282,7 +282,7 @@ test('перегруженная электростанция теряет пр�
   const third = put(sim, 'matter', x + 9, y + 4)
   expect(powerStates(sim)).toEqual(new Map([[plant, 'overload'], [first, 'starved'], [second, 'starved'], [third, 'starved']]))
   sim.advance(TICK)
-  expect(health()).toBeCloseTo(1 - OVERLOAD_DAMAGE * 0.8 * TICK)
+  expect(health()).toBeCloseTo(1 - OVERLOAD_DAMAGE * 0.8 * TICK, 10)
   // Повреждённая станция даёт меньше энергии, поэтому перегруз растёт сам и урон ускоряется.
   seconds(sim, 20)
   expect(health()).toBeLessThan(1 - OVERLOAD_DAMAGE * 0.8 * 20)

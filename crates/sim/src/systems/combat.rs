@@ -710,7 +710,7 @@ fn release_hauler(world: &mut World, truck: Entity) {
 }
 
 /// Реактор с топливом и шахта с готовой боеголовкой взрываются (`meltdown`).
-fn meltdown(world: &mut World, entity: Entity) {
+pub(super) fn meltdown(world: &mut World, entity: Entity) {
   let Some(kind) = text(world, entity, "Building", "type") else { return };
   let spec = &DATA.buildings[kind];
   let Some(blast) = &spec.meltdown else { return };
