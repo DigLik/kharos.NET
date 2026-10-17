@@ -5,6 +5,7 @@ pub mod build_memory;
 pub mod common;
 pub mod components;
 pub mod data;
+pub mod economy;
 pub mod inventory;
 pub use kharos_engine::math;
 pub mod occupancy;

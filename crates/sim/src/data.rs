@@ -48,6 +48,19 @@ pub struct BuildingSpec {
   /// Радиус своей зоны (главное здание) и на сколько расширяет зону сети.
   pub zone: Option<f64>,
   pub expand: Option<f64>,
+  /// Накопитель: запас и скорость.
+  pub battery: Option<Battery>,
+  /// Доход в кредитах в секунду.
+  pub income: Option<f64>,
+  /// Тесное здание: каждое следующее в зоне просит на норму больше.
+  #[serde(default)]
+  pub crowding: bool,
+}
+
+#[derive(Deserialize)]
+pub struct Battery {
+  pub capacity: f64,
+  pub rate: f64,
 }
 
 #[derive(Deserialize)]

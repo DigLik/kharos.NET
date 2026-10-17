@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { Biome, biomeAt } from '@kharos/shared/terrain'
-import { Accumulator, Inventory, TOPICS, Trade, buyResearch, createSim, depositIn, grantResearch, isWalkable, powerStates, powerSupply, zoneEconomies, type Sim } from '@kharos/sim-ts'
+import { Accumulator, Building, Health, Inventory, Position, TOPICS, Trade, buyResearch, createSim, depositIn, grantResearch, isWalkable, powerStates, powerSupply, zoneEconomies, type Sim } from '@kharos/sim-ts'
 import { BUILDINGS, placeBuilding } from '@kharos/sim-ts/buildings'
 import { addCredits } from '@kharos/sim-ts/economy'
 import { buy } from '@kharos/sim-ts/trade'
@@ -79,6 +79,51 @@ test('накопитель отдаёт не быстрее своей скор�
   expect(sim.world.get(cell, Accumulator)!.flow).toBe(rate)
   expect(zoneEconomies(sim, 1)[0].produced).toBe(rate)
   expect(zoneEconomies(sim, 1)[0].demand).toBe(15)
+})
+
+test('накопитель отдаёт ровно нехватку зоны без себя: в счёт идут прочность станций, уровни, теснота, простой и стержни', () => {
+  type Setup = (sim: Sim, x: number, y: number) => void
+  const cases: [string, Setup, number][] = [
+    // Станция вполсилы даёт 5, радар просит 3, четыре лазерные турели без дела — по одной: нехватка 2.
+    ['повреждённая станция', (sim, x, y) => {
+      sim.world.get(placeBuilding(sim.world, 'generator', x + 4, y + 2, 1), Health)!.value = 0.5
+      placeBuilding(sim.world, 'radar', x + 6, y + 2, 1)
+      for (let i = 0; i < 4; i++) placeBuilding(sim.world, 'laserTurret', x + 4 + i, y + 5, 1)
+    }, 2],
+    // Станция второго уровня — 15, радар второго уровня — 4,5, три генератора материи теснят друг друга — 3 + 6 + 9: нехватка 7,5.
+    ['уровни и теснота', (sim, x, y) => {
+      sim.world.get(placeBuilding(sim.world, 'generator', x + 4, y + 2, 1), Building)!.level = 2
+      sim.world.get(placeBuilding(sim.world, 'radar', x + 6, y + 2, 1), Building)!.level = 2
+      for (let i = 0; i < 3; i++) placeBuilding(sim.world, 'matter', x + 4 + i * 2, y + 5, 1)
+    }, 7.5],
+    // Реактор без стержня не даёт ничего: радар — весь на накопителе.
+    ['реактор без стержня', (sim, x, y) => {
+      placeBuilding(sim.world, 'reactor', x + 3, y + 2, 1)
+      placeBuilding(sim.world, 'radar', x + 6, y + 2, 1)
+    }, 3],
+    // Разрядные турели без дела просят по одной из трёх: четыре — 4, и радар 3.
+    ['простой', (sim, x, y) => {
+      placeBuilding(sim.world, 'radar', x + 6, y + 2, 1)
+      for (let i = 0; i < 4; i++) placeBuilding(sim.world, 'arcTurret', x + 4 + i, y + 5, 1)
+    }, 7],
+  ]
+  for (const [name, setup, flow] of cases) {
+    const { sim, x, y } = field()
+    setup(sim, x, y)
+    const cell = placeBuilding(sim.world, 'accumulator', x + 8, y + 2, 1)
+    sim.world.get(cell, Accumulator)!.charge = capacity / 2
+    sim.advance(TICK)
+    expect([name, sim.world.get(cell, Accumulator)!.flow]).toEqual([name, flow])
+  }
+})
+
+test('два накопителя делят нехватку: второй отдаёт только то, чего не покрыл первый', () => {
+  const { sim, generator, cell } = base(30)
+  sim.world.destroy(generator)
+  const second = placeBuilding(sim.world, 'accumulator', sim.world.get(cell, Position)!.x, sim.world.get(cell, Position)!.y + 2, 1)
+  sim.world.get(second, Accumulator)!.charge = 30
+  sim.advance(TICK)
+  expect(sim.world.get(cell, Accumulator)!.flow + sim.world.get(second, Accumulator)!.flow).toBeCloseTo(3)
 })
 
 test('заряд накопителя переживает сохранение', () => {
