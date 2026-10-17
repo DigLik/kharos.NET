@@ -194,6 +194,14 @@ const PICK_SECONDS = 1
 /** Как давно головная тема игрока без сырья: head — о какой теме речь, since — с какого тика (-1 — сырьё есть), checked — когда сверяли. */
 const stalls = new WeakMap<Sim, Map<number, { head: Topic; since: number; checked: number }>>()
 
+/** Ставит простой головной темы игрока, посчитанный другой стороной — Rust, см. docs/boundary.md; undefined — снять. */
+export function setStall(sim: Sim, player: number, stall: { head: Topic; since: number; checked: number } | undefined) {
+  let byPlayer = stalls.get(sim)
+  if (!byPlayer) stalls.set(sim, (byPlayer = new Map()))
+  if (stall) byPlayer.set(player, stall)
+  else byPlayer.delete(player)
+}
+
 /** Есть ли под рукой хоть у одной из лабораторий всё сырьё темы: на её складе или в её сети труб. Теме без сырья оно не нужно. */
 function supplied(sim: Sim, topic: Topic, labs: readonly Entity[]) {
   const goods = entriesOf(topicPrice(sim, topic).materials).map(([good]) => good)

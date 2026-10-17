@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import {
-  BUILDINGS, Batch, Inventory, Off, Player, RESEARCH, RESEARCH_FOR, Research, TIER_CREDITS, TIER_SECONDS, TOPICS, Upgrade, amountOf, canPlace, createSim, creditsOf, depositIn, hasResearch,
+  Assembly, BUILDINGS, Batch, Building, Inventory, Off, Player, RESEARCH, RESEARCH_FOR, Research, TIER_CREDITS, TIER_SECONDS, TOPICS, Upgrade, amountOf, canPlace, createSim, creditsOf, depositIn, hasResearch,
   STALL_SECONDS, isUnlocked, pickTopic, planOf, progressOf, researchOf, stockOf, tierOf, topicPrice, topicsBefore, upgradeCost, upgradeLack, upgradeTicks,
   type BuildingType, type Rules, type Sim, type Topic,
 } from '@kharos/sim-ts'
@@ -499,4 +499,92 @@ test('старое сохранение: техцентр становится �
   const copy = createSim(save)
   expect(hasResearch(copy, 1, 'metalOre')).toBe(true)
   expect(amountOf(sim.world.get([...sim.world.query(Inventory)][0][0], Inventory)!, 'metal')).toBeGreaterThanOrEqual(0)
+})
+
+/** Хранилище груза good в базе (base): ряд ставит по одному каждого вида. */
+function storeOf(sim: Sim, good: Good) {
+  for (const [entity, building] of sim.world.query(Building)) if (building.type === storeFor(good)) return entity
+  throw new Error(`Нет хранилища для ${good}`)
+}
+
+/** Доля темы за тик одной лаборатории при полной энергии и сколько металла она за неё тратит. */
+function perTick(sim: Sim, topic: Topic) {
+  const { seconds: time, materials, cost } = topicPrice(sim, topic)
+  const share = TICK / time
+  return { share, metal: materials.metal! * share, cost: cost * share }
+}
+
+test('лаборатория берёт сырьё своей сети: готовое переработки и хранилищ, из хранилищ — раньше и сверх резерва; сырьё цеха и нужное другой лаборатории не трогает', () => {
+  const { sim, buildings: [lab, other, smelter, plant] } = base(['lab', 'lab', 'smelter', 'blockPlant'])
+  learn(sim, 'metalOre')
+  sim.world.add(other, Off())
+  sim.world.set(plant, Assembly, { recipe: 'blocks', on: true })
+  const store = storeOf(sim, 'metal')
+  plan(sim, 'ammo')
+  const metal = (entity: Entity) => amountOf(sim.world.get(entity, Inventory)!, 'metal')
+  /** Кладёт металл, где сказано (остальным — ноль), и делает тик; отвечает, чего лаборатории не хватило. */
+  const tick = (where: { store?: number; reserve?: number; smelter?: number; plant?: number; other?: number }) => {
+    for (const [entity, amount] of [[lab, 0], [store, where.store], [smelter, where.smelter], [plant, where.plant], [other, where.other]] as const) {
+      sim.world.get(entity, Inventory)!.items = { metal: amount ?? 0 }
+    }
+    sim.world.get(store, Inventory)!.reserve = where.reserve ?? 0
+    sim.advance(TICK)
+    return sim.world.get(lab, Research)!.lack
+  }
+  expect(tick({ plant: 50 })).toBe('metal')
+  expect(tick({ other: 50 })).toBe('metal')
+  expect(tick({ store: 50, reserve: 50 })).toBe('metal')
+  expect(tick({ store: 50, reserve: 49 })).toBe('')
+  expect(tick({ smelter: 50 })).toBe('')
+  expect(tick({ store: 50, smelter: 50 })).toBe('')
+  expect(metal(store)).toBeCloseTo(50 - perTick(sim, 'ammo').metal, 10)
+})
+
+test('лаборатория делает ту долю работы, на какую хватило сырья и кредитов; две в одной сети делят сырьё; скорость — до сотых', () => {
+  const { sim, buildings: [first, second] } = base(['lab', 'lab'])
+  learn(sim, 'metalOre')
+  const store = storeOf(sim, 'metal')
+  plan(sim, 'ammo')
+  const { share, metal, cost } = perTick(sim, 'ammo')
+  const tick = (stock: number) => {
+    for (const lab of [first, second]) sim.world.get(lab, Inventory)!.items = {}
+    sim.world.get(store, Inventory)!.items = { metal: stock }
+    const before = progressOf(sim, 1, 'ammo')
+    sim.advance(TICK)
+    return progressOf(sim, 1, 'ammo') - before
+  }
+  // Металла на одну лабораторию и треть второй: первая работает вся, вторая — на треть.
+  expect(tick(metal * (4 / 3))).toBeCloseTo(share * (4 / 3), 12)
+  expect(sim.world.get(first, Research)).toMatchObject({ speed: 1, lack: '' })
+  expect(sim.world.get(second, Research)).toMatchObject({ speed: 0.33, lack: 'metal' })
+
+  // Кредитов — на половину работы одной лаборатории.
+  sim.world.add(second, Off())
+  for (const [entity, player] of sim.world.query(Player)) if (player.id === 1) sim.world.set(entity, Player, { credits: 0, earned: cost / 2 })
+  expect(tick(100)).toBeCloseTo(share / 2, 12)
+  expect(sim.world.get(first, Research)).toMatchObject({ speed: 0.5, lack: 'credits' })
+})
+
+test('при нехватке энергии лаборатория работает медленнее и говорит, что ей не хватает энергии', () => {
+  const { sim, plants: [, plant], buildings: [lab] } = base(['lab', 'lab', 'lab', 'lab'])
+  learn(sim, 'metalOre')
+  sim.world.destroy(plant)
+  sim.world.get(storeOf(sim, 'metal'), Inventory)!.items = { metal: 100 }
+  plan(sim, 'ammo')
+  seconds(sim, 1)
+  // Четыре занятые лаборатории просят 12 при 10.
+  expect(sim.world.get(lab, Research)).toMatchObject({ speed: 0.83, lack: 'power' })
+})
+
+test('правила темпа замедляют исследование и делают его дороже', () => {
+  const { sim } = base(['lab'], { researchScale: 2, researchSlow: 3 })
+  learn(sim, 'metalOre')
+  sim.world.get(storeOf(sim, 'metal'), Inventory)!.items = { metal: 100 }
+  const { cost, seconds: time } = topicPrice(sim, 'ammo')
+  const credits = creditsOf(sim, 1)
+  plan(sim, 'ammo')
+  seconds(sim, time / 2)
+  expect(progressOf(sim, 1, 'ammo')).toBeCloseTo(0.5, 1)
+  expect(credits - creditsOf(sim, 1)).toBeGreaterThan(cost * 0.45)
+  expect(credits - creditsOf(sim, 1)).toBeLessThan(cost * 0.55)
 })

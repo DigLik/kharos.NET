@@ -7,6 +7,7 @@ pub mod components;
 pub mod data;
 pub mod economy;
 pub mod inventory;
+pub mod logistics;
 pub use kharos_engine::math;
 pub mod occupancy;
 pub mod path;
@@ -14,6 +15,7 @@ pub mod placement;
 pub mod recall;
 pub mod spawning;
 pub mod systems;
+pub mod topics;
 pub mod traces;
 mod values;
 pub mod vision;
@@ -73,6 +75,9 @@ pub struct Sim {
   /// Когда каждое здание-потребитель последний раз видели за работой, в тиках (`markBusy`). Не сохраняется: после
   /// загрузки набирается заново, как в TS.
   pub busy_seen: HashMap<Entity, u64>,
+  /// Выбор тем лабораторий и простои головных тем игроков (`pickTopic`): не сохраняются, как и в TS.
+  pub research_picks: HashMap<i64, String>,
+  pub research_stalls: HashMap<i64, systems::research::Stall>,
 }
 
 impl Sim {
@@ -85,7 +90,7 @@ impl Sim {
     let vision = Vision::new(&layers, bounds, fog);
     let pave_memory = Recall::new(Kind::Paving(layers.id("paving").expect("нет слоя paving")));
     let traces = Traces::new(&layers);
-    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, power: HashMap::new(), rules: serde_json::Value::Null, search: path::Search::default(), lifted: Vec::new(), zones: zones::Zones::default(), books: Vec::new(), online: None, busy_seen: HashMap::new() }
+    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, power: HashMap::new(), rules: serde_json::Value::Null, search: path::Search::default(), lifted: Vec::new(), zones: zones::Zones::default(), books: Vec::new(), online: None, busy_seen: HashMap::new(), research_picks: HashMap::new(), research_stalls: HashMap::new() }
   }
 
   /// Доводит выводимые слои до мира: разбирает события наблюдателей по порядку. Зовётся после чужого журнала и после

@@ -39,7 +39,7 @@ pub fn turn_toward(facing: f64, wanted: f64, max_turn: f64) -> f64 {
   }
 }
 
-// Синус, косинус, арктангенс и гипотенуза в JS не одинаковы между движками и платформами: JavaScriptCore (Bun) берёт
+// Синус, косинус, арктангенс, гипотенуза и степень в JS не одинаковы между движками и платформами: JavaScriptCore (Bun) берёт
 // их у системы, V8 — у своей fdlibm и своего `hypot`. Поэтому в wasm они приходят от хоста — импортом `math` (его
 // даёт `loadSimWasm` в packages/sim-rust), и Rust считает ровно как TS рядом; в нативе — системные, как у Bun.
 #[cfg(target_arch = "wasm32")]
@@ -50,6 +50,7 @@ mod host {
     pub fn sin(x: f64) -> f64;
     pub fn cos(x: f64) -> f64;
     pub fn atan2(y: f64, x: f64) -> f64;
+    pub fn pow(x: f64, y: f64) -> f64;
   }
 }
 
@@ -88,6 +89,14 @@ pub fn js_atan2(y: f64, x: f64) -> f64 {
 /// Угол от b до a, от -π до π (`angleBetween`).
 pub fn angle_between(a: f64, b: f64) -> f64 {
   js_atan2(js_sin(a - b), js_cos(a - b))
+}
+
+/// `x ** y` из JS.
+pub fn js_pow(x: f64, y: f64) -> f64 {
+  #[cfg(target_arch = "wasm32")]
+  return unsafe { host::pow(x, y) };
+  #[cfg(not(target_arch = "wasm32"))]
+  x.powf(y)
 }
 
 #[cfg(test)]

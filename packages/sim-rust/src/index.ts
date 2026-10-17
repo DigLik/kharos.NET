@@ -6,11 +6,13 @@ import { DEPOSIT_TYPES, type DepositLayer } from '@kharos/sim-ts/deposits'
 import { overloadOf, powerSupply, zoneEconomies } from '@kharos/sim-ts/income'
 import { allGrids, allZones, type Zone } from '@kharos/sim-ts/zones'
 import * as components from '@kharos/sim-ts/components'
-import { Attached, Building, Owner, Position } from '@kharos/sim-ts/components'
+import { Attached, Building, Owner, Player, Position } from '@kharos/sim-ts/components'
 import { landLayer, packTile } from '@kharos/sim-ts/landMemory'
 import { keyTile, type Paving } from '@kharos/sim-ts/paved'
 import { paveLayer } from '@kharos/sim-ts/paveMemory'
 import { createRecall, updateRecall, type Recall } from '@kharos/sim-ts/recall'
+import { setStall } from '@kharos/sim-ts/research'
+import { setPick, type Topic } from '@kharos/sim-ts/topics'
 import { TRACE_LIFE, traceCell, type Trace, type TraceKind, type Traces } from '@kharos/sim-ts/traces'
 import { UNIT_TYPES } from '@kharos/sim-ts/units'
 import type { Vision } from '@kharos/sim-ts/vision'
@@ -51,6 +53,7 @@ interface Exports {
   traces_take(id: number): number
   traces_pending(id: number): number
   paving_take(id: number): number
+  sim_picks(id: number): number
   sim_power(id: number, ptr: number, len: number): void
   sim_books(id: number, ptr: number, len: number): void
   sim_rules(id: number, ptr: number, len: number): number
@@ -78,8 +81,8 @@ const decoder = new TextDecoder()
 
 /** Заводит sim.wasm из байтов сборки (`bun run build:wasm`). Синхронно: так его можно завести и внутри createSim. */
 export function loadSimWasm(bytes: BufferSource): SimWasm {
-  // Тригонометрия и гипотенуза — от JS (crates/engine/src/math.rs): так Rust считает их ровно как TS рядом.
-  const math = { hypot: Math.hypot, sin: Math.sin, cos: Math.cos, atan2: Math.atan2 }
+  // Тригонометрия, гипотенуза и степень — от JS (crates/engine/src/math.rs): так Rust считает их ровно как TS рядом.
+  const math = { hypot: Math.hypot, sin: Math.sin, cos: Math.cos, atan2: Math.atan2, pow: Math.pow }
   const instance = new WebAssembly.Instance(new WebAssembly.Module(bytes), { math })
   return { exports: instance.exports as unknown as Exports }
 }
@@ -260,7 +263,7 @@ function pavingMirror(paving: Paving): LayerMirror {
 }
 
 /** Системы на Rust, которым нужна доля энергии потребителей (powerSupply): её досылает TS. */
-const POWERED = new Set(['scan', 'chargeShields', 'recover', 'refine', 'assemble', 'fight', 'produceUnits'])
+const POWERED = new Set(['scan', 'chargeShields', 'recover', 'refine', 'assemble', 'fight', 'produceUnits', 'research'])
 
 /** Системы памяти слоёв (recall.ts): на Rust они идут через memory_input и memory_take. */
 const MEMORY_SYSTEMS = ['updateLandMemory', 'updatePaveMemory', 'updateBuildMemory']
@@ -874,6 +877,22 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
     if (code !== 0) throw new Error(`sim.wasm: системы ${name} нет (${code})`)
     pull()
     if (name === 'fight') pullFight()
+    if (name === 'research') pullPicks()
+  }
+
+  /**
+   * Выбор тем лабораторий и простои головных тем: по ним системы TS решают, какое сырьё нужно лабораториям
+   * (researchNeeds в topics.ts), а pickTopic отвечает интерфейсу то же, что решил Rust.
+   */
+  const pullPicks = () => {
+    type Stall = Parameters<typeof setStall>[2]
+    const { picks, stalls } = JSON.parse(answer(api, api.sim_picks(id))) as { picks: [number, Topic][]; stalls: [number, Stall][] }
+    const picked = new Map(picks)
+    const stalled = new Map(stalls)
+    for (const [, player] of sim.world.query(Player)) {
+      setPick(sim, player.id, picked.get(player.id))
+      setStall(sim, player.id, stalled.get(player.id))
+    }
   }
 
   /**

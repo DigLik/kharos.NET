@@ -483,6 +483,19 @@ pub extern "C" fn paving_take(id: u32) -> *const u8 {
   answer_numbers(&values, |value| value.to_le_bytes().to_vec())
 }
 
+/// Выбор тем лабораторий (`pickTopic`) JSON-ом: `{ picks, stalls }` — пары игрок и тема, которую ведут вместо головной,
+/// и игрок и простой его головной темы. По ним TS решает, какое сырьё нужно лабораториям (`researchNeeds`), и отвечает
+/// интерфейсу.
+#[no_mangle]
+pub extern "C" fn sim_picks(id: u32) -> *const u8 {
+  let json = with_sim(id, |sim| {
+    let stalls: Vec<_> = sim.research_stalls.iter().map(|(player, stall)| serde_json::json!([player, { "head": stall.head, "since": stall.since, "checked": stall.checked }])).collect();
+    serde_json::json!({ "picks": sim.research_picks.iter().collect::<Vec<_>>(), "stalls": stalls }).to_string()
+  })
+  .unwrap_or_default();
+  STATE.with_borrow_mut(|state| answer(state, json.into_bytes()))
+}
+
 // Что Rust пока берёт у TS (docs/boundary.md).
 
 /// Хозяйства зон тика для `earn` и кто в сети, f64: число игроков в сети (−1 — все) и они сами, затем зоны — игрок,

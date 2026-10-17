@@ -98,6 +98,12 @@ pub struct BuildingSpec {
   /// Лаборатория: ведёт исследования.
   #[serde(default)]
   pub researches: bool,
+  /// Хранилище.
+  #[serde(default)]
+  pub stores: bool,
+  /// Шахта: добывает руду месторождения под собой.
+  #[serde(default)]
+  pub extract: bool,
   /// Космопорт: торгует.
   #[serde(default)]
   pub trades: bool,

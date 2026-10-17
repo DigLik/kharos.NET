@@ -1,10 +1,12 @@
 //! Хозяйство зоны (income.ts): сколько энергии зона даёт и просит, перегруз и доход. Хозяйства тика пока считает TS
 //! (docs/boundary.md); здесь — то, что системы на Rust считают по зоне сами.
 
+use crate::common::player_entity;
 use crate::data::{level_factor, BuildingSpec, DATA};
+use crate::values::js_number;
 use crate::values::{number, text};
 use kharos_engine::{Entity, World};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 /// Какую долю своей энергии просит потребитель без дела.
 const IDLE_SHARE: f64 = 1.0 / 3.0;
@@ -104,4 +106,18 @@ pub fn economy_of_zone(world: &World, buildings: &[Entity], step: f64, stored: b
     economy.income += powered * 1f64.min(economy.produced / economy.demand);
   }
   economy
+}
+
+/// Платит amount кредитов со счёта игрока: сначала дробный заработок, недостачу — целыми кредитами (`spend`). Не
+/// хватает — ничего не списывает и говорит false.
+pub fn spend(world: &mut World, player: f64, amount: f64) -> bool {
+  let Some(entity) = player_entity(world, player) else { return false };
+  let credits = number(world, entity, "Player", "credits").unwrap_or(0.0);
+  let left = number(world, entity, "Player", "earned").unwrap_or(0.0) - amount;
+  let whole = if left < 0.0 { (-left).ceil() } else { 0.0 };
+  if credits < whole {
+    return false;
+  }
+  world.set(entity, "Player", Map::from_iter([("credits".to_owned(), js_number(credits - whole)), ("earned".to_owned(), js_number(left + whole))]));
+  true
 }
