@@ -1,7 +1,7 @@
-//! Турели на носителях (turrets.ts): встают на свои места и доворачиваются по корпусу.
+//! Турели на носителях (turrets.ts): встают на свои места на юнитах и зданиях. Куда они смотрят — решает контент.
 
 use crate::data::DATA;
-use crate::math::{js_cos, js_sin, turn_toward};
+use crate::math::{js_cos, js_sin};
 use crate::values::{entity, number, patch, text};
 use crate::Time;
 use kharos_engine::{Entity, World};
@@ -41,18 +41,5 @@ pub fn follow_carriers(world: &mut World, _time: Time) {
   // Состав мира меняется после обхода.
   for turret in orphans {
     world.destroy(turret);
-  }
-}
-
-/// Раз в тик, после работ и боя: турель без цели и без работы поворачивается туда же, куда смотрит её носитель
-/// (`restTurrets`).
-pub fn rest_turrets(world: &mut World, time: Time) {
-  for turret in world.query(&["Turret"]) {
-    if entity(world, turret, "Armed", "target").is_some() || entity(world, turret, "Repair", "target").is_some() {
-      continue;
-    }
-    let Some(spec) = text(world, turret, "Turret", "type").and_then(|kind| DATA.turrets.get(kind)) else { continue };
-    let angle = number(world, turret, "Turret", "angle").unwrap_or(0.0);
-    world.set(turret, "Turret", patch([("angle", turn_toward(angle, 0.0, spec.turn * time.step))]));
   }
 }

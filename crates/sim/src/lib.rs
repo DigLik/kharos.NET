@@ -1,22 +1,15 @@
-//! Системы симуляции Kharos (docs/engine.md, §4): правила игры поверх движка. Переносятся из `sim-ts` по одной
-//! (docs/boundary.md, §4): система на Rust стоит на своём месте в порядке тика, а остальные пока идут в TS.
+//! Движковые системы симуляции Kharos: пути, ход, носители, следы, обзор и память игроков (docs/content.md, §5).
+//! Стоят на своих местах в порядке тика `sim-ts` (docs/boundary.md, §4); механики считает TS, пока их не перепишет
+//! контентом мод `base`.
 
 pub mod build_memory;
-pub mod common;
 pub mod components;
 pub mod data;
-pub mod drops;
-pub mod economy;
-pub mod inventory;
-pub mod logistics;
 pub use kharos_engine::math;
 pub mod occupancy;
 pub mod path;
-pub mod placement;
 pub mod recall;
-pub mod spawning;
 pub mod systems;
-pub mod topics;
 pub mod traces;
 mod values;
 pub mod vision;
@@ -24,8 +17,7 @@ pub mod walk;
 pub mod zones;
 
 use kharos_engine::terrain::{GeneratorConfig, Land, LandArea};
-use kharos_engine::{Change, Entity, Layers, Owner, World};
-use std::collections::HashMap;
+use kharos_engine::{Change, Layers, Owner, World};
 use build_memory::BuildMemory;
 use occupancy::Occupancy;
 use recall::{Kind, Recall};
@@ -58,27 +50,12 @@ pub struct Sim {
   pub build_memory: BuildMemory,
   /// Следы на земле — предметы слоя `traces` (traces.rs).
   pub traces: Traces,
-  /// На какую долю от полной скорости работает каждый потребитель энергии (`powerSupply`). Хозяйства зон пока считает
-  /// TS: она досылает это перед системами, которым нужна энергия (docs/boundary.md).
-  pub power: HashMap<Entity, f64>,
   /// Правила мира (`Rules` в @kharos/data/rules) — как их прислал TS.
   pub rules: serde_json::Value,
   /// Поиски пути: счёт осмотренного и норма тика (path.rs).
   pub search: path::Search,
-  /// Плиты покрытия, снятые системами Rust (бой): покрытие пока держит TS, обёртка снимает их и там.
-  pub lifted: Vec<(i32, i32)>,
   /// Сети труб и энергосети (zones.rs).
   pub zones: zones::Zones,
-  /// Хозяйства зон этого тика — их пока считает TS и досылает перед `earn` (docs/boundary.md).
-  pub books: Vec<systems::earn::Book>,
-  /// Кто из игроков в сети; None — все (`Sim.online`).
-  pub online: Option<std::collections::HashSet<u64>>,
-  /// Когда каждое здание-потребитель последний раз видели за работой, в тиках (`markBusy`). Не сохраняется: после
-  /// загрузки набирается заново, как в TS.
-  pub busy_seen: HashMap<Entity, u64>,
-  /// Выбор тем лабораторий и простои головных тем игроков (`pickTopic`): не сохраняются, как и в TS.
-  pub research_picks: HashMap<i64, String>,
-  pub research_stalls: HashMap<i64, systems::research::Stall>,
 }
 
 impl Sim {
@@ -91,7 +68,7 @@ impl Sim {
     let vision = Vision::new(&layers, bounds, fog);
     let pave_memory = Recall::new(Kind::Paving(layers.id("paving").expect("нет слоя paving")));
     let traces = Traces::new(&layers);
-    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, power: HashMap::new(), rules: serde_json::Value::Null, search: path::Search::default(), lifted: Vec::new(), zones: zones::Zones::default(), books: Vec::new(), online: None, busy_seen: HashMap::new(), research_picks: HashMap::new(), research_stalls: HashMap::new() }
+    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, rules: serde_json::Value::Null, search: path::Search::default(), zones: zones::Zones::default() }
   }
 
   /// Доводит выводимые слои до мира: разбирает события наблюдателей по порядку. Зовётся после чужого журнала и после

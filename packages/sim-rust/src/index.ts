@@ -3,16 +3,13 @@ import { CHUNK_SIZE, chunkRevision, getChunk, tileKey, type Land } from '@kharos
 import { snapshot, updateBuildMemory, type BuildMemory, type Remembered } from '@kharos/sim-ts/buildMemory'
 import { BUILDINGS } from '@kharos/sim-ts/buildings'
 import { DEPOSIT_TYPES, type DepositLayer } from '@kharos/sim-ts/deposits'
-import { overloadOf, powerSupply, zoneEconomies } from '@kharos/sim-ts/income'
 import { allGrids, allZones, type Zone } from '@kharos/sim-ts/zones'
 import * as components from '@kharos/sim-ts/components'
-import { Attached, Building, Owner, Player, Position } from '@kharos/sim-ts/components'
+import { Attached, Building, Owner, Position } from '@kharos/sim-ts/components'
 import { landLayer, packTile } from '@kharos/sim-ts/landMemory'
 import { keyTile, type Paving } from '@kharos/sim-ts/paved'
 import { paveLayer } from '@kharos/sim-ts/paveMemory'
 import { createRecall, updateRecall, type Recall } from '@kharos/sim-ts/recall'
-import { setStall } from '@kharos/sim-ts/research'
-import { setPick, type Topic } from '@kharos/sim-ts/topics'
 import { TRACE_LIFE, traceCell, type Trace, type TraceKind, type Traces } from '@kharos/sim-ts/traces'
 import { UNIT_TYPES } from '@kharos/sim-ts/units'
 import type { Vision } from '@kharos/sim-ts/vision'
@@ -51,11 +48,6 @@ interface Exports {
   build_memory_take(id: number): number
   traces_add(id: number, ptr: number, len: number): number
   traces_take(id: number): number
-  traces_pending(id: number): number
-  paving_take(id: number): number
-  sim_picks(id: number): number
-  sim_power(id: number, ptr: number, len: number): void
-  sim_books(id: number, ptr: number, len: number): void
   sim_rules(id: number, ptr: number, len: number): number
   sim_free(id: number): void
   sim_apply(id: number, ptr: number, len: number): number
@@ -261,9 +253,6 @@ function pavingMirror(paving: Paving): LayerMirror {
     },
   }
 }
-
-/** Системы на Rust, которым нужна доля энергии потребителей (powerSupply): её досылает TS. */
-const POWERED = new Set(['scan', 'chargeShields', 'recover', 'refine', 'assemble', 'fight', 'produceUnits', 'research', 'launchMissiles'])
 
 /** Системы памяти слоёв (recall.ts): на Rust они идут через memory_input и memory_take. */
 const MEMORY_SYSTEMS = ['updateLandMemory', 'updatePaveMemory', 'updateBuildMemory']
@@ -841,77 +830,22 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
 
   /** Правила мира, какими их знает Rust: JSON. */
   let rulesSent = ''
-  /**
-   * Что Rust пока берёт у TS: правила, если поменялись, и — системам, которым нужна энергия, — долю энергии каждого
-   * потребителя. Хозяйства зон считает TS, и доля берётся в тот же миг, когда её спросила бы система в TS.
-   */
-  const lend = (name: string) => {
+  /** Правила мира, если поменялись: их читают пути и ход. */
+  const lend = () => {
     const rules = JSON.stringify(sim.rules)
-    if (rules !== rulesSent) {
-      const code = withText(api, rules, (ptr, len) => api.sim_rules(id, ptr, len))
-      if (code !== 0) throw new Error(`sim.wasm не принял правила: ${code === 1 ? answer(api, api.out_ptr()) : 'нет симуляции'}`)
-      rulesSent = rules
-    }
-    if (name === 'earn') sendBooks()
-    if (!POWERED.has(name)) return
-    const pairs: number[] = []
-    for (const [entity, share] of powerSupply(sim)) pairs.push(entity, share)
-    withBytes(api, new Uint8Array(Float64Array.from(pairs).buffer), (ptr, len) => api.sim_power(id, ptr, len))
-  }
-
-  /** Хозяйства зон тика и кто в сети — для дохода (`earn`): берутся в тот же миг, что взяла бы его система в TS. */
-  const sendBooks = () => {
-    const values: number[] = sim.online ? [sim.online.size, ...sim.online] : [-1]
-    for (const [player, zones] of allGrids(sim)) {
-      const economies = zoneEconomies(sim, player)
-      zones.forEach((zone, i) => values.push(player, economies[i].income, overloadOf(economies[i]), zone.buildings.length, ...zone.buildings))
-    }
-    withBytes(api, new Uint8Array(Float64Array.from(values).buffer), (ptr, len) => api.sim_books(id, ptr, len))
+    if (rules === rulesSent) return
+    const code = withText(api, rules, (ptr, len) => api.sim_rules(id, ptr, len))
+    if (code !== 0) throw new Error(`sim.wasm не принял правила: ${code === 1 ? answer(api, api.out_ptr()) : 'нет симуляции'}`)
+    rulesSent = rules
   }
 
   /** Система на Rust на своём месте в тике. */
   const runRust = (name: string, reads: ReadonlySet<string>) => {
     sync(reads)
-    lend(name)
+    lend()
     const code = withText(api, name, (ptr, len) => api.sim_run(id, ptr, len, sim.time.tick, sim.time.step))
     if (code !== 0) throw new Error(`sim.wasm: системы ${name} нет (${code})`)
     pull()
-    if (name === 'fight') pullFight()
-    if (name === 'research') pullPicks()
-  }
-
-  /**
-   * Выбор тем лабораторий и простои головных тем: по ним системы TS решают, какое сырьё нужно лабораториям
-   * (researchNeeds в topics.ts), а pickTopic отвечает интерфейсу то же, что решил Rust.
-   */
-  const pullPicks = () => {
-    type Stall = Parameters<typeof setStall>[2]
-    const { picks, stalls } = JSON.parse(answer(api, api.sim_picks(id))) as { picks: [number, Topic][]; stalls: [number, Stall][] }
-    const picked = new Map(picks)
-    const stalled = new Map(stalls)
-    for (const [, player] of sim.world.query(Player)) {
-      setPick(sim, player.id, picked.get(player.id))
-      setStall(sim, player.id, stalled.get(player.id))
-    }
-  }
-
-  /**
-   * Что бой на Rust сделал вне мира: снятые плиты фундамента — покрытие держит TS — и оставленные следы. Следы обёртка
-   * сразу держит в списке, как оставленные из TS, а тень TS в режиме check получает их так же, как получила бы от боя TS.
-   */
-  const pullFight = () => {
-    const lifted = numbers(Float64Array, api.paving_take(id))
-    for (let i = 0; i < lifted.length; i += 2) sim.paving.lift(lifted[i], lifted[i + 1])
-    const pending = numbers(Float64Array, api.traces_pending(id))
-    for (let i = 0; i < pending.length; i += 10) {
-      const record = pending.subarray(i, i + 10)
-      if (traceLaid.has(record[0])) continue
-      const trace = traceOf(record)
-      keepTrace(trace)
-      if (!options.check) continue
-      const { id: _, tick: __, ...laid } = trace
-      shadowTraces.add(laid as Parameters<Traces['add']>[0])
-    }
   }
 
   /** Чанки карты, уже сверенные с Rust: номер в области → правка, на которой сверен. */
