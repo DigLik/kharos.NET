@@ -61,10 +61,13 @@ struct Store {
   entities: Vec<Entity>,
   data: Vec<Value>,
   index: HashMap<Entity, usize>,
+  /// Сколько раз компонент добавляли и снимали: по нему выводимое знает, что состав поменялся.
+  changes: u64,
 }
 
 impl Store {
   fn insert(&mut self, entity: Entity, value: Value) {
+    self.changes += 1;
     self.index.insert(entity, self.entities.len());
     self.entities.push(entity);
     self.data.push(value);
@@ -73,6 +76,7 @@ impl Store {
   /// На место удалённого встаёт последний: массивы остаются плотными, как в TS.
   fn remove(&mut self, entity: Entity) {
     let Some(at) = self.index.remove(&entity) else { return };
+    self.changes += 1;
     let last = self.entities.len() - 1;
     if at != last {
       let moved = self.entities[last];
@@ -311,6 +315,11 @@ impl World {
     let store = &mut self.stores[at];
     let &place = store.index.get(&entity)?;
     Some(&mut store.data[place])
+  }
+
+  /// Сколько раз компонент добавляли и снимали — у всех сущностей вместе.
+  pub fn changes(&self, key: &str) -> u64 {
+    self.store(key).map_or(0, |store| store.changes)
   }
 
   /// Сколько сущностей с этим компонентом.

@@ -4,6 +4,7 @@ import { snapshot, updateBuildMemory, type BuildMemory, type Remembered } from '
 import { BUILDINGS } from '@kharos/sim-ts/buildings'
 import { DEPOSIT_TYPES, type DepositLayer } from '@kharos/sim-ts/deposits'
 import { powerSupply } from '@kharos/sim-ts/income'
+import { allGrids, allZones, type Zone } from '@kharos/sim-ts/zones'
 import * as components from '@kharos/sim-ts/components'
 import { Attached, Building, Owner, Position } from '@kharos/sim-ts/components'
 import { landLayer, packTile } from '@kharos/sim-ts/landMemory'
@@ -56,6 +57,7 @@ interface Exports {
   sim_apply(id: number, ptr: number, len: number): number
   sim_journal(id: number): number
   sim_snapshot(id: number): number
+  sim_zones(id: number): number
   sim_order(id: number, ptr: number, len: number): number
   sim_systems(): number
   sim_run(id: number, ptr: number, len: number, tick: number, step: number): number
@@ -925,10 +927,24 @@ export function createRustSim(wasm: SimWasm, source: SimOptions | SimSave, optio
   }
 
   /** Сверяет Rust с TS: снимок, порядок каждого хранилища, землю и слои. Бросает на первом расхождении. */
+  /**
+   * Сверяет сети труб и энергосети (zones.ts): их считают обе стороны, каждая по своему миру. Числа — через JSON, как
+   * их отдаёт Rust: целые — целыми.
+   */
+  const checkZones = () => {
+    const json = (all: Map<number, Zone[]>) => JSON.stringify([...all].map(([player, zones]) => [player, zones.map(({ circles, buildings, sites, edges }) => ({ circles, buildings, sites, edges }))]))
+    const rust = JSON.parse(answer(api, api.sim_zones(id))) as { zones: unknown; grids: unknown }
+    for (const [name, ours, theirs] of [['сети', rust.zones, allZones(sim)], ['энергосети', rust.grids, allGrids(sim)]] as const) {
+      const expected = json(theirs)
+      if (JSON.stringify(ours) !== expected) throw new Error(`Rust разошёлся с TS: ${name} ${JSON.stringify(ours)} против ${expected}`)
+    }
+  }
+
   const check = () => {
     checkLand()
     checkLayers()
     checkVision()
+    checkZones()
     const keys = [...COMPONENTS.keys()]
     const rust = JSON.parse(answer(api, api.sim_snapshot(id))) as { next: number; entities: [number, Record<string, unknown>][] }
     const ts = world.snapshot([...COMPONENTS.values()])

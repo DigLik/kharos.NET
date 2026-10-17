@@ -147,6 +147,22 @@ pub extern "C" fn sim_snapshot(id: u32) -> *const u8 {
   STATE.with_borrow_mut(|state| answer(state, json.into_bytes()))
 }
 
+/// Сети труб и энергосети (zones.rs) JSON-ом: `{ zones, grids }`, у каждого — пары игрок и его сети с полями как у
+/// Zone в TS. По нему проверка сверяет сети Rust с сетями TS.
+#[no_mangle]
+pub extern "C" fn sim_zones(id: u32) -> *const u8 {
+  let json = with_sim(id, |sim| {
+    let list = |all: &kharos_sim::zones::ByPlayer| {
+      serde_json::Value::Array(all.iter().map(|(player, zones)| serde_json::json!([player, zones.iter().map(|zone| serde_json::json!({ "circles": zone.circles, "buildings": zone.buildings, "sites": zone.sites, "edges": zone.edges })).collect::<Vec<_>>()])).collect())
+    };
+    let zones = list(sim.zones.all(&sim.world, &sim.occupancy, &sim.layers));
+    let grids = list(sim.zones.grids(&sim.world, &sim.occupancy, &sim.layers));
+    serde_json::json!({ "zones": zones, "grids": grids }).to_string()
+  })
+  .unwrap_or_default();
+  STATE.with_borrow_mut(|state| answer(state, json.into_bytes()))
+}
+
 /// Порядок сущностей в хранилище компонента (ключ — UTF-8 в буфере от `alloc`): JSON-список номеров. По нему проверка
 /// сверяет, что Rust обойдёт хранилище так же, как TS.
 ///

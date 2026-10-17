@@ -15,6 +15,7 @@ pub mod traces;
 mod values;
 pub mod vision;
 pub mod walk;
+pub mod zones;
 
 use kharos_engine::terrain::{GeneratorConfig, Land, LandArea};
 use kharos_engine::{Change, Entity, Layers, Owner, World};
@@ -60,6 +61,8 @@ pub struct Sim {
   pub search: path::Search,
   /// Плиты покрытия, снятые системами Rust (бой): покрытие пока держит TS, обёртка снимает их и там.
   pub lifted: Vec<(i32, i32)>,
+  /// Сети труб и энергосети (zones.rs).
+  pub zones: zones::Zones,
 }
 
 impl Sim {
@@ -72,7 +75,7 @@ impl Sim {
     let vision = Vision::new(&layers, bounds, fog);
     let pave_memory = Recall::new(Kind::Paving(layers.id("paving").expect("нет слоя paving")));
     let traces = Traces::new(&layers);
-    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, power: HashMap::new(), rules: serde_json::Value::Null, search: path::Search::default(), lifted: Vec::new() }
+    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, power: HashMap::new(), rules: serde_json::Value::Null, search: path::Search::default(), lifted: Vec::new(), zones: zones::Zones::default() }
   }
 
   /// Доводит выводимые слои до мира: разбирает события наблюдателей по порядку. Зовётся после чужого журнала и после

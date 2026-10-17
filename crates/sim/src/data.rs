@@ -40,6 +40,14 @@ pub struct BuildingSpec {
   pub ammo: bool,
   /// Взрыв при гибели: у реактора с топливом и у шахты с готовой боеголовкой.
   pub meltdown: Option<Meltdown>,
+  /// Труба (surface) или колодец (well): связывают сеть.
+  pub pipe: Option<String>,
+  /// В сети не входит (стена).
+  #[serde(default)]
+  pub isolated: bool,
+  /// Радиус своей зоны (главное здание) и на сколько расширяет зону сети.
+  pub zone: Option<f64>,
+  pub expand: Option<f64>,
 }
 
 #[derive(Deserialize)]
