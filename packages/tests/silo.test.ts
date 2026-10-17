@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import {
-  BUILDINGS, Burst, Doomed, GLARE, Glare, Health, Inventory, LAUNCH_MARK, Mark, Missile, Off, Silo, WARNING, canPlace, createSim, creditsOf, isUnlocked, protect, protectionLeft, shownTo, warheadLack,
+  BUILDINGS, Building, Burst, Doomed, GLARE, Glare, Health, Inventory, LAUNCH_MARK, Mark, Missile, Off, Silo, WARNING, canPlace, createSim, creditsOf, isUnlocked, protect, protectionLeft, shownTo, warheadLack,
   type BuildingType, type Sim,
 } from '@kharos/sim-ts'
 import { STORES, placeBuilding, storeFor } from '@kharos/sim-ts/buildings'
@@ -147,6 +147,8 @@ test('место пуска видят игроки с радаром, и тол
   placeBuilding(sim.world, 'radar', far.x, far.y, 2)
   const other = spot(sim, x - 300, y)
   placeBuilding(sim.world, 'generator', other.x, other.y, 3)
+  const neutral = spot(sim, x, y + 300, 'radar')
+  placeBuilding(sim.world, 'radar', neutral.x, neutral.y, 0)
   sim.send(1, { type: 'launch', silo, x: x + 200, y })
   seconds(sim, warhead.launch + 0.1)
   const [mark] = marks(sim, 'launch')
@@ -154,7 +156,11 @@ test('место пуска видят игроки с радаром, и тол
   expect(shownTo(sim, 2, mark)).toBe(true)
   expect(shownTo(sim, 3, mark)).toBe(false)
   expect(shownTo(sim, 1, mark)).toBe(true)
-  seconds(sim, LAUNCH_MARK)
+  // Ничьему радару место пуска не показывают.
+  expect(sim.world.get(mark, Mark)!.viewers).toEqual([2])
+  seconds(sim, LAUNCH_MARK - 1)
+  expect(marks(sim, 'launch')).toEqual([mark])
+  seconds(sim, 1)
   expect(marks(sim, 'launch')).toEqual([])
 })
 
@@ -215,9 +221,41 @@ test('ракета летит со скоростью вида, её видят 
   // Вспышка открывает круг взрыва всем, даже игроку 3, чьё далеко, — и гаснет через GLARE секунд.
   expect(sim.vision.sees(3, toX, toY)).toBe(true)
   expect(sim.vision.sees(3, toX + warhead.blast.radius - 1, toY)).toBe(true)
-  seconds(sim, GLARE)
+  seconds(sim, GLARE - 0.5)
+  expect(sim.vision.sees(3, toX, toY)).toBe(true)
+  seconds(sim, 0.5)
   expect(sim.vision.sees(3, toX, toY)).toBe(false)
   expect([...sim.world.query(Glare)].length).toBe(0)
+})
+
+test('точку удара видят чужие, чьё под ней, — без хозяина ракеты и ничьих; метка живёт до удара', () => {
+  const { sim, x, y, silo } = armed()
+  const target = spot(sim, x + 170, y)
+  placeBuilding(sim.world, 'generator', target.x, target.y, 2)
+  placeBuilding(sim.world, 'wall', target.x + 4, target.y, 1)
+  placeBuilding(sim.world, 'wall', target.x + 5, target.y, 0)
+  sim.send(1, { type: 'launch', silo, x: target.x + 1, y: target.y + 1 })
+  seconds(sim, warhead.launch + 0.1)
+  const [strike] = marks(sim, 'strike')
+  expect(sim.world.get(strike, Mark)!.viewers).toEqual([2])
+  seconds(sim, 1.1)
+  expect(sim.world.get(strike, Mark)!.viewers).toEqual([2])
+  const state = sim.world.get(missiles(sim)[0], Missile)!
+  const left = Math.ceil(Math.hypot(state.toX - state.x, state.toY - state.y) / (warhead.speed * TICK))
+  expect(sim.world.get(strike, Mark)!.until - sim.time.tick).toBeGreaterThanOrEqual(left)
+  expect(sim.world.get(strike, Mark)!.until - sim.time.tick).toBeLessThanOrEqual(left + 2)
+})
+
+test('без энергии шахта боеголовку не собирает', () => {
+  const { sim, silo, stash } = base()
+  const plants: Entity[] = []
+  for (const [entity, building] of sim.world.query(Building)) if (building.type === 'generator') plants.push(entity)
+  for (const plant of plants) sim.world.destroy(plant)
+  stash({ rods: 20, parts: 10 })
+  sim.send(1, { type: 'warhead', silo })
+  seconds(sim, 5)
+  expect(sim.world.get(silo, Silo)!.ticks).toBeGreaterThan(0)
+  expect(sim.world.get(silo, Silo)!.progress).toBe(0)
 })
 
 test('шахта с готовой боеголовкой при разрушении рвётся, как реактор; пустая — нет', () => {

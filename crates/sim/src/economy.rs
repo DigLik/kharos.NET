@@ -135,3 +135,14 @@ pub fn add_credits(world: &mut World, player: f64, amount: f64) {
     }
   }
 }
+
+/// Платит amount целыми кредитами со счёта игрока; не хватает — ничего не списывает и говорит false (`pay`).
+pub fn pay(world: &mut World, player: f64, amount: f64) -> bool {
+  let Some(entity) = player_entity(world, player) else { return false };
+  let credits = number(world, entity, "Player", "credits").unwrap_or(0.0);
+  if credits < amount {
+    return false;
+  }
+  world.set(entity, "Player", Map::from_iter([("credits".to_owned(), js_number(credits - amount))]));
+  true
+}

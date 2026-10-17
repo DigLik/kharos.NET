@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import {
-  BUILDINGS, Burst, Chaser, Health, Interceptor, Inventory, Mark, Missile, Off, Silo, canPlace, createSim, creditsOf, interceptorLack, isUnlocked, offerAlliance,
+  AIRBURST, BUILDINGS, Blast, Burst, CRUISE, Chaser, Health, Interceptor, Inventory, Mark, Missile, Off, Silo, canPlace, createSim, creditsOf, interceptorLack, isUnlocked, offerAlliance,
   type BuildingType, type Sim,
 } from '@kharos/sim-ts'
 import { placeBuilding, storeFor } from '@kharos/sim-ts/buildings'
@@ -134,8 +134,10 @@ test('ракета, которая метит в круг перехватчик
   const flight = Math.hypot(state.toX - state.fromX, state.toY - state.fromY) / warhead.speed
   let chased = false
   let marked = false
+  let burst: { size: number; lift: number } | undefined
   for (let i = 0; i < Math.round(flight / TICK) + 40; i++) {
     sim.advance(TICK)
+    for (const [, blast] of sim.world.query(Blast)) burst ??= { size: blast.size, lift: blast.lift }
     chased ||= chasers(sim).length > 0
     for (const [, mark] of sim.world.query(Mark)) marked ||= mark.kind === 'strike'
   }
@@ -147,6 +149,8 @@ test('ракета, которая метит в круг перехватчик
   expect(sim.world.get(defender.core, Health)?.value).toBe(1)
   expect(marked).toBe(true)
   expect(sim.world.get(defender.building, Interceptor)!.missiles).toBe(0)
+  // Сбитая далеко от цели гибнет на высоте полёта.
+  expect(burst).toEqual({ size: AIRBURST, lift: CRUISE })
 })
 
 test('сбивает, когда ракета входит в круг, — и на краю круга успевает до удара', () => {
@@ -158,7 +162,9 @@ test('сбивает, когда ракета входит в круг, — и �
   fire(sim, attacker.building, toX, toY)
   let entered = -1
   let downed = -1
+  let lift = -1
   for (let i = 0; i < 1200 && downed < 0; i++) {
+    for (const [, blast] of sim.world.query(Blast)) lift = blast.lift
     const [missile] = missiles(sim)
     if (missile === undefined) downed = sim.time.tick
     else if (entered < 0 && Math.hypot(sim.world.get(missile, Missile)!.x - center.x, sim.world.get(missile, Missile)!.y - center.y) <= intercept.radius) entered = sim.time.tick
@@ -167,8 +173,28 @@ test('сбивает, когда ракета входит в круг, — и �
   expect(entered).toBeGreaterThan(0)
   expect(downed - entered).toBeLessThan(Math.round(0.5 / TICK))
   sim.advance(TICK)
+  for (const [, blast] of sim.world.query(Blast)) lift = blast.lift
+  // Над самой целью ракета уже снижается: сбитая гибнет ниже высоты полёта.
+  expect(lift).toBeGreaterThan(0)
+  expect(lift).toBeLessThan(CRUISE)
   expect(sim.world.get(near, Health)?.value).toBe(1)
   expect(sim.world.get(defender.building, Interceptor)!.missiles).toBe(0)
+})
+
+test('из двух перехватчиков, до которых ракета достаёт, стреляет ближний', () => {
+  // Шахта — в кругах обоих перехватчиков: ракета в них с первого тика.
+  const { sim, attacker, defender, center } = standoff(40)
+  const second = base(sim, 2, 'interceptor', defender.x + 30, defender.y)
+  Object.assign(sim.world.get(second.building, Interceptor)!, { missiles: 1 })
+  const guards = [defender, second].map((guard) => ({ guard, x: guard.x + 11, y: guard.y + 1 }))
+  const silo = { x: attacker.x + 11.5, y: attacker.y + 1.5 }
+  for (const { x, y } of guards) expect(Math.hypot(x - silo.x, y - silo.y)).toBeLessThan(intercept.radius)
+  const [near, far] = [...guards].sort((a, b) => Math.hypot(a.x - silo.x, a.y - silo.y) - Math.hypot(b.x - silo.x, b.y - silo.y))
+  fire(sim, attacker.building, center.x, center.y)
+  seconds(sim, 30)
+  expect(missiles(sim)).toEqual([])
+  expect(sim.world.get(near.guard.building, Interceptor)!.missiles).toBe(0)
+  expect(sim.world.get(far.guard.building, Interceptor)!.missiles).toBe(1)
 })
 
 test('не стреляет по ракете, чья точка удара вне круга, по своей и по союзной', () => {
