@@ -1,0 +1,29 @@
+# Клиент Kharos на стеке rwgpu (docs/content.md, §6, К4): окно winit, GL через glutin и glow, свой немедленный UI со
+# шрифтом fontdue, звук — web-audio-api. Всё, что игрок видит, слышит и чем управляет, приходит из модов (§4а).
+[package]
+name = "kharos-client"
+version = "0.1.0"
+edition = "2021"
+license = "MPL-2.0"
+description = "Клиент Kharos: рендер, звук и подача из модов"
+
+[[bin]]
+name = "kharos"
+path = "src/main.rs"
+
+[dependencies]
+bytemuck = { version = "1", features = ["derive"] }
+fontdue = "0.9"
+glow = "0.18"
+kharos-content = { path = "../../crates/content" }
+kharos-world = { path = "../../crates/world" }
+mlua = { version = "0.12", features = ["luau", "luau-jit", "serde"] }
+png = "0.17"
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+glutin = "0.32"
+glutin-winit = "0.5"
+raw-window-handle = "0.6"
+web-audio-api = { version = "1.7", default-features = false, features = ["cpal"] }
+winit = "0.30"

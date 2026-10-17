@@ -136,6 +136,11 @@ impl Content {
     Ok(Self { lua, side, mods: names, manifests: ordered, protos, list, index })
   }
 
+  /// Партия по умолчанию: `game` из манифестов, последний по порядку мод главнее.
+  pub fn default_game(&self) -> Option<String> {
+    self.manifests.iter().rev().find_map(|manifest| manifest.get::<Option<String>>("game").ok().flatten())
+  }
+
   /// Номер вида по разделу и имени.
   pub fn id(&self, section: &str, name: &str) -> Option<u32> {
     self.index.get(&(section.to_string(), name.to_string())).copied()

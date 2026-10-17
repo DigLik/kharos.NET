@@ -1,0 +1,244 @@
+//! Оболочка на нативе: окно winit, контекст GL 3.3 core (или GLES 3) от glutin, события в `Input`, кадр за кадром с
+//! вертикальной синхронизацией.
+//!
+//! KHAROS_SHOT=кадр.png — снять кадр после KHAROS_SHOT_FRAMES кадров (по умолчанию 120) и выйти: так картинку
+//! проверяют без человека у окна.
+
+use crate::input::Input;
+use crate::App;
+use glutin::config::{Config, ConfigTemplateBuilder};
+use glutin::context::{ContextApi, ContextAttributesBuilder, GlProfile, NotCurrentGlContext as _, PossiblyCurrentContext, Version};
+use glutin::display::{GetGlDisplay as _, GlDisplay as _};
+use glutin::surface::{GlSurface as _, Surface, SwapInterval, WindowSurface};
+use glutin_winit::{DisplayBuilder, GlWindow as _};
+use raw_window_handle::HasWindowHandle as _;
+use std::num::NonZeroU32;
+use std::time::Instant;
+use winit::application::ApplicationHandler;
+use winit::dpi::LogicalSize;
+use winit::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
+use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::keyboard::{Key, KeyCode, NamedKey, PhysicalKey};
+use winit::window::{Window, WindowId};
+
+struct Gl {
+  window: Window,
+  surface: Surface<WindowSurface>,
+  context: PossiblyCurrentContext,
+}
+
+struct Shell {
+  start: Instant,
+  input: Input,
+  gl: Option<Gl>,
+  app: Option<App>,
+  /// Снимок кадра: куда и через сколько кадров.
+  shot: Option<(String, u32)>,
+  frames: u32,
+}
+
+pub fn run() {
+  let shot = std::env::var("KHAROS_SHOT").ok().map(|path| (path, std::env::var("KHAROS_SHOT_FRAMES").ok().and_then(|frames| frames.parse().ok()).unwrap_or(120)));
+  let mut shell = Shell { start: Instant::now(), input: Input { focused: true, ..Default::default() }, gl: None, app: None, shot, frames: 0 };
+  let event_loop = EventLoop::new().expect("цикл событий");
+  if let Err(error) = event_loop.run_app(&mut shell) {
+    eprintln!("цикл событий: {error}");
+  }
+}
+
+fn create_gl(event_loop: &ActiveEventLoop) -> Result<(Gl, glow::Context), String> {
+  let attributes = Window::default_attributes().with_title("Kharos").with_inner_size(LogicalSize::new(1280.0, 800.0)).with_min_inner_size(LogicalSize::new(480.0, 360.0));
+  let template = ConfigTemplateBuilder::new().with_alpha_size(8);
+  let (window, config) = DisplayBuilder::new().with_window_attributes(Some(attributes)).build(event_loop, template, |mut configs| configs.next().expect("настройка GL")).map_err(|error| error.to_string())?;
+  let window = window.ok_or("нет окна")?;
+  let context = create_context(&window, &config)?;
+  let surface_attributes = window.build_surface_attributes(Default::default()).map_err(|error| error.to_string())?;
+  let display = config.display();
+  let surface = unsafe { display.create_window_surface(&config, &surface_attributes) }.map_err(|error| error.to_string())?;
+  let context = context.make_current(&surface).map_err(|error| error.to_string())?;
+  if let Err(error) = surface.set_swap_interval(&context, SwapInterval::Wait(NonZeroU32::MIN)) {
+    eprintln!("вертикальной синхронизации нет: {error}");
+  }
+  let gl = unsafe { glow::Context::from_loader_function_cstr(|name| display.get_proc_address(name)) };
+  Ok((Gl { window, surface, context }, gl))
+}
+
+fn create_context(window: &Window, config: &Config) -> Result<glutin::context::NotCurrentContext, String> {
+  let handle = window.window_handle().ok().map(|handle| handle.as_raw());
+  let display = config.display();
+  let desktop = ContextAttributesBuilder::new().with_profile(GlProfile::Core).with_context_api(ContextApi::OpenGl(Some(Version::new(3, 3)))).build(handle);
+  let gles = ContextAttributesBuilder::new().with_context_api(ContextApi::Gles(Some(Version::new(3, 0)))).build(handle);
+  unsafe { display.create_context(config, &desktop).or_else(|_| display.create_context(config, &gles)).map_err(|error| format!("нет контекста GL 3.3 или GLES 3: {error}")) }
+}
+
+impl ApplicationHandler for Shell {
+  fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+    if self.gl.is_some() {
+      return;
+    }
+    let (gl, context) = match create_gl(event_loop) {
+      Ok(pair) => pair,
+      Err(error) => {
+        eprintln!("GL: {error}");
+        event_loop.exit();
+        return;
+      }
+    };
+    match App::new(context) {
+      Ok(app) => self.app = Some(app),
+      Err(error) => {
+        eprintln!("{error}");
+        event_loop.exit();
+        return;
+      }
+    }
+    gl.window.request_redraw();
+    self.gl = Some(gl);
+  }
+
+  fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
+    let Some(gl) = &self.gl else { return };
+    let scale = gl.window.scale_factor() as f32;
+    let input = &mut self.input;
+    match event {
+      WindowEvent::CloseRequested => event_loop.exit(),
+      WindowEvent::Resized(size) => {
+        if let (Some(width), Some(height)) = (NonZeroU32::new(size.width), NonZeroU32::new(size.height)) {
+          gl.surface.resize(&gl.context, width, height);
+        }
+      }
+      WindowEvent::Focused(focused) => input.focused = focused,
+      WindowEvent::CursorMoved { position, .. } => {
+        input.pointer = Some([position.x as f32 / scale, position.y as f32 / scale]);
+        input.touch = false;
+      }
+      WindowEvent::CursorLeft { .. } => input.pointer = None,
+      WindowEvent::MouseInput { state, button, .. } => {
+        let index = match button {
+          MouseButton::Left => 0,
+          MouseButton::Right => 1,
+          MouseButton::Middle => 2,
+          _ => return,
+        };
+        input.button(index, state == ElementState::Pressed);
+      }
+      WindowEvent::MouseWheel { delta, .. } => {
+        input.wheel += match delta {
+          MouseScrollDelta::LineDelta(_, lines) => lines,
+          MouseScrollDelta::PixelDelta(pixels) => pixels.y as f32 / 40.0,
+        };
+      }
+      // Касание — левая кнопка; щипок и долгое нажатие решает управление из мода.
+      WindowEvent::Touch(touch) => {
+        input.pointer = Some([touch.location.x as f32 / scale, touch.location.y as f32 / scale]);
+        input.touch = true;
+        match touch.phase {
+          TouchPhase::Started => input.button(0, true),
+          TouchPhase::Ended | TouchPhase::Cancelled => input.button(0, false),
+          TouchPhase::Moved => {}
+        }
+      }
+      WindowEvent::ModifiersChanged(modifiers) => {
+        let state = modifiers.state();
+        for (name, down) in [("shift", state.shift_key()), ("ctrl", state.control_key()), ("alt", state.alt_key()), ("meta", state.super_key())] {
+          if down != input.keys.contains(name) {
+            input.key(name, down, false);
+          }
+        }
+      }
+      WindowEvent::KeyboardInput { event, .. } => {
+        let down = event.state == ElementState::Pressed;
+        if let Some(name) = key_name(&event.physical_key, &event.logical_key) {
+          input.key(&name, down, event.repeat);
+        }
+        if down {
+          if let Some(text) = &event.text {
+            input.text.extend(text.chars().filter(|char| !char.is_control()));
+          }
+        }
+      }
+      WindowEvent::RedrawRequested => self.redraw(event_loop),
+      _ => {}
+    }
+  }
+
+  fn about_to_wait(&mut self, _: &ActiveEventLoop) {
+    if let Some(gl) = &self.gl {
+      gl.window.request_redraw();
+    }
+  }
+}
+
+impl Shell {
+  fn redraw(&mut self, event_loop: &ActiveEventLoop) {
+    let (Some(gl), Some(app)) = (&self.gl, &mut self.app) else { return };
+    let size = gl.window.inner_size();
+    if size.width == 0 || size.height == 0 {
+      return;
+    }
+    let scale = gl.window.scale_factor() as f32;
+    self.input.scale = scale;
+    self.input.screen = [size.width as f32 / scale, size.height as f32 / scale];
+    self.input.time = self.start.elapsed().as_secs_f64();
+    if let Err(error) = app.frame(&self.input, [size.width, size.height]) {
+      eprintln!("{error}");
+      event_loop.exit();
+      return;
+    }
+    self.frames += 1;
+    if let Some((path, frames)) = &self.shot {
+      if self.frames >= *frames {
+        app.shot(path, [size.width, size.height]);
+        event_loop.exit();
+        return;
+      }
+    }
+    if let Err(error) = gl.surface.swap_buffers(&gl.context) {
+      eprintln!("swap_buffers: {error}");
+    }
+    self.input.end_frame();
+  }
+}
+
+/// Имя клавиши: буквы и цифры — по месту на клавиатуре (не зависят от раскладки), остальное — по смыслу.
+fn key_name(physical: &PhysicalKey, logical: &Key) -> Option<String> {
+  if let PhysicalKey::Code(code) = physical {
+    let text = format!("{code:?}");
+    if let Some(letter) = text.strip_prefix("Key") {
+      return Some(letter.to_lowercase());
+    }
+    if let Some(digit) = text.strip_prefix("Digit") {
+      return Some(digit.to_string());
+    }
+    let named = match code {
+      KeyCode::ArrowLeft => "left",
+      KeyCode::ArrowRight => "right",
+      KeyCode::ArrowUp => "up",
+      KeyCode::ArrowDown => "down",
+      KeyCode::Space => "space",
+      KeyCode::Escape => "escape",
+      KeyCode::Enter | KeyCode::NumpadEnter => "enter",
+      KeyCode::Tab => "tab",
+      KeyCode::Backspace => "backspace",
+      KeyCode::Delete => "delete",
+      KeyCode::ShiftLeft | KeyCode::ShiftRight => "shift",
+      KeyCode::ControlLeft | KeyCode::ControlRight => "ctrl",
+      KeyCode::AltLeft | KeyCode::AltRight => "alt",
+      KeyCode::SuperLeft | KeyCode::SuperRight => "meta",
+      KeyCode::Minus => "-",
+      KeyCode::Equal => "=",
+      _ => "",
+    };
+    if !named.is_empty() {
+      return Some(named.to_string());
+    }
+    if let Some(number) = text.strip_prefix('F').and_then(|rest| rest.parse::<u8>().ok()) {
+      return Some(format!("f{number}"));
+    }
+  }
+  match logical {
+    Key::Named(NamedKey::Escape) => Some("escape".into()),
+    Key::Character(text) => Some(text.to_lowercase()),
+    _ => None,
+  }
+}

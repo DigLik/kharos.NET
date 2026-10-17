@@ -140,4 +140,21 @@ production.systems = {
 	},
 }
 
+-- Подача сигналов на клиенте: готовый юнит звенит и пылит, отказ — жужжит.
+production.signals = {
+	produced = function(c, signal)
+		c:sound("ready", { x = signal.x, y = signal.y, gain = if signal.player == c.player then 1 else 0.4 })
+		for _ = 1, 14 do
+			local angle = math.random() * math.pi * 2
+			local speed = 0.6 + math.random() * 1.4
+			c:particle({ x = signal.x, y = signal.y, vx = math.cos(angle) * speed, vy = math.sin(angle) * speed, life = 0.5 + math.random() * 0.4, color = 0xa0c8b090, size = 1, drift = false })
+		end
+	end,
+	refused = function(c, signal)
+		if signal.player == c.player then
+			c:sound("deny")
+		end
+	end,
+}
+
 return production

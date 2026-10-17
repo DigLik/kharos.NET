@@ -58,4 +58,12 @@ orders.commands = {
 	end,
 }
 
+orders.signals = {
+	moved = function(c, signal)
+		if signal.player == c.player then
+			c:sound("order", { gain = 0.6 })
+		end
+	end,
+}
+
 return orders

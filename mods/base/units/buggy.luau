@@ -66,8 +66,7 @@ buggy.look = {
 		voice = "motor",
 		gain = 0.5,
 		control = function(knobs, unit)
-			knobs.load = unit.load
-			knobs.pitch = 0.9
+			knobs.pitch = 0.9 + (unit.entity % 7) * 0.03
 		end,
 	},
 	icon = { direction = 56 },

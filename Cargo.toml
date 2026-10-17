@@ -1,7 +1,7 @@
 # Cargo workspace: оболочка и крейты симуляции (docs/engine.md, §3). Сборка — в общем target/ в корне.
 [workspace]
 resolver = "2"
-members = ["apps/native", "crates/*"]
+members = ["apps/client", "apps/native", "crates/*"]
 
 [profile.dev]
 opt-level = 1

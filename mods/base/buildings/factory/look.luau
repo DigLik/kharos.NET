@@ -32,6 +32,13 @@ return {
 	lights = {
 		glows = { { 0, 24, 6 } },
 	},
-	-- Работающий цех гудит.
-	sound = { voice = "hum", gain = 0.3 },
+	-- Цех гудит, громче — когда работает.
+	sound = {
+		voice = "hum",
+		gain = 0.6,
+		control = function(knobs, unit, c)
+			local producer = c:get(unit.entity, "Producer")
+			knobs.load = if producer and producer.unit ~= "" then 1 else 0.15
+		end,
+	},
 }

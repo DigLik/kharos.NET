@@ -106,9 +106,14 @@ fn lua_error(what: impl std::fmt::Display) -> impl FnOnce(mlua::Error) -> Error 
 
 impl Host {
   /// Загружает моды на стороне хоста и собирает схему, системы, команды и обработчики. game — вид из `games/`: из
-  /// партий правила берутся только у неё.
-  pub fn new(mods: Vec<Mod>, game: &str, seed: u64) -> Result<Self, Error> {
+  /// партий правила берутся только у неё; None — партия по умолчанию (`game` в манифесте, последний мод главнее).
+  pub fn new(mods: Vec<Mod>, game: Option<&str>, seed: u64) -> Result<Self, Error> {
     let content = Content::load(Side::Host, mods).map_err(|error| error.to_string())?;
+    let game = match game {
+      Some(game) => game.to_string(),
+      None => content.default_game().ok_or("партия не задана: нет game ни в одном mod.luau")?,
+    };
+    let game = game.as_str();
     if content.id("games", game).is_none() {
       return Err(format!("нет партии games/{game}"));
     }
