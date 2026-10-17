@@ -1,6 +1,7 @@
 //! Где юнит может стоять и как быстро идёт по местности; приказ движения — прокладка пути (units.ts). Как в TS, до
 //! последнего тайла: пути, проложенные здесь и в TS, одинаковы.
 
+use crate::components;
 use crate::data::DATA;
 use crate::occupancy::Occupancy;
 use crate::path::{beyond_window, smooth_path, Grid, Search, SEARCH_LIMIT};
@@ -9,7 +10,7 @@ use crate::vision::{unit_sight, Bounds};
 use crate::Sim;
 use kharos_engine::terrain::{Land, FOOT_BIT, MOUNTAIN, SAND, SWAMP};
 use kharos_engine::{Entity, LayerId, Layers, Owner, World};
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use std::collections::HashSet;
 
 /// Во сколько раз быстрее, чем по голой скале, идут по дороге и по фундаменту.
@@ -328,19 +329,8 @@ pub enum Moved {
 }
 
 /// Кладёт юниту путь: новый компонент — со всеми полями по умолчанию, как Path() в TS; есть — поля поверх.
-fn put_path(world: &mut World, entity: Entity, fields: Vec<(&str, Value)>) {
-  let patch: Map<String, Value> = fields.into_iter().map(|(name, value)| (name.to_owned(), value)).collect();
-  if world.has(entity, "Path") {
-    world.set(entity, "Path", patch);
-    return;
-  }
-  let mut data = json!({ "points": [], "goalX": 0, "goalY": 0, "wait": 0, "tries": 0, "near": 0, "roads": false, "direct": false, "stuck": false, "best": -1, "slot": false });
-  if let Value::Object(fields) = &mut data {
-    for (name, value) in patch {
-      fields.insert(name, value);
-    }
-  }
-  world.add(entity, "Path", data);
+fn put_path(world: &mut World, entity: Entity, fields: Vec<(&'static str, Value)>) {
+  components::add(world, entity, "Path", fields);
 }
 
 /// Отправляет юнит в тайл (x, y): прокладывает путь и кладёт его в Path (`orderMove`).
