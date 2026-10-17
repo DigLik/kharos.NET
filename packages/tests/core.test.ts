@@ -3,12 +3,13 @@ import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { isCliffFoot } from '@kharos/shared/terrain'
 import {
-  Building, CORE, Converting, Deploys, Owner, Path, Player, Position, Producer, UNITS, Unit,
-  canDeploy, canDeployAt, canPlace, createSim, creditsOf, producibleBy, spawnStartingUnits, type Sim,
+  Building, CORE, Converting, Deploys, Health, Owner, Path, Pave, Player, Position, Producer, Site, UNITS, Unit,
+  canDeploy, canDeployAt, canPlace, createSim, creditsOf, dropAt, producibleBy, spawnStartingUnits, type Sim,
 } from '@kharos/sim-ts'
 import { STARTING_CREDITS } from '@kharos/sim-ts/economy'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
 import { DEPLOY_SECONDS } from '@kharos/sim-ts/conversion'
+import { dropItems } from '@kharos/sim-ts/drops'
 import { spawnUnit } from '@kharos/sim-ts/units'
 import { throughJson } from './throughJson'
 
@@ -342,4 +343,69 @@ test('разворачивание можно отменить: MCV снова �
   sim.send(1, { type: 'move', units: [mcv], x: site.x + 6, y: site.y + 1 })
   seconds(sim, 2)
   expect(sim.world.get(mcv, Position)!.x).not.toBe(before.x)
+})
+
+test('MCV, которому не доехать до места, пробует снова всё реже и после пяти промахов бросает поездку', () => {
+  const { sim, mcv, site } = start()
+  const target = siteAway(sim, mcv, site)
+  // Второй MCV заперт стенами на своём тайле: места ему не достать.
+  const trapped = spawnUnit(sim, 'mcv', 1, target.x + 1, target.y + 1)
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) placeBuilding(sim.world, 'wall', target.x + 1 + dx, target.y + 1 + dy, 1)
+  sim.send(1, { type: 'deploy', unit: trapped, x: site.x, y: site.y })
+  seconds(sim, 10)
+  expect(sim.world.get(trapped, Deploys)!.misses).toBeGreaterThan(1)
+  seconds(sim, 60)
+  expect(sim.world.has(trapped, Deploys)).toBe(false)
+})
+
+test('место стало негодным, пока MCV ехал: чужая зона, площадка стройки, дорога — он остаётся машиной', () => {
+  const spoilers: ((sim: Sim, target: { x: number; y: number }) => void)[] = [
+    (sim, target) => placeBuilding(sim.world, 'command', target.x + 5, target.y, 2),
+    (sim, target) => sim.world.spawn(Position({ x: target.x + 1, y: target.y }), Site({ type: 'wall' }), Owner({ player: 1 })),
+    (sim, target) => sim.world.spawn(Position({ x: target.x + 2, y: target.y + 2 }), Pave({ kind: 'road' })),
+  ]
+  for (const spoil of spoilers) {
+    const { sim, mcv, site } = start()
+    const target = siteAway(sim, mcv, site)
+    sim.send(1, { type: 'deploy', unit: mcv, x: target.x, y: target.y })
+    sim.advance(TICK)
+    spoil(sim, target)
+    seconds(sim, 30)
+    expect(sim.world.alive(mcv)).toBe(true)
+    expect(sim.world.has(mcv, Deploys)).toBe(false)
+    expect(core(sim)).toBeUndefined()
+  }
+})
+
+test('место заняли, пока MCV разворачивался: он остаётся машиной', () => {
+  const { sim, mcv, site } = start()
+  sim.send(1, { type: 'deploy', unit: mcv })
+  sim.advance(TICK)
+  expect(sim.world.has(mcv, Converting)).toBe(true)
+  placeBuilding(sim.world, 'wall', site.x + 2, site.y, 1)
+  seconds(sim, DEPLOY_SECONDS + 0.2)
+  expect(sim.world.alive(mcv)).toBe(true)
+  expect(sim.world.has(mcv, Converting)).toBe(false)
+  expect(core(sim)).toBeUndefined()
+})
+
+test('развёрнутая база уничтожает дропы под собой, но не рядом, и получает фазу по счёту зданий', () => {
+  const { sim, mcv, site } = start()
+  placeBuilding(sim.world, 'wall', site.x - 8, site.y - 8, 1)
+  dropItems(sim, site.x + 2, site.y + 2, { metal: 10 })
+  dropItems(sim, site.x + 3, site.y + 2, { metal: 10 })
+  sim.send(1, { type: 'deploy', unit: mcv })
+  seconds(sim, DEPLOY_SECONDS + 0.2)
+  expect(sim.world.get(core(sim)!, Building)!.phase).toBe(5)
+  expect(dropAt(sim, site.x + 2, site.y + 2)).toBeUndefined()
+  expect(dropAt(sim, site.x + 3, site.y + 2)).toBeDefined()
+})
+
+test('свёрнутая база уносит прочность здания в MCV', () => {
+  const { sim, base } = deployed()
+  sim.world.get(base, Health)!.value = 0.5
+  sim.send(1, { type: 'pack', building: base })
+  seconds(sim, 10.2)
+  const [mcv] = unitsOf(sim, 'mcv')
+  expect(sim.world.get(mcv, Health)!.value).toBe(0.5)
 })

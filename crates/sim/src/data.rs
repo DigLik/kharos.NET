@@ -10,6 +10,30 @@ use std::sync::LazyLock;
 #[derive(Deserialize)]
 pub struct Mount {
   pub turret: String,
+  /// Место на носителе: вдоль корпуса и поперёк.
+  pub along: f64,
+  pub across: f64,
+}
+
+/// Склад и луч вида (`StorageSpec`).
+#[derive(Deserialize, Default, Clone)]
+pub struct Storage {
+  pub inventory: Option<f64>,
+  #[serde(default)]
+  pub accepts: Vec<String>,
+  #[serde(default)]
+  pub limits: serde_json::Map<String, serde_json::Value>,
+  pub beam: Option<BeamSpec>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct BeamSpec {
+  pub radius: f64,
+  pub rate: f64,
+  #[serde(default)]
+  pub give: bool,
+  #[serde(default)]
+  pub take: bool,
 }
 
 #[derive(Deserialize)]
@@ -55,6 +79,22 @@ pub struct BuildingSpec {
   /// Тесное здание: каждое следующее в зоне просит на норму больше.
   #[serde(default)]
   pub crowding: bool,
+  #[serde(flatten)]
+  pub storage: Storage,
+  /// Ремонт: радиус.
+  pub repair: Option<f64>,
+  /// Просит груз сам (Wanted).
+  #[serde(default)]
+  pub requester: bool,
+  pub warhead: Option<serde_json::Value>,
+  pub intercept: Option<serde_json::Value>,
+  /// Какие юниты производит.
+  pub produces: Option<Vec<String>>,
+  /// Что собирает цех.
+  pub assembles: Option<String>,
+  /// Оборона: ставится и на песок.
+  #[serde(default)]
+  pub defense: bool,
 }
 
 #[derive(Deserialize)]
@@ -92,6 +132,7 @@ pub struct Burns {
 pub struct TurretSpec {
   pub turn: f64,
   pub radius: f64,
+  pub repair: Option<f64>,
   pub weapon: Option<String>,
 }
 
@@ -111,6 +152,18 @@ pub struct UnitSpec {
   pub hp: f64,
   /// Полный магазин; нет — стреляет бесплатно.
   pub ammo: Option<f64>,
+  /// Возит грузы.
+  #[serde(default)]
+  pub hauls: bool,
+  pub repair: Option<f64>,
+  #[serde(flatten)]
+  pub storage: Storage,
+}
+
+/// Награда (rewards.json): сколько кредитов за то, что сделано впервые.
+#[derive(Deserialize)]
+pub struct Reward {
+  pub credits: f64,
 }
 
 /// Оружие (weapons.ts): поля — как в WeaponSpec там.
@@ -172,6 +225,7 @@ pub struct Data {
   /// Виды юнитов в порядке units.json — как UNIT_TYPES в TS: по номеру в нём следы помнят вид.
   pub unit_types: Vec<String>,
   pub weapons: HashMap<String, WeaponSpec>,
+  pub rewards: HashMap<String, Reward>,
   /// Слои мода base в порядке объявления (docs/layers.md).
   pub layers: Vec<LayerSpec>,
 }
@@ -190,7 +244,7 @@ const RESOURCES: &str = include_str!("../../../packages/base/data/resources.json
 const PRODUCTS: &str = include_str!("../../../packages/base/data/products.json");
 const ORES: &str = include_str!("../../../packages/base/data/ores.json");
 
-pub static DATA: LazyLock<Data> = LazyLock::new(|| Data { goods: [keys("resources", RESOURCES), keys("products", PRODUCTS), keys("ores", ORES)].concat(), ores: table::<OreSpec>("ores", ORES).into_iter().map(|(ore, spec)| (ore, spec.resource)).collect(), products: table("products", PRODUCTS), buildings: table("buildings", include_str!("../../../packages/base/data/buildings.json")), turrets: table("turrets", include_str!("../../../packages/base/data/turrets.json")), units: table("units", include_str!("../../../packages/base/data/units.json")), unit_types: serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(include_str!("../../../packages/base/data/units.json")).expect("units.json").keys().cloned().collect(), weapons: table("weapons", include_str!("../../../packages/base/data/weapons.json")), layers: LayerSpec::parse_all(include_str!("../../../packages/base/data/layers.json")).unwrap_or_else(|error| panic!("layers.json: {error}")) });
+pub static DATA: LazyLock<Data> = LazyLock::new(|| Data { goods: [keys("resources", RESOURCES), keys("products", PRODUCTS), keys("ores", ORES)].concat(), ores: table::<OreSpec>("ores", ORES).into_iter().map(|(ore, spec)| (ore, spec.resource)).collect(), products: table("products", PRODUCTS), buildings: table("buildings", include_str!("../../../packages/base/data/buildings.json")), turrets: table("turrets", include_str!("../../../packages/base/data/turrets.json")), units: table("units", include_str!("../../../packages/base/data/units.json")), unit_types: serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(include_str!("../../../packages/base/data/units.json")).expect("units.json").keys().cloned().collect(), weapons: table("weapons", include_str!("../../../packages/base/data/weapons.json")), rewards: table("rewards", include_str!("../../../packages/base/data/rewards.json")), layers: LayerSpec::parse_all(include_str!("../../../packages/base/data/layers.json")).unwrap_or_else(|error| panic!("layers.json: {error}")) });
 
 #[cfg(test)]
 mod tests {

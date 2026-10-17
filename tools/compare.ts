@@ -9,12 +9,14 @@
  */
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
+import { Terrain, isCliffFoot, terrainAt } from '@kharos/shared/terrain'
 import { createRustSim, loadSimWasm } from '@kharos/sim-rust'
 import { spawnBattle, driveBattle, randomArmy } from '@kharos/sim-ts/battle'
 import { TRAINING_PLAYER } from '@kharos/sim-ts/combat'
 import { spawnSandbox } from '@kharos/sim-ts/sandbox'
 import { createSim, type Sim, type SimOptions } from '@kharos/sim-ts/sim'
-import { spawnUnit, type UnitType } from '@kharos/sim-ts/units'
+import { spawnStartingUnits, spawnUnit, type UnitType } from '@kharos/sim-ts/units'
+import { Building, Position, Unit } from '@kharos/sim-ts/components'
 
 const TICK = 1 / 20
 /** Раз во сколько тиков сравнивается мир. */
@@ -26,6 +28,26 @@ interface Scene {
   setup(sim: Sim): void
   /** Раз в секунду: команды сцены. */
   drive?(sim: Sim): void
+}
+
+/** Первое здание или юнит этого вида. */
+function first(sim: Sim, type: string): Entity | undefined {
+  for (const [entity, building] of sim.world.query(Building)) if (building.type === type) return entity
+  for (const [entity, unit] of sim.world.query(Unit)) if (unit.type === type) return entity
+  return undefined
+}
+
+/** Левый верхний тайл ровной скалы 20×12: на ней разворачивается главное здание. */
+function plateau(sim: Sim) {
+  for (let y = 0; y < 400; y++) {
+    search: for (let x = 0; x < 400; x++) {
+      for (let tileY = y; tileY < y + 12; tileY++) {
+        for (let tileX = x; tileX < x + 20; tileX++) if (terrainAt(sim.land, tileX, tileY) !== Terrain.Rock || isCliffFoot(sim.land, tileX, tileY)) continue search
+      }
+      return { x, y }
+    }
+  }
+  throw new Error('В мире не нашлось скалы под базу')
 }
 
 /** Случайные числа с зерном: армии сцен одинаковы от прогона к прогону. */
@@ -53,6 +75,26 @@ const SCENES: Record<string, Scene> = {
       }
       sim.send(1, { type: 'move', units: units[1], x: 40, y: 0 })
       sim.send(2, { type: 'move', units: units[2], x: -40, y: 0 })
+    },
+  },
+  // Стартовый набор: MCV разворачивается главным зданием, сворачивается обратно и снова разворачивается рядом.
+  deploy: {
+    options: { generator: DEFAULT_SETTINGS.generator, size: 1024 },
+    setup(sim) {
+      const at = plateau(sim)
+      const units = spawnStartingUnits(sim, 1, at.x + 2, at.y + 2)
+      const mcv = units.find((entity) => sim.world.get(entity, Unit)?.type === 'mcv')!
+      sim.send(1, { type: 'deploy', unit: mcv })
+    },
+    drive(sim) {
+      const second = Math.round(sim.time.tick * sim.time.step)
+      const core = first(sim, 'command')
+      const mcv = first(sim, 'mcv')
+      if (second === 8 && core !== undefined) sim.send(1, { type: 'pack', building: core })
+      if (second === 22 && mcv !== undefined) {
+        const { x, y } = sim.world.get(mcv, Position)!
+        sim.send(1, { type: 'deploy', unit: mcv, x: Math.floor(x) + 6, y: Math.floor(y) })
+      }
     },
   },
   // Показательный бой случайных армий с землёй и воздухом.

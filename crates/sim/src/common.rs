@@ -138,3 +138,20 @@ pub fn leave_home(world: &mut World, entity: Entity) {
 pub fn target(world: &World, entity_: Entity, key: &str, field: &str) -> Option<Entity> {
   entity(world, entity_, key, field)
 }
+
+/// Сущность игрока по номеру (`playerEntity`): из нескольких — последняя появившаяся.
+pub fn player_entity(world: &World, player: f64) -> Option<Entity> {
+  world.query(&["Player"]).into_iter().filter(|&entity| number(world, entity, "Player", "id") == Some(player)).max()
+}
+
+/// Выдаёт игроку награду, если он её ещё не получал (`reward`).
+pub fn reward(world: &mut World, player: f64, key: &str) {
+  let (Some(entity), Some(prize)) = (player_entity(world, player), DATA.rewards.get(key)) else { return };
+  let credits = number(world, entity, "Player", "credits").unwrap_or(0.0);
+  let mut rewards: Vec<Value> = world.get(entity, "Player").and_then(|info| info.get("rewards")).and_then(Value::as_array).cloned().unwrap_or_default();
+  if rewards.iter().any(|other| other.as_str() == Some(key)) {
+    return;
+  }
+  rewards.push(json!(key));
+  world.set(entity, "Player", [("credits".to_owned(), crate::values::js_number(credits + prize.credits)), ("rewards".to_owned(), Value::Array(rewards))].into_iter().collect());
+}
