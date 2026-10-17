@@ -95,6 +95,8 @@ pub struct BuildingSpec {
   /// Оборона: ставится и на песок.
   #[serde(default)]
   pub defense: bool,
+  /// Материалы, которые стройка ждёт на складе.
+  pub materials: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 #[derive(Deserialize)]
@@ -156,6 +158,11 @@ pub struct UnitSpec {
   #[serde(default)]
   pub hauls: bool,
   pub repair: Option<f64>,
+  /// Сколько секунд производится.
+  #[serde(rename = "buildTime")]
+  pub build_time: f64,
+  /// Материалы, которые производитель тратит в начале заказа.
+  pub materials: Option<serde_json::Map<String, serde_json::Value>>,
   #[serde(flatten)]
   pub storage: Storage,
 }

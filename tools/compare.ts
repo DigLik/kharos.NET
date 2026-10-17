@@ -90,6 +90,12 @@ const SCENES: Record<string, Scene> = {
       const second = Math.round(sim.time.tick * sim.time.step)
       const core = first(sim, 'command')
       const mcv = first(sim, 'mcv')
+      // Производство: заказы с точкой сбора, стоят в свёрнутой базе и продолжаются после разворота.
+      if ((sim.time.tick === 80 || sim.time.tick === 600) && core !== undefined) {
+        const { x, y } = sim.world.get(core, Position)!
+        for (const unit of ['builder', 'truck', 'builder'] as const) sim.send(1, { type: 'produce', producer: core, unit })
+        sim.send(1, { type: 'rally', building: core, x: x - 5, y: y + 4 })
+      }
       if (second === 8 && core !== undefined) sim.send(1, { type: 'pack', building: core })
       if (second === 22 && mcv !== undefined) {
         const { x, y } = sim.world.get(mcv, Position)!

@@ -260,7 +260,7 @@ function pavingMirror(paving: Paving): LayerMirror {
 }
 
 /** Системы на Rust, которым нужна доля энергии потребителей (powerSupply): её досылает TS. */
-const POWERED = new Set(['scan', 'chargeShields', 'recover', 'refine', 'assemble', 'fight'])
+const POWERED = new Set(['scan', 'chargeShields', 'recover', 'refine', 'assemble', 'fight', 'produceUnits'])
 
 /** Системы памяти слоёв (recall.ts): на Rust они идут через memory_input и memory_take. */
 const MEMORY_SYSTEMS = ['updateLandMemory', 'updatePaveMemory', 'updateBuildMemory']
