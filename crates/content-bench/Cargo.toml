@@ -10,6 +10,7 @@ publish = false
 mlua = { version = "0.12", features = ["luau", "luau-jit"] }
 # Замер рендера (src/bin/render.rs) — на стеке клиента rwgpu: окно winit, контекст glutin, рисование glow.
 glow = "0.18"
+png = "0.17"
 glutin = "0.32"
 glutin-winit = "0.5"
 raw-window-handle = "0.6"
