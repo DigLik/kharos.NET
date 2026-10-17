@@ -690,6 +690,81 @@ impl UserData for Ctx {
         [a, b, ..] => a.floor() + (value * (b.floor() - a.floor() + 1.0)).floor(),
       })
     });
+    // Пакетный инструмент: расталкивает сущности запроса q (нужны Position и Unit.radius в нём), чтобы корпуса не
+    // перекрывались; strength — доля перекрытия, снимаемая за вызов. Пишет прямо в буферы q.Position — вернутся с
+    // write системы. Стоящий (moving = 0 в q.Drive, если он есть) уступает идущему втрое охотнее.
+    methods.add_method("separate", |_, _, (query, strength): (Table, Option<f64>)| {
+      let strength = strength.unwrap_or(0.5);
+      let n: usize = query.raw_get("n")?;
+      let position: Table = query.raw_get("Position")?;
+      let unit: Table = query.raw_get("Unit")?;
+      let (xs, ys): (mlua::Buffer, mlua::Buffer) = (position.raw_get("x")?, position.raw_get("y")?);
+      let radii: mlua::Buffer = unit.raw_get("radius")?;
+      let moving: Option<mlua::Buffer> = query.raw_get::<Option<Table>>("Drive")?.map(|drive| drive.raw_get("moving")).transpose()?;
+      let read = |buffer: &mlua::Buffer| -> Vec<f64> { buffer.to_vec().chunks_exact(8).map(|bytes| f64::from_le_bytes(bytes.try_into().expect("8 байт"))).collect() };
+      let (mut x, mut y, radius) = (read(&xs), read(&ys), read(&radii));
+      let moving = moving.map(|buffer| read(&buffer)).unwrap_or_else(|| vec![0.0; n]);
+      let largest = radius.iter().copied().fold(0.25, f64::max);
+      let cell = largest * 2.0;
+      // Плоская хеш-сетка: голова списка по корзине и следующий в клетке — без выделений на клетку.
+      let size = (n * 2).next_power_of_two().max(16);
+      let mask = size - 1;
+      let coords: Vec<(i32, i32)> = (0..n).map(|i| ((x[i] / cell).floor() as i32, (y[i] / cell).floor() as i32)).collect();
+      let bucket = |(cx, cy): (i32, i32)| ((cx as u32).wrapping_mul(73856093) ^ (cy as u32).wrapping_mul(19349663)) as usize & mask;
+      let mut head = vec![usize::MAX; size];
+      let mut next = vec![usize::MAX; n];
+      for i in 0..n {
+        let b = bucket(coords[i]);
+        next[i] = head[b];
+        head[b] = i;
+      }
+      let (mut dx, mut dy) = (vec![0.0; n], vec![0.0; n]);
+      for i in 0..n {
+        let (cx, cy) = coords[i];
+        for oy in -1..=1 {
+          for ox in -1..=1 {
+            let target = (cx + ox, cy + oy);
+            let mut j = head[bucket(target)];
+            while j != usize::MAX {
+              let other = j;
+              j = next[j];
+              if other <= i || coords[other] != target {
+                continue;
+              }
+              let (ex, ey) = (x[other] - x[i], y[other] - y[i]);
+              let reach = radius[i] + radius[other];
+              let distance_squared = ex * ex + ey * ey;
+              if distance_squared >= reach * reach {
+                continue;
+              }
+              let distance = distance_squared.sqrt();
+              // Совпавшие точно — разводятся по номеру, одинаково у всех.
+              let (ux, uy) = if distance > 1e-9 {
+                (ex / distance, ey / distance)
+              } else {
+                let angle = (i * 7 + other * 13) as f64;
+                (angle.cos(), angle.sin())
+              };
+              let overlap = (reach - distance) * strength;
+              let (wi, wj) = (if moving[i] != 0.0 { 1.0 } else { 3.0 }, if moving[other] != 0.0 { 1.0 } else { 3.0 });
+              let (si, sj) = (wi / (wi + wj), wj / (wi + wj));
+              dx[i] -= ux * overlap * si;
+              dy[i] -= uy * overlap * si;
+              dx[other] += ux * overlap * sj;
+              dy[other] += uy * overlap * sj;
+            }
+          }
+        }
+      }
+      for i in 0..n {
+        x[i] += dx[i];
+        y[i] += dy[i];
+      }
+      let write = |buffer: &mlua::Buffer, values: &[f64]| buffer.write_bytes(0, &values.iter().flat_map(|value| value.to_le_bytes()).collect::<Vec<u8>>());
+      write(&xs, &x);
+      write(&ys, &y);
+      Ok(())
+    });
     methods.add_method("count", |_, this, component: String| {
       let id = this.component(&component)?;
       Ok(this.state.borrow().world.stores[id].len())

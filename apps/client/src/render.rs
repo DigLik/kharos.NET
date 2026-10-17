@@ -103,11 +103,15 @@ float noise(vec2 p) {
 void main() {
   vec2 texel = floor(vTile * TEXELS);
   vec2 at = (texel + 0.5) / TEXELS;
-  float patches = noise(at / 9.0) * 0.65 + noise(at / 3.0) * 0.35;
-  float rock = smoothstep(0.58, 0.62, patches);
+  float patches = noise(at / 9.0) * 0.6 + noise(at / 3.0) * 0.3 + noise(at) * 0.1;
   float grain = hash(texel);
+  // Край камня — по текселям, с крупинкой: пиксель-арт, а не размытое пятно.
+  float rock = step(0.6, patches + (grain - 0.5) * 0.03);
+  float rim = step(0.6, patches + 0.012 + (grain - 0.5) * 0.03) - rock;
   vec3 base = mix(uSand, uRock, rock);
-  base *= 0.92 + 0.1 * grain + 0.06 * (noise(at / 1.5) - 0.5);
+  base = mix(base, uRock * 1.25, rim * 0.6);
+  // Пятна оттенка песка и камня.
+  base *= 0.93 + 0.08 * grain + 0.1 * (noise(at / 1.7) - 0.5) + 0.06 * step(0.8, noise(at * 0.7 + 31.0));
   if (uField > 0.0 && (abs(at.x) > uField || abs(at.y) > uField)) base = mix(base, uEdge, 0.6);
   color = vec4(base, 1.0);
 }
