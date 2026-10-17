@@ -1,13 +1,9 @@
 //! Разбор, что тормозит в системе Luau над столбцами: каждая проба — тот же цикл на 10 тыс., меньше дела.
-use mlua::{Function, Lua};
+use mlua::Function;
 use std::time::Instant;
 
 pub fn probe(native: bool) -> mlua::Result<()> {
-  let lua = Lua::new();
-  lua.enable_jit(native);
-  lua.set_compiler(mlua::chunk::Compiler::new().set_optimization_level(2));
-  // Песочница: глобальные таблицы только для чтения — тогда math и buffer идут быстрым путём встроенных функций.
-  lua.sandbox(true)?;
+  let lua = content_bench::new_lua(native)?;
   let cases = [
     ("пустой цикл", "for i = 0, n - 1 do end"),
     ("чтение буфера", "local s = 0 for i = 0, n - 1 do s += buffer.readf64(b, i * 8) end"),

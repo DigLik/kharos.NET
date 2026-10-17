@@ -456,7 +456,12 @@ dependencies = [
 name = "content-bench"
 version = "0.1.0"
 dependencies = [
+ "glow",
+ "glutin",
+ "glutin-winit",
  "mlua",
+ "raw-window-handle",
+ "winit",
 ]
 
 [[package]]

@@ -9,28 +9,30 @@ local function wrap(angle: number): number
 	return angle - TURN * math.floor(angle / TURN + 0.5)
 end
 
--- Доехавшему — новая цель: псевдослучайная точка поля, чтобы юниты ездили всё время.
-local function retarget(i: number, tick: number): (number, number)
+-- Доехавшему — новая цель: псевдослучайная точка поля width × height, чтобы юниты ездили всё время.
+local function retarget(i: number, tick: number, width: number, height: number): (number, number)
 	local seed = (i * 7919 + tick * 104729) % 1000003
-	return (seed % 500) + 0.5, ((seed // 500) % 500) + 0.5
+	return (seed % width) + 0.5, ((seed // width) % height) + 0.5
 end
 
 return {
 	kind = "move",
 	data = { layer = "ground", grip = 1 },
 
-	-- Столбцами: n юнитов, x, y, facing, tx, ty — буферы f64; speed, turn — числа вида (у всех юнитов замера один вид).
+	-- Столбцами: n юнитов, x, y, facing, tx, ty — буферы f64; speed, turn — числа вида (у всех юнитов замера один вид);
+	-- width, height — поле, по умолчанию 500 × 500.
 	systems = {
 		move = function(c)
 			local x, y, facing, tx, ty = c.x, c.y, c.facing, c.tx, c.ty
 			local step, turn = c.speed * c.dt, c.turn * c.dt
+			local width, height = c.width or 500, c.height or 500
 			for i = 0, c.n - 1 do
 				local at = i * 8
 				local px, py = buffer.readf64(x, at), buffer.readf64(y, at)
 				local gx, gy = buffer.readf64(tx, at), buffer.readf64(ty, at)
 				local dx, dy = gx - px, gy - py
 				if dx * dx + dy * dy < 0.25 then
-					gx, gy = retarget(i, c.tick)
+					gx, gy = retarget(i, c.tick, width, height)
 					buffer.writef64(tx, at, gx)
 					buffer.writef64(ty, at, gy)
 					dx, dy = gx - px, gy - py

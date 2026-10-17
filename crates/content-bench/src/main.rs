@@ -5,12 +5,12 @@
 
 mod probe;
 
-use mlua::{Buffer, Function, Lua, Table, UserData, UserDataMethods, Value};
+use content_bench::{bytes, floats, load, new_lua, Pixmap, TURN};
+use mlua::{Buffer, Function, Table, Value};
 use std::time::Instant;
 
 const TICKS: u64 = 200;
 const DT: f64 = 0.05;
-const TURN: f64 = std::f64::consts::PI * 2.0;
 
 /// Сколько юнитов: первый аргумент запуска, по умолчанию 10 тыс.
 static UNITS: std::sync::LazyLock<usize> = std::sync::LazyLock::new(|| std::env::args().nth(1).and_then(|count| count.parse().ok()).unwrap_or(10_000));
@@ -72,53 +72,6 @@ fn move_rust(c: &mut Columns, speed: f64, turn: f64, tick: u64) {
   }
 }
 
-fn bytes(column: &[f64]) -> Vec<u8> {
-  column.iter().flat_map(|value| value.to_le_bytes()).collect()
-}
-
-fn floats(bytes: &[u8]) -> Vec<f64> {
-  bytes.chunks_exact(8).map(|chunk| f64::from_le_bytes(chunk.try_into().unwrap())).collect()
-}
-
-/// Холст чертежа: векторные фигуры, пиксель закрашивается, если в фигуру попал его центр (как Pixmap в клиенте).
-struct Pixmap {
-  size: usize,
-  data: Vec<u32>,
-}
-
-impl Pixmap {
-  fn fill(&mut self, color: u32, inside: impl Fn(f64, f64) -> bool) {
-    let half = self.size as f64 / 2.0;
-    for py in 0..self.size {
-      for px in 0..self.size {
-        if inside(px as f64 + 0.5 - half, py as f64 + 0.5 - half) {
-          self.data[py * self.size + px] = color;
-        }
-      }
-    }
-  }
-}
-
-impl UserData for Pixmap {
-  fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
-    methods.add_method_mut("circle", |_, image, (x, y, radius, color): (f64, f64, f64, u32)| {
-      image.fill(color, |px, py| (px - x).powi(2) + (py - y).powi(2) <= radius * radius);
-      Ok(())
-    });
-    methods.add_method_mut("line", |_, image, (ax, ay, bx, by, width, color): (f64, f64, f64, f64, f64, u32)| {
-      let (dx, dy) = (bx - ax, by - ay);
-      let length = dx * dx + dy * dy;
-      image.fill(color, |px, py| {
-        let t = if length > 0.0 { (((px - ax) * dx + (py - ay) * dy) / length).clamp(0.0, 1.0) } else { 0.0 };
-        (px - ax - dx * t).powi(2) + (py - ay - dy * t).powi(2) <= (width / 2.0).powi(2)
-      });
-      Ok(())
-    });
-    // Цвет стороны с меткой тона: шейдер перекрасит его палитрой.
-    methods.add_method("team", |_, _, tone: u32| Ok(0x5aa9ff + (tone + 1) * 0x1000000));
-  }
-}
-
 /// Среднее время тика в миллисекундах.
 fn per_tick(mut tick: impl FnMut(u64)) -> f64 {
   for t in 0..20 {
@@ -131,17 +84,8 @@ fn per_tick(mut tick: impl FnMut(u64)) -> f64 {
   start.elapsed().as_secs_f64() * 1000.0 / TICKS as f64
 }
 
-fn load(lua: &Lua, path: &str) -> mlua::Result<Table> {
-  let source = std::fs::read_to_string(format!("{}/base/{path}", env!("CARGO_MANIFEST_DIR"))).expect(path);
-  lua.load(source).set_name(path).eval()
-}
-
 fn run(native: bool) -> mlua::Result<()> {
-  let lua = Lua::new();
-  lua.enable_jit(native);
-  lua.set_compiler(mlua::chunk::Compiler::new().set_optimization_level(2));
-  // Песочница: глобальные таблицы только для чтения — тогда math и buffer идут быстрым путём встроенных функций.
-  lua.sandbox(true)?;
+  let lua = new_lua(native)?;
   if native {
     println!("  машинный код Luau здесь: {}", if unsafe { mlua::ffi::luau_codegen_supported() } != 0 { "есть" } else { "нет" });
   }
