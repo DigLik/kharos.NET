@@ -70,6 +70,9 @@ pub struct Sim {
   pub books: Vec<systems::earn::Book>,
   /// Кто из игроков в сети; None — все (`Sim.online`).
   pub online: Option<std::collections::HashSet<u64>>,
+  /// Когда каждое здание-потребитель последний раз видели за работой, в тиках (`markBusy`). Не сохраняется: после
+  /// загрузки набирается заново, как в TS.
+  pub busy_seen: HashMap<Entity, u64>,
 }
 
 impl Sim {
@@ -82,7 +85,7 @@ impl Sim {
     let vision = Vision::new(&layers, bounds, fog);
     let pave_memory = Recall::new(Kind::Paving(layers.id("paving").expect("нет слоя paving")));
     let traces = Traces::new(&layers);
-    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, power: HashMap::new(), rules: serde_json::Value::Null, search: path::Search::default(), lifted: Vec::new(), zones: zones::Zones::default(), books: Vec::new(), online: None }
+    Self { world, land: Land::new(config, area), layers, occupancy, vision, land_memory: Recall::new(Kind::Land), pave_memory, build_memory: BuildMemory::default(), traces, power: HashMap::new(), rules: serde_json::Value::Null, search: path::Search::default(), lifted: Vec::new(), zones: zones::Zones::default(), books: Vec::new(), online: None, busy_seen: HashMap::new() }
   }
 
   /// Доводит выводимые слои до мира: разбирает события наблюдателей по порядку. Зовётся после чужого журнала и после

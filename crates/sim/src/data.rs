@@ -95,6 +95,12 @@ pub struct BuildingSpec {
   /// Оборона: ставится и на песок.
   #[serde(default)]
   pub defense: bool,
+  /// Лаборатория: ведёт исследования.
+  #[serde(default)]
+  pub researches: bool,
+  /// Космопорт: торгует.
+  #[serde(default)]
+  pub trades: bool,
   /// Материалы, которые стройка ждёт на складе.
   pub materials: Option<serde_json::Map<String, serde_json::Value>>,
 }
