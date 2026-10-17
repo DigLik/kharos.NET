@@ -135,17 +135,3 @@ pub fn clear_ground(sim: &mut Sim, player: f64, x: f64, y: f64, width: f64, heig
   }
   false
 }
-
-/// Уничтожает дропы под основанием (`clearDrops`).
-pub fn clear_drops(world: &mut World, x: f64, y: f64, width: f64, height: f64) {
-  let mut gone = Vec::new();
-  for entity in world.query(&["Position", "Drop"]) {
-    let (px, py) = (number(world, entity, "Position", "x").unwrap_or(0.0), number(world, entity, "Position", "y").unwrap_or(0.0));
-    if px >= x && px < x + width && py >= y && py < y + height {
-      gone.push(entity);
-    }
-  }
-  for entity in gone {
-    world.destroy(entity);
-  }
-}

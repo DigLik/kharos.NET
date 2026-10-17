@@ -3,6 +3,8 @@
 
 use crate::common::{alliances, building_hp, carrier_of, friend, gunners, hostile, is_own, is_wall, leave_home, on_turn, owner_of, protected_players, rect_distance, stance_of, weapon, weapon_of, NONE};
 use crate::components::make;
+use crate::drops::drop_items;
+use crate::spawning::spawn;
 use crate::data::{WeaponSpec, DATA};
 use crate::inventory::Stock;
 use crate::math::{js_atan2, js_cos, js_hypot, js_round, js_sin, turn_toward, wrap};
@@ -674,15 +676,6 @@ fn guarded(fight: &mut Fight, target: Entity, x: f64, y: f64, player: f64) -> bo
   })
 }
 
-/// Новая сущность с компонентами по порядку, как world.spawn в TS.
-fn spawn(world: &mut World, parts: Vec<(&str, Value)>) -> Entity {
-  let entity = world.spawn();
-  for (key, data) in parts {
-    world.add(entity, key, data);
-  }
-  entity
-}
-
 fn position(x: f64, y: f64) -> Value {
   make("Position", [("x", js_number(x)), ("y", js_number(y))])
 }
@@ -729,26 +722,6 @@ pub(super) fn meltdown(world: &mut World, entity: Entity) {
     return;
   }
   spawn(world, vec![("Position", position(x + spec.width / 2.0, y + spec.height / 2.0)), ("Burst", make("Burst", [("radius", js_number(blast.radius)), ("damage", js_number(blast.damage))]))]);
-}
-
-/// Бросает груз на тайл: к дропу, что уже там, или новым (`dropItems`).
-pub fn drop_items(world: &mut World, x: f64, y: f64, items: &Map<String, Value>) {
-  let amount = |good: &str| items.get(good).and_then(Value::as_f64).unwrap_or(0.0);
-  let goods: Vec<&String> = DATA.goods.iter().filter(|good| amount(good) > EPSILON).collect();
-  if goods.is_empty() {
-    return;
-  }
-  let (tile_x, tile_y) = (x.floor(), y.floor());
-  let existing = world.query(&["Position", "Drop"]).into_iter().find(|&drop| number(world, drop, "Position", "x") == Some(tile_x) && number(world, drop, "Position", "y") == Some(tile_y));
-  let drop = existing.unwrap_or_else(|| spawn(world, vec![("Position", position(tile_x, tile_y)), ("Drop", make("Drop", [])), ("Inventory", make("Inventory", []))]));
-  let mut stock = Stock::of(world, drop).expect("склад дропа");
-  for good in goods {
-    let value = stock.amount(good) + amount(good);
-    stock.items.insert(good.clone(), js_number(value));
-  }
-  let capacity = stock.load();
-  let items = stock.items;
-  world.set(drop, "Inventory", Map::from_iter([("items".to_owned(), Value::Object(items)), ("capacity".to_owned(), js_number(capacity))]));
 }
 
 /// Бросает весь груз сущности на землю под ней (`dropCargo`).

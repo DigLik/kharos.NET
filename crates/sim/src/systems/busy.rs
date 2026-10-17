@@ -81,7 +81,7 @@ fn working(world: &World, entity: Entity, spec: &BuildingSpec) -> bool {
 
 /// Раз в тик, до энергии зон: потребители, у которых есть дело, получают метку Busy, оставшиеся без него — теряют.
 pub fn mark_busy(sim: &mut Sim, time: Time) {
-  if time.tick % BUSY_TICKS != 0 {
+  if !time.tick.is_multiple_of(BUSY_TICKS) {
     return;
   }
   let world = &sim.world;

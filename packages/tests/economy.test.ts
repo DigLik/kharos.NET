@@ -2,17 +2,18 @@ import { expect, test } from 'bun:test'
 import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import {
-  BUILDINGS, DEPOSIT_TYPES, Inventory, Producer, RESOURCE_SPECS, SELL_SECONDS, Site, UNITS, Unit, amountOf, awaitsMaterials, canPlace, createSim, creditsOf,
+  BUILDINGS, Building, DEPOSIT_TYPES, Inventory, Trade, Producer, RESOURCE_SPECS, SELL_SECONDS, Site, UNITS, Unit, amountOf, awaitsMaterials, canPlace, createSim, creditsOf,
   canSupply, depositIn, materialShare, siteAt, siteTicks, type BuildingType, type Sim,
 } from '@kharos/sim-ts'
 import { STORES, placeBuilding, storeFor } from '@kharos/sim-ts/buildings'
 import type { Amounts, Ware } from '@kharos/sim-ts/resources'
-import { addCredits, rewardsOf } from '@kharos/sim-ts/economy'
+import { REWARDS, addCredits, rewardsOf } from '@kharos/sim-ts/economy'
 import { Hauler } from '@kharos/sim-ts/components'
 import { NONE } from '@kharos/sim-ts/common'
 import { spawnUnit } from '@kharos/sim-ts/units'
 import { dropItems } from '@kharos/sim-ts/drops'
 import { refineryFor, spaceFor } from '@kharos/sim-ts/logistics'
+import { flightTicks } from '@kharos/sim-ts/trade'
 
 const options = { generator: DEFAULT_SETTINGS.generator, size: 1024, rules: { techTree: false } }
 const TICK = 1 / 20
@@ -143,6 +144,25 @@ test('космопорт продаёт любой ресурс по его це
   expect(rewardsOf(sim, 1)).toContain('sale')
   // Пока везли и летели, прошло не меньше полёта.
   expect(sim.time.tick * TICK).toBeGreaterThan(SELL_SECONDS)
+})
+
+test('корабль улетает, когда товар привезён; рейс улучшенного космопорта короче; выручка — целыми кредитами', () => {
+  const sim = createSim(options)
+  addCredits(sim, 1, 0)
+  const port = placeBuilding(sim.world, 'spaceport', 0, 0, 1)
+  sim.world.set(port, Building, { level: 2 })
+  // Привезено без крошки меньше погрешности: продаётся, и выручка округляется.
+  sim.world.get(port, Inventory)!.items = { metal: 20 - 1e-10 }
+  sim.world.add(port, Trade({ resource: 'metal', wanted: 20 }))
+  sim.advance(TICK)
+  const ticks = flightTicks(sim, port, SELL_SECONDS)
+  expect(ticks).toBeLessThan(Math.round(SELL_SECONDS / TICK))
+  expect(sim.world.get(port, Trade)).toMatchObject({ left: ticks, total: ticks })
+  for (let i = 1; i < ticks; i++) sim.advance(TICK)
+  expect(sim.world.has(port, Trade)).toBe(true)
+  sim.advance(TICK)
+  expect(sim.world.has(port, Trade)).toBe(false)
+  expect(creditsOf(sim, 1)).toBe(20 * RESOURCE_SPECS.metal.price + REWARDS.sale)
 })
 
 test('переработка отправляет готовое в хранилище по трубам пачками, а вставшая — до крошки', () => {

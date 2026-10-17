@@ -121,3 +121,17 @@ pub fn spend(world: &mut World, player: f64, amount: f64) -> bool {
   world.set(entity, "Player", Map::from_iter([("credits".to_owned(), js_number(credits - whole)), ("earned".to_owned(), js_number(left + whole))]));
   true
 }
+
+/// Прибавляет игроку кредиты; игрока без записи заводит (`addCredits`).
+pub fn add_credits(world: &mut World, player: f64, amount: f64) {
+  match player_entity(world, player) {
+    Some(entity) => {
+      let credits = number(world, entity, "Player", "credits").unwrap_or(0.0);
+      world.set(entity, "Player", Map::from_iter([("credits".to_owned(), js_number(credits + amount))]));
+    }
+    None => {
+      let entity = world.spawn();
+      world.add(entity, "Player", crate::components::make("Player", [("id", js_number(player)), ("credits", js_number(amount))]));
+    }
+  }
+}

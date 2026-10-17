@@ -5,6 +5,7 @@ pub mod build_memory;
 pub mod common;
 pub mod components;
 pub mod data;
+pub mod drops;
 pub mod economy;
 pub mod inventory;
 pub mod logistics;

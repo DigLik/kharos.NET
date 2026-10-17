@@ -179,6 +179,12 @@ pub struct UnitSpec {
   pub storage: Storage,
 }
 
+/// Ресурс (resources.json): цена единицы на продажу.
+#[derive(Deserialize)]
+pub struct ResourceSpec {
+  pub price: f64,
+}
+
 /// Награда (rewards.json): сколько кредитов за то, что сделано впервые.
 #[derive(Deserialize)]
 pub struct Reward {
@@ -245,6 +251,7 @@ pub struct Data {
   pub unit_types: Vec<String>,
   pub weapons: HashMap<String, WeaponSpec>,
   pub rewards: HashMap<String, Reward>,
+  pub resources: HashMap<String, ResourceSpec>,
   /// Слои мода base в порядке объявления (docs/layers.md).
   pub layers: Vec<LayerSpec>,
 }
@@ -263,7 +270,7 @@ const RESOURCES: &str = include_str!("../../../packages/base/data/resources.json
 const PRODUCTS: &str = include_str!("../../../packages/base/data/products.json");
 const ORES: &str = include_str!("../../../packages/base/data/ores.json");
 
-pub static DATA: LazyLock<Data> = LazyLock::new(|| Data { goods: [keys("resources", RESOURCES), keys("products", PRODUCTS), keys("ores", ORES)].concat(), ores: table::<OreSpec>("ores", ORES).into_iter().map(|(ore, spec)| (ore, spec.resource)).collect(), products: table("products", PRODUCTS), buildings: table("buildings", include_str!("../../../packages/base/data/buildings.json")), turrets: table("turrets", include_str!("../../../packages/base/data/turrets.json")), units: table("units", include_str!("../../../packages/base/data/units.json")), unit_types: serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(include_str!("../../../packages/base/data/units.json")).expect("units.json").keys().cloned().collect(), weapons: table("weapons", include_str!("../../../packages/base/data/weapons.json")), rewards: table("rewards", include_str!("../../../packages/base/data/rewards.json")), layers: LayerSpec::parse_all(include_str!("../../../packages/base/data/layers.json")).unwrap_or_else(|error| panic!("layers.json: {error}")) });
+pub static DATA: LazyLock<Data> = LazyLock::new(|| Data { goods: [keys("resources", RESOURCES), keys("products", PRODUCTS), keys("ores", ORES)].concat(), ores: table::<OreSpec>("ores", ORES).into_iter().map(|(ore, spec)| (ore, spec.resource)).collect(), products: table("products", PRODUCTS), buildings: table("buildings", include_str!("../../../packages/base/data/buildings.json")), turrets: table("turrets", include_str!("../../../packages/base/data/turrets.json")), units: table("units", include_str!("../../../packages/base/data/units.json")), unit_types: serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(include_str!("../../../packages/base/data/units.json")).expect("units.json").keys().cloned().collect(), weapons: table("weapons", include_str!("../../../packages/base/data/weapons.json")), rewards: table("rewards", include_str!("../../../packages/base/data/rewards.json")), resources: table("resources", RESOURCES), layers: LayerSpec::parse_all(include_str!("../../../packages/base/data/layers.json")).unwrap_or_else(|error| panic!("layers.json: {error}")) });
 
 #[cfg(test)]
 mod tests {

@@ -113,7 +113,11 @@ test('корабль долетает: деньги и груз — получа
   expect(transfer.goods.metal).toBe(500)
   expect(amountOf(sim.world.get(firstYard, Inventory)!, 'metal') + amountOf(sim.world.get(secondYard, Inventory)!, 'metal')).toBe(100)
 
-  seconds(sim, flightTicks(sim, port, SELL_SECONDS) * STEP)
+  const ticks = flightTicks(sim, port, SELL_SECONDS)
+  seconds(sim, (ticks - 1) * STEP)
+  // До последнего тика полёта корабль в пути.
+  expect(sim.world.get(port, Transfer)!.done).toBe(false)
+  sim.advance(STEP)
   // Подарок пришёл целиком; сверх него у получателя капает свой доход с главного здания.
   expect(creditsOf(sim, 2)).toBeGreaterThanOrEqual(before + 250)
   // Двор получателя берёт 400 — больше в него не влезет; остаток ложится на землю у главного здания.
@@ -124,6 +128,10 @@ test('корабль долетает: деньги и груз — получа
   expect(sim.world.get(spill[0], Position)).toMatchObject({ x: transfer.x, y: transfer.y })
   expect(transfer.done).toBe(true)
   expect(transfer.credits).toBe(0)
+  // Долетевший корабль больше ничего не везёт и не отсчитывает.
+  seconds(sim, 1)
+  expect(sim.world.get(port, Transfer)).toMatchObject({ done: true, credits: 0, left: 0 })
+  expect(sim.world.get(port, Transfer)!.goods).toEqual({})
 })
 
 test('недолёт переживает сохранение: после загрузки корабль довозит и деньги, и груз', () => {

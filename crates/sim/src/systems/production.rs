@@ -24,7 +24,7 @@ fn is_packed(world: &World, entity: Entity) -> bool {
 }
 
 /// Сколько товара космопорта уже доставлено под заявку на продажу (`deliveredTo`).
-fn delivered_to(world: &World, port: Entity) -> f64 {
+pub fn delivered_to(world: &World, port: Entity) -> f64 {
   let Some(order) = world.get(port, "Trade") else { return 0.0 };
   if order.get("buy").and_then(Value::as_bool).unwrap_or(false) {
     return 0.0;
