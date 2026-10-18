@@ -64,7 +64,7 @@ public sealed unsafe class GpuContext : IDisposable
             reason = "";
             return context;
         }
-        catch (Exception error) when (error is GpuException or DllNotFoundException or EntryPointNotFoundException)
+        catch (Exception error) when (error is GpuException or DllNotFoundException or EntryPointNotFoundException or FileNotFoundException)
         {
             reason = error.Message;
             return null;

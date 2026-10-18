@@ -33,8 +33,9 @@ public static partial class DetMath
             if (ix < 0x3e500000) return x;
             return KernelSin(x, 0, false);
         }
-        // sin(NaN или ∞) — NaN.
-        if (ix >= 0x7ff00000) return x - x;
+        // sin(NaN или ∞) — NaN: входной как есть, у ∞ — константа. В musl тут x − x, но NaN от процессора разный: x64 ставит
+        // бит знака (0xFFF8…), ARM — нет (0x7FF8…). double.NaN в .NET — 0xFFF8…, как x64.
+        if (ix >= 0x7ff00000) return double.IsNaN(x) ? x : double.NaN;
         int n = RemPio2(x, out double y0, out double y1);
         return (n & 3) switch
         {
@@ -55,7 +56,7 @@ public static partial class DetMath
             if (ix < 0x3e46a09e) return 1.0;
             return KernelCos(x, 0);
         }
-        if (ix >= 0x7ff00000) return x - x;
+        if (ix >= 0x7ff00000) return double.IsNaN(x) ? x : double.NaN;
         int n = RemPio2(x, out double y0, out double y1);
         return (n & 3) switch
         {

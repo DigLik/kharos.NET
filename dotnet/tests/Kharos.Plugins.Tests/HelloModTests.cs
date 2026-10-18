@@ -120,6 +120,27 @@ public class HelloModTests
     }
 
     [Fact]
+    public void GrowingPayloadAfterPauseIsNotATimeout()
+    {
+        // Эпохи идут и между вызовами: kh_free старого буфера при росте payload раньше шёл со сроком прошлого вызова,
+        // и после паузы дольше предела ловился как перерасход времени.
+        using var host = Host(o => o.CallTimeoutMs = 50);
+        using var module = Load(host);
+        using var instance = module.CreateInstance();
+        var arrived = instance.EventId("hello.arrived");
+        instance.RaiseEvent(arrived, new byte[20], new ModCall(1, 0.05, 1));
+        Thread.Sleep(300);
+
+        var payload = new byte[4000];
+        BinaryPrimitives.WriteUInt32LittleEndian(payload, 77);
+        var command = Assert.Single(ModCommands.Decode(instance.RaiseEvent(arrived, payload, new ModCall(2, 0.05, 1))));
+
+        Assert.Equal(payload, command.Payload);
+        Assert.False(instance.Faulted);
+        Assert.Equal(0, module.Strikes);
+    }
+
+    [Fact]
     public void EventHandlerAnswersWithSignal()
     {
         using var host = Host();

@@ -5,6 +5,7 @@ namespace Kharos.Gpu.Tests;
 /// <summary>Проходы кадра по отдельности: спрайты с палитрой, тени, свет и лучи, туман, следы, батчи, осадки.</summary>
 public sealed class FrameTests(GpuFixture fixture)
 {
+    // Цвет пустого экрана: синий 0,1 × 255 = 25,5 — адаптеры округляют по-разному, отсюда допуск в единицу.
     private static readonly (byte R, byte G, byte B) Ground = (41, 33, 25);
 
     private Renderer New(int width, int height)
@@ -46,14 +47,14 @@ public sealed class FrameTests(GpuFixture fixture)
         Near(Scene.PaletteColor(0, 1), At(96, 64, 5, 11), 1, "тон 1");
         Near(Scene.Outline, At(96, 64, 2, 5), 0, "контур");
         Near(Scene.Red, At(96, 64, 7, 7), 0, "фара");
-        Near(Ground, At(96, 64, 0, 0), 0, "прозрачное");
+        Near(Ground, At(96, 64, 0, 0), 1, "прозрачное");
         // Тень слоя: силуэт со сдвигом в четверть тайла, полупрозрачный чёрный.
         Near(((byte)20, (byte)16, (byte)12), At(96, 64, 15, 15), 1, "тень");
         // Серость ничьего: 0,3 R + 0,59 G + 0,11 B основного цвета чужой стороны (210, 40, 30).
         Near(((byte)90, (byte)90, (byte)90), At(160, 64, 5, 8), 1, "серый");
         Near(Scene.PaletteColor(2, 2), At(224, 64, 5, 8), 1, "союзный");
         // Слой 0 (на земле) без тени.
-        Near(Ground, At(224, 64, 15, 15), 0, "без тени");
+        Near(Ground, At(224, 64, 15, 15), 1, "без тени");
         // Здание: полоса тона 2 и стена.
         Near(Scene.PaletteColor(0, 2), image[96 + 4, 128 + 5 * 2 / 2 + 1], 1, "здание, тон");
         Near(Scene.Wall, image[96 + 10, 128 + 20], 0, "здание, стена");
@@ -141,8 +142,8 @@ public sealed class FrameTests(GpuFixture fixture)
         var image = Draw(renderer, frame);
         image.Save("decals");
         Near(((byte)212, (byte)109, (byte)5), image[160, 99], 2, "след");
-        Near(Ground, image[160, 120], 0, "мимо следа");
-        Near(Ground, image[100, 99], 0, "за концом");
+        Near(Ground, image[160, 120], 1, "мимо следа");
+        Near(Ground, image[100, 99], 1, "за концом");
     }
 
     [Fact]
@@ -177,11 +178,11 @@ public sealed class FrameTests(GpuFixture fixture)
 
         Near(((byte)200, (byte)100, (byte)50), image[30, 25], 0, "заливка");
         Near(((byte)255, (byte)255, (byte)0), image[110, 70], 0, "глиф");
-        Near(Ground, image[130, 70], 0, "мимо глифа");
+        Near(Ground, image[130, 70], 1, "мимо глифа");
         Near(Scene.PaletteColor(0, 2), image[170, 30], 1, "скин с палитрой");
         Near(Scene.PaletteColor(1, 2), image[150 + 11, 60 + 17], 1, "значок стороны");
         Near(((byte)255, (byte)0, (byte)0), image[210, 30], 0, "в обрезке");
-        Near(Ground, image[245, 30], 0, "за обрезкой");
+        Near(Ground, image[245, 30], 1, "за обрезкой");
         Near(((byte)10, (byte)200, (byte)30), image[285, 25], 0, "мини-карта");
         Near(((byte)148, (byte)144, (byte)140), image[30, 120], 1, "полупрозрачное");
         Near(((byte)0, (byte)255, (byte)0), image[width / 2 + 48, height / 2 + 48], 0, "слой мира");
@@ -198,10 +199,10 @@ public sealed class FrameTests(GpuFixture fixture)
         var image = Draw(renderer, frame);
         image.Save("batch-scale2");
         Near(((byte)200, (byte)100, (byte)50), image[60, 50], 0, "внутри");
-        Near(Ground, image[15, 15], 0, "снаружи");
-        Near(Ground, image[120, 50], 0, "кромка — логический пиксель 60 = физический 120");
+        Near(Ground, image[15, 15], 1, "снаружи");
+        Near(Ground, image[120, 50], 1, "кромка — логический пиксель 60 = физический 120");
         Near(((byte)0, (byte)0, (byte)255), image[200, 45], 0, "обрезка в физических пикселях");
-        Near(Ground, image[200, 35], 0, "над обрезкой");
+        Near(Ground, image[200, 35], 1, "над обрезкой");
     }
 
     private static byte[] FontWithWhiteCorner()

@@ -1,0 +1,2 @@
+# Скрипты оболочки — с LF при любом core.autocrlf: иначе sh на Linux и macOS спотыкается о CR.
+*.sh text eol=lf

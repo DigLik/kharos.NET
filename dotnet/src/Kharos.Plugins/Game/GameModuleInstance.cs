@@ -466,7 +466,18 @@ public sealed class GameModuleInstance : IDisposable
         if (payload.Length > _scratchCapacity || _scratch == 0)
         {
             if (_scratch != 0)
-                _free(_scratch);
+            {
+                // Свой срок: эпохи идут и между вызовами, а срок прошлого вызова к этому времени может истечь.
+                _store.SetEpochDeadline(_callTicks);
+                try
+                {
+                    _free(_scratch);
+                }
+                catch (Exception ex) when (ex is not ModException)
+                {
+                    throw Trap(ex, "kh_free");
+                }
+            }
             var capacity = Math.Max(256, Math.Max(payload.Length, _scratchCapacity * 2));
             _scratch = Allocate(capacity);
             _scratchCapacity = _scratch == 0 ? 0 : capacity;

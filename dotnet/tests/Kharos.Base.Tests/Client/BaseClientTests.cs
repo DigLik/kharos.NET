@@ -52,8 +52,11 @@ public sealed class BaseClientTests
         Assert.Equal((0f, 3f), (frame.View.X, frame.View.Y));
 
         // HUD: кредиты, доход, часы (начало мира — 9 утра), меню, подсказка по управлению.
-        Assert.InRange(session.Credits(), 1000, 1100);
-        Assert.InRange(ShownCredits(session), 1000, 1100);
+        // Хост тикает вдесятеро быстрее, а холодный старт клиента (компиляция wasm и шейдеров) бывает долгим — доход
+        // успевает набежать; верхней границы нет, HUD сверяется с хостом.
+        var credits = session.Credits();
+        Assert.True(credits >= 1000, $"кредитов {credits}");
+        Assert.InRange(ShownCredits(session), 1000, session.Credits());
         Assert.Contains("+5/с", session.Texts());
         Assert.Contains(session.Texts(), text => text.StartsWith("09:", StringComparison.Ordinal));
         Assert.Contains("Меню", session.Texts());

@@ -9,6 +9,8 @@ public sealed class SurfaceTests
     [Fact]
     public void HiddenWindow_PresentsAndReads()
     {
+        // GLFW на macOS работает только в главном потоке процесса, а xUnit гоняет тесты в пуле — окно там не создать.
+        if (OperatingSystem.IsMacOS()) Assert.Skip("GLFW на macOS — только из главного потока");
         IWindow window;
         try
         {
@@ -27,7 +29,7 @@ public sealed class SurfaceTests
             {
                 gpu = GpuContext.CreateForWindow(window, vsync: false);
             }
-            catch (GpuException error)
+            catch (Exception error) when (error is GpuException or DllNotFoundException or FileNotFoundException)
             {
                 Assert.Skip($"нет адаптера WebGPU: {error.Message}");
                 return;

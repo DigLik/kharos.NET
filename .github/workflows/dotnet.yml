@@ -18,6 +18,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    # Зависший тест не держит машину часами (по умолчанию — 6 ч).
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: dotnet
@@ -36,6 +38,7 @@ jobs:
           key: wasi-sdk-29-${{ runner.os }}-${{ runner.arch }}
       - run: pwsh tools/build-mods.ps1
         if: matrix.os == 'ubuntu-latest'
-      - run: dotnet test Kharos.slnx -c Release --no-build --logger GitHubActions
+      # Тест, висящий дольше 10 минут, обрывается и попадает в отчёт.
+      - run: dotnet test Kharos.slnx -c Release --no-build --logger GitHubActions --blame-hang-timeout 10m --blame-hang-dump-type none
       # Песочница модов на этой ОС: Wasmtime, пул, сторож эпох, белый список импортов.
       - run: dotnet run --project tools/Kharos.Plugins.Bench -c Release --no-build -- --security
