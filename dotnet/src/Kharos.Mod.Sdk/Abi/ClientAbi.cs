@@ -115,16 +115,17 @@ internal static class ClientAbi
     public const byte AnchorLeft = 1, AnchorRight = 2, AnchorTop = 4, AnchorBottom = 8, AnchorCenterX = 16, AnchorCenterY = 32;
     public const byte TextFont = 1, TextColor = 2, TextShadow = 4, TextLift = 8, TextWrap = 16, TextEllipsis = 32;
 
-    // Инструменты клиента (kh.tool): общие с хостом — 1, 2, 3, 4 (Position и Facing — сглаженные), 5–9; памяти мода
-    // (10) нет. Свои:
-    //  20 Each      in: k:u32 component:u32×k   out: count:u32 entity:u32×count — со всеми компонентами, по номерам
-    //  21 Pose      in: n:u32 entity:u32×n      out: (x:f64 y:f64 angle:f64)×n — сглажено между тиками; нет — NaN
-    //  22 Pick      in: x:f64 y:f64             out: entity:u32 (0 — никого): юнит по радиусу, здание по прямоугольнику
-    //  23 Within    in: x1 y1 x2 y2:f64 k:u32 component:u32×k   out: count:u32 entity:u32×count
-    //  24 Sees      in: n:u32 (x:f64 y:f64)×n   out: u8×n — видит ли игрок тайл сейчас (тумана нет — всё)
-    //  25 Explored  то же — разведан ли
-    //  26 Measure   in: font:u8 text (UTF-8)    out: width:f32 — ширина строки шрифтом интерфейса
-    //  27 Column    in: component:u32 field:u32 n:u32 entity:u32×n   out: f64×n (нет компонента — NaN)
-    public const int ToolEach = 20, ToolPose = 21, ToolPick = 22, ToolWithin = 23, ToolSees = 24, ToolExplored = 25,
-        ToolMeasure = 26, ToolColumn = 27;
+    // Инструменты клиента (kh.tool): общие с хостом — номера движка ModAbi.Tool* (1–9 и инструменты Н5, что имеют смысл над
+    // репликой: 18 Layer, 19 Items, 20 Peak и т. д.; Position и Facing в Get — сглаженные; памяти мода, 10, нет). Свои
+    // номера начинаются с 40, чтобы не пересекаться с хостовыми (1–39):
+    //  40 Each      in: k:u32 component:u32×k   out: count:u32 entity:u32×count — со всеми компонентами, по номерам
+    //  41 Pose      in: n:u32 entity:u32×n      out: (x:f64 y:f64 angle:f64)×n — сглажено между тиками; нет — NaN
+    //  42 Pick      in: x:f64 y:f64             out: entity:u32 (0 — никого): юнит по радиусу, здание по прямоугольнику
+    //  43 Within    in: x1 y1 x2 y2:f64 k:u32 component:u32×k   out: count:u32 entity:u32×count
+    //  44 Sees      in: n:u32 (x:f64 y:f64)×n   out: u8×n — видит ли игрок тайл сейчас (тумана нет — всё)
+    //  45 Explored  то же — разведан ли
+    //  46 Measure   in: font:u8 text (UTF-8)    out: width:f32 — ширина строки шрифтом интерфейса
+    //  47 Column    in: component:u32 field:u32 n:u32 entity:u32×n   out: f64×n (нет компонента — NaN)
+    public const int ToolEach = 40, ToolPose = 41, ToolPick = 42, ToolWithin = 43, ToolSees = 44, ToolExplored = 45,
+        ToolMeasure = 46, ToolColumn = 47;
 }

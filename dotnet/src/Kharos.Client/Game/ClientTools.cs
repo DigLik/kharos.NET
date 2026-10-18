@@ -262,6 +262,8 @@ public sealed class ClientTools : ModTools
     {
         public GameWorld? World => replica.World;
         public Land? Land => land();
+        public Kharos.Engine.Layers.LayerSet? Layers => replica.Layers;
+        public ulong Tick => replica.Tick;
         public int ProtoId(string path) => content.FindProto(path)?.Id ?? -1;
         public string? ProtoPath(int id) => (uint)id < (uint)content.Protos.Count ? content.Protos[id].Path : null;
     }

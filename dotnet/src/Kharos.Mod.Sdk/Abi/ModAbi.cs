@@ -191,28 +191,39 @@ internal static class ModAbi
     //  14 Children  in: n:u32 entity:u32×n   out: на сущность count:u32 child:u32×count — с Mount.parent = entity, по
     //               возрастанию номеров
     //  15 Sees      in: player:u32 n:u32 (x:f64 y:f64)×n   out: u8×n — 0 не разведан, 1 разведан, 2 виден (без тумана — 2)
-    //  16 Tiles     in: x:i32 y:i32 w:u32 h:u32   out: u8×(w·h) построчно — биты Tile*
-    //  17 Occupant  in: n:u32 (x:i32 y:i32)×n   out: entity:u32×n — здание (Footprint) на тайле; 0 — свободно
+    //  16 Tiles     in: x:i32 y:i32 w:u32 h:u32   out: u8×(w·h) построчно — биты Tile*: OnMap — в карте, Passable — не
+    //               гора, CliffFoot — подножие обрыва, Buildable — скала не у подножия, Building — здание (Footprint.solid),
+    //               OpenGate — оно открыто (Footprint.open), Unit — центр наземного юнита (Body) в тайле
+    //  17 Occupant  in: n:u32 (x:i32 y:i32)×n   out: entity:u32×n — здание (Footprint.solid) на тайле; 0 — свободно
     //  18 Layer     in: layer:u32 owner:u32 channel:u32 x:i32 y:i32 w:u32 h:u32   out: f64×(w·h) построчно
     //  19 Items     in: layer:u32 owner:u32 x:f64 y:f64 r:f64   out: count:u32 (x:f64 y:f64 field:f64×fields)×count —
     //               предметы с местом в круге: по ячейкам (y, затем x), в ячейке — по порядку записи
     //  20 Peak      in: n:u32 (x:i32 y:i32)×n   out: (has:u8 x:f64 y:f64 radius:f64)×n — вершина горы тайла
-    //  21 Walkable  in: flags:u32 n:u32 (x:i32 y:i32)×n   out: u8×n — может ли стоять наземный (isWalkable в TS)
-    //  22 Plan      in: entity:u32 goalX:i32 goalY:i32 near:f64 limit:u32 flags:u32 n:u32 ignore:u32×n
-    //               out: status:u8 (Plan*) goalX:i32 goalY:i32 count:u32 (x:f64 y:f64)×count — путь по центрам тайлов,
-    //               сглаженный, к цели или к тайлу рядом (orderMove в TS); limit 0 — по умолчанию; квота тика
-    //  23 GroupMove in: x:i32 y:i32 n:u32 entity:u32×n   out: (goalX:i32 goalY:i32 direct:u8)×n — свой тайл каждому
-    //               (orderGroupMove); direct — ехать напрямую, путь — только если упрётся
+    //  21 Walkable  in: flags:u32 n:u32 (x:i32 y:i32)×n   out: u8×n — может ли стоять (isWalkable в TS; PlanFoot —
+    //               пехота, PlanAir — любой тайл карты)
+    //  22 Plan      in: entity:u32 goalX:i32 goalY:i32 near:f64 limit:u32 flags:u32 pool:u32 budget:u32 n:u32
+    //               ignore:u32×n   out: status:u8 (Plan*) roads:u8 goalX:i32 goalY:i32 count:u32 (x:f64 y:f64)×count — путь по центрам
+    //               тайлов, сглаженный, к цели или к тайлу рядом (orderMove в TS); ignore — стоящие, что не помеха (сам
+    //               юнит — всегда); PlanJam — затор (tries ≥ 3); limit 0 — по умолчанию; pool ≠ 0 — норма: все поиски с
+    //               этим pool за тик вместе осматривают не больше budget тайлов (withSearchQuota). PlanFound — положить в
+    //               Path: points, goalX/Y, wait 0, roads (у наземных), direct и stuck false, best −1, slot false; PlanNone —
+    //               снять Path; PlanCut — прежний путь оставить (норма вышла, затор без пути, Body.rooted)
+    //  23 GroupMove in: x:i32 y:i32 n:u32 entity:u32×n   out: (goalX:i32 goalY:i32 mode:u8)×n — свой тайл каждому
+    //               (orderGroupMove), по порядку списка: mode 0 — летающий, Path из одной точки (центр тайла); 1 — ехать
+    //               напрямую (Path.direct), путь — только если упрётся; 2 — не трогать (врос, нет места, нет Position)
     //  24 FreeTiles in: x:i32 y:i32 count:u32 from:u32 flags:u32 radius:f64 n:u32 ignore:u32×n
     //               out: count:u32 (x:i32 y:i32)×count — места через шаг группы (freeTilesNear); стоящие юниты, кроме
-    //               ignore, заняты; radius — корпус, под который ищем
+    //               ignore, заняты; radius — корпус, под который ищем (< 0 — стоящие не в счёт)
     //  25 Reach     in: x:i32 y:i32 limit:u32 flags:u32   out: count:u32 (x:i32 y:i32)×count — заливка проходимых
-    //               тайлов (vehicleReach), не больше limit
+    //               тайлов (vehicleReach) по порядку, сам тайл — первым; заливка останавливается, набрав limit
     //  26 OpenSpawn in: x:i32 y:i32 radius:u32   out: x:i32 y:i32 — ближайшее незапертое обрывами место (openSpawn)
-    //  27 Stand     in: entity:u32 target:u32 flags:u32   out: found:u8 x:i32 y:i32 — тайл подъезда к цели, с проверкой
-    //               кармана и квотой тика
-    //  28 Clear     in: x:i32 y:i32 w:u32 h:u32 ignore:u32   out: count:u32 entity:u32×count — наземные юниты с центром
-    //               в прямоугольнике (unitsIn), по возрастанию номеров
+    //  27 Stand     in: entity:u32 x:f64 y:f64 w:f64 h:f64 r:f64 reach:f64 pool:u32 budget:u32   out: как у Plan —
+    //               подъезд (approach в inventory.ts): место, откуда луч длиной reach достаёт до цели — прямоугольника w×h
+    //               от (x, y) или круга радиуса r с центром (x, y); не в кармане меньше 48 тайлов, не на площадке
+    //               (Footprint без solid). status: 0 — путь (в Path), 1 — норма pool вышла до поиска (не промах), 2 — места
+    //               нет (снять Path, промах), 3 — уже на месте (Path не трогать)
+    //  28 Clear     in: x:i32 y:i32 w:u32 h:u32 ignore:u32   out: count:u32 entity:u32×count — наземные юниты (Body) с
+    //               центром в прямоугольнике (unitsIn), по возрастанию номеров
     //  29 Ray       in: n:u32 (fromX:f64 fromY:f64 toX:f64 toY:f64)×n   out: wall:u32×n — 0 линия свободна, иначе
     //               здание-стена на линии; RayTerrain — её закрывает местность
     public const int ToolNear = 1;
@@ -264,7 +275,7 @@ internal static class ModAbi
 
     // Ответ Plan.
     public const byte PlanFound = 0;
-    /// <summary>Поиск оборвала квота тика: прежний путь оставить, попробовать в следующем тике.</summary>
+    /// <summary>Прежний путь оставить: поиск оборвала норма тика, затор без пути или юнит врос; попробовать позже.</summary>
     public const byte PlanCut = 1;
     public const byte PlanNone = 2;
 

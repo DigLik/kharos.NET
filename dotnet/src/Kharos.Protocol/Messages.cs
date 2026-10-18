@@ -1,3 +1,5 @@
+using Kharos.Engine.Terrain;
+
 namespace Kharos.Protocol;
 
 /// <summary>Вид сообщения: первый байт. 0x01–0x0f — хост → клиент, 0x10–0x1f — клиент → хост.</summary>
@@ -21,6 +23,8 @@ public enum MessageType : byte
     Commands = 0x08,
     /// <summary>Хост → клиент: карта мира байтами (Land.Pack), когда она правлена и генератором не повторить.</summary>
     Land = 0x09,
+    /// <summary>Хост → клиент: правки карты (тайлы хранимыми байтами) — что игрок узнал или что правили, без тумана.</summary>
+    LandEdits = 0x0A,
 
     /// <summary>Клиент → хост: приказ.</summary>
     Order = 0x10,
@@ -72,6 +76,7 @@ public readonly record struct ViewBox(float Left, float Top, float Right, float 
 /// 0x07 Refused  reason:str flags:u8                             — flags: 1 нужен пароль
 /// 0x08 Commands admin:u8 count:varint (name:str args:varint str× help:str flags:u8)×  — flags: 1 secret
 /// 0x09 Land     packed:blob                                     — deflate-raw Land.Save
+/// 0x0A LandEdits count:varint (x:svarint y:svarint terrain:u8 biome:u8 peak:u8 relief:u8)×  — хранимые байты тайла
 /// 0x11 View     left top right bottom:f32
 /// 0x12 Say      text:str
 /// 0x13 Respawn
@@ -200,6 +205,29 @@ public static class Messages
         var r = Open(message, MessageType.Land);
         var packed = r.Blob().ToArray();
         return Close(ref r, packed);
+    }
+
+    /// <summary>Правки карты: тайлы хранимыми байтами (<c>Land.Stored</c>) — клиент пишет их поверх своей карты.</summary>
+    public static byte[] LandEdits(IReadOnlyList<LandTile> edits)
+    {
+        var w = new WireWriter(8 + edits.Count * 8).Byte((byte)MessageType.LandEdits).Varint((ulong)edits.Count);
+        foreach (var edit in edits)
+            w.SVarint(edit.X).SVarint(edit.Y).Byte(edit.Tile.Terrain).Byte(edit.Tile.Biome).Byte(edit.Tile.Peak).Byte(edit.Tile.Relief);
+        return w.ToArray();
+    }
+
+    public static List<LandTile> ReadLandEdits(ReadOnlySpan<byte> message)
+    {
+        var r = Open(message, MessageType.LandEdits);
+        var edits = new List<LandTile>();
+        for (var count = r.Count(6); count > 0; count--)
+        {
+            var (x, y) = (r.SVarint(), r.SVarint());
+            if (x is < int.MinValue or > int.MaxValue || y is < int.MinValue or > int.MaxValue)
+                throw new FormatException("правка карты: тайл вне чисел");
+            edits.Add(new LandTile((int)x, (int)y, new StoredTile(r.Byte(), r.Byte(), r.Byte(), r.Byte())));
+        }
+        return Close(ref r, edits);
     }
 
     public static byte[] View(ViewBox box) =>

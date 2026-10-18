@@ -1,4 +1,5 @@
 using Kharos.Engine.Layers;
+using Kharos.Engine.Terrain;
 using Kharos.Engine.World;
 
 namespace Kharos.Protocol;
@@ -36,7 +37,22 @@ public sealed class WorldDelta
     public List<LayerChange> Layers { get; } = [];
     public List<Signal> Signals { get; } = [];
 
-    public bool IsEmpty => Strings.Count == 0 && Destroyed.Count == 0 && Created.Count == 0 && Full.Count == 0 && Removed.Count == 0 && Fields.Count == 0 && Layers.Count == 0 && Signals.Count == 0;
+    /// <summary>Правки карты для всех: у партии нет тумана, игроки знают всё (<see cref="MessageType.LandEdits"/>).</summary>
+    public List<LandTile> LandEdits { get; } = [];
+
+    /// <summary>Правки карты по игрокам: что каждый узнал с прошлой рассылки (у партии с туманом — память игроков).</summary>
+    public Dictionary<uint, List<LandTile>> LandKnown { get; } = [];
+
+    /// <summary>
+    /// Блоки запоминаемых слоёв (покрытие) по игрокам, какими игрок их знает: идут ему вместо блоков слоя мира, которые
+    /// при тумане ему не уходят.
+    /// </summary>
+    public Dictionary<uint, List<LayerChange>> LayersKnown { get; } = [];
+
+    /// <summary>Правки карты, которые идут игроку этой рассылкой.</summary>
+    public IReadOnlyList<LandTile> LandFor(uint player) => LandEdits.Count > 0 ? LandEdits : LandKnown.TryGetValue(player, out var known) ? known : [];
+
+    public bool IsEmpty => Strings.Count == 0 && Destroyed.Count == 0 && Created.Count == 0 && Full.Count == 0 && Removed.Count == 0 && Fields.Count == 0 && Layers.Count == 0 && Signals.Count == 0 && LandEdits.Count == 0 && LandKnown.Count == 0 && LayersKnown.Count == 0;
 
     /// <summary>Итог изменений: changes — из <see cref="GameWorld.TakeChanges"/>, строки — с номера stringsFrom.</summary>
     public static WorldDelta Build(GameWorld world, WorldChanges changes, int stringsFrom, IEnumerable<LayerChange> layers, IEnumerable<Signal> signals, ulong tick)

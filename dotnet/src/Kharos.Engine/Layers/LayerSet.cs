@@ -145,8 +145,33 @@ public sealed class LayerSet
         if (!kind.Read(place).Equals(before))
         {
             layer.Dirty.Add((owner.Code, chunk.X, chunk.Y));
+            layer.Tiles?.Add((x, y));
             Revision++;
         }
+    }
+
+    /// <summary>
+    /// Следить за тайлами слоя-сетки мира: каждое изменение значения записывается (<see cref="TakeTiles"/>). Нужно
+    /// памяти игроков (Recall): блок целиком она бы сверяла в тысячу раз дольше. Сеть и загрузка (<see cref="Apply"/>) не пишут.
+    /// </summary>
+    public void WatchTiles(int id)
+    {
+        var layer = _layers[id];
+        if (!layer.Spec.IsGrid || layer.Spec.Scope != LayerScope.World)
+            throw new InvalidOperationException($"{layer.Spec.Name}: следить можно за сеткой мира");
+        layer.Tiles ??= [];
+    }
+
+    /// <summary>Тайлы, изменённые с прошлого раза, по возрастанию (y, затем x); слежение — <see cref="WatchTiles"/>.</summary>
+    public List<(int X, int Y)> TakeTiles(int id)
+    {
+        var tiles = _layers[id].Tiles;
+        if (tiles is null || tiles.Count == 0)
+            return [];
+        var list = new List<(int X, int Y)>(tiles);
+        tiles.Clear();
+        list.Sort(static (a, b) => a.Y != b.Y ? a.Y.CompareTo(b.Y) : a.X.CompareTo(b.X));
+        return list;
     }
 
     /// <summary>Чанк и место тайла в нём.</summary>
@@ -167,13 +192,41 @@ public sealed class LayerSet
         return ((int)Math.Floor(x / spec.Cell), (int)Math.Floor(y / spec.Cell));
     }
 
-    /// <summary>Кладёт предмет в его ячейку.</summary>
-    public void Push(int id, LayerOwner owner, LayerItem item)
+    /// <summary>
+    /// Правило слоя предметов (<see cref="Intercept"/>): видит каждый кладущийся предмет (кроме перекладываемых
+    /// <see cref="Retain"/>) и возвращает его, быть может изменённым, или null — не класть.
+    /// </summary>
+    public delegate LayerItem? ItemRule(LayerOwner owner, LayerItem item);
+
+    /// <summary>Ставит правило слою предметов: предел густоты следов, номера и время, которые назначает движок.</summary>
+    public void Intercept(int id, ItemRule? rule)
+    {
+        if (_layers[id].Spec.IsGrid)
+            throw new InvalidOperationException($"{_layers[id].Spec.Name}: правило ставят слою предметов");
+        _layers[id].Rule = rule;
+    }
+
+    /// <summary>Кладёт предмет в его ячейку (правило слоя может его изменить или не пустить); false — не положен.</summary>
+    public bool Push(int id, LayerOwner owner, LayerItem item)
+    {
+        var layer = _layers[id];
+        if (layer.Blocks(owner) is null)
+            return false;
+        if (layer.Rule is { } rule)
+        {
+            if (rule(owner, item) is not { } accepted)
+                return false;
+            item = accepted;
+        }
+        return Put(id, owner, item);
+    }
+
+    private bool Put(int id, LayerOwner owner, LayerItem item)
     {
         var cell = CellOf(id, item.X, item.Y);
         var layer = _layers[id];
         if (layer.Blocks(owner) is not { } blocks)
-            return;
+            return false;
         var old = blocks.TryGetValue(cell, out var bytes) ? bytes : [];
         var grown = new byte[old.Length + layer.Stride];
         old.CopyTo(grown, 0);
@@ -185,6 +238,7 @@ public sealed class LayerSet
         blocks[cell] = grown;
         layer.Dirty.Add((owner.Code, cell.X, cell.Y));
         Revision++;
+        return true;
     }
 
     /// <summary>Предметы ячейки по порядку.</summary>
@@ -217,7 +271,7 @@ public sealed class LayerSet
         layer.Dirty.Add((owner.Code, cell.X, cell.Y));
         Revision++;
         foreach (var item in kept)
-            Push(id, owner, item);
+            Put(id, owner, item);
     }
 
     // Изменения.
@@ -315,6 +369,12 @@ public sealed class LayerSet
         public Channel[] Kinds { get; }
         public int[] Offsets { get; }
         public Dictionary<(int X, int Y), byte[]> World { get; } = [];
+
+        /// <summary>Изменённые тайлы сетки мира, если за ними следят (<see cref="WatchTiles"/>).</summary>
+        public HashSet<(int X, int Y)>? Tiles { get; set; }
+
+        /// <summary>Правило слоя предметов (<see cref="Intercept"/>).</summary>
+        public ItemRule? Rule { get; set; }
         public SortedDictionary<uint, Dictionary<(int X, int Y), byte[]>> Players { get; } = [];
 
         /// <summary>Изменённые блоки с прошлого раза: (код владельца, x, y) по порядку — так изменения детерминированы.</summary>

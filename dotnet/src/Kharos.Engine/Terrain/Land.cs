@@ -58,6 +58,29 @@ public sealed partial class Land
     /// <summary>Растёт с каждой правкой карты.</summary>
     public int Revision { get; private set; }
 
+    /// <summary>Журнал правок (<see cref="TakeEdits"/>); null — не ведётся.</summary>
+    private List<TileChange>? _edits;
+
+    /// <summary>
+    /// Вести журнал правок: каждый записанный тайл (каким был и каким стал) ждёт <see cref="TakeEdits"/>. Включает хост —
+    /// по журналу игроки узнают правки (Recall) и они идут клиентам; у клиентской копии журнала нет.
+    /// </summary>
+    public bool TrackEdits
+    {
+        get => _edits is not null;
+        set => _edits = value ? _edits ?? [] : null;
+    }
+
+    /// <summary>Правки с прошлого раза по порядку записи; журнал очищается. Без <see cref="TrackEdits"/> — пусто.</summary>
+    public List<TileChange> TakeEdits()
+    {
+        if (_edits is null || _edits.Count == 0)
+            return [];
+        var edits = _edits.ToList();
+        _edits.Clear();
+        return edits;
+    }
+
     /// <summary>Номер правки чанка: окно на видеокарте перечитывает только изменённые. 0 — чанк не правили.</summary>
     public int ChunkRevision(int chunkX, int chunkY) => _revisions.GetValueOrDefault(Key(chunkX, chunkY));
 
@@ -127,6 +150,9 @@ public sealed partial class Land
         if (tile.Terrain != (byte)TerrainType.Mountain) return null;
         return new(x + 0.5 + ((tile.Relief >> 4) - 8) / 2.0, y + 0.5 + ((tile.Relief & 15) - 8) / 2.0, tile.Peak / 255.0 * PeakRadiusScale);
     }
+
+    /// <summary>Записывает тайл хранимыми байтами (правка игрока, пришедшая с хоста). Вне карты ничего не делает.</summary>
+    public void SetStored(int x, int y, StoredTile tile) => WriteTile(x, y, tile);
 
     /// <summary>Накладывает правки: x, y и четыре хранимых байта тайла подряд (<c>applyEdits</c>).</summary>
     public void ApplyEdits(ReadOnlySpan<int> edits)
@@ -211,6 +237,11 @@ public sealed partial class Land
         }
         var chunk = Chunk(chunkX, chunkY);
         int index = TileIndex(x, y);
+        if (_edits is not null)
+        {
+            var before = Stored(x, y);
+            if (before != tile) _edits.Add(new TileChange(x, y, before, tile));
+        }
         chunk[index] = tile.Terrain;
         chunk[index + 1] = tile.Biome;
         chunk[index + 2] = tile.Peak;

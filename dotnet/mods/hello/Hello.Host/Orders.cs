@@ -69,3 +69,83 @@ public sealed partial class FollowOrder
     public double Dx { get; set; }
     public double Dy { get; set; }
 }
+
+/// <summary>Приказ hello.layer (Д3): канал слоя-сетки в прямоугольнике — командой Layer; owner 0 — слой мира.</summary>
+[MemoryPackable]
+public sealed partial class LayerOrder
+{
+    public string Layer { get; set; } = "";
+    public uint Owner { get; set; }
+    public int Channel { get; set; }
+    public int X { get; set; }
+    public int Y { get; set; }
+    public int W { get; set; } = 1;
+    public int H { get; set; } = 1;
+    public double Value { get; set; }
+}
+
+/// <summary>Приказ hello.item: положить предмет в слой предметов или убрать лежащие ровно в точке — командой Item.</summary>
+[MemoryPackable]
+public sealed partial class ItemOrder
+{
+    public string Layer { get; set; } = "";
+    public uint Owner { get; set; }
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double[] Fields { get; set; } = [];
+    public bool Delete { get; set; }
+}
+
+/// <summary>Приказ hello.land: правка тайла земли (Peak = false) или вершины горы — командой Land.</summary>
+[MemoryPackable]
+public sealed partial class LandOrder
+{
+    public bool Peak { get; set; }
+    public int X { get; set; }
+    public int Y { get; set; }
+    public byte Terrain { get; set; }
+    public byte Biome { get; set; }
+    public byte Tier { get; set; }
+    public bool Cliff { get; set; }
+    public byte Dunes { get; set; }
+    public double PeakX { get; set; }
+    public double PeakY { get; set; }
+    public double Radius { get; set; }
+}
+
+/// <summary>
+/// Приказ hello.read: что скажут инструменты Layer, Items и Peak; ответ — сигнал hello.read хозяину
+/// (<see cref="ReadReport"/>). Слой или предметы можно не спрашивать, оставив имя пустым.
+/// </summary>
+[MemoryPackable]
+public sealed partial class ReadOrder
+{
+    public string Layer { get; set; } = "";
+    public uint Owner { get; set; }
+    public int Channel { get; set; }
+    public int X { get; set; }
+    public int Y { get; set; }
+    public int W { get; set; } = 1;
+    public int H { get; set; } = 1;
+    public string ItemLayer { get; set; } = "";
+    public uint ItemOwner { get; set; }
+    public double ItemX { get; set; }
+    public double ItemY { get; set; }
+    public double ItemRadius { get; set; }
+    public bool Peak { get; set; }
+    public int PeakX { get; set; }
+    public int PeakY { get; set; }
+}
+
+/// <summary>Ответ hello.read: значения канала, предметы (x, y и поля подряд) и вершина.</summary>
+[MemoryPackable]
+public sealed partial class ReadReport
+{
+    public double[] Values { get; set; } = [];
+    public double[] Items { get; set; } = [];
+    public int ItemCount { get; set; }
+    public bool HasPeak { get; set; }
+    public double PeakX { get; set; }
+    public double PeakY { get; set; }
+    public double PeakRadius { get; set; }
+}

@@ -10,7 +10,9 @@ namespace Kharos.Host;
 /// времени: приоритет — возраст × вес (на экране ×8, рядом ×3, едет ×2); корзины по четверти удвоения, как
 /// bucketOf в TS. Что не влезло, ждёт и тяжелеет. Пришедшая с опозданием сущность получает span — за сколько тиков
 /// реплике вести её к новому месту. Помнимое (<see cref="IViewFilter.Remembers"/>) вне обзора замирает: остаётся у
-/// клиента без изменений, погибшее — пока зритель не увидит его место.
+/// клиента без изменений, погибшее — пока зритель не увидит хоть тайл его основания. При входе зритель получает и
+/// призраки из памяти хоста (<see cref="BuildMemory"/>). Что из сущности уходит, решает фильтр (<see cref="DeltaWriter.Viewer"/>);
+/// когда это меняется — сменился хозяин, условие исключения или союзники зрителя, — сущность уходит заново целиком.
 /// </summary>
 internal sealed class PeerSync
 {
@@ -31,6 +33,8 @@ internal sealed class PeerSync
     private readonly List<uint>[] _queue = new List<uint>[Buckets];
     private readonly List<uint> _gone = [];
     private int _bucket, _at, _pass;
+    private IViewFilter? _filter;
+    private int _teams;
 
     public PeerSync()
     {
@@ -53,6 +57,8 @@ internal sealed class PeerSync
     /// <summary>Изменения тика — знакомым сущностям; пропавшие — удаление (замершие становятся призраками).</summary>
     public void Merge(GameWorld world, WorldDelta delta, DeltaWriter w)
     {
+        if (_filter is not null)
+            w.Viewer = _filter;
         foreach (var entity in delta.Destroyed)
         {
             if (!_known.TryGetValue(entity, out var known))
@@ -93,6 +99,17 @@ internal sealed class PeerSync
     /// </summary>
     public void View(GameWorld world, IViewFilter filter, ReadOnlySpan<uint> alive, ReadOnlySpan<bool> visible, ulong tick, DeltaWriter w)
     {
+        _filter = filter;
+        w.Viewer = filter;
+        // Сменились союзники — сменилось, что положено знать: всё знакомое — заново целиком.
+        if (filter is VisionView teams && teams.TeamVersion != _teams)
+        {
+            if (_pass > 0)
+                foreach (var (entity, known) in _known)
+                    if (!known.Dead)
+                        Renew(entity, known);
+            _teams = teams.TeamVersion;
+        }
         _pass++;
         for (var i = 0; i < alive.Length; i++)
         {
@@ -106,6 +123,8 @@ internal sealed class PeerSync
                         // Вернулась в обзор: встаёт на место сразу, без сглаживания.
                         known.Frozen = false;
                         known.MotionSince = 0;
+                        if (known.Full)
+                            _dirty.Add(entity);
                     }
                     known.Pass = _pass;
                 }
@@ -128,7 +147,7 @@ internal sealed class PeerSync
         {
             if (known.Pass == _pass)
                 continue;
-            if (known.Dead && !filter.Sees(known.X, known.Y))
+            if (known.Dead && !SeesPlace(filter, known))
                 continue;
             _gone.Add(entity);
         }
@@ -138,6 +157,8 @@ internal sealed class PeerSync
             _known.Remove(entity);
             _dirty.Remove(entity);
         }
+        if (_pass == 1 && filter is VisionView view)
+            Ghosts(world, view, tick, w);
         // Состав компонентов — сразу: без него поля следующих тиков не к чему применить.
         _gone.Clear();
         foreach (var entity in _dirty)
@@ -215,11 +236,59 @@ internal sealed class PeerSync
         }
     }
 
+    /// <summary>
+    /// Призраки из памяти хоста — тому, кто только что вошёл: здания, каких он их запомнил, если их нет среди видимых.
+    /// Живое замирает до встречи и тогда уходит заново целиком, снесённое ждёт, пока зритель не увидит его место.
+    /// </summary>
+    private void Ghosts(GameWorld world, VisionView view, ulong tick, DeltaWriter w)
+    {
+        foreach (var (entity, ghost) in view.Ghosts)
+        {
+            if (_known.ContainsKey(entity))
+                continue;
+            w.Create(entity, view.Parts(ghost));
+            _known[entity] = new Known
+            {
+                Flushed = tick, Pass = _pass, Frozen = true, Dead = !world.Alive(entity), Full = true, Structural = 1,
+                X = ghost.X, Y = ghost.Y, W = ghost.W, H = ghost.H,
+            };
+        }
+    }
+
+    /// <summary>Видит ли зритель место погибшей: хоть тайл основания.</summary>
+    private static bool SeesPlace(IViewFilter filter, Known known)
+    {
+        if (filter is VisionView view)
+            return view.SeesArea(known.X, known.Y, known.W, known.H);
+        return filter.Sees(known.X, known.Y);
+    }
+
+    /// <summary>Сущность — заново целиком при следующей отправке (сразу, если она в обзоре).</summary>
+    private void Renew(uint entity, Known known)
+    {
+        if (!known.Full)
+        {
+            known.Full = true;
+            known.Structural++;
+        }
+        if (!known.Frozen)
+            _dirty.Add(entity);
+    }
+
     /// <summary>Всё накопленное о сущности — в сообщение.</summary>
     private void Flush(GameWorld world, uint entity, ulong tick, DeltaWriter w)
     {
         if (!_dirty.Remove(entity) || !_known.TryGetValue(entity, out var known))
             return;
+        if (known.Full)
+        {
+            if (world.Alive(entity))
+                w.Create(world, entity);
+            known.Clear();
+            known.Flushed = tick;
+            Place(world, entity, known);
+            return;
+        }
         for (var at = 0; at < known.Count; at++)
         {
             var pending = known.Pending[at];
@@ -230,7 +299,7 @@ internal sealed class PeerSync
                         w.Add(world, entity, pending.Component);
                     break;
                 case Kind.Drop:
-                    w.Drop(entity, pending.Component);
+                    w.Drop(world, entity, pending.Component);
                     break;
                 default:
                     if (world.Has(entity, pending.Component))
@@ -253,6 +322,17 @@ internal sealed class PeerSync
     {
         if (!_known.TryGetValue(entity, out var known) || known.Dead)
             return;
+        // Сменился хозяин или условие исключения — другим стало и то, что зрителю положено.
+        if (known.Full || (_filter is VisionView view && view.Recreates(component)))
+        {
+            if (!known.Full)
+            {
+                known.Full = true;
+                known.Structural++;
+            }
+            _dirty.Add(entity);
+            return;
+        }
         known.Add(component, mask, kind);
         if (kind == Kind.Fields && component is Builtin.Position or Builtin.Facing && known.MotionSince == 0)
             known.MotionSince = tick;
@@ -263,6 +343,8 @@ internal sealed class PeerSync
     {
         if (world.TryNumber(entity, Builtin.Position, 0, out var x) && world.TryNumber(entity, Builtin.Position, 1, out var y))
             (known.X, known.Y) = (x, y);
+        if (world.TryNumber(entity, Builtin.Footprint, 0, out var w) && world.TryNumber(entity, Builtin.Footprint, 1, out var h))
+            (known.W, known.H) = (w, h);
     }
 
     /// <summary>Корзина приоритета: до 4 — сам приоритет, дальше — по четыре на удвоение (bucketOf в host.ts).</summary>
@@ -312,8 +394,11 @@ internal sealed class PeerSync
         /// <summary>Погибла вне обзора: призрак до тех пор, пока зритель не увидит её место.</summary>
         public bool Dead;
 
-        /// <summary>Место, каким его знает клиент.</summary>
-        public double X = double.NaN, Y = double.NaN;
+        /// <summary>У клиента не то, что есть (призрак из памяти, сменились хозяин, условия или союзники): уйдёт целиком.</summary>
+        public bool Full;
+
+        /// <summary>Место и основание, какими их знает клиент.</summary>
+        public double X = double.NaN, Y = double.NaN, W = 1, H = 1;
 
         public void Add(int component, ulong mask, Kind kind)
         {
@@ -347,6 +432,7 @@ internal sealed class PeerSync
             Count = 0;
             Structural = 0;
             MotionSince = 0;
+            Full = false;
         }
     }
 }

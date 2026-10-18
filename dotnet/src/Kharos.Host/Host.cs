@@ -4,7 +4,9 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Kharos.Content;
 using Kharos.Engine.Layers;
+using Kharos.Engine.Recall;
 using Kharos.Engine.Terrain;
+using Kharos.Engine.Traces;
 using Kharos.Engine.World;
 using Kharos.Mod.Abi;
 using Kharos.Plugins.Game;
@@ -106,7 +108,7 @@ public sealed class Host : IDisposable
     private readonly HashSet<uint> _online = [];
     private readonly int[] _remember;
     private List<HostPack>? _packs;
-    private bool _landLoaded;
+    private bool _landLoaded, _memoryLoaded;
     private readonly List<Signal> _signals = [];
     private readonly WorldChanges _changes = new();
     private GameModuleHost? _moduleHost;
@@ -219,6 +221,28 @@ public sealed class Host : IDisposable
         Layers = new LayerSet(layers);
         if (Map is { } map && Game.Fog)
             Vision = new Vision(map, Layers);
+        // Следы и память игроков (Д3): правила слоёв и журналы правок включаются до первой команды мода.
+        Traces = TraceLayer.Create(Layers, () => Scheduler.Tick, Flies(content));
+        if (Land is not null)
+            Land.TrackEdits = true;
+        if (Vision is not null && (Land is not null || Layers.Find(PavingMemory.LayerName) is not null))
+        {
+            Recall = new PlayerMemory(Land, Layers);
+            if (Recall.Land is null && Recall.Paving is null)
+                Recall = null;
+        }
+        if (Recall is not null && save?.Recall is { Length: > 0 } memory)
+        {
+            try
+            {
+                Recall.Decode(memory);
+                _memoryLoaded = true;
+            }
+            catch (FormatException error)
+            {
+                throw new HostException($"сохранение: память игроков не читается: {error.Message}", error);
+            }
+        }
         if (save is not null)
         {
             try
@@ -232,6 +256,10 @@ public sealed class Host : IDisposable
                     Layers.AddPlayer(player);
                     Vision?.Restore(player);
                 }
+                // Память о чужих зданиях (Д4) и видимое сразу: после загрузки видно то, что видят юниты.
+                if (save.Buildings is { Length: > 0 } buildings)
+                    Buildings = BuildMemory.Load(World, buildings);
+                Vision?.Update(World, save.Tick);
             }
             catch (FormatException error)
             {
@@ -270,6 +298,18 @@ public sealed class Host : IDisposable
             {
                 Scheduler.Tick = save.Tick;
                 Scheduler.RandomState = save.Random;
+                // Память хода (Д1): без неё первый тик после загрузки соседи казались бы стоящими.
+                if (save.Motion is { Length: > 0 } motion && Tools.Navigation is { } navigation)
+                {
+                    try
+                    {
+                        navigation.LoadMotion(motion);
+                    }
+                    catch (FormatException error)
+                    {
+                        throw new HostException($"сохранение: память хода не читается: {error.Message}", error);
+                    }
+                }
             }
         }
         catch (Exception error) when (error is ModException or ScheduleException or KeyNotFoundException)
@@ -343,6 +383,18 @@ public sealed class Host : IDisposable
     /// <summary>Обзор; null — у партии нет карты или тумана.</summary>
     public Vision? Vision { get; }
 
+    /// <summary>Какими игроки помнят чужие здания (engine.memory); в сохранении.</summary>
+    public BuildMemory Buildings { get; } = new();
+
+    /// <summary>Компоненты памяти зрителя (<see cref="HostOptions.Remember"/>) номерами.</summary>
+    internal IReadOnlyList<int> RememberComponents => _remember;
+
+    /// <summary>Следы на земле (engine.traces); null — у партии нет слоя «traces».</summary>
+    public TraceLayer? Traces { get; }
+
+    /// <summary>Память игроков о земле и покрытии (engine.recallLand, engine.recallPaving); null — нет тумана, земли и покрытия.</summary>
+    public PlayerMemory? Recall { get; }
+
     public EngineTools Tools { get; }
 
     /// <summary>Точность чисел в сети.</summary>
@@ -400,7 +452,7 @@ public sealed class Host : IDisposable
         var payload = new byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(payload, player);
         Scheduler.Emit(JoinEvent, payload);
-        Vision?.Update(World);
+        Vision?.Update(World, Tick);
         Settle();
         return true;
     }
@@ -475,6 +527,16 @@ public sealed class Host : IDisposable
         }
     }
 
+    /// <summary>
+    /// Приказы из очереди сразу, без тика (правки редактора, сцены тестов): тик и время не идут, системы не работают,
+    /// обработчики видят dt = 0. Сигналы уходят с ближайшей дельтой.
+    /// </summary>
+    public void Apply()
+    {
+        Scheduler.ApplyOrders();
+        Settle();
+    }
+
     /// <summary>Один тик.</summary>
     public void Step()
     {
@@ -489,10 +551,67 @@ public sealed class Host : IDisposable
     {
         CollectSignals();
         World.TakeChanges(_changes);
-        var delta = WorldDelta.Build(World, _changes, _stringsSent, Layers.TakeChanges(), _signals, Tick);
+        var layers = Layers.TakeChanges();
+        // Покрытие при тумане уходит игроку таким, каким он его знает, а не слоем мира.
+        if (Recall?.Paving is not null)
+            layers.RemoveAll(change => change.Layer == PavingMemory.LayerName);
+        var delta = WorldDelta.Build(World, _changes, _stringsSent, layers, _signals, Tick);
+        if (Recall is { } memory)
+        {
+            foreach (var (player, tiles) in memory.TakeLearnedLand())
+                delta.LandKnown[player] = tiles;
+            foreach (var (player, blocks) in memory.TakeLearnedPaving())
+                delta.LayersKnown[player] = blocks;
+        }
+        else if (Land is { } land)
+        {
+            foreach (var edit in land.TakeEdits())
+                delta.LandEdits.Add(new LandTile(edit.X, edit.Y, edit.After));
+        }
         _stringsSent = World.Strings.Count;
         _signals.Clear();
         return delta;
+    }
+
+    /// <summary>
+    /// Карта игроку при подключении (<see cref="MessageType.Land"/>): без тумана — сегодняшняя, если её правили; с туманом
+    /// — какой её знают все до правок (правки игрока идут следом, <see cref="KnownLand"/>). null — клиент повторит карту
+    /// генератором.
+    /// </summary>
+    public byte[]? LandForJoin()
+    {
+        if (Land is null)
+            return null;
+        if (Recall?.Land is not null)
+            return Recall.PristineLand() ?? (_landLoaded && !_memoryLoaded ? Land.Pack() : null);
+        return LandEdited ? Land.Pack() : null;
+    }
+
+    /// <summary>Правки карты, которые игрок уже знает, — поверх <see cref="LandForJoin"/>.</summary>
+    public IReadOnlyList<LandTile> KnownLand(uint player) => Recall?.KnownLand(player) ?? [];
+
+    /// <summary>
+    /// Слои мира игроку: блоки, что ему уходят, без слоёв, которые при тумане идут иначе (покрытие), и они же, какими игрок
+    /// их знает. known — блоки игрока из дельты; null — все его знания (подключение).
+    /// </summary>
+    public List<LayerChange> LayersForPlayer(List<LayerChange> blocks, uint player, IReadOnlyList<LayerChange>? known = null)
+    {
+        if (Recall?.Paving is null)
+            return blocks;
+        blocks.RemoveAll(change => change.Layer == PavingMemory.LayerName);
+        blocks.AddRange(known ?? Recall.KnownPaving(player));
+        return blocks;
+    }
+
+    /// <summary>Ходовые, которые летают (слой записи moves.json — «air»): колею они не оставляют.</summary>
+    private static Func<string, bool> Flies(GameContent content)
+    {
+        var air = new HashSet<string>(StringComparer.Ordinal);
+        if (content.Data("moves") is { ValueKind: JsonValueKind.Object } moves)
+            foreach (var chassis in moves.EnumerateObject())
+                if (chassis.Value.ValueKind == JsonValueKind.Object && chassis.Value.TryGetProperty("layer", out var layer) && layer.ValueKind == JsonValueKind.String && layer.GetString() == "air")
+                    air.Add(chassis.Name);
+        return air.Contains;
     }
 
     /// <summary>

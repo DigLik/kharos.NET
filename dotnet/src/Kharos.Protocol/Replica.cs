@@ -1,4 +1,5 @@
 using Kharos.Engine.Layers;
+using Kharos.Engine.Terrain;
 using Kharos.Engine.World;
 
 namespace Kharos.Protocol;
@@ -30,6 +31,8 @@ public sealed class Replica
     private readonly List<PoseMove> _moves = [];
     private readonly Dictionary<uint, int> _moved = [];
     private int _sight = -1, _explored = -1;
+    private Kharos.Engine.Terrain.Land? _terrain;
+    private readonly List<LandTile> _landQueue = [];
 
     /// <summary>Приветствие хоста; null — ещё не пришло.</summary>
     public Welcome? Welcome { get; private set; }
@@ -46,6 +49,32 @@ public sealed class Replica
 
     /// <summary>Карта мира байтами от хоста (Land.Pack), если её не повторить генератором; null — не присылали.</summary>
     public byte[]? Land { get; private set; }
+
+    /// <summary>
+    /// Карта клиента: из приветствия (генератор и область) или присланная хостом (<see cref="Land"/>), с правками
+    /// <see cref="MessageType.LandEdits"/> поверх; null — у партии нет карты. Собирается при первом обращении; после него
+    /// правки хоста применяются к ней сразу (<see cref="LandRevision"/> растёт), до него копятся и ложатся при сборке.
+    /// Неверная карта хоста — <see cref="FormatException"/>.
+    /// </summary>
+    public Kharos.Engine.Terrain.Land? Terrain
+    {
+        get
+        {
+            if (_terrain is null && Welcome is { Land: { } config, Map: { } map })
+            {
+                _terrain = Land is { } packed
+                    ? Kharos.Engine.Terrain.Land.Unpack(config, packed)
+                    : new Kharos.Engine.Terrain.Land(config, LandArea.Of(map.Left, map.Top, map.Right, map.Bottom));
+                foreach (var edit in _landQueue)
+                    _terrain.SetStored(edit.X, edit.Y, edit.Tile);
+                _landQueue.Clear();
+            }
+            return _terrain;
+        }
+    }
+
+    /// <summary>Сколько правок карты хоста применено (для тестов и перерисовки).</summary>
+    public int LandRevision { get; private set; }
 
     /// <summary>Тик хоста последнего снимка или дельты.</summary>
     public ulong Tick { get; private set; }
@@ -110,6 +139,11 @@ public sealed class Replica
                 break;
             case MessageType.Land:
                 Land = Protocol.Messages.ReadLand(message);
+                (_terrain, LandRevision) = (null, 0);
+                _landQueue.Clear();
+                break;
+            case MessageType.LandEdits:
+                ApplyLandEdits(Protocol.Messages.ReadLandEdits(message));
                 break;
             case MessageType.Chat or MessageType.Chunk or MessageType.Players or MessageType.Refused or MessageType.Commands:
                 if (Inbox.Count >= MaxInbox)
@@ -148,6 +182,19 @@ public sealed class Replica
         return Layers.Get(layer, LayerOwner.Player(welcome.Player), x, y, 0) != 0;
     }
 
+    /// <summary>Правки карты хоста: на собранную карту — сразу, иначе в очередь.</summary>
+    private void ApplyLandEdits(List<LandTile> edits)
+    {
+        foreach (var edit in edits)
+        {
+            if (_terrain is null)
+                _landQueue.Add(edit);
+            else
+                _terrain.SetStored(edit.X, edit.Y, edit.Tile);
+        }
+        LandRevision += edits.Count;
+    }
+
     private void ApplyWelcome(Welcome welcome)
     {
         Welcome = welcome;
@@ -159,6 +206,8 @@ public sealed class Replica
         _explored = Layers.Find(Fog.Explored) ?? -1;
         World = null;
         Land = null;
+        (_terrain, LandRevision) = (null, 0);
+        _landQueue.Clear();
         Tick = welcome.Tick;
     }
 

@@ -13,7 +13,8 @@ namespace Hello;
 /// сигналом); hello.spin, hello.hog, hello.fail, hello.bad — для тестов пределов и сбоев. Проверки Н5 (кадр с
 /// побочными таблицами, Without, RowOf, Stage, права, адресные сигналы, запросы): система hello.follow (за ведущим —
 /// таблица Position+Unit), hello.wrap (только пишущая таблица), приказы hello.follow, hello.anchor, hello.rights,
-/// запрос hello.count.
+/// запрос hello.count. Д3: hello.layer, hello.item, hello.land (команды Layer, Item, Land) и hello.read (инструменты Layer,
+/// Items, Peak — ответ сигналом hello.read); слои стенда объявляет мод-стенд тестов (tests/Kharos.Host.Tests/LayerLab.cs).
 /// </summary>
 public sealed class HelloMod : Mod
 {
@@ -42,6 +43,9 @@ public sealed class HelloMod : Mod
     private ComponentRef _follow = null!;
     private ComponentRef _anchor = null!;
     private int? _rover;
+
+    /// <summary>Слои партии, которых ждут приказы Д3 (data/layers.json мода-стенда в тестах): по имени.</summary>
+    private readonly Dictionary<string, LayerRef> _layers = [];
 
     public override void Setup(ModBuilder mod)
     {
@@ -83,6 +87,11 @@ public sealed class HelloMod : Mod
             ctx.Commands.SignalTo("hello.rights", payload, [ctx.Player]);
         });
         mod.Query("hello.count", OnCount);
+        // Д3: слои, предметы и земля командами и чтение их инструментами.
+        mod.Order("hello.layer", OnLayer);
+        mod.Order("hello.item", OnItem);
+        mod.Order("hello.land", OnLand);
+        mod.Order("hello.read", OnRead);
     }
 
     public override void Load(LoadContext ctx)
@@ -117,6 +126,63 @@ public sealed class HelloMod : Mod
         _proto = ctx.Component("Proto");
         _follow = ctx.Component("Follow");
         _anchor = ctx.Component("Anchor");
+        foreach (var name in (string[])["scorch", "marks", "notes", "deposits", "paving", "traces", "land"])
+            if (ctx.Layer(name) is { } layer)
+                _layers[name] = layer;
+    }
+
+    private LayerRef LayerNamed(string name) => _layers.TryGetValue(name, out var layer) ? layer : throw new ArgumentException($"нет слоя {name}");
+
+    /// <summary>Канал слоя-сетки в прямоугольнике (команда Layer).</summary>
+    private void OnLayer(OrderContext ctx)
+    {
+        var order = ctx.Read<LayerOrder>() ?? throw new ArgumentException("hello.layer без payload");
+        ctx.Commands.Layer(LayerNamed(order.Layer), order.Owner, order.Channel, order.X, order.Y, order.W, order.H, order.Value);
+    }
+
+    /// <summary>Предмет слоя: положить или убрать (команда Item).</summary>
+    private void OnItem(OrderContext ctx)
+    {
+        var order = ctx.Read<ItemOrder>() ?? throw new ArgumentException("hello.item без payload");
+        var layer = LayerNamed(order.Layer);
+        if (order.Delete)
+            ctx.Commands.DeleteItems(layer, order.Owner, order.X, order.Y);
+        else
+            ctx.Commands.PushItem(layer, order.Owner, order.X, order.Y, order.Fields);
+    }
+
+    /// <summary>Правка земли: тайл или вершина горы (команда Land).</summary>
+    private static void OnLand(OrderContext ctx)
+    {
+        var order = ctx.Read<LandOrder>() ?? throw new ArgumentException("hello.land без payload");
+        if (order.Peak)
+            ctx.Commands.LandPeak(order.X, order.Y, order.Biome, order.PeakX, order.PeakY, order.Radius);
+        else
+            ctx.Commands.LandTile(order.X, order.Y, new LandEdit(order.Terrain, order.Biome, order.Tier, order.Cliff, order.Dunes));
+    }
+
+    /// <summary>Инструменты Layer, Items и Peak — ответ сигналом hello.read хозяину.</summary>
+    private void OnRead(OrderContext ctx)
+    {
+        var order = ctx.Read<ReadOrder>() ?? throw new ArgumentException("hello.read без payload");
+        var report = new ReadReport();
+        if (order.Layer.Length > 0)
+        {
+            report.Values = new double[order.W * order.H];
+            Tools.Layer(LayerNamed(order.Layer), order.Owner, order.Channel, order.X, order.Y, order.W, order.H, report.Values);
+        }
+        if (order.ItemLayer.Length > 0)
+        {
+            var items = Tools.Items(LayerNamed(order.ItemLayer), order.ItemOwner, order.ItemX, order.ItemY, order.ItemRadius);
+            report.ItemCount = items.Length;
+            report.Items = [.. items.SelectMany(item => (double[])[item.X, item.Y, .. item.Fields])];
+        }
+        if (order.Peak)
+        {
+            report.HasPeak = Tools.Peak(order.PeakX, order.PeakY, out var x, out var y, out var radius);
+            (report.PeakX, report.PeakY, report.PeakRadius) = (x, y, radius);
+        }
+        ctx.Commands.SignalTo("hello.read", MemoryPackSerializer.Serialize(report), [ctx.Player]);
     }
 
     /// <summary>Доехал: сигнал клиентам с тем же payload (entity:u32, x:f64, y:f64).</summary>

@@ -40,19 +40,39 @@ public enum TileFlags : byte
     Unit = ModAbi.TileUnit,
 }
 
-/// <summary>Итог поиска пути.</summary>
+/// <summary>Итог поиска пути (<see cref="Tools.Plan"/>) и подъезда (<see cref="Tools.Stand"/>).</summary>
 public enum PlanStatus : byte
 {
-    /// <summary>Путь есть (к цели или к тайлу рядом).</summary>
+    /// <summary>Путь есть (к цели или к тайлу рядом): положить в Path.</summary>
     Found = ModAbi.PlanFound,
-    /// <summary>Поиск оборвала квота тика: прежний путь оставить, попробовать в следующем тике.</summary>
+    /// <summary>Прежний путь оставить: норма тика вышла, затор без пути или юнит врос. У Stand — не промах.</summary>
     Cut = ModAbi.PlanCut,
-    /// <summary>Пути нет.</summary>
+    /// <summary>Пути (места) нет: снять Path.</summary>
     None = ModAbi.PlanNone,
+    /// <summary>Stand: юнит уже на месте — Path не трогать.</summary>
+    Here = 3,
 }
 
-/// <summary>Путь (<see cref="Tools.Plan"/>): итог, цель (могла сместиться на свободный тайл) и точки x, y подряд.</summary>
-public sealed record PlanResult(PlanStatus Status, int GoalX, int GoalY, double[] Points);
+/// <summary>
+/// Путь (<see cref="Tools.Plan"/>, <see cref="Tools.Stand"/>): итог, цель (могла сместиться на свободный тайл), точки
+/// x, y подряд и Roads — путь проложен с дорогой в виду (Path.roads).
+/// </summary>
+public sealed record PlanResult(PlanStatus Status, int GoalX, int GoalY, double[] Points, bool Roads = false);
 
-/// <summary>Место юнита в группе (<see cref="Tools.GroupMove"/>): тайл и ехать ли напрямую.</summary>
-public readonly record struct GroupSlot(int X, int Y, bool Direct);
+/// <summary>Как юнит идёт на своё место в группе (<see cref="Tools.GroupMove"/>).</summary>
+public enum GroupMode : byte
+{
+    /// <summary>Летающий: Path из одной точки — центра тайла, direct false.</summary>
+    Air = 0,
+    /// <summary>Наземный: напрямую (Path.direct), путь — только если упрётся.</summary>
+    Direct = 1,
+    /// <summary>Не трогать: врос, нет места или нет Position.</summary>
+    Skip = 2,
+}
+
+/// <summary>Место юнита в группе (<see cref="Tools.GroupMove"/>): тайл и как к нему идти.</summary>
+public readonly record struct GroupSlot(int X, int Y, GroupMode Mode)
+{
+    /// <summary>Ехать напрямую.</summary>
+    public bool Direct => Mode == GroupMode.Direct;
+}

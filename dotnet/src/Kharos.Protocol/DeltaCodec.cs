@@ -7,7 +7,8 @@ namespace Kharos.Protocol;
 /// Сборщик снимка или дельты одного зрителя (docs/dotnet.md §4.4). Порядок вызовов свободный: каждый раздел копится
 /// отдельно, <see cref="Finish"/> склеивает их. Значения берутся из мира в момент вызова, числа — с точностью
 /// <see cref="NetFormat"/>. Поля сущностей — группами (компонент, маска): у тысяч юнитов, сдвинувшихся за тик,
-/// заголовок один.
+/// заголовок один. Зритель (<see cref="Viewer"/>) решает, что уходит: компонент целиком или нет (@net), скрытые поля
+/// (@private) — значениями по умолчанию из схемы (в группах полей их нет), сигналы — только адресатам. Формат тот же.
 /// <code>
 /// 0x02 Snapshot | 0x03 Delta   tick:varint
 ///   strings  from:varint count:varint str×                 — новые строки мира с номера from
@@ -104,7 +105,13 @@ public sealed class DeltaWriter
         _removedCount++;
     }
 
-    /// <summary>Сущность целиком, со всеми компонентами.</summary>
+    /// <summary>
+    /// Зритель: что из сущностей и сигналов ему уходит (<see cref="IViewFilter.Shows"/>, <see cref="IViewFilter.Hidden"/>,
+    /// <see cref="IViewFilter.Hears"/>). null — всё как есть. <see cref="Begin"/> его не сбрасывает.
+    /// </summary>
+    public IViewFilter? Viewer { get; set; }
+
+    /// <summary>Сущность целиком, со всеми компонентами, которые уходят зрителю.</summary>
     public void Create(GameWorld world, uint entity)
     {
         var w = _created;
@@ -114,22 +121,62 @@ public sealed class DeltaWriter
         var schema = world.Schema;
         var count = 0;
         for (var c = 0; c < schema.Count; c++)
-            if (world.Has(entity, c))
+            if (world.Has(entity, c) && Shows(world, entity, c))
                 count++;
         w.Varint((ulong)count);
         for (var c = 0; c < schema.Count; c++)
-            if (world.Has(entity, c))
+            if (world.Has(entity, c) && Shows(world, entity, c))
             {
                 w.Varint((ulong)c);
-                Values(w, world, entity, c, ulong.MaxValue);
+                Values(w, world, entity, c, ulong.MaxValue, Hidden(world, entity, c));
             }
     }
 
-    /// <summary>Компонент знакомой сущности целиком (добавлен заново).</summary>
+    /// <summary>
+    /// Сущность целиком из записи, а не из мира (призрак — здание, каким его запомнил зритель): что зрителю не положено,
+    /// уже снято тем, кто запись дал.
+    /// </summary>
+    public void Create(uint entity, IReadOnlyList<RecordPart> parts)
+    {
+        var w = _created;
+        w.SVarint(entity - _createdPrev);
+        _createdPrev = entity;
+        _createdCount++;
+        w.Varint((ulong)parts.Count);
+        foreach (var part in parts)
+        {
+            var id = part.Def.Id;
+            w.Varint((ulong)id);
+            var fields = part.Def.Fields;
+            for (var index = 0; index < fields.Count; index++)
+            {
+                var field = fields[index];
+                switch (field.Kind)
+                {
+                    case FieldKind.Number:
+                        _format.Write(w, id, index, part.Columns[field.Slot]);
+                        break;
+                    case FieldKind.Flag:
+                        w.Bool(part.Columns[field.Slot] != 0);
+                        break;
+                    case FieldKind.String:
+                        w.Varint((ulong)part.Columns[field.Slot]);
+                        break;
+                    default:
+                        w.Blob(part.Bytes[field.Slot]);
+                        break;
+                }
+            }
+        }
+    }
+
+    /// <summary>Компонент знакомой сущности целиком (добавлен заново); зрителю не уходит — ничего.</summary>
     public void Add(GameWorld world, uint entity, int component)
     {
+        if (!Shows(world, entity, component))
+            return;
         _added.Varint(entity).Varint((ulong)component);
-        Values(_added, world, entity, component, ulong.MaxValue);
+        Values(_added, world, entity, component, ulong.MaxValue, Hidden(world, entity, component));
         _addedCount++;
     }
 
@@ -140,9 +187,24 @@ public sealed class DeltaWriter
         _droppedCount++;
     }
 
-    /// <summary>Поля компонента по маске.</summary>
+    /// <summary>Компонент снят — если он вообще уходит зрителю.</summary>
+    public void Drop(GameWorld world, uint entity, int component)
+    {
+        if (Shows(world, entity, component))
+            Drop(entity, component);
+    }
+
+    /// <summary>Поля компонента по маске (без скрытых от зрителя).</summary>
     public void Fields(GameWorld world, uint entity, int component, ulong mask)
     {
+        if (Viewer is not null)
+        {
+            if (!Shows(world, entity, component))
+                return;
+            mask &= ~Hidden(world, entity, component);
+            if (mask == 0)
+                return;
+        }
         if (!_groups.TryGetValue((component, mask), out var group))
         {
             if (_spare.Count > 0)
@@ -181,10 +243,13 @@ public sealed class DeltaWriter
             _layers = ContentPack.Deflate(_layers, System.IO.Compression.CompressionLevel.Fastest);
     }
 
+    /// <summary>Сигналы, которые слышит зритель (адресные — только адресатам, см. <see cref="IViewFilter.Hears"/>).</summary>
     public void Signals(IReadOnlyList<Signal> signals)
     {
         foreach (var signal in signals)
         {
+            if (Viewer is { } viewer && !viewer.Hears(signal))
+                continue;
             _signals.Text(signal.Name).Blob(signal.Payload);
             _signalsCount++;
         }
@@ -212,8 +277,32 @@ public sealed class DeltaWriter
         return w.ToArray();
     }
 
-    /// <summary>Поля компонента сущности по маске.</summary>
-    private void Values(WireWriter w, GameWorld world, uint entity, int component, ulong mask)
+    private bool Shows(GameWorld world, uint entity, int component) => Viewer?.Shows(world, entity, component) ?? true;
+
+    private ulong Hidden(GameWorld world, uint entity, int component) => Viewer?.Hidden(world, entity, component) ?? 0;
+
+    /// <summary>Значение поля по умолчанию (из схемы): так уходит скрытое поле. Строки, которой нет в мире, — пустая.</summary>
+    private void Default(WireWriter w, GameWorld world, int component, FieldDef field)
+    {
+        switch (field.Kind)
+        {
+            case FieldKind.Number:
+                _format.Write(w, component, field.Index, field.Default.Number);
+                break;
+            case FieldKind.Flag:
+                w.Bool(field.Default.Number != 0);
+                break;
+            case FieldKind.String:
+                w.Varint(world.Strings.Find(field.Default.Text ?? "") ?? 0);
+                break;
+            default:
+                w.Blob([]);
+                break;
+        }
+    }
+
+    /// <summary>Поля компонента сущности по маске; скрытые (hidden) — значениями по умолчанию.</summary>
+    private void Values(WireWriter w, GameWorld world, uint entity, int component, ulong mask, ulong hidden = 0)
     {
         var store = world.Store(component);
         var row = store.RowOf(entity);
@@ -223,6 +312,11 @@ public sealed class DeltaWriter
             if ((mask & (1UL << index)) == 0)
                 continue;
             var field = fields[index];
+            if ((hidden & (1UL << index)) != 0)
+            {
+                Default(w, world, component, field);
+                continue;
+            }
             switch (field.Kind)
             {
                 case FieldKind.Number:
@@ -262,6 +356,7 @@ public static class DeltaCodec
     {
         var w = writer ?? new DeltaWriter();
         w.Begin(MessageType.Snapshot, tick, format);
+        w.Viewer = filter;
         w.Strings(world.Strings, 1);
         var alive = new List<uint>(world.Count);
         world.Entities(alive);
@@ -309,6 +404,7 @@ public static class DeltaCodec
     {
         var w = writer ?? new DeltaWriter();
         w.Begin(MessageType.Delta, delta.Tick, format);
+        w.Viewer = filter;
         w.Strings(world.Strings, delta.StringsFrom);
         foreach (var entity in delta.Destroyed)
             if (filter.Entity(entity))
@@ -321,7 +417,7 @@ public static class DeltaCodec
                 w.Add(world, change.Entity, change.Component);
         foreach (var change in delta.Removed)
             if (filter.Entity(change.Entity))
-                w.Drop(change.Entity, change.Component);
+                w.Drop(world, change.Entity, change.Component);
         foreach (var field in delta.Fields)
             if (filter.Entity(field.Entity))
                 w.Fields(world, field.Entity, field.Component, field.Mask);

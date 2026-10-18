@@ -295,7 +295,7 @@ public sealed class HostSession
             w.Strings(world.Strings, delta.StringsFrom);
             connection.Sync.Merge(world, delta, w);
             connection.Sync.View(world, connection.Filter, CollectionsMarshal.AsSpan(_alive), Visible(connection), tick, w);
-            w.Layers(DeltaCodec.LayerChanges(delta.Layers, Host.Layers, connection.Filter));
+            w.Layers(Host.LayersForPlayer(DeltaCodec.LayerChanges(delta.Layers, Host.Layers, connection.Filter), connection.Player, delta.LayersKnown.GetValueOrDefault(connection.Player) ?? []));
             w.Signals(delta.Signals);
             connection.Sync.Begin(world, connection.View, tick);
             if (connection.SendRate > 0)
@@ -329,6 +329,8 @@ public sealed class HostSession
             var bytes = connection.Writer.Finish();
             connection.LastDeltaBytes = bytes.Length;
             Send(connection, bytes);
+            if (delta.LandFor(connection.Player) is { Count: > 0 } landEdits)
+                Send(connection, Protocol.Messages.LandEdits(landEdits));
             SendChunks(connection);
         }
     }
@@ -395,8 +397,10 @@ public sealed class HostSession
         };
         _connections.Add(connection);
         Send(connection, Host.Welcome(player).Encode());
-        if (Host.LandEdited && Host.Land is { } land)
-            Send(connection, Protocol.Messages.Land(land.Pack()));
+        if (Host.LandForJoin() is { } land)
+            Send(connection, Protocol.Messages.Land(land));
+        if (Host.KnownLand(player) is { Count: > 0 } knownLand)
+            Send(connection, Protocol.Messages.LandEdits(knownLand));
         var w = connection.Writer;
         w.Begin(MessageType.Snapshot, Host.Tick, Host.Format);
         w.Strings(Host.World.Strings, 1);
@@ -404,7 +408,7 @@ public sealed class HostSession
         Host.World.Entities(_alive);
         _visible.Clear();
         connection.Sync.View(Host.World, connection.Filter, CollectionsMarshal.AsSpan(_alive), Visible(connection), Host.Tick, w);
-        w.Layers(DeltaCodec.LayerBlocks(Host.Layers, connection.Filter));
+        w.Layers(Host.LayersForPlayer(DeltaCodec.LayerBlocks(Host.Layers, connection.Filter), player));
         var snapshot = w.Finish();
         Send(connection, snapshot);
         SendCommands(connection);

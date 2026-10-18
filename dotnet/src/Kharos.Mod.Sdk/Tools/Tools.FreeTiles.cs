@@ -8,9 +8,9 @@ public static partial class Tools
 {
     /// <summary>
     /// До count тайлов вокруг (x, y) через шаг группы, от ближних к дальним, с кольца from; стоящие юниты (кроме ignore)
-    /// под корпус radius заняты; Air — места летающим.
+    /// под корпус radius заняты (radius &lt; 0 — стоящие не в счёт, как freeTilesNear без blocked); Air — места летающим.
     /// </summary>
-    public static (int X, int Y)[] FreeTiles(int x, int y, int count, int from = 0, PathFlags flags = PathFlags.None, double radius = 0.5, ReadOnlySpan<uint> ignore = default)
+    public static (int X, int Y)[] FreeTiles(int x, int y, int count, int from = 0, PathFlags flags = PathFlags.None, double radius = -1, ReadOnlySpan<uint> ignore = default)
     {
         Begin().I32(x).I32(y).U32((uint)count).U32((uint)from).U32((uint)flags).F64(radius);
         Entities(ignore);

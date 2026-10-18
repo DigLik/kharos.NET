@@ -98,10 +98,13 @@ public sealed partial class Land
     }
 
     /// <summary>Карта, сжатая deflate без заголовка (как <c>CompressionStream('deflate-raw')</c>): так она идёт в кадре LAND и в файле.</summary>
-    public byte[] Pack()
+    public byte[] Pack() => PackBytes(Save());
+
+    /// <summary>Байты карты (<see cref="Save"/>, быть может, с <see cref="PatchSavedTile"/>), сжатые как <see cref="Pack"/>.</summary>
+    public static byte[] PackBytes(ReadOnlySpan<byte> saved)
     {
         var output = new MemoryStream();
-        using (var deflate = new DeflateStream(output, CompressionLevel.Optimal, leaveOpen: true)) deflate.Write(Save());
+        using (var deflate = new DeflateStream(output, CompressionLevel.Optimal, leaveOpen: true)) deflate.Write(saved);
         return output.ToArray();
     }
 

@@ -1,4 +1,5 @@
 using Kharos.Engine.Layers;
+using Kharos.Engine.World;
 
 namespace Kharos.Protocol;
 
@@ -48,6 +49,18 @@ public interface IViewFilter
 
     /// <summary>Видит ли зритель место (x, y) сейчас.</summary>
     bool Sees(double x, double y) => true;
+
+    /// <summary>Уходит ли зрителю компонент сущности (<c>@net</c>): по умолчанию — всё, кроме <c>@net none</c>.</summary>
+    bool Shows(GameWorld world, uint entity, int component) => world.Schema[component].Net != NetMode.None;
+
+    /// <summary>
+    /// Поля компонента (маска по номерам), которые зрителю не уходят (<c>@private</c>): вместо них в сообщении —
+    /// значения по умолчанию из схемы, в группах полей их нет. По умолчанию — никаких.
+    /// </summary>
+    ulong Hidden(GameWorld world, uint entity, int component) => 0;
+
+    /// <summary>Уходит ли зрителю сигнал: всем — всегда; SignalTo — игрокам из списка; SignalAt — тем, кто видит точку.</summary>
+    bool Hears(Signal signal) => signal.To is { } to ? Array.IndexOf(to, Player) >= 0 : signal.At is not { } at || Sees(at.X, at.Y);
 }
 
 /// <summary>Всё видно: сущности все, слои мира с send и свои слои игрока с send.</summary>

@@ -12,6 +12,10 @@ namespace Kharos.Host;
 /// WRLD WorldSave («KHWD»): сущности, компоненты, строки, память модов (Storage)
 /// LAYR LayerCodec: сохраняемые слои мира и игроков (туман «разведано» и слои модов)
 /// LAND Land.Pack — только если карта правлена (иначе её повторяет генератор по зерну)
+/// RCLL память игроков (Д3): исходные тайлы правленой карты, что игроки знают о карте и о покрытии (PlayerMemory.Encode);
+///      только при тумане
+/// BMEM память о чужих зданиях (Д4, <see cref="BuildMemory.Save"/>) — если кто-то что-то помнит
+/// MOVE память хода (Д1, Navigation.SaveMotion): места тел на начало прошлого хода — скорость для объезда; если есть
 /// PLRS игроки: next:varint count:varint (id:varint token:str name:str)× joined:varint id:varint×
 /// </code>
 /// <see cref="Capture"/> — на потоке хоста (копии, быстро), <see cref="Encode"/> (сжатие) — где угодно.
@@ -27,6 +31,15 @@ public sealed class HostSave
     public required byte[] World { get; init; }
     public required byte[] Layers { get; init; }
     public byte[]? Land { get; init; }
+
+    /// <summary>Память игроков (раздел RCLL); null — не было.</summary>
+    public byte[]? Recall { get; init; }
+
+    /// <summary>Память о чужих зданиях (раздел BMEM); null — не было.</summary>
+    public byte[]? Buildings { get; init; }
+
+    /// <summary>Память хода (раздел MOVE); null — не было.</summary>
+    public byte[]? Motion { get; init; }
     public required byte[] Players { get; init; }
 
     /// <summary>Настройки партии (UTF-8 JSON, HostOptions.Settings); пусто — нет.</summary>
@@ -54,6 +67,9 @@ public sealed class HostSave
             World = WorldSave.Save(host.World),
             Layers = LayerCodec.Encode(blocks),
             Land = host.LandEdited ? host.Land?.Pack() : null,
+            Recall = host.Recall?.Encode(),
+            Buildings = host.Buildings.Players.Any() ? host.Buildings.Save(host.World) : null,
+            Motion = host.Tools.Navigation?.SaveMotion(),
             Players = players.ToArray(),
             Settings = host.Settings ?? [],
         };
@@ -71,6 +87,12 @@ public sealed class HostSave
         var sections = new List<(string, byte[])> { ("META", meta.ToArray()), ("WRLD", World), ("LAYR", Layers) };
         if (Land is { } land)
             sections.Add(("LAND", land));
+        if (Recall is { } memory)
+            sections.Add(("RCLL", memory));
+        if (Buildings is { } buildings)
+            sections.Add(("BMEM", buildings));
+        if (Motion is { } motion)
+            sections.Add(("MOVE", motion));
         sections.Add(("PLRS", Players));
         return SaveFile.Pack(sections);
     }
@@ -94,7 +116,8 @@ public sealed class HostSave
         return new HostSave
         {
             Game = game, Seed = seed, Dt = dt, Tick = tick, Random = random, Checksum = checksum,
-            World = Section("WRLD"), Layers = Section("LAYR"), Land = sections.GetValueOrDefault("LAND"), Players = Section("PLRS"), Settings = settings,
+            World = Section("WRLD"), Layers = Section("LAYR"), Land = sections.GetValueOrDefault("LAND"), Recall = sections.GetValueOrDefault("RCLL"), Players = Section("PLRS"), Settings = settings,
+            Buildings = sections.GetValueOrDefault("BMEM"), Motion = sections.GetValueOrDefault("MOVE"),
         };
     }
 

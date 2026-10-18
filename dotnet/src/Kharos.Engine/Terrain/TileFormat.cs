@@ -77,3 +77,9 @@ public readonly record struct Peak(double X, double Y, double Radius);
 
 /// <summary>Каким становится тайл: тип (кроме гор), биом в упаковке генератора, ярус, обрывистость кромки, барханы.</summary>
 public readonly record struct TileEdit(TerrainType Terrain, byte Biome, int Tier, bool Cliff, Dunes Dunes = Dunes.Natural);
+
+/// <summary>Правка тайла в журнале <see cref="Land.TakeEdits"/>: каким тайл был и каким стал (хранимые байты).</summary>
+public readonly record struct TileChange(int X, int Y, StoredTile Before, StoredTile After);
+
+/// <summary>Тайл карты хранимыми байтами: правка, как её знает игрок и как она идёт клиентам.</summary>
+public readonly record struct LandTile(int X, int Y, StoredTile Tile);

@@ -93,6 +93,25 @@ public sealed class Scheduler
         Tick++;
         Dt = dt;
         _signals.Clear();
+        RunOrders();
+        foreach (var entry in _order)
+            if (Tick % (ulong)entry.Spec.Every == 0)
+                RunSystem(entry);
+    }
+
+    /// <summary>
+    /// Приказы из очереди сразу, без тика: время и тик не идут, системы не работают, обработчики видят dt = 0 (правки
+    /// редактора и тестов). Сигналы добавляются к сигналам последнего тика.
+    /// </summary>
+    public void ApplyOrders()
+    {
+        Dt = 0;
+        RunOrders();
+    }
+
+    /// <summary>Приказы из очереди по порядку: команды каждого — сразу после него.</summary>
+    private void RunOrders()
+    {
         var orders = _queue.ToArray();
         _queue.Clear();
         foreach (var (player, name, payload, rights) in orders)
@@ -113,9 +132,6 @@ public sealed class Scheduler
             ApplyCommands(source);
             Settle(source);
         }
-        foreach (var entry in _order)
-            if (Tick % (ulong)entry.Spec.Every == 0)
-                RunSystem(entry);
     }
 
     /// <summary>Время систем с начала, мс.</summary>

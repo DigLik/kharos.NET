@@ -277,9 +277,11 @@ public class NetTests
         var again = new Client(resumed, token: alice.Connection.Token);
         Assert.Equal(1u, again.Connection.Player);
         Assert.Equal(units, HelloGame.Units(b.World, 1).Count);
+        // Карта правлена: байтами идёт карта до правок (Д3), а то, что игрок о них знает, — поверх.
         Assert.NotNull(again.Replica.Land);
-        var land = Land.Unpack(b.Land.Config, again.Replica.Land);
-        Assert.Equal(b.Land.Stored(5, 5), land.Stored(5, 5));
+        var pristine = Land.Unpack(b.Land.Config, again.Replica.Land);
+        Assert.Equal(b.Recall!.Land!.Original[new Kharos.Engine.Recall.Tile(5, 5)], Kharos.Engine.Recall.LandMemory.Pack(pristine.Stored(5, 5)));
+        Assert.Equal(b.Recall.Land.KnownTile(1, new Kharos.Engine.Recall.Tile(5, 5)), again.Replica.Terrain!.Stored(5, 5));
     }
 
     [Fact]

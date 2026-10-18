@@ -184,8 +184,7 @@ public sealed class ClientGame : IDisposable
         Audio = _options.Audio;
         Scene = new ClientScene(Gui) { LookOf = proto => (uint)proto < (uint)_lookByProto!.Length ? _lookByProto[proto] : null };
         Scene.SetPalette(ClientScene.DefaultTeams);
-        if (welcome.Land is { } config && welcome.Map is { } map)
-            Land = Replica.Land is { } packed ? UnpackLand(config, packed) : new Land(config, LandArea.Of(map.Left, map.Top, map.Right, map.Bottom));
+        Land = TerrainOf(Replica);
         Tools = new ClientTools(Replica, content, () => Land, Poses, Fonts) { Log = Report };
         if (Replica.Schema!.Find("Attached") is { } attached && Replica.Schema[attached].Field("parent") is { } parent)
             (_attached, _attachedParent) = (attached, parent.Index);
@@ -387,12 +386,12 @@ public sealed class ClientGame : IDisposable
         _tickTime = 0;
     }
 
-    /// <summary>Карта, правленная на хосте, — байтами.</summary>
-    private static Land UnpackLand(GeneratorConfig config, byte[] packed)
+    /// <summary>Карта клиента: из генератора или присланная хостом байтами, с правками хоста поверх (их применяет сама реплика).</summary>
+    private static Land? TerrainOf(Replica replica)
     {
         try
         {
-            return Land.Unpack(config, packed);
+            return replica.Terrain;
         }
         catch (FormatException error)
         {

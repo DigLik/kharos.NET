@@ -115,8 +115,10 @@ public sealed class ModToolsTests
     {
         var tools = new ModTools(new Source(Fixtures.World()));
         Assert.Equal([2, 2], Call(tools, 15, Input(1u, 2u, 0.5, 0.5, -100.0, 3.0)));
+        // 18–20 (Layer, Items, Peak) сделаны: их проверяет LayerToolsTests.
         for (var id = 16; id <= 29; id++)
-            Assert.Equal(-1, tools.Call(id, [], new byte[16]));
+            if (id is not (18 or 19 or 20))
+                Assert.Equal(-1, tools.Call(id, [], new byte[16]));
         Assert.Equal(-1, tools.Call(30, [], new byte[16]));
     }
 
