@@ -1,0 +1,14 @@
+<Project>
+  <!-- Версии пакетов — в одном месте для всех проектов. -->
+  <ItemGroup>
+    <PackageVersion Include="Wasmtime" Version="44.0.0" />
+    <PackageVersion Include="MemoryPack" Version="1.21.4" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="BenchmarkDotNet" Version="0.16.0-preview.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit.v3" Version="3.0.1" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+</Project>

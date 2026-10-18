@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Набор мододела: API хоста и клиента, экспорты ABI (docs/dotnet.md, §4.2). Собирается в wasm вместе с модом. -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+</Project>

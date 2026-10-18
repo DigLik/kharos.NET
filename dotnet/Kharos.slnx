@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Kharos.Engine/Kharos.Engine.csproj" />
+    <Project Path="src/Kharos.Mod.Sdk/Kharos.Mod.Sdk.csproj" />
+    <Project Path="src/Kharos.Plugins/Kharos.Plugins.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Kharos.Engine.Tests/Kharos.Engine.Tests.csproj" />
+    <Project Path="tests/Kharos.Plugins.Tests/Kharos.Plugins.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Kharos.Plugins.Bench/Kharos.Plugins.Bench.csproj" />
+  </Folder>
+</Solution>
