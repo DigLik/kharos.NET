@@ -155,10 +155,9 @@ skirmish.client = {
 	camera = "rts",                 -- cameras/rts.luau
 	controls = { "select", "orders" },
 	ui = { "hud" },
-	atmosphere = { "day", "wind" },
+	atmosphere = { "weather" },
 	music = "drift",
-	teams = { { 0x1f63d8, 0x5aa9ff, 0xe4f4ff }, … },  -- тёмный, основной, светлый цвет стороны по номеру игрока
-	ground = { sand = 0xb08a5c, rock = 0x6b6058, edge = 0x2a2420 },
+	teams = { own = { 0x1f63d8, 0x5aa9ff, 0xe4f4ff }, foe = { … }, ally = { … } },  -- тёмный, основной, светлый
 }
 ```
 
@@ -166,21 +165,31 @@ skirmish.client = {
 
 ```luau
 look = {
-	frame = 32, directions = 64, phases = 2, fps = 8, animate = "moving",  -- или "always"
+	size = 32,                    -- кадр в пикселях: число или { w, h }
+	origin = { 16, 16 },          -- начало координат чертежа в кадре (по умолчанию — центр)
+	anchor = { 0, 0 },            -- точка чертежа на месте сущности (у зданий — центр основания)
+	directions = 64, phases = 4,
+	step = 1 / 16,                -- кадр хода — по пройденному пути (тайлов на кадр); без step — fps по времени
+	fps = 8,
+	layer = "ground",             -- "ground", "building" (по нижнему краю), "air"; турель — слоем выше носителя
+	shadow = { 2, 0.4 },          -- сдвиг тени в пикселях и её сила
 	draw = function(canvas, angle, phase) … end,
-	lights = { lamps = { { вдоль, поперёк, радиус } }, beam = { along, length, near, spread, level }, glows = { { x, y, радиус } } },
+	portrait = { size = 32, draw = function(canvas) … end },  -- для панелей: обрезается и вписывается
+	lights = { lamps = { { вдоль, поперёк, радиус } }, beam = { along, length, near, spread, level } },
 	sound = { voice = "motor", gain = 0.5, control = function(knobs, unit, c) … end },
-	icon = { direction = 56 },
 }
 ```
 
-Чертёж выполняется при загрузке на каждое направление и фазу — получается атлас. Холст (`canvas`) — в пикселях спрайта
-(16 на тайл), начало — центр: `circle(x, y, r, цвет)`, `ring(x, y, r, толщина, цвет)`, `line(ax, ay, bx, by,
-толщина, цвет)`, `rect(x, y, w, h, угол, цвет)`, `poly({ x1, y1, … }, цвет)`, `pixel(x, y, цвет)`, `team(тон)` — цвет
-стороны (0 тёмный, 1 основной, 2 светлый), `canvas.shade(цвет, k)`. Цвет — `0xRRGGBB`.
+Чертёж выполняется при загрузке на каждое направление и фазу; кадры всех обликов пакуются в один атлас. Холст
+(`canvas`) — тот же, что `Pixmap` в TS, поэтому чертежи из TS переносятся дословно и совпадают до пикселя
+(`tools/art/check.sh`): `rect(x, y, w, h, цвет)` — от угла, `circle(x, y, r, цвет)`, `ring(x, y, r, толщина, цвет)`,
+`line(ax, ay, bx, by, толщина, цвет)` — с прямыми торцами, `poly({ x1, y1, … }, цвет)`, `pixel(x, y, цвет)`,
+`canvas.toned(цвет, тон)` — цвет стороны (тон 0, 1, 2 перекрашивает палитра), `translate(dx, dy)`,
+`light(x, y, радиус, яркость)` — огонь кадра (здания). Цвет — `0xRRGGBB`.
 
-Огни (в пикселях спрайта от центра, вдоль — вперёд по направлению) горят, когда атмосфера даёт `lamps`. Звук облика
-звучит у ближайших к камере (до восьми разом): `control` ставит ручки голоса, `unit` — `{ entity, load, moving }`.
+Чертежи и помощники Kharos — `lib/units.luau` (перенос `unitArt.ts`: все юниты и турели, `units.look(вид,
+крепления)`) и `lib/buildings.luau` (`buildingArt.ts`: `slab`, `dome`, `tower`, `lamp`, `bulb`, `buildings.look(w, h,
+чертёж)`).
 
 ### c
 
@@ -190,28 +199,42 @@ look = {
 | `c.camera` | `x`, `y` — центр в тайлах, `zoom` — пикселей на тайл |
 | `c.screen` | `w`, `h` в логических пикселях |
 | `c.shared` | общая память скриптов клиента (`selection` — выделенное) |
-| `c.atmosphere` | `light = { r, g, b }`, `lamps` 0..1, `wind = { x, y }`, `clock` — то, что пишет атмосфера |
+| `c.atmosphere` | что пишет атмосфера: `light` 0..1 (оттенок — `lightTint` из TS), `wind = { x, y }`, `precipitation` 0..1, `hour` |
 | `c.music` | `mood`, `volume` |
-| `c.time`, `c.dt`, `c.tick`, `c.player`, `c.protos`, `c.game` | |
-| `c:each({ К… })`, `c:get(e, К)`, `c:has`, `c:alive`, `c:proto(e)`, `c:mine(e)` | мир; `Position` и `Facing` сглажены между тиками |
+| `c.time`, `c.dt`, `c.tick`, `c.clock` (секунды игры), `c.player`, `c.protos`, `c.game` | |
+| `c:each`, `c:get`, `c:has`, `c:alive`, `c:proto(e)`, `c:mine(e)` | мир; `Position` и `Facing` сглажены между тиками |
 | `c:pick(x, y)`, `c:within(x1, y1, x2, y2, { К… }?)` | сущность под точкой мира, сущности в прямоугольнике |
-| `c:to_screen(x, y)`, `c:to_world(x, y)` | |
-| `c:send(приказ, аргументы)` | приказ хосту (`commands` видов) |
-| `c:sound(голос, { x, y, gain, pitch, bus }?)` | короткий звук; с `x, y` — на месте в мире |
-| `c:particle({ x, y, vx, vy, life, color, size, drift })` | частица; `drift` — сносит ветром |
+| `c:to_screen`, `c:to_world`, `c.hash(x, y, сид)` | `hash` — тот же, что у генератора местности |
+| `c:send(приказ, аргументы)`, `c:sound(голос, { x, y, gain, pitch, bus }?)`, `c:particle({ … })` | |
 | `c.draw:line/circle/rect(…, цвет, толщина?, альфа?)` | поверх мира, в тайлах; толщина — в пикселях |
-| `c.ui:panel/rect/outline/line/circle/text/measure/button/area/icon/bar` | интерфейс в пикселях экрана; `button(ключ, x, y, w, h, подпись?, { enabled, selected, size })` → `clicked, hovered`; `icon(вид, x, y, размер, сторона?)` |
+| `c.ui` | интерфейс (ниже) |
 
-Цвет поверх мира и в интерфейсе — `0xRRGGBB` или `0xAARRGGBB`.
+### Интерфейс
 
-### Разделы подачи
+`c.ui` — перенос `gui/ui.ts`, тот же API: панели описываются каждый кадр, движок раскладывает их (как flex) и рисует
+рамками скина и Ark Pixel.
 
-- `cameras/` — `start(cam, c)`, `update(cam, c)`.
-- `controls/` — `update(c)`; `ui/` — `draw(c)` (раньше управления: панель забирает указатель).
-- `atmosphere/` — `update(a, c, knobs)`; `voices = { ключ = "голос" }` — звуки, которые звучат всё время, а `knobs.ключ`
-  — их ручки (плюс `gain`, `pan`).
-- `music/` — `tempo`, `beats`, `compose(такт, c)` → ноты `{ beat, length, voice, note (MIDI), velocity, gain, pan }`.
-- `signals = { имя = function(c, данные) end }` в любом виде — ответ на `ctx:signal` хоста.
+```luau
+ui:box({ id = "top", anchor = { left = 0, right = 0, top = 0 }, height = 38, skin = "panel", padding = { 4, 12 },
+	direction = "row", align = "center", gap = 12 }, function()
+	ui:image("coin", 16, 16)
+	ui:text("1000", { font = "title", color = "#f0c95a", shadow = "#0b111b", lift = 2 })
+	ui:space(0, 0, 1)
+	if ui:button("menu", { height = 30 }, function() ui:text("Меню") end) then … end
+	ui:tip("menu", "Меню игры")
+end)
+```
+
+Стиль узла: `id`, `direction` (`row`, `column`, `stack`), `self`, `gap`, `padding`, `align`, `justify` (`between`),
+`width`, `height`, `minWidth`, `maxWidth`, `minHeight`, `maxHeight`, `grow`, `shrink`, `wrap`, `skin` (`panel`,
+`well`, `button…`, `gold`, `danger`), `background`, `outline`, `alpha`, `clip`, `scroll`, `anchor` (`left`, `right`,
+`top`, `bottom`, `centerX`, `centerY`), `passive`. Текст: `font` (`body`, `small`, `title`, `logo`), `color`,
+`shadow`, `lift`, `wrap`, `ellipsis`. Цвет — `"#rrggbb"`, `"rgb(r g b / a)"` или число.
+
+`ui:image(вид | "coin" | "minimap", w, h, сторона?)` — портрет вида, вписанный в w × h; `ui:button(id, стиль, дети)`
+→ щелчок `{ button, shift, ctrl, alt, long }` или nil (`active`, `disabled` в стиле); `ui:clicked`, `ui:hovered`,
+`ui:within`, `ui:held` (→ `{ u, v }`), `ui:tip(id, текст)`, `ui:rect(id)`, `ui:measure(текст, шрифт?)`, `ui.width`,
+`ui.height`. Щелчок приходит кадром позже — по местам узлов прошлого кадра; долгое касание — правый щелчок.
 
 ### Звук
 
