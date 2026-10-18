@@ -62,6 +62,8 @@ pub struct Game {
   /// Общий атлас и земля — отдаются рендеру один раз.
   pub atlas: Option<(Vec<u8>, [usize; 2])>,
   pub land: Option<Land>,
+  /// Картинка мини-карты: местность всей карты по пикселю на тайл.
+  pub minimap: Option<(Vec<u8>, [usize; 2])>,
   /// Пройденный путь сущностей на экране: от него — кадр хода (колёса, гусеницы, ноги), как в unitsPass.ts.
   walked: HashMap<Entity, Walk>,
   /// Путь, пройденный ветром, — для осадков.
@@ -221,18 +223,33 @@ impl Game {
     // Земля: генератор из вида `lands/` партии (data.land), карта — data.size тайлов от центра.
     let data = game_table.get::<Option<Table>>("data").map_err(error("data партии"))?;
     let land_name = data.as_ref().and_then(|data| data.get::<Option<String>>("land").ok().flatten());
+    let mut minimap = None;
     let land = match land_name {
       Some(name) => {
         let kind = named(&client, "lands", &name)?;
         let generator: serde_json::Value = lua.from_value(kind.get::<Value>("data").map_err(error(format!("lands/{name}.data")))?).map_err(error(format!("lands/{name}.data")))?;
         let config: GeneratorConfig = serde_json::from_value(generator).map_err(|problem| format!("lands/{name}.data: {problem}"))?;
         let size = data.as_ref().and_then(|data| data.get::<Option<i32>>("size").ok().flatten()).unwrap_or(64);
-        Some(Land::new(config, LandArea::of(-size, -size, size, size)))
+        let mut land = Land::new(config, LandArea::of(-size, -size, size, size));
+        // Мини-карта: тайл — пиксель цветом своей местности и биома (палитра — minimap вида, как PALETTE в minimap.ts).
+        let palette: Vec<Vec<Vec<u8>>> = kind.get::<Option<Vec<Vec<Vec<u8>>>>>("minimap").map_err(error(format!("lands/{name}.minimap")))?.unwrap_or_default();
+        let side = (size * 2) as usize;
+        let mut pixels = vec![0u8; side * side * 4];
+        for y in 0..side {
+          for x in 0..side {
+            let tile = land.tile(x as i32 - size, y as i32 - size);
+            let (terrain, biome) = (tile[0] as usize & 3, (tile[1] >> 6) as usize);
+            let color = palette.get(biome).and_then(|row| row.get(terrain)).cloned().unwrap_or(vec![128, 128, 128]);
+            pixels[(y * side + x) * 4..(y * side + x) * 4 + 4].copy_from_slice(&[color[0], color[1], color[2], 255]);
+          }
+        }
+        minimap = Some((pixels, [side, side]));
+        Some(land)
       }
       None => None,
     };
 
-    Ok(Self { host, client, state, ctx, ctx_data, camera, panels, controls, ambience, music, signals, looks, look_of, atlas: Some(atlas), land, audio, held, loads: HashMap::new(), walked: HashMap::new(), drift: [0.0; 2], bar: 0, next_bar: 0.0, accumulator: 0.0, last: None, pending: Vec::new(), palette })
+    Ok(Self { host, client, state, ctx, ctx_data, camera, panels, controls, ambience, music, signals, looks, look_of, atlas: Some(atlas), land, minimap, audio, held, loads: HashMap::new(), walked: HashMap::new(), drift: [0.0; 2], bar: 0, next_bar: 0.0, accumulator: 0.0, last: None, pending: Vec::new(), palette })
   }
 
   /// Кадр: тики, подача, звук. Возвращает, что рисовать.

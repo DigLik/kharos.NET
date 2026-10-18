@@ -16,7 +16,9 @@ local BAR_SPACING = 16 + 8 + 8
 local PORTRAIT = 96
 local TILE = 32
 local QUEUED = 24
-local MINIMAP = 140
+-- Сторона мини-карты: из настроек 200, но не больше, чем оставляет сведениям ширина экрана (minimapSide).
+local MINIMAP = 200
+local INFO_MIN = 104 + 10 + 24 + 150
 local GRID_KEYS = { "T", "Y", "U", "I", "G", "H", "J", "K", "B", "N", "M", "," }
 local KEY_NAMES = { "t", "y", "u", "i", "g", "h", "j", "k", "b", "n", "m", "," }
 
@@ -238,17 +240,91 @@ local function nothing(ui, width: number, height: number)
 	end)
 end
 
+-- Мини-карта — как minimap.ts и minimapView в bar.ts: местность, здания и юниты цветом стороны, рамка экрана;
+-- левая кнопка (и протяжка) ставит туда камеру, правая шлёт выделенных.
+local SIDE_COLORS = { own = "#5aa9ff", foe = "#ff6b5a", neutral = "#c8c8c8" }
+
+local function minimapView(c, side: number)
+	local ui = c.ui
+	local size = (c.game.data and c.game.data.size) or 64
+	local span = size * 2
+	local inner = side - 8
+	local scale = inner / span
+	local k = inner / 132
+	local dot = math.max(2, math.round(2 * k))
+	local function at(x: number, y: number): (number, number)
+		return (x + size) * scale, (y + size) * scale
+	end
+	ui:box({ id = "minimap", width = side, height = side, skin = "well", padding = 4, clip = true }, function()
+		ui:box({ direction = "stack", width = inner, height = inner, background = "#05090f" }, function()
+			ui:image("minimap", inner, inner)
+			for _, e in c:each({ "Owner", "Position" }) do
+				local building = c:get(e, "Building")
+				if building or c:has(e, "Unit") then
+					local owner = c:get(e, "Owner").player
+					local color = if owner == c.player then SIDE_COLORS.own elseif owner == 0 then SIDE_COLORS.neutral else SIDE_COLORS.foe
+					local p = c:get(e, "Position")
+					local x, y = at(p.x, p.y)
+					local w, h = dot, dot
+					if building then
+						w, h = math.max(dot, building.width * scale), math.max(dot, building.height * scale)
+					end
+					ui:box({ self = { "start", "start" }, padding = { math.floor(y - h / 2), 0, 0, math.floor(x - w / 2) } }, function()
+						ui:box({ width = w, height = h, background = color })
+					end)
+				end
+			end
+			-- Рамка экрана.
+			local x1, y1 = c:to_world(0, 0)
+			local x2, y2 = c:to_world(c.screen.w, c.screen.h)
+			local left, top = at(x1, y1)
+			local right, bottom = at(x2, y2)
+			local line = math.max(1, math.round(k))
+			local w, h = math.round(right - left), math.round(bottom - top)
+			for _, piece in { { left, top, w, line }, { left, top + h - line, w, line }, { left, top, line, h }, { left + w - line, top, line, h } } do
+				ui:box({ self = { "start", "start" }, padding = { math.round(piece[2]), 0, 0, math.round(piece[1]) } }, function()
+					ui:box({ width = piece[3], height = piece[4], background = "#e4f4ff" })
+				end)
+			end
+		end)
+	end)
+	local held = ui:held("minimap")
+	local click = ui:clicked("minimap")
+	local function tile(u: number, v: number): (number, number)
+		return -size + u * span, -size + v * span
+	end
+	if held then
+		c.camera.x, c.camera.y = tile(held[1], held[2])
+	end
+	if click and click.button == 2 then
+		local rect = ui:rect("minimap")
+		local input = c.input
+		if rect then
+			local u = math.clamp((input.x - rect.x - 4) / (rect.width - 8), 0, 1)
+			local v = math.clamp((input.y - rect.y - 4) / (rect.height - 8), 0, 1)
+			local x, y = tile(u, v)
+			local units = {}
+			for _, e in c.shared.selection or {} do
+				if c:has(e, "Drive") then
+					table.insert(units, e)
+				end
+			end
+			if #units > 0 then
+				c:send("move", { units = units, x = x, y = y })
+			end
+		end
+	end
+end
+
 local function bottomBar(c)
 	local ui = c.ui
 	local selection = c.shared.selection or {}
 	local selected = #selection > 0
-	local side = MINIMAP
+	local side = math.max(INNER, math.min(MINIMAP, ui.width - BAR_SPACING - GRID_WIDTH - INFO_MIN))
 	local infoWidth = ui.width - BAR_SPACING - side - GRID_WIDTH
 	ui:box({ id = "bar", anchor = { left = 0, right = 0, bottom = 0 }, height = INNER + 16, skin = "panel", padding = { 4, 8 }, direction = "row", align = "end", gap = 8 }, function()
 		ui:box({ height = INNER, direction = "column", justify = "end" }, function()
-			ui:box({ id = "minimap", width = side, height = side, skin = "well", padding = 4 }, function()
-				ui:box({ grow = 1, background = COLORS.well })
-			end)
+			minimapView(c, side)
 		end)
 		ui:box({ direction = "row", gap = 8, height = INNER, align = "center" }, function()
 			if selected then

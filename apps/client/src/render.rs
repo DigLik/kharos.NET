@@ -348,6 +348,7 @@ pub struct Renderer {
   /// Общий атлас обликов и скин интерфейса.
   atlas: Option<glow::Texture>,
   skin: Option<glow::Texture>,
+  minimap: Option<glow::Texture>,
   land: Option<LandWindow>,
   occluders: Option<Target>,
   lightmap: Option<Target>,
@@ -396,7 +397,7 @@ impl Renderer {
       let font = gl.texture([ATLAS_SIZE as i32; 2], glow::R8, glow::RED, None);
       raw.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
       raw.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::LINEAR as i32);
-      Ok(Self { gl, programs, sprite_vao, sprite_data, spot_vao, spot_data, beam_vao, beam_data, empty_vao, batch_vao, batch_vertices, batch_indices, font, font_generation: 0, atlas: None, skin: None, land: None, occluders: None, lightmap: None, size: [0, 0] })
+      Ok(Self { gl, programs, sprite_vao, sprite_data, spot_vao, spot_data, beam_vao, beam_data, empty_vao, batch_vao, batch_vertices, batch_indices, font, font_generation: 0, atlas: None, skin: None, minimap: None, land: None, occluders: None, lightmap: None, size: [0, 0] })
     }
   }
 
@@ -658,6 +659,12 @@ impl Renderer {
           None => gl.disable(glow::SCISSOR_TEST),
         }
         match paint {
+          Paint::Minimap => {
+            let Some(minimap) = self.minimap else { continue };
+            gl.uniform_1_i32(uniform("uKind").as_ref(), 1);
+            gl.uniform_1_i32(uniform("uTeam").as_ref(), 0);
+            gl.bind_texture(glow::TEXTURE_2D, Some(minimap));
+          }
           Paint::Skin => {
             let Some(skin) = self.skin else { continue };
             gl.uniform_1_i32(uniform("uKind").as_ref(), 1);
@@ -681,6 +688,15 @@ impl Renderer {
       gl.bind_vertex_array(None);
       gl.disable(glow::BLEND);
     }
+  }
+
+  /// Картинка мини-карты: уменьшается сглаженно, как картинка на холсте у TS.
+  pub fn load_minimap(&mut self, pixels: &[u8], size: [usize; 2]) {
+    let texture = self.gl.texture([size[0] as i32, size[1] as i32], glow::RGBA8, glow::RGBA, Some(pixels));
+    unsafe {
+      self.gl.gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
+    }
+    self.minimap = Some(texture);
   }
 
   /// Скин интерфейса (`gui::skin_pixels`).

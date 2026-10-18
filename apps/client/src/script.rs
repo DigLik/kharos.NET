@@ -368,7 +368,7 @@ impl UserData for UiApi {
       Ok(())
     });
     // Картинка: портрет вида, вписанный в width × height, как toCanvas в portraits.ts (вдвое и больше — целым
-    // увеличением), стороной team (0 — своя); или "coin" — монета кредитов.
+    // увеличением), стороной team (0 — своя); "coin" — монета кредитов; "minimap" — местность всей карты.
     methods.add_method("image", |_, ui, (kind, width, height, team): (Value, f32, f32, Option<usize>)| {
       let mut state = ui.0.borrow_mut();
       match kind {
@@ -385,6 +385,7 @@ impl UserData for UiApi {
           state.gui.leaf(Default::default(), crate::gui::Leaf::Image { image, width: dw, height: dh });
           state.gui.close();
         }
+        Value::String(name) if name.to_str()?.as_ref() == "minimap" => state.gui.leaf(Default::default(), crate::gui::Leaf::Image { image: crate::gui::Image::Minimap, width, height }),
         _ => state.gui.leaf(Default::default(), crate::gui::Leaf::Image { image: crate::gui::Image::Coin, width, height }),
       }
       Ok(())

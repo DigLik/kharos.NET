@@ -15,6 +15,7 @@ pub enum Paint {
   Font,
   Sprite { team: usize },
   Skin,
+  Minimap,
 }
 
 #[derive(Default)]

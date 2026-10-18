@@ -62,6 +62,9 @@ impl App {
     if let Some((pixels, size)) = game.atlas.take() {
       renderer.load_atlas(&pixels, size);
     }
+    if let Some((pixels, size)) = game.minimap.take() {
+      renderer.load_minimap(&pixels, size);
+    }
     if let Some(land) = game.land.take() {
       renderer.set_land(land);
     }
