@@ -16,6 +16,8 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
+    <!-- Упавшие тесты в CI — аннотациями запуска. -->
+    <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="all" />
     <!-- Картинки интерфейса и атласов для просмотра глазами: dotnet/.cache/client/. -->
     <PackageReference Include="StbImageWriteSharp" />
   </ItemGroup>

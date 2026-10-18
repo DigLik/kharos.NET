@@ -16,6 +16,8 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
+    <!-- Упавшие тесты в CI — аннотациями запуска. -->
+    <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
     <!-- Код мода hello, который не зависит от SDK: ходовая (сверка с wasm) и payload приказа. -->

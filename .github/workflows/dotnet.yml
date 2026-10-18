@@ -36,6 +36,6 @@ jobs:
           key: wasi-sdk-29-${{ runner.os }}-${{ runner.arch }}
       - run: pwsh tools/build-mods.ps1
         if: matrix.os == 'ubuntu-latest'
-      - run: dotnet test Kharos.slnx -c Release --no-build
+      - run: dotnet test Kharos.slnx -c Release --no-build --logger GitHubActions
       # Песочница модов на этой ОС: Wasmtime, пул, сторож эпох, белый список импортов.
       - run: dotnet run --project tools/Kharos.Plugins.Bench -c Release --no-build -- --security
