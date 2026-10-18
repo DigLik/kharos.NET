@@ -1,13 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Аудит безопасности, нагрузка и микро-бенчмарки песочницы (из UserPluginSystem). -->
+  <!-- Аудит безопасности, нагрузка и микро-бенчмарки песочницы (из UserPluginSystem); замер границы wasm (ключ boundary). -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ServerGarbageCollection>false</ServerGarbageCollection>
+    <!-- Ловушки Wasmtime на Windows несовместимы с теневым стеком CET (см. tests/Kharos.Plugins.Tests). -->
+    <CetCompat>false</CetCompat>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Kharos.Plugins\Kharos.Plugins.csproj" />
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Мод hello: ходовая на C# для сверки и схема мира для его загрузки. -->
+    <Compile Include="..\..\mods\hello\Hello.Host\Wheels.cs" Link="Boundary\Wheels.cs" />
+    <Compile Include="..\..\tests\Kharos.Plugins.Tests\HelloModule.cs" Link="Boundary\HelloModule.cs" />
   </ItemGroup>
 </Project>

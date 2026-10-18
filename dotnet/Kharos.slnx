@@ -4,6 +4,9 @@
     <Project Path="src/Kharos.Mod.Sdk/Kharos.Mod.Sdk.csproj" />
     <Project Path="src/Kharos.Plugins/Kharos.Plugins.csproj" />
   </Folder>
+  <Folder Name="/mods/">
+    <Project Path="mods/hello/Hello.Host/Hello.Host.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Kharos.Engine.Tests/Kharos.Engine.Tests.csproj" />
     <Project Path="tests/Kharos.Plugins.Tests/Kharos.Plugins.Tests.csproj" />

@@ -1,9 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Песочница модов на Wasmtime: копия UserPluginSystem (docs/dotnet.md, Р14). -->
+  <!-- Песочница модов на Wasmtime: копия UserPluginSystem (docs/dotnet.md, Р14) и рантайм игровых модов (Game/). -->
   <PropertyGroup>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Общие файлы ABI мода из Kharos.Mod.Sdk: здесь их типы открытые. -->
+    <DefineConstants>$(DefineConstants);KHAROS_PLUGINS</DefineConstants>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\Kharos.Mod.Sdk\Abi\*.cs" Link="Game\Abi\%(Filename)%(Extension)" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Wasmtime" />
     <PackageReference Include="MemoryPack" />

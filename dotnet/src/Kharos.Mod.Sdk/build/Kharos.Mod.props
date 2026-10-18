@@ -1,0 +1,45 @@
+<Project>
+  <!--
+    Сборка мода (docs/dotnet.md, Р5): подключается из mods/Directory.Build.props. Обычная сборка (dotnet build) —
+    библиотека net10.0: так код мода проверяется на любой машине, без WASI SDK. С KharosWasm=true (tools/build-mods.ps1)
+    publish собирает ядровой модуль wasm компилятором NativeAOT-LLVM и кладёт его рядом с mod.json.
+  -->
+  <PropertyGroup>
+    <KharosWasm Condition="'$(KharosWasm)' == ''">false</KharosWasm>
+    <KharosModSdkDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))\</KharosModSdkDir>
+    <KharosDotnetDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\..'))\</KharosDotnetDir>
+    <!-- NativeAOT-LLVM 10.0.0-rc.1 несёт библиотеки .NET 10: моды — под net10.0. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(KharosWasm)' == 'true'">
+    <!-- Своё obj и bin: восстановление под wasi-wasm не мешает обычной сборке решения. -->
+    <BaseIntermediateOutputPath>obj\wasm\</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin\wasm\</BaseOutputPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);obj\**;bin\**</DefaultItemExcludes>
+
+    <RuntimeIdentifier>wasi-wasm</RuntimeIdentifier>
+    <PublishAot>true</PublishAot>
+    <!-- Библиотека-«реактор»: _initialize и экспорты, без main. -->
+    <NativeLib>Shared</NativeLib>
+    <!-- wasm-ld напрямую — ядровой модуль, а не компонент (wasm-component-ld). -->
+    <LinkerFlavor>lld</LinkerFlavor>
+    <!-- Без отладочных сведений: иначе модуль втрое больше (NativeDebugSymbols следует за DebugType). -->
+    <DebugType>none</DebugType>
+    <NativeDebugSymbols>false</NativeDebugSymbols>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <InvariantTimezone>true</InvariantTimezone>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <EventSourceSupport>false</EventSourceSupport>
+    <DebuggerSupport>false</DebuggerSupport>
+    <StackTraceSupport>false</StackTraceSupport>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <!-- Профили PGO (mibc) роняют кодогенератор LLVM в 10.0.0-rc.1 (NRE в getPgoInstrumentationResults). -->
+    <IlcPgoOptimize>false</IlcPgoOptimize>
+    <!-- MemoryPack.Core несёт пути с отражением (для типов без генератора): сводные IL2104/IL3053 о них. Моды пишут
+         только типы [MemoryPackable], им отражение не нужно. -->
+    <NoWarn>$(NoWarn);IL2104;IL3053</NoWarn>
+  </PropertyGroup>
+</Project>

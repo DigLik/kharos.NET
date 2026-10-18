@@ -2,12 +2,25 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!--
+      Без теневого стека CET: ловушки Wasmtime на Windows (unreachable, выход за память) возвращают управление в обход
+      обычной раскрутки, и процесс с /CETCOMPAT (apphost .NET 9+) падает с 0xC0000409. Нужно всем, кто хостит моды.
+    -->
+    <CetCompat>false</CetCompat>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Kharos.Plugins\Kharos.Plugins.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Mod.Sdk\Kharos.Mod.Sdk.csproj" />
+    <PackageReference Include="MemoryPack" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Код мода hello, который не зависит от SDK: ходовая (сверка с wasm) и payload приказа. -->
+    <Compile Include="..\..\mods\hello\Hello.Host\Wheels.cs" Link="Hello\Wheels.cs" />
+    <Compile Include="..\..\mods\hello\Hello.Host\Orders.cs" Link="Hello\Orders.cs" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

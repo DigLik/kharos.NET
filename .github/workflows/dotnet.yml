@@ -27,6 +27,15 @@ jobs:
         with:
           global-json-file: dotnet/global.json
       - run: dotnet build Kharos.slnx -c Release
+      # Моды в wasm (NativeAOT-LLVM, docs/dotnet.md Р5): WASI SDK и компилятор есть под linux-x64, linux-arm64 и win-x64;
+      # собираем на Linux x64 — тесты с host.wasm там идут по-настоящему, на прочих ОС пропускаются.
+      - uses: actions/cache@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          path: dotnet/.cache/wasi-sdk
+          key: wasi-sdk-29-${{ runner.os }}-${{ runner.arch }}
+      - run: pwsh tools/build-mods.ps1
+        if: matrix.os == 'ubuntu-latest'
       - run: dotnet test Kharos.slnx -c Release --no-build
       # Песочница модов на этой ОС: Wasmtime, пул, сторож эпох, белый список импортов.
       - run: dotnet run --project tools/Kharos.Plugins.Bench -c Release --no-build -- --security

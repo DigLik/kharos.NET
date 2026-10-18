@@ -3,3 +3,9 @@ obj/
 *.user
 .vs/
 TestResults/
+# WASI SDK и прочие скачанные инструменты сборки модов (tools/wasi-sdk.ps1).
+.cache/
+
+# Собранные моды (tools/build-mods.ps1).
+mods/*/host.wasm
+mods/*/client.wasm

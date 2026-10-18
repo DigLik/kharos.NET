@@ -1,0 +1,83 @@
+<Project>
+  <!-- Сборка мода: экспорты ABI, псевдоним класса мода, wasm через NativeAOT-LLVM (см. Kharos.Mod.props). -->
+  <PropertyGroup>
+    <KharosModOutput Condition="'$(KharosModOutput)' == '' and $(MSBuildProjectName.EndsWith('.Client'))">client.wasm</KharosModOutput>
+    <KharosModOutput Condition="'$(KharosModOutput)' == ''">host.wasm</KharosModOutput>
+    <!-- Папка мода: проект лежит в ней (mods/hello/Hello.Host → mods/hello). -->
+    <KharosModDir Condition="'$(KharosModDir)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..'))\</KharosModDir>
+    <KharosModEntryFile>$(IntermediateOutputPath)KharosModEntry.g.cs</KharosModEntryFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(KharosModSdkDir)Kharos.Mod.Sdk.csproj" />
+    <PackageReference Include="MemoryPack" />
+    <Compile Include="$(KharosModSdkDir)build\ModExports.cs" Link="Generated\ModExports.cs" Visible="false" />
+  </ItemGroup>
+
+  <!-- Псевдоним KharosModEntry — класс мода из KharosModClass: на него ссылаются экспорты. -->
+  <Target Name="KharosModEntry" BeforeTargets="CoreCompile">
+    <Error Condition="'$(KharosModClass)' == ''" Text="Мод: задай KharosModClass — полное имя класса, наследника Kharos.Mod.Sdk.Mod." />
+    <WriteLinesToFile File="$(KharosModEntryFile)" Overwrite="true" WriteOnlyWhenDifferent="true"
+                      Lines="// &lt;auto-generated/&gt;;global using KharosModEntry = global::$(KharosModClass)%3B" />
+    <ItemGroup>
+      <Compile Include="$(KharosModEntryFile)" />
+      <FileWrites Include="$(KharosModEntryFile)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- ===== Только сборка в wasm ===== -->
+  <PropertyGroup Condition="'$(KharosWasm)' == 'true'">
+    <KharosWasiSdkVersion>29</KharosWasiSdkVersion>
+    <_KharosWasiArch Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">arm64</_KharosWasiArch>
+    <_KharosWasiArch Condition="'$(_KharosWasiArch)' == ''">x86_64</_KharosWasiArch>
+    <_KharosWasiOs Condition="$([MSBuild]::IsOSPlatform('Windows'))">windows</_KharosWasiOs>
+    <_KharosWasiOs Condition="$([MSBuild]::IsOSPlatform('OSX'))">macos</_KharosWasiOs>
+    <_KharosWasiOs Condition="'$(_KharosWasiOs)' == ''">linux</_KharosWasiOs>
+    <!-- WASI SDK: из переменной WASI_SDK_PATH, иначе — из кэша tools/wasi-sdk.ps1. -->
+    <WASI_SDK_PATH Condition="'$(WASI_SDK_PATH)' == ''">$(KharosDotnetDir).cache\wasi-sdk\wasi-sdk-$(KharosWasiSdkVersion).0-$(_KharosWasiArch)-$(_KharosWasiOs)</WASI_SDK_PATH>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(KharosWasm)' == 'true'">
+    <PackageReference Include="Microsoft.DotNet.ILCompiler.LLVM" />
+    <PackageReference Include="runtime.$(NETCoreSdkPortableRuntimeIdentifier).Microsoft.DotNet.ILCompiler.LLVM" />
+    <!-- Импорты хоста: модуль wasm "kh" (Kharos.Mod.Sdk.Host, [WasmImportLinkage]). -->
+    <DirectPInvoke Include="kh" />
+  </ItemGroup>
+
+  <Target Name="KharosCheckWasiSdk" BeforeTargets="Build;Publish" Condition="'$(KharosWasm)' == 'true'">
+    <Error Condition="!Exists('$(WASI_SDK_PATH)/VERSION')"
+           Text="WASI SDK не найден в $(WASI_SDK_PATH): запусти tools/wasi-sdk.ps1 (или .sh) либо задай WASI_SDK_PATH." />
+  </Target>
+
+  <!--
+    SDK .NET не знает NativeAOT для wasi-wasm (NETSDK1203) и тянул бы пакеты NativeAOT для неё. На время разбора
+    ссылок на платформу PublishAot выключается: компилятор и библиотеки приносят пакеты LLVM.
+  -->
+  <Target Name="_KharosAotOff" BeforeTargets="ProcessFrameworkReferences" Condition="'$(KharosWasm)' == 'true'">
+    <PropertyGroup>
+      <PublishAot>false</PublishAot>
+    </PropertyGroup>
+  </Target>
+  <Target Name="_KharosAotOn" AfterTargets="ProcessFrameworkReferences" Condition="'$(KharosWasm)' == 'true'">
+    <PropertyGroup>
+      <PublishAot>true</PublishAot>
+    </PropertyGroup>
+  </Target>
+
+  <!--
+    wasip1 вместо wasip2: 13 простых импортов wasi_snapshot_preview1 вместо 32 импортов wasi:*@0.2.0 с каноническим ABI
+    компонентов (списки через cabi_realloc). Хост их всё равно заглушает. Пакет ставит wasip2 без условия, поэтому —
+    в цели, перед компиляцией.
+  -->
+  <Target Name="_KharosWasip1" BeforeTargets="PrepareForPublish" Condition="'$(KharosWasm)' == 'true'">
+    <PropertyGroup>
+      <IlcLlvmTarget>wasm32-unknown-wasip1</IlcLlvmTarget>
+    </PropertyGroup>
+  </Target>
+
+  <!-- Готовый модуль — рядом с mod.json. -->
+  <Target Name="KharosCopyModWasm" AfterTargets="Publish" Condition="'$(KharosWasm)' == 'true'">
+    <Copy SourceFiles="$(PublishDir)$(TargetName).wasm" DestinationFiles="$(KharosModDir)$(KharosModOutput)" />
+    <Message Importance="high" Text="$(MSBuildProjectName) → $(KharosModDir)$(KharosModOutput)" />
+  </Target>
+</Project>

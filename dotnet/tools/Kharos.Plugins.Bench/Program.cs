@@ -2,6 +2,7 @@ using System.Text;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
+using Kharos.Plugins.Bench.Boundary;
 using Kharos.Plugins.Bench.Benchmarks;
 using Kharos.Plugins.Bench.Security;
 
@@ -33,6 +34,16 @@ public static class Program
         if (args.Contains("--security"))
         {
             SecurityAuditRunner.RunAll();
+            return;
+        }
+
+        if (args.Contains("--boundary"))
+        {
+            int[] sizes = [10_000, 100_000];
+            var at = Array.IndexOf(args, "--entities");
+            if (at >= 0 && at + 1 < args.Length)
+                sizes = [.. args[at + 1].Split(',').Select(int.Parse)];
+            BoundaryRunner.Run(sizes);
             return;
         }
 
@@ -100,6 +111,8 @@ public static class Program
         Console.WriteLine("    --ops <число>               Целевая частота вызовов в секунду (по умолчанию: 100000).");
         Console.WriteLine("    --duration <секунды>        Длительность теста в секундах (по умолчанию: 3).");
         Console.WriteLine("  --benchmark                   Запуск микро-бенчмарков BenchmarkDotNet.");
+        Console.WriteLine("  --boundary                    Замер границы wasm: ходовая мода hello (Release, нужен mods/hello/host.wasm).");
+        Console.WriteLine("    --entities <числа>          Сущностей через запятую (по умолчанию: 10000,100000).");
         Console.WriteLine("  --help, -h                    Отображение данной справки.");
     }
 }

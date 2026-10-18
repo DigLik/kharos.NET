@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Пробный мод: ходовая над столбцами, событие, приказ (docs/dotnet.md, Н2). host.wasm — tools/build-mods.ps1. -->
+  <PropertyGroup>
+    <KharosModClass>Hello.HelloMod</KharosModClass>
+  </PropertyGroup>
+</Project>

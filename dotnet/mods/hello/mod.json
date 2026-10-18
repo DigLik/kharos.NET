@@ -1,0 +1,11 @@
+{
+  "id": "hello",
+  "title": "Hello",
+  "version": "0.1.0",
+  "abi": 1,
+  "requires": [],
+  "host": "host.wasm",
+  "components": {
+    "Drive": { "speed": 0, "turn": 0, "tx": 0, "ty": 0 }
+  }
+}

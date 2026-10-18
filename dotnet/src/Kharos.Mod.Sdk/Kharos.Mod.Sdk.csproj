@@ -1,7 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Набор мододела: API хоста и клиента, экспорты ABI (docs/dotnet.md, §4.2). Собирается в wasm вместе с модом. -->
+  <!--
+    Набор мододела: API хоста, экспорты ABI (build/ModExports.cs), сборка мода в wasm (build/Kharos.Mod.props/.targets).
+    net10.0, а не net11.0: компилятор NativeAOT-LLVM (Microsoft.DotNet.ILCompiler.LLVM 10.0.0-rc.1) несёт библиотеки
+    .NET 10 — моды и всё, что в них входит, собираются под них.
+  -->
   <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsAotCompatible>true</IsAotCompatible>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Документация открытого API — по существу, не на каждый член. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="build/**" />
+    <None Include="build/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MemoryPack" />
+  </ItemGroup>
 </Project>
