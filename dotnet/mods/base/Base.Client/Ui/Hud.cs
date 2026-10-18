@@ -1,4 +1,3 @@
-using System.Text;
 using Base.Shared.Orders;
 using Kharos.Mod.Sdk;
 using Kharos.Mod.Sdk.Client;
@@ -31,8 +30,8 @@ internal sealed class Hud(BaseState state)
 
     private static readonly Color Own = Color.Hex(0x5aa9ff), Foe = Color.Hex(0xff6b5a), Neutral = Color.Hex(0xc8c8c8);
 
-    /// <summary>Ячейка сетки команд.</summary>
-    private sealed record Slot(string Label, int Picture, double? Cost, bool Short, string? About, Kind Unit, Action Run);
+    /// <summary>Ячейка сетки команд: заказ юнита (Unit — его вид, Cost — цена) или приказ зданию и MCV; Cancel — правый щелчок.</summary>
+    private sealed record Slot(string Label, int Picture, double? Cost, bool Short, string? About, Kind? Unit, Action Run, Action? Cancel = null);
 
     private BaseState S => state;
 
@@ -53,9 +52,6 @@ internal sealed class Hud(BaseState state)
             {
                 Coin(ui);
                 ui.Text(Lua.ToString(Math.Floor(S.Credits(c))), new TextStyle { Font = FontName.Title, Color = Gold, Shadow = Ink, Lift = 2 });
-                var income = S.Data.Income;
-                if (income > 0)
-                    ui.Text("+" + Lua.ToString(income) + "/с", new TextStyle { Color = Good });
             });
             ui.Tip("credits", "Кредиты");
             ui.Space(0, 0, 1);
@@ -71,24 +67,46 @@ internal sealed class Hud(BaseState state)
 
     // ------------------------------------------------------------------ сетка команд
 
-    /// <summary>Ячейки сетки команд для выбранного: у своего завода — заказ юнитов.</summary>
+    /// <summary>
+    /// Ячейки сетки команд для выбранного: у своего производящего здания — заказ юнитов (правый щелчок — отмена
+    /// последнего), у MCV — развернуть, у готового главного здания — свернуть. Годится ли заказ (требования, тема, лимит),
+    /// знает хост: отказ приходит сигналом refused.
+    /// </summary>
     private List<Slot> Slots(ClientContext c, uint[] selection)
     {
         var list = new List<Slot>();
         if (selection.Length != 1 || !c.Has(selection[0], S.P.Producer) || !c.Mine(selection[0]))
             return list;
-        var building = selection[0];
+        var entity = selection[0];
+        if (c.Has(entity, S.P.Unit))
+        {
+            // MCV — свёрнутая база: пока едет или разворачивается, можно отменить.
+            if (c.Has(entity, S.P.Converting) || c.Has(entity, S.P.Deploys))
+                list.Add(new Slot("Отмена", -1, null, false, "Отменить разворот: MCV останется машиной", null,
+                    () => c.Send(CancelDeployOrder.Name, MemoryPackSerializer.Serialize(new CancelDeployOrder { Unit = entity }))));
+            else
+                list.Add(new Slot("Развернуть", c.ProtoId("buildings/" + Command), null, false, "Развернуть базу на месте: MCV становится главным зданием", null,
+                    () => c.Send(DeployOrder.Name, MemoryPackSerializer.Serialize(new DeployOrder { Unit = entity }))));
+            return list;
+        }
         var money = S.Credits(c);
-        foreach (var name in S.KindOf(c, building)?.Strings("produces") ?? [])
+        foreach (var name in S.KindOf(c, entity)?.Strings("produces") ?? [])
         {
             if (S.Data.Find("units/" + name) is not { } unit)
                 continue;
             var cost = unit.TryNumber("cost", out var price) ? price : (double?)null;
             list.Add(new Slot(unit.Text("title") ?? name, S.UnitProto(c, name), cost, cost is { } p && money < p, unit.Text("about"), unit,
-                () => c.Send("produce", MemoryPackSerializer.Serialize(new ProduceOrder { Producer = building, Unit = name }))));
+                () => c.Send(ProduceOrder.Name, MemoryPackSerializer.Serialize(new ProduceOrder { Producer = entity, Unit = name })),
+                () => c.Send(CancelProductionOrder.Name, MemoryPackSerializer.Serialize(new CancelProductionOrder { Producer = entity }))));
         }
+        if (S.KindOf(c, entity)?.Name == Command && !c.Has(entity, S.P.Converting))
+            list.Add(new Slot("Свернуть", c.ProtoId("units/mcv"), null, false, "Свернуть базу обратно в MCV", null,
+                () => c.Send(PackOrder.Name, MemoryPackSerializer.Serialize(new PackOrder { Building = entity }))));
         return list;
     }
+
+    /// <summary>Главное здание: в него разворачивается MCV.</summary>
+    private const string Command = "command";
 
     /// <summary>Карточка ячейки (slotCard в bar.ts): название с клавишей, пояснение, параметры юнита, цена.</summary>
     private static void Card(Ui ui, Slot slot, string hotkey)
@@ -103,7 +121,7 @@ internal sealed class Hud(BaseState state)
             });
             if (slot.About is { } about)
                 ui.Text(about, new TextStyle { Color = Dim, Wrap = width });
-            foreach (var row in Stats.Unit(slot.Unit))
+            foreach (var row in slot.Unit is null ? [] : Stats.Unit(slot.Unit))
                 ui.Box(new Style { Direction = Direction.Row, Gap = 10 }, () =>
                 {
                     ui.Box(new Style { Width = 90 }, () => ui.Text(row.Label, new TextStyle { Color = Dim }));
@@ -168,7 +186,9 @@ internal sealed class Hud(BaseState state)
                             ? new Anchor(Right: float.IsNaN(pointer) ? 8 : MathF.Max(8, c.ScreenWidth - pointer - 40), Bottom: c.ScreenHeight - rect.Y + 12)
                             : null;
                         ui.Tip(id, () => Card(ui, slot, hotkey), anchor);
-                        if (click is not null || (c.Input.Hits.Contains(KeyNames[i]) && !c.Input.Ctrl && !c.Input.Keys.Contains("ctrl")))
+                        if (click is { Button: 2 })
+                            slot.Cancel?.Invoke();
+                        else if (click is not null || (c.Input.Hits.Contains(KeyNames[i]) && !c.Input.Ctrl && !c.Input.Keys.Contains("ctrl")))
                             slot.Run();
                     }
                 });
@@ -176,10 +196,6 @@ internal sealed class Hud(BaseState state)
     }
 
     // ------------------------------------------------------------------ сведения о выбранном
-
-    /// <summary>Очередь заказов здания (Producer.queue — байты): имена видов построчно, UTF-8.</summary>
-    private static List<string> ReadQueue(byte[] bytes) =>
-        bytes.Length == 0 ? [] : [.. Encoding.UTF8.GetString(bytes).Split('\n', StringSplitOptions.RemoveEmptyEntries)];
 
     private void Info(ClientContext c, uint[] selection, float width, float height)
     {
@@ -243,14 +259,19 @@ internal sealed class Hud(BaseState state)
                     ui.Text(title, new TextStyle { Font = FontName.Title, Color = Bright, Shadow = Ink, Lift = 2, Ellipsis = true }));
                 // Параметры юнита — строкой, целиком — в подсказке.
                 var unitKind = !many && c.Has(first, S.P.Unit) ? kind : null;
-                ui.Tip("info:title", many ? title : unitKind is not null ? Stats.Text(unitKind) : "");
+                // Обзор — свой у каждого юнита (Sight.radius): хост считает его по классу и оружию.
+                double? seen = c.Get(first, S.P.Sight) is { } sight && sight.Number(S.P.Sight["radius"]) > 0 ? sight.Number(S.P.Sight["radius"]) : null;
+                ui.Tip("info:title", many ? title : unitKind is not null ? Stats.Text(unitKind, seen) : "");
                 if (unitKind is not null)
                 {
-                    ui.Box(new Style { Id = "info:stats", Width = text }, () => ui.Text(Stats.Line(unitKind), new TextStyle { Color = Dim, Ellipsis = true }));
-                    ui.Tip("info:stats", Stats.Text(unitKind));
+                    ui.Box(new Style { Id = "info:stats", Width = text }, () => ui.Text(Stats.Line(unitKind, seen), new TextStyle { Color = Dim, Ellipsis = true }));
+                    ui.Tip("info:stats", Stats.Text(unitKind, seen));
                 }
-                if (!many && c.Get(first, S.P.Producer) is { } producer)
-                    ProducerInfo(c, producer, text);
+                if (!many && c.Get(first, S.P.Converting) is { } converting && converting.Number(S.P.Converting["total"]) > 0)
+                    Bar(ui, 1 - converting.Number(S.P.Converting["left"]) / converting.Number(S.P.Converting["total"]),
+                        c.Has(first, S.P.Unit) ? "Разворачивается" : "Сворачивается", text);
+                if (!many && c.Mine(first) && c.Get(first, S.P.Producer) is { } producer)
+                    ProducerInfo(c, first, producer, text);
             });
         });
     }
@@ -262,29 +283,34 @@ internal sealed class Hud(BaseState state)
             ui.Image(proto, size, size);
     }
 
-    /// <summary>Что делает здание: полоса готовности, очередь, подсказка про точку сбора.</summary>
-    private void ProducerInfo(ClientContext c, ComponentValues producer, float text)
+    /// <summary>
+    /// Что делает производитель: полоса готовности первого заказа (Producer.current — вид юнита или −1; progress — в
+    /// тиках), очередь (Producer.queue — виды юнитов, первый строится), у здания — подсказка про точку сбора. Щелчок по
+    /// значку очереди снимает последний заказ.
+    /// </summary>
+    private void ProducerInfo(ClientContext c, uint entity, ComponentValues producer, float text)
     {
         var ui = c.Ui;
-        var current = (uint)producer.Number(S.P.Producer["unit"]);
-        if (current != 0)
+        var queue = BaseState.Queue(producer, S.P.Producer);
+        if ((int)producer.Number(S.P.Producer["current"]) is var current and >= 0 && queue.Count > 0)
         {
-            var name = Tools.Text(current);
-            var unit = S.Data.Find("units/" + name);
-            Bar(ui, producer.Number(S.P.Producer["progress"]) / (unit is not null && unit.TryNumber("time", out var time) ? time : 1), unit?.Text("title") ?? name, text);
-            var queued = new List<string> { name };
-            queued.AddRange(ReadQueue(producer.Bytes(S.P.Producer["queue"])));
+            var unit = S.KindOf(c, current);
+            Bar(ui, producer.Number(S.P.Producer["progress"]) / S.BuildTicks(c, unit), unit?.Text("title") ?? unit?.Name ?? "?", text);
             ui.Box(new Style { Direction = Direction.Row, Gap = 4 }, () =>
             {
-                for (var i = 0; i < queued.Count; i++)
+                for (var i = 0; i < queue.Count; i++)
                 {
-                    var proto = S.UnitProto(c, queued[i]);
-                    ui.Box(new Style { Id = "queue:" + (i + 1), Width = 32, Height = 32, Skin = Skin.Well, Padding = 4 }, () => Picture(ui, proto, Queued));
+                    var proto = queue[i];
+                    var id = "queue:" + (i + 1);
+                    ui.Box(new Style { Id = id, Width = 32, Height = 32, Skin = Skin.Well, Padding = 4 }, () => Picture(ui, proto, Queued));
+                    if (ui.Clicked(id) is not null)
+                        c.Send(CancelProductionOrder.Name, MemoryPackSerializer.Serialize(new CancelProductionOrder { Producer = entity }));
                 }
             });
         }
-        ui.Text(producer.Flag(S.P.Producer["rally"]) ? "Готовые едут к флажку; правый щелчок по карте — перенести" : "Правый щелчок по карте — точка сбора готовых",
-            new TextStyle { Color = Soft, Wrap = text });
+        if (c.Has(entity, S.P.Building))
+            ui.Text(producer.Flag(S.P.Producer["rally"]) ? "Готовые едут к флажку; правый щелчок по карте — перенести" : "Правый щелчок по карте — точка сбора готовых",
+                new TextStyle { Color = Soft, Wrap = text });
     }
 
     /// <summary>Ничего не выбрано: подсказка по управлению.</summary>
@@ -316,17 +342,11 @@ internal sealed class Hud(BaseState state)
             ui.Box(new Style { Direction = Direction.Stack, Width = inner, Height = inner, Background = Color.Hex(0x05090f) }, () =>
             {
                 ui.Minimap(inner, inner);
-                // Разведанные месторождения — цветом своего ресурса.
-                var deposits = c.Each(S.P.Deposit, S.P.Position);
-                var spots = new (double X, double Y, double Angle)[deposits.Length];
-                c.Poses(deposits, spots);
-                for (var i = 0; i < deposits.Length; i++)
+                // Месторождения, что клиент знает (слой deposits), — цветом своего ресурса; середина — центр 2 × 2.
+                foreach (var spot in Deposits(c, size))
                 {
-                    var (px, py, _) = spots[i];
-                    if (S.KindOf(c, deposits[i]) is not { } kind || !kind.TryNumber("color", out var color) || !c.Explored(px, py))
-                        continue;
-                    var (x, y) = At(px, py);
-                    Dot(ui, Math.Floor(y - dot / 2), Math.Floor(x - dot / 2), dot, dot, Color.Hex((uint)color));
+                    var (x, y) = At(spot.X + 1, spot.Y + 1);
+                    Dot(ui, Math.Floor(y - dot / 2), Math.Floor(x - dot / 2), dot, dot, spot.Color);
                 }
                 var owned = c.Each(S.P.Owner, S.P.Position);
                 var owners = new double[owned.Length];
@@ -336,17 +356,18 @@ internal sealed class Hud(BaseState state)
                 for (var i = 0; i < owned.Length; i++)
                 {
                     var entity = owned[i];
-                    var building = c.Get(entity, S.P.Building);
+                    var footprint = c.Has(entity, S.P.Building) ? S.Size(c, entity) : null;
                     var (px, py, _) = places[i];
-                    if ((building is null && !c.Has(entity, S.P.Unit)) || !(c.Mine(entity) || c.Sees(px, py)))
+                    if ((footprint is null && !c.Has(entity, S.P.Unit)) || !(c.Mine(entity) || c.Sees(px, py)))
                         continue;
                     var color = owners[i] == c.Player ? Own : owners[i] == 0 ? Neutral : Foe;
-                    var (x, y) = At(px, py);
+                    // Место здания — левый верхний тайл, юнита — середина.
+                    var (x, y) = footprint is { } size2 ? At(px + size2.W / 2, py + size2.H / 2) : At(px, py);
                     double w = dot, h = dot;
-                    if (building is not null)
+                    if (footprint is { } area)
                     {
-                        w = Math.Max(dot, building.Number(S.P.Building["width"]) * scale);
-                        h = Math.Max(dot, building.Number(S.P.Building["height"]) * scale);
+                        w = Math.Max(dot, area.W * scale);
+                        h = Math.Max(dot, area.H * scale);
                     }
                     Dot(ui, Math.Floor(y - h / 2), Math.Floor(x - w / 2), w, h, color);
                 }
@@ -373,10 +394,38 @@ internal sealed class Hud(BaseState state)
             var u = Math.Clamp((input.X - rect.X - 4) / (rect.W - 8), 0, 1);
             var v = Math.Clamp((input.Y - rect.Y - 4) / (rect.H - 8), 0, 1);
             var (x, y) = TileAt(u, v);
-            var units = Shared.Selection(c).Where(entity => c.Has(entity, S.P.Drive)).ToArray();
+            var units = Shared.Selection(c).Where(entity => c.Has(entity, S.P.Mover) && c.Mine(entity)).ToArray();
             if (units.Length > 0)
-                c.Send("move", MemoryPackSerializer.Serialize(new MoveOrder { Units = units, X = (int)Math.Floor(x), Y = (int)Math.Floor(y) }));
+                c.Send(MoveOrder.Name, MemoryPackSerializer.Serialize(new MoveOrder { Units = units, X = (int)Math.Floor(x), Y = (int)Math.Floor(y), Queue = input.Shift }));
         }
+    }
+
+    /// <summary>Известное месторождение для мини-карты: левый верхний тайл и цвет ресурса.</summary>
+    private readonly record struct Spot(double X, double Y, Color Color);
+
+    private readonly List<Spot> _spots = [];
+    private double _spotsAt = double.NegativeInfinity;
+
+    /// <summary>
+    /// Месторождения, что клиент знает (предметы слоя deposits; под туманом — только разведанные), раз в секунду:
+    /// слой не меняется чаще, а кадр не должен ходить за ним каждый раз. Цвет — look.color записи вида.
+    /// </summary>
+    private List<Spot> Deposits(ClientContext c, double size)
+    {
+        if (S.P.Deposits is not { } layer || c.Time - _spotsAt < 1)
+            return _spots;
+        _spotsAt = c.Time;
+        _spots.Clear();
+        var kindField = Math.Max(0, layer.Fields.ToList().IndexOf("kind"));
+        foreach (var item in Tools.Items(layer, 0, 0, 0, size * 1.5))
+        {
+            var kind = (int)item.Fields[kindField];
+            if ((uint)kind >= (uint)DepositArt.Types.Length)
+                continue;
+            var color = S.Data.Find("deposits/" + DepositArt.Types[kind])?.Number("color", 0xc8c8c8) ?? 0xc8c8c8;
+            _spots.Add(new Spot(item.X, item.Y, Color.Hex((uint)color)));
+        }
+        return _spots;
     }
 
     /// <summary>Точка или рамка мини-карты: прямоугольник w × h, левый верхний угол сдвинут на (left, top) от края.</summary>

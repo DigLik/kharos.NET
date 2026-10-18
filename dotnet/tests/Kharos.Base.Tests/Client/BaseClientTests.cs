@@ -1,63 +1,85 @@
 using System.Globalization;
+using Base.Shared.Orders;
 using Kharos.Client.Game;
 using Kharos.Client.Ui;
 using Kharos.Gpu;
+using MemoryPack;
 using RenderFrame = Kharos.Gpu.Frame;
 
 namespace Kharos.Base.Tests;
 
 /// <summary>
-/// Подача base от начала до конца: хост (host.wasm) и клиент (client.wasm) через LocalGame, ввод — как от мыши. Без окна и
-/// звука; картинки кадров — в dotnet/.cache/base, если есть адаптер WebGPU. Хост тикает в десять раз быстрее часов, поэтому
-/// доход идёт заметно: кредиты сверяются диапазонами.
+/// Подача base от начала до конца на модели TS: хост (host.wasm) и клиент (client.wasm) через LocalGame, ввод — как от
+/// мыши. Партия — skirmish как в TS: MCV, две багги и три пехотинца, 1500 кредитов. Производство начинается с
+/// разворота MCV в главное здание. Без окна и звука; картинки кадров — в dotnet/.cache/base (k-*.png), если есть адаптер
+/// WebGPU. Хост тикает в десять раз быстрее часов.
 /// </summary>
 public sealed class BaseClientTests
 {
+    /// <summary>Стартовый отряд на экране: MCV, багги и пехота (наземные), их турели — слоем выше.</summary>
     private static RenderFrame OnScreen(BaseSession session) =>
-        session.Until(f => BaseSession.Layers(f)[1] >= 3 && BaseSession.Layers(f)[3] >= 1, "три багги и завод на экране");
-
-    /// <summary>Выбрать завод щелчком.</summary>
-    private static uint SelectFactory(BaseSession session, RenderFrame frame)
-    {
-        var factory = session.Mine("Producer").Single();
-        var (x, y) = session.At(factory);
-        session.Click(PointerButtons.Left, frame.View.ToScreen((float)x, (float)y));
-        return factory;
-    }
+        session.Until(f => BaseSession.Layers(f)[1] >= 6 && BaseSession.Layers(f)[2] >= 3, "отряд MCV на экране");
 
     private static double Dist((double X, double Y) a, (double X, double Y) b) => Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
+
+    /// <summary>Щелчок по юниту: он под курсором в центре.</summary>
+    private static void SelectUnit(BaseSession session, uint entity, bool shift = false)
+    {
+        var (x, y) = session.At(entity);
+        session.Click(PointerButtons.Left, session.Game.Frame.View.ToScreen((float)x, (float)y), shift);
+    }
+
+    /// <summary>Выбрать MCV и развернуть его кнопкой сетки; вернуть главное здание, выбранное щелчком.</summary>
+    private static uint DeployBase(BaseSession session)
+    {
+        var mcv = session.Mine("Producer").Single();
+        SelectUnit(session, mcv);
+        Assert.Equal("MCV", session.InfoTitle());
+        Assert.Contains("Развернуть", session.Texts());
+        session.Click(PointerButtons.Left, session.CenterOf("cell:1"));
+        session.Until(_ => session.Mine("Building").Count == 1, "главное здание на месте MCV");
+        var building = session.Mine("Building").Single();
+        // Здание стоит по левому верхнему тайлу: щелчок — в середину основания.
+        var (x, y) = session.At(building);
+        session.Click(PointerButtons.Left, session.Game.Frame.View.ToScreen((float)x + 1.5f, (float)y + 1.5f));
+        Assert.Equal("Главное здание", session.InfoTitle());
+        return building;
+    }
 
     /// <summary>Кредиты, как их показывает панель (число в верхней полосе).</summary>
     private static int ShownCredits(BaseSession session) =>
         session.Texts().Where(text => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out _)).Select(int.Parse).FirstOrDefault();
 
-    [Fact(Skip = "ждёт К")]
+    [Fact]
     public void SkirmishStartsAndRenders()
     {
         using var session = new BaseSession();
         var game = session.Game;
         Assert.Equal("base", Assert.Single(game.Mods).Name);
-        // Облики: багги, стрелок, завод и шесть месторождений.
-        Assert.Equal(9, game.Looks.Count);
+        // Облики: 18 юнитов, 8 турелей, 48 зданий (завод с чертежом, остальные заглушками) и 6 месторождений.
+        Assert.Equal(18 + 8 + 48 + 6, game.Looks.Count);
 
         var frame = OnScreen(session);
         var layers = BaseSession.Layers(frame);
-        // Наземные: три багги; их турели — слоем выше; здание: завод.
-        Assert.Equal((3, 3, 1), (layers[1], layers[2], layers[3]));
-        Assert.Equal(3, session.Mine("Drive").Count);
-        Assert.Single(session.Mine("Producer"));
+        // Наземные: MCV, две багги, три пехотинца; турели — слоем выше (MCV несёт пушку, багги — стрелков); зданий нет.
+        Assert.Equal((6, 3, 0), (layers[1], layers[2], layers[3]));
+        Assert.Equal(6, session.Mine("Mover").Count);
+        Assert.Single(session.Of("units/mcv"));
+        Assert.Equal(2, session.Of("units/buggy").Count);
+        Assert.Equal(3, session.Of("units/infantry").Count);
+        Assert.Empty(session.Mine("Building"));
+        // MCV — свёрнутая база: Producer у него есть, а заказов ещё нет.
+        Assert.Equal(session.Of("units/mcv").Single(), session.Mine("Producer").Single());
 
-        // Камера: масштаб 32, центр у базы (завод в нуле, камера на три тайла южнее).
+        // Камера: масштаб 32, центр у отряда (камера на три тайла южнее).
+        var units = session.Mine("Mover");
+        var centre = (X: units.Average(e => session.At(e).X), Y: units.Average(e => session.At(e).Y));
         Assert.Equal(32f, frame.View.Zoom);
-        Assert.Equal((0f, 3f), (frame.View.X, frame.View.Y));
+        Assert.True(Dist(centre, (frame.View.X, frame.View.Y - 3)) < 1, $"камера ({frame.View.X}, {frame.View.Y}), отряд {centre}");
 
-        // HUD: кредиты, доход, часы (начало мира — 9 утра), меню, подсказка по управлению.
-        // Хост тикает вдесятеро быстрее, а холодный старт клиента (компиляция wasm и шейдеров) бывает долгим — доход
-        // успевает набежать; верхней границы нет, HUD сверяется с хостом.
-        var credits = session.Credits();
-        Assert.True(credits >= 1000, $"кредитов {credits}");
-        Assert.InRange(ShownCredits(session), 1000, session.Credits());
-        Assert.Contains("+5/с", session.Texts());
+        // HUD: кредиты со своего счёта, часы (начало мира — 9 утра), меню, подсказка по управлению.
+        Assert.Equal(1500, session.Credits());
+        Assert.Equal(1500, ShownCredits(session));
         Assert.Contains(session.Texts(), text => System.Text.RegularExpressions.Regex.IsMatch(text, @"^\d\d:\d\d$"));
         Assert.Contains("Меню", session.Texts());
         Assert.Contains("Ничего не выбрано.", session.Texts());
@@ -73,92 +95,140 @@ public sealed class BaseClientTests
         Assert.Empty(session.Log);
     }
 
-    [Fact(Skip = "ждёт К")]
+    [Fact]
     public void SelectionByClickAndBoxAndMoveOrder()
     {
         using var session = new BaseSession();
         var frame = OnScreen(session);
-        var buggies = session.Mine("Drive");
-        var start = buggies.Select(session.At).ToList();
+        var buggies = session.Of("units/buggy");
+        var squad = session.Mine("Mover");
+        var start = squad.ToDictionary(e => e, session.At);
 
         // Щелчок по багги выделяет её; панель показывает название и параметры.
-        session.Click(PointerButtons.Left, frame.View.ToScreen((float)start[0].X, (float)start[0].Y));
+        SelectUnit(session, buggies[0]);
         Assert.Equal("Багги", session.InfoTitle());
         Assert.Contains("Прочность 150 · Скорость 6 · Обзор 11", session.Texts());
 
-        // Правый щелчок: едет только выбранная, остальные стоят.
-        session.Click(PointerButtons.Right, frame.View.ToScreen(-5, 8));
-        session.Until(_ => Dist(session.At(buggies[0]), (-5, 8)) < 1, "выбранная багги доехала");
-        Assert.True(Dist(session.At(buggies[1]), start[1]) < 0.1);
-        Assert.True(Dist(session.At(buggies[2]), start[2]) < 0.1);
+        // Правый щелчок — приказ точкой: едет только выбранная, остальные стоят.
+        var target = (X: start[buggies[0]].X + 6, Y: start[buggies[0]].Y - 4);
+        session.Click(PointerButtons.Right, frame.View.ToScreen((float)target.X, (float)target.Y));
+        session.Until(_ => Dist(session.At(buggies[0]), target) < 2.5, "выбранная багги доехала");
+        foreach (var other in squad.Where(e => e != buggies[0]))
+            Assert.True(Dist(session.At(other), start[other]) < 0.5, $"сущность {other} сдвинулась");
+
+        // Shift: приказ встаёт в очередь, багги стоит (дождались, пока кончится путь: Path у едущего юнита есть).
+        session.Until(_ => !session.World.Has(buggies[0], session.World.Schema.Id("Path")), "багги встала");
+        var queued = session.At(buggies[0]);
+        session.Click(PointerButtons.Right, frame.View.ToScreen((float)queued.X - 3, (float)queued.Y + 2), shift: true);
+        session.Until(_ => session.Queue(buggies[0]) > 0, "приказ в очереди выделенной багги");
+        Assert.True(Dist(session.At(buggies[0]), queued) < 0.5);
 
         // Щелчок по пустой земле снимает выделение.
-        session.Click(PointerButtons.Left, frame.View.ToScreen(12, 6));
+        session.Click(PointerButtons.Left, frame.View.ToScreen(frame.View.X + 14, frame.View.Y - 7));
         Assert.Null(session.InfoTitle());
 
-        // Рамка вокруг трёх багги выделяет все три; Escape снимает.
-        var now = buggies.Select(session.At).ToList();
-        session.Drag(frame.View.ToScreen((float)now.Min(p => p.X) - 1, (float)now.Min(p => p.Y) - 1), frame.View.ToScreen((float)now.Max(p => p.X) + 1, (float)now.Max(p => p.Y) + 1));
-        Assert.Equal("Багги ×3", session.InfoTitle());
+        // Рамка вокруг отряда выделяет всех; Escape снимает.
+        void Box()
+        {
+            var now = squad.Select(session.At).ToList();
+            session.Drag(frame.View.ToScreen((float)now.Min(p => p.X) - 1, (float)now.Min(p => p.Y) - 1), frame.View.ToScreen((float)now.Max(p => p.X) + 1, (float)now.Max(p => p.Y) + 1));
+        }
+        Box();
+        Assert.Equal("MCV, Багги ×2, Пехотинец ×3", session.InfoTitle());
         session.Step(session.Input with { Hits = ["escape"] });
         session.Step();
         Assert.Null(session.InfoTitle());
-        session.Drag(frame.View.ToScreen((float)now.Min(p => p.X) - 1, (float)now.Min(p => p.Y) - 1), frame.View.ToScreen((float)now.Max(p => p.X) + 1, (float)now.Max(p => p.Y) + 1));
-        Assert.Equal("Багги ×3", session.InfoTitle());
+        Box();
+        Assert.Equal("MCV, Багги ×2, Пехотинец ×3", session.InfoTitle());
 
-        // Правый щелчок по земле: приказ ехать, группа встаёт вокруг точки.
-        var target = (X: 8.0, Y: 9.0);
-        session.Click(PointerButtons.Right, frame.View.ToScreen((float)target.X, (float)target.Y));
-        session.Until(_ => buggies.All(b => Dist(session.At(b), target) < 3.5), "багги доехали до точки приказа");
-        Assert.All(buggies, b => Assert.True(session.Number(b, "Drive", "moving") == 0 || Dist(session.At(b), target) < 3.5));
+        // Остановить: приказы и пути сняты.
+        session.Step(session.Input with { Hits = ["x"], Keys = ["x"] });
+        session.Step();
+        session.Until(_ => session.Queue(buggies[0]) == 0, "очередь багги снята");
 
-        // Shift добавляет к выделению: щелчок по заводу, пока выделены багги.
-        var (fx, fy) = session.At(session.Mine("Producer").Single());
-        session.Click(PointerButtons.Left, frame.View.ToScreen((float)fx, (float)fy), shift: true);
-        Assert.Equal("Багги ×3, Завод", session.InfoTitle());
+        // Shift добавляет к выделению: щелчок по багги, пока выделен только MCV.
+        session.Step(session.Input with { Hits = ["escape"] });
+        session.Step();
+        SelectUnit(session, session.Of("units/mcv").Single());
+        SelectUnit(session, buggies[1], shift: true);
+        Assert.Equal("MCV, Багги", session.InfoTitle());
         Assert.Empty(session.Game.Errors);
     }
 
-    [Fact(Skip = "ждёт К")]
-    public void ProduceButtonSpendsCreditsAndNewBuggyAppears()
+    [Fact]
+    public void DeployThenProduceButtonSpendsCreditsAndNewUnitAppears()
     {
         using var session = new BaseSession();
-        var frame = OnScreen(session);
-        var factory = SelectFactory(session, frame);
-        Assert.Equal("Завод", session.InfoTitle());
-        // Сетка 4 × 3: первая ячейка — багги за 250 с клавишей T, остальные пустые.
-        Assert.Contains("Багги", session.Texts());
-        Assert.Contains("250", session.Texts());
+        OnScreen(session);
+        var building = DeployBase(session);
+        // Сетка 4 × 3: строитель и грузовик (T, Y), свернуть; остальные ячейки пустые.
+        Assert.Contains("Строитель", session.Texts());
+        Assert.Contains("120", session.Texts());
+        Assert.Contains("Грузовик", session.Texts());
         Assert.Contains("T", session.Texts());
         Assert.Contains("Правый щелчок по карте — точка сбора готовых", session.Texts());
-        Assert.Equal(1, Enumerable.Range(1, 12).Count(i => session.Game.Gui.RectOf("cell:" + i) is not null));
+        Assert.Equal(3, Enumerable.Range(1, 12).Count(i => session.Game.Gui.RectOf("cell:" + i) is not null));
         var grid = session.Game.Gui.RectOf("commands")!.Value;
         Assert.Equal((4 * 132 + 3 * 4, 140), (grid.W, grid.H));
+        // Награда за разворот базы (rewards.json) уже на счёте: стартовых 1500 не меньше.
         var before = session.Credits();
+        Assert.True(before >= 1500, $"кредитов {before}");
+        Assert.Equal(before, ShownCredits(session));
 
-        // Щелчок по кнопке: 250 кредитов списано, заказ в производстве (полоса и очередь в панели).
+        // Щелчок по кнопке: 120 кредитов списаны, заказ в производстве (полоса и очередь в панели).
         session.Click(PointerButtons.Left, session.CenterOf("cell:1"));
-        session.Until(_ => session.Credits() < before - 200, "кредиты списаны за багги");
-        Assert.InRange(session.Credits(), before - 250, before - 150);
+        session.Until(_ => session.Credits() <= before - 120, "кредиты списаны за строителя");
         session.Step();
-        Assert.Contains(session.Texts(), text => text == "Завод");
+        Assert.Contains(session.Texts(), text => text == "Главное здание");
         Assert.NotNull(session.Game.Gui.RectOf("queue:1"));
-        Assert.Equal(factory, session.Mine("Producer").Single());
+        Assert.Equal(building, session.Mine("Producer").Single());
 
-        // Хост делает юнит за 7 секунд игры: он выходит у ворот и появляется в мире и на экране.
-        session.Until(_ => session.Mine("Drive").Count == 4, "четвёртая багги из завода");
-        session.Until(f => BaseSession.Layers(f)[1] == 4 && BaseSession.Layers(f)[2] == 4, "четыре багги с турелями на экране");
+        // Хост делает юнит за 5 секунд игры: он выходит у здания и появляется в мире и на экране.
+        session.Until(_ => session.Of("units/builder").Count == 1, "строитель из главного здания");
+        Assert.Null(session.Game.Gui.RectOf("queue:1"));
         Assert.Empty(session.Game.Errors);
         Assert.Null(session.Local.Failure);
 
-        // Горячая клавиша T заказывает ещё одну.
+        // Горячая клавиша T заказывает ещё одного, правый щелчок по кнопке отменяет последний заказ и возвращает кредиты.
         var now = session.Credits();
         session.Step(session.Input with { Hits = ["t"], Keys = ["t"] });
         session.Step();
-        session.Until(_ => session.Credits() < now - 150, "кредиты списаны горячей клавишей");
+        session.Until(_ => session.Credits() <= now - 120, "кредиты списаны горячей клавишей");
+        var spent = session.Credits();
+        session.Click(PointerButtons.Right, session.CenterOf("cell:1"));
+        session.Until(_ => session.Credits() >= spent + 120, "заказ отменён правым щелчком, кредиты вернулись");
+        Assert.Single(session.Of("units/builder"));
+
+        // Правый щелчок по земле — точка сбора здания.
+        var (x, y) = session.At(building);
+        session.Click(PointerButtons.Right, session.Game.Frame.View.ToScreen((float)x + 6.5f, (float)y - 5.5f));
+        session.Until(_ => session.Number(building, "Producer", "rally") == 1, "точка сбора поставлена");
+        Assert.Equal(((int)Math.Floor(x + 6.5), (int)Math.Floor(y - 5.5)), ((int)session.Number(building, "Producer", "rallyX"), (int)session.Number(building, "Producer", "rallyY")));
     }
 
-    [Fact(Skip = "ждёт К")]
+    [Fact]
+    public void DepositsFromLayerAreDrawn()
+    {
+        using var session = new BaseSession();
+        var frame = OnScreen(session);
+        var known = session.DepositCount();
+        // Редактор кладёт месторождения рядом с отрядом: слой deposits, предметы с видом и остатком.
+        session.OpenEditor();
+        var (x, y) = session.At(session.Mine("Mover")[0]);
+        var kinds = new[] { "metal", "silicon", "fuel", "kharite", "lithium", "uranium" };
+        for (var i = 0; i < kinds.Length; i++)
+            session.Game.Send(EditDepositOrder.Name, MemoryPackSerializer.Serialize(new EditDepositOrder { X = (int)x - 9 + i * 3, Y = (int)y + 4, Kind = kinds[i], Reserve = 1500 }));
+        // Хост принял сколько смог (место должно быть строимым): на экране рисуется каждое — слоем «на земле».
+        session.Until(_ => session.DepositCount() > known, "месторождения дошли до клиента");
+        session.Steps(10);
+        var placed = session.DepositCount() - known;
+        frame = session.Step();
+        Assert.True(BaseSession.Layers(frame)[0] >= placed, $"спрайтов на земле {BaseSession.Layers(frame)[0]}, новых месторождений {placed}");
+        Assert.Empty(session.Game.Errors);
+        Assert.Empty(session.Log);
+    }
+
+    [Fact]
     public void RendersDayAndNightFramesToPng()
     {
         var gpu = GpuContext.TryCreateHeadless(out var reason);
@@ -171,50 +241,55 @@ public sealed class BaseClientTests
         var game = session.Game;
         var frame = OnScreen(session);
 
-        // Выделен завод, в производстве багги; точка сбора правым щелчком — флажок и пунктир.
-        var factory = SelectFactory(session, frame);
+        // Стартовый экран: отряд, мини-карта, подсказка.
+        game.Upload(renderer);
+        renderer.Render(frame);
+        renderer.SavePng(BaseSession.Cache("k-start.png"));
+
+        // Развёрнутая база: выделена, в производстве строитель; точка сбора правым щелчком — флажок и пунктир.
+        var building = DeployBase(session);
         session.Click(PointerButtons.Left, session.CenterOf("cell:1"));
-        var (x, y) = session.At(factory);
-        session.Click(PointerButtons.Right, frame.View.ToScreen((float)x + 7, (float)y + 7));
+        var (x, y) = session.At(building);
+        session.Click(PointerButtons.Right, session.Game.Frame.View.ToScreen((float)x + 7, (float)y + 7));
         session.Steps(30);
         frame = session.Step(session.Input with { Pointer = (900, 300) });
 
         game.Upload(renderer);
         renderer.Render(frame);
         var day = renderer.ReadPixels();
-        renderer.SavePng(BaseSession.Cache("base-day.png"));
+        renderer.SavePng(BaseSession.Cache("k-day.png"));
 
         var light = frame.Light;
         frame.Light = 0.1f;
         frame.Precipitation = 0;
         renderer.Render(frame);
         var night = renderer.ReadPixels();
-        renderer.SavePng(BaseSession.Cache("base-night.png"));
+        renderer.SavePng(BaseSession.Cache("k-night.png"));
         frame.Light = light;
 
-        // Три багги выделены рамкой и едут — пунктир пути, кольца, колея.
-        var buggies = session.Mine("Drive");
-        var positions = buggies.Select(session.At).ToList();
-        session.Click(PointerButtons.Left, frame.View.ToScreen(14, 8));
+        // Отряд выделен рамкой и едет: пунктир пути, кольца, колея.
+        var squad = session.Mine("Mover");
+        var positions = squad.Select(session.At).ToList();
+        session.Click(PointerButtons.Left, frame.View.ToScreen(frame.View.X + 14, frame.View.Y - 7));
         session.Drag(frame.View.ToScreen((float)positions.Min(p => p.X) - 1, (float)positions.Min(p => p.Y) - 1), frame.View.ToScreen((float)positions.Max(p => p.X) + 1, (float)positions.Max(p => p.Y) + 1));
-        session.Click(PointerButtons.Right, frame.View.ToScreen(-7, 8));
+        session.Click(PointerButtons.Right, frame.View.ToScreen((float)positions.Average(p => p.X) - 7, (float)positions.Average(p => p.Y) - 4));
         session.Steps(6);
         frame = session.Step(session.Input with { Pointer = (700, 250) });
         game.Upload(renderer);
         renderer.Render(frame);
-        renderer.SavePng(BaseSession.Cache("base-orders.png"));
+        renderer.SavePng(BaseSession.Cache("k-orders.png"));
 
         Assert.True(Distinct(day) > 40, "дневной кадр однотонный");
         Assert.True(Luma(night) < Luma(day) * 0.7, "ночь не темнее дня");
         Assert.Empty(game.Errors);
     }
 
-    [Fact(Skip = "ждёт К")]
+    [Fact]
     public void FrameCostOfSkirmish()
     {
         using var session = new BaseSession();
-        var frame = OnScreen(session);
-        SelectFactory(session, frame);
+        OnScreen(session);
+        DeployBase(session);
         session.Click(PointerButtons.Left, session.CenterOf("cell:1"));
         const int warmup = 30, frames = 240;
         var total = new List<double>();
@@ -240,7 +315,7 @@ public sealed class BaseClientTests
         mods.Sort();
         build.Sort();
         var report = string.Create(CultureInfo.InvariantCulture,
-            $"Клиент base, схватка (3 багги с турелями, завод, месторождения; HUD, выделен завод, идёт производство), {sprites} спрайтов, кадр без видеокарты: " +
+            $"Клиент base, схватка (главное здание, отряд, HUD, выделено здание, идёт производство), {sprites} спрайтов, кадр без видеокарты: " +
             $"медиана {total[frames / 2]:F3} мс (моды {mods[frames / 2]:F3}, сборка кадра {build[frames / 2]:F3}), 95% {total[frames * 95 / 100]:F3} мс, макс. {total[^1]:F3} мс; " +
             $"выделено {allocated / frames / 1024.0:F1} КБ на кадр");
         File.WriteAllText(BaseSession.Cache("perf.txt"), report + Environment.NewLine);

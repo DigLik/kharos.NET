@@ -18,7 +18,7 @@ public sealed class ContentDeliveryTests
 
     [Theory]
     [InlineData("hello", 1024 * 1024)]
-    [InlineData("base", 0, Skip = "ждёт Б1: старт партии base на модели TS")]
+    [InlineData("base", 0)]
     public void EmptyCacheDownloadsModsAndGameRuns(string name, int sendRate)
     {
         var dir = ModDir(name);

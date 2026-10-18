@@ -6,8 +6,9 @@ using MemoryPack;
 namespace Base.Client;
 
 /// <summary>
-/// Приказы правой кнопкой — перенос controls/orders.luau: выделенные юниты едут в точку, выделенный завод ставит туда
-/// точку сбора. Касанием — долгое нажатие на земле. Куда едут — видно пунктиром пути у выделенных (SelectControl).
+/// Приказы правой кнопкой — перенос controls/orders.luau: выделенным юнитам — приказ точкой (order: что в точке, то и
+/// делать — идти, атаковать, копать…, решает хост; Shift — встать в очередь), выделенное производящее здание ставит
+/// туда точку сбора. Касанием — долгое нажатие на земле. Куда едут — видно пунктиром пути у выделенных (SelectControl).
 /// </summary>
 internal sealed class OrderControl(BaseState state)
 {
@@ -24,19 +25,21 @@ internal sealed class OrderControl(BaseState state)
         uint building = 0;
         foreach (var entity in Shared.Selection(c))
         {
-            if (c.Has(entity, P.Drive))
+            if (!c.Mine(entity))
+                continue;
+            if (c.Has(entity, P.Mover))
                 units.Add(entity);
-            else if (c.Has(entity, P.Producer))
+            else if (c.Has(entity, P.Producer) && c.Has(entity, P.Building))
                 building = entity;
         }
         if (units.Count > 0)
         {
-            c.Send("move", MemoryPackSerializer.Serialize(new MoveOrder { Units = [.. units], X = (int)Math.Floor(x), Y = (int)Math.Floor(y) }));
+            c.Send(PointOrder.Name, MemoryPackSerializer.Serialize(new PointOrder { Units = [.. units], X = x, Y = y, Queue = c.Input.Shift }));
             c.Sound("order", 0.35f);
         }
         else if (building != 0)
         {
-            c.Send("rally", MemoryPackSerializer.Serialize(new RallyOrder { Building = building, X = (int)Math.Floor(x), Y = (int)Math.Floor(y) }));
+            c.Send(RallyOrder.Name, MemoryPackSerializer.Serialize(new RallyOrder { Building = building, X = (int)Math.Floor(x), Y = (int)Math.Floor(y) }));
             c.Sound("place", 0.35f);
         }
     }
@@ -62,6 +65,6 @@ internal sealed class OrderControl(BaseState state)
             }
         }
         if (input.Hits.Contains("x"))
-            c.Send("stop", MemoryPackSerializer.Serialize(new StopOrder { Units = Shared.Selection(c) }));
+            c.Send(StopOrder.Name, MemoryPackSerializer.Serialize(new StopOrder { Units = [.. Shared.Selection(c).Where(c.Mine)] }));
     }
 }

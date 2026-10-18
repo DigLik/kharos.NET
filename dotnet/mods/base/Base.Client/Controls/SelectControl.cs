@@ -31,18 +31,21 @@ internal sealed class SelectControl(BaseState state)
 
     private Parts P => state.P;
 
-    /// <summary>Где сущность: середина и размер в тайлах; у юнита — описанный квадрат кольца.</summary>
+    /// <summary>
+    /// Где сущность: середина и размер в тайлах; у юнита — описанный квадрат кольца (радиус — Body.radius), у здания —
+    /// основание (Footprint от левого верхнего тайла, место здания — он).
+    /// </summary>
     private (double X, double Y, double W, double H, bool Round) Bounds(ClientContext c, uint entity)
     {
         var at = c.Get(entity, P.Position)!;
         double x = at.Number(P.Position["x"]), y = at.Number(P.Position["y"]);
-        if (c.Get(entity, P.Unit) is { } unit)
+        if (c.Has(entity, P.Unit))
         {
-            var size = (unit.Number(P.Unit["radius"]) + RingMargin) * 2;
+            var size = (state.Radius(c, entity) + RingMargin) * 2;
             return (x, y, size, size, true);
         }
-        if (c.Get(entity, P.Building) is { } building)
-            return (x, y, building.Number(P.Building["width"]), building.Number(P.Building["height"]), false);
+        if (state.Size(c, entity) is { } area)
+            return (x + area.W / 2, y + area.H / 2, area.W, area.H, false);
         return (x, y, 1, 1, true);
     }
 
@@ -76,42 +79,60 @@ internal sealed class SelectControl(BaseState state)
         }
     }
 
+    /// <summary>Точки пути юнита (Path.points — f64 x, y подряд, центры тайлов); пусто — пути нет или не посчитан.</summary>
+    private static List<(double X, double Y)> Waypoints(ComponentValues path, FieldRef field)
+    {
+        var bytes = path.Bytes(field);
+        var list = new List<(double, double)>(bytes.Length / 16);
+        for (var at = 0; at + 16 <= bytes.Length; at += 16)
+            list.Add((System.Buffers.Binary.BinaryPrimitives.ReadDoubleLittleEndian(bytes.AsSpan(at)), System.Buffers.Binary.BinaryPrimitives.ReadDoubleLittleEndian(bytes.AsSpan(at + 8))));
+        return list;
+    }
+
     /// <summary>Пути, флажки сбора и полоски выпуска у выбранного.</summary>
     private void Marks(ClientContext c, uint[] selection)
     {
         var pixel = 1 / c.Camera.Zoom;
         foreach (var entity in selection)
         {
-            var drive = c.Get(entity, P.Drive);
-            var at = c.Get(entity, P.Position);
-            if (drive is not null && drive.Flag(P.Drive["moving"]) && at is not null)
+            // Едет ли юнит — есть ли у него Path; путь приходит только хозяину.
+            var path = c.Get(entity, P.Path);
+            var pose = c.Pose(entity);
+            if (path is not null && pose is { } at)
             {
-                double x = at.Number(P.Position["x"]), y = at.Number(P.Position["y"]);
-                double tx = drive.Number(P.Drive["tx"]), ty = drive.Number(P.Drive["ty"]);
-                Dashes(c, x, y, tx, ty, PathAlpha);
+                var (px, py) = (at.X, at.Y);
+                var (tx, ty) = (path.Number(P.Path["goalX"]) + 0.5, path.Number(P.Path["goalY"]) + 0.5);
+                foreach (var (wx, wy) in Waypoints(path, P.Path["points"]))
+                {
+                    Dashes(c, px, py, wx, wy, PathAlpha);
+                    (px, py) = (wx, wy);
+                    (tx, ty) = (wx, wy);
+                }
+                Dashes(c, px, py, tx, ty, PathAlpha);
                 var half = PathGoal / 2;
                 c.Draw.Rect(tx - half, ty - half, tx + half, ty + half, Selected, 2);
             }
             var producer = c.Get(entity, P.Producer);
-            if (producer is not null && producer.Flag(P.Producer["rally"]) && at is not null)
+            if (producer is not null && producer.Flag(P.Producer["rally"]) && state.Center(c, entity) is { } center)
             {
-                double rx = producer.Number(P.Producer["rallyX"]), ry = producer.Number(P.Producer["rallyY"]);
-                Dashes(c, at.Number(P.Position["x"]), at.Number(P.Position["y"]), rx, ry, PathAlpha);
+                // Точка сбора — тайл: флажок на его середине.
+                double rx = producer.Number(P.Producer["rallyX"]) + 0.5, ry = producer.Number(P.Producer["rallyY"]) + 0.5;
+                Dashes(c, center.X, center.Y, rx, ry, PathAlpha);
                 c.Draw.Rect(rx - pixel, ry - 0.9, rx + pixel, ry, Selected);
                 c.Draw.Rect(rx + pixel, ry - 0.9, rx + pixel + 0.45, ry - 0.6, Selected);
             }
         }
-        // Полоски выпуска над своими заводами.
+        // Полоски выпуска над своими производителями (current ≥ 0 — идёт заказ; progress — в тиках).
         foreach (var entity in c.Each(P.Producer, P.Owner))
         {
-            if (c.Get(entity, P.Producer) is not { } producer || !c.Mine(entity) || producer.Number(P.Producer["unit"]) == 0)
+            if (c.Get(entity, P.Producer) is not { } producer || !c.Mine(entity) || producer.Number(P.Producer["current"]) < 0 || !c.Has(entity, P.Building))
                 continue;
-            var unit = state.Data.Find("units/" + Tools.Text((uint)producer.Number(P.Producer["unit"])));
+            var unit = state.KindOf(c, (int)producer.Number(P.Producer["current"]));
             var (x, y, w, h, _) = Bounds(c, entity);
             var height = BarHeight * pixel;
             var top = y - h / 2 - BarGap - height;
             var left = x - w / 2;
-            var share = Math.Clamp(producer.Number(P.Producer["progress"]) / (unit is not null && unit.TryNumber("time", out var time) ? time : 1), 0, 1);
+            var share = Math.Clamp(producer.Number(P.Producer["progress"]) / state.BuildTicks(c, unit), 0, 1);
             c.Draw.Rect(left - pixel, top - pixel, left + w + pixel, top + height + pixel, BarBack);
             c.Draw.Rect(left, top, left + w * share, top + height, BarProducing);
         }

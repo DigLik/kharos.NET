@@ -1,10 +1,12 @@
+using Base.Shared.Rules;
 using Kharos.Mod.Sdk;
 
 namespace Base.Host.Kernel;
 
 /// <summary>
 /// Правила места (canPlace в buildings.ts, isRoadway в paved.ts): где встаёт здание. Это же правило у разворачивания
-/// MCV и правок редактора. Чужие зоны (zones.ts) знает раздел Construction: он ставит <see cref="ForeignZone"/>.
+/// MCV и правок редактора; само правило — общее с клиентом (Base.Shared/Rules/Placing). Чужие зоны (zones.ts) знает
+/// раздел Construction: он ставит <see cref="ForeignZone"/>.
 /// Покрытие — слой paving: код вида и хозяина (paveCode), (код − 2) mod 2 — 0 фундамент, 1 дорога.
 /// </summary>
 internal static class Placement
@@ -29,57 +31,57 @@ internal static class Placement
     /// фундаменте, оборона и трубы — ещё и на песке; не у подножия обрыва и не на дороге; на карте и без других зданий и
     /// площадок в зазоре gap.
     /// </summary>
-    public static bool CanPlace(Call call, string type, int x, int y, int gap = 0, IReadOnlySet<uint>? ignore = null)
+    public static bool CanPlace(Call call, string type, int x, int y, int gap = 0, IReadOnlySet<uint>? ignore = null) =>
+        Factory.Building(type) is { } spec && Placing.CanPlace(spec, x, y, gap, new HostView(call, ignore));
+
+    /// <summary>Мир для общего правила места (Base.Shared/Rules): тайлы, покрытие и площадки — инструментами движка.</summary>
+    private sealed class HostView(Call call, IReadOnlySet<uint>? ignore) : IPlaceView
     {
-        if (Factory.Building(type) is not { } spec)
-            return false;
-        var (w, h) = ((int)spec.Width, (int)spec.Height);
-        var sand = spec.Defense || spec.Pipe is not null;
-        var count = w * h;
-        Span<TileFlags> tiles = count <= 256 ? stackalloc TileFlags[count] : new TileFlags[count];
-        Tools.Tiles(x, y, w, h, tiles);
-        Span<double> paving = count <= 256 ? stackalloc double[count] : new double[count];
-        if (S.Paving is { } layer)
-            Tools.Layer(layer, 0, 0, x, y, w, h, paving);
-        else
-            paving.Clear();
-        for (var i = 0; i < count; i++)
+        public void Tiles(int x, int y, int w, int h, Span<PlaceTile> into)
         {
-            var bits = tiles[i];
-            if ((bits & TileFlags.OnMap) == 0 || (bits & TileFlags.CliffFoot) != 0)
-                return false;
-            var code = (int)paving[i];
-            // Готовый фундамент делает песок пригодным для любого здания; дорога — для транспорта, на ней не строят.
-            if (code != 0 && (code - 2) % 2 == 1)
-                return false;
-            var foundation = code != 0 && (code - 2) % 2 == 0;
-            if ((bits & TileFlags.Buildable) == 0 && !foundation && !(sand && Sand(x + i % w, y + i / w)))
-                return false;
-        }
-        if (Laying(call, x, y, w, h))
-            return false;
-        // Чужие здания в зазоре.
-        if (gap > 0)
-        {
-            var (gw, gh) = (w + gap * 2, h + gap * 2);
-            var around = new TileFlags[gw * gh];
-            Tools.Tiles(x - gap, y - gap, gw, gh, around);
-            for (var i = 0; i < around.Length; i++)
-                if ((around[i] & TileFlags.Building) != 0 && !Ignored(x - gap + i % gw, y - gap + i / gw, ignore))
-                    return false;
-        }
-        else
+            var count = w * h;
+            var tiles = new TileFlags[count];
+            Tools.Tiles(x, y, w, h, tiles);
+            var paving = new double[count];
+            if (S.Paving is { } layer)
+                Tools.Layer(layer, 0, 0, x, y, w, h, paving);
+            var (xs, ys) = (new double[count], new double[count]);
             for (var i = 0; i < count; i++)
-                if ((tiles[i] & TileFlags.Building) != 0 && !Ignored(x + i % w, y + i / w, ignore))
-                    return false;
-        return SiteAt(call, x - gap, y - gap, w + gap * 2, h + gap * 2) == 0;
+                (xs[i], ys[i]) = (x + i % w + 0.5, y + i / w + 0.5);
+            var terrain = new TerrainInfo[count];
+            Tools.Terrain(xs, ys, terrain);
+            var occupants = ignore is null ? null : new uint[count];
+            if (occupants is not null)
+            {
+                var xy = new int[count * 2];
+                for (var i = 0; i < count; i++)
+                    (xy[i * 2], xy[i * 2 + 1]) = (x + i % w, y + i / w);
+                Tools.Occupants(xy, occupants);
+            }
+            for (var i = 0; i < count; i++)
+            {
+                var bits = tiles[i];
+                var place = PlaceBits.None;
+                if ((bits & TileFlags.OnMap) != 0)
+                    place |= PlaceBits.OnMap;
+                if ((bits & TileFlags.CliffFoot) != 0)
+                    place |= PlaceBits.CliffFoot;
+                if ((bits & TileFlags.Buildable) != 0)
+                    place |= PlaceBits.Buildable;
+                if (terrain[i].Terrain == 1)
+                    place |= PlaceBits.Sand;
+                if ((bits & TileFlags.Building) != 0)
+                    place |= PlaceBits.Building;
+                if (occupants is not null && ignore!.Contains(occupants[i]))
+                    place |= PlaceBits.Ignored;
+                into[i] = new PlaceTile(place, (int)paving[i]);
+            }
+        }
+
+        public bool Laying(int x, int y, int w, int h) => Placement.Laying(call, x, y, w, h);
+
+        public bool SiteIn(int x, int y, int w, int h) => SiteAt(call, x, y, w, h) != 0;
     }
-
-    /// <summary>Здание на тайле — из тех, что не в счёт (их переносят).</summary>
-    private static bool Ignored(int x, int y, IReadOnlySet<uint>? ignore) => ignore is not null && ignore.Contains(Tools.Occupant(x, y));
-
-    /// <summary>Песок ли тайл.</summary>
-    private static bool Sand(int x, int y) => Tools.Terrain(x + 0.5, y + 0.5, out var info) && info.Terrain == 1;
 
     /// <summary>Кладут ли на прямоугольник дорогу (Pave road, не снимаемую): на ней тоже не строят.</summary>
     private static bool Laying(Call call, int x, int y, int w, int h)

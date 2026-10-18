@@ -81,8 +81,11 @@ internal static class Stats
         return rounded == Math.Floor(rounded) ? Lua.ToString(Math.Floor(rounded)) : Lua.ToString(rounded);
     }
 
-    /// <summary>Строки параметров вида: прочность, класс, скорость, обзор, груз, ремонт.</summary>
-    public static List<StatRow> Unit(Kind kind)
+    /// <summary>
+    /// Строки параметров вида: прочность, класс, скорость, обзор, груз, ремонт. У живого юнита обзор — его Sight.radius
+    /// (у вида без своего числа обзор считает хост по классу и оружию), у карточки заказа — число вида.
+    /// </summary>
+    public static List<StatRow> Unit(Kind kind, double? sight = null)
     {
         var rows = new List<StatRow>();
         void Row(string key, string value) => rows.Add(new StatRow(key, Labels[key], value));
@@ -92,8 +95,10 @@ internal static class Stats
             Row("class", Classes.GetValueOrDefault(cls, cls));
         if (kind.TryNumber("speed", out var speed))
             Row("speed", Tidy(speed));
-        if (kind.TryNumber("sight", out var sight))
-            Row("sight", Tidy(sight));
+        if (sight is { } seen)
+            Row("sight", Tidy(seen));
+        else if (kind.TryNumber("sight", out var range))
+            Row("sight", Tidy(range));
         if (kind.TryNumber("inventory", out var inventory))
             Row("cargo", Lua.ToString(inventory));
         if (kind.TryNumber("repair", out var repair))
@@ -102,12 +107,12 @@ internal static class Stats
     }
 
     /// <summary>Параметры одним текстом, строка на параметр: для всплывающей подсказки (unitStatsText).</summary>
-    public static string Text(Kind kind) => string.Join('\n', Unit(kind).Select(row => row.Label + ": " + row.Value));
+    public static string Text(Kind kind, double? sight = null) => string.Join('\n', Unit(kind, sight).Select(row => row.Label + ": " + row.Value));
 
     /// <summary>Главное одной строкой — для панели выбранного (unitStatsLine).</summary>
-    public static string Line(Kind kind)
+    public static string Line(Kind kind, double? sight = null)
     {
         string[] brief = ["hp", "speed", "sight", "cargo", "damage", "range"];
-        return string.Join(" · ", Unit(kind).Where(row => Array.IndexOf(brief, row.Key) >= 0).Select(row => row.Label + " " + row.Value));
+        return string.Join(" · ", Unit(kind, sight).Where(row => Array.IndexOf(brief, row.Key) >= 0).Select(row => row.Label + " " + row.Value));
     }
 }

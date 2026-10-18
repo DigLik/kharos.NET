@@ -10,6 +10,7 @@ import { Pixmap } from '../../../../packages/client/src/render/pixmap'
 import { MASK_TEAM, TURRET_ART, UNIT_ART, UNIT_GAITS, UNIT_LIGHTS, UNIT_TRACES } from '../../../../packages/client/src/game/units/unitArt'
 import { ART_FRAMES, BUILDING_ART } from '../../../../packages/client/src/game/buildings/buildingArt'
 import { depositsSprites } from '../../../../packages/client/src/game/depositsPass'
+import units from '../../../../packages/base/data/units.json'
 
 const TURN = Math.PI * 2
 const DIRECTIONS = 64
@@ -74,10 +75,9 @@ function entry(name: string, frames: Pixmap[], sampleAt: number, lights?: Light[
 
 const out: Record<string, Entry> = {}
 
-// Юниты: 4 фазы хода × 64 направления (летающие — одна фаза). Портрет: угол вправо-вверх, у багги — турель на месте.
-const MOUNTS: Record<string, { turret: keyof typeof TURRET_ART; along: number; across: number }[]> = {
-  buggy: [{ turret: 'gunner', along: -0.16, across: 0 }],
-}
+// Юниты: 4 фазы хода × 64 направления (летающие — одна фаза). Портрет: угол вправо-вверх, турели — на своих местах
+// (крепления — из данных юнита, как drawMounts в portraits.ts).
+const MOUNTS = Object.fromEntries(Object.entries(units as Record<string, { mounts?: { turret: string; along: number; across: number }[] }>).map(([name, unit]) => [name, unit.mounts ?? []])) as Record<string, { turret: keyof typeof TURRET_ART; along: number; across: number }[]>
 for (const [name, art] of Object.entries(UNIT_ART)) {
   const air = UNIT_GAITS[name as keyof typeof UNIT_GAITS] === 'air'
   const frames: Pixmap[] = []

@@ -8,14 +8,24 @@ internal sealed class Parts(LoadContext ctx)
 {
     public ComponentRef Position { get; } = ctx.Component("Position");
     public ComponentRef Owner { get; } = ctx.Component("Owner");
+    public ComponentRef Sight { get; } = ctx.Component("Sight");
     public ComponentRef Proto { get; } = ctx.Component("Proto");
-    // Ходовая пилота (Drive) ушла в Mover движка; поля пилота (tx, ty, moving) и раскладку Producer подача берёт до К.
-    public ComponentRef Drive { get; } = ctx.Component("Mover");
+    // Модель TS (docs/dotnet-n5.md, Н5.1): ход — Mover, едет ли юнит — есть ли Path (цель — goalX, goalY), радиус — Body,
+    // размер здания — Footprint (место здания — левый верхний тайл), турель стоит на носителе — Mount.parent.
+    public ComponentRef Mover { get; } = ctx.Component("Mover");
+    public ComponentRef Path { get; } = ctx.Component("Path");
+    public ComponentRef Body { get; } = ctx.Component("Body");
+    public ComponentRef Footprint { get; } = ctx.Component("Footprint");
+    public ComponentRef Mount { get; } = ctx.Component("Mount");
     public ComponentRef Unit { get; } = ctx.Component("Unit");
     public ComponentRef Building { get; } = ctx.Component("Building");
     public ComponentRef Producer { get; } = ctx.Component("Producer");
+    public ComponentRef Converting { get; } = ctx.Component("Converting");
+    public ComponentRef Deploys { get; } = ctx.Component("Deploys");
     public ComponentRef Player { get; } = ctx.Component("Player");
-    public ComponentRef Deposit { get; } = ctx.Component("Deposit");
+
+    /// <summary>Слой месторождений: предметы «вид, остаток».</summary>
+    public LayerRef? Deposits { get; } = ctx.Layer("deposits");
 }
 
 /// <summary>Данные, компоненты и вспомогательные чтения мира — общие для панелей, управления и эффектов.</summary>
@@ -42,14 +52,47 @@ internal sealed class BaseState(ClientData data, Parts parts)
     /// <summary>Номер вида юнита по имени («buggy»); нет такого — -1.</summary>
     public int UnitProto(ClientContext c, string name) => c.ProtoId("units/" + name);
 
-    /// <summary>Кредиты своего игрока.</summary>
-    public double Credits(ClientContext c)
+    /// <summary>Свой счёт: сущность Player игрока (чужие до клиента не доходят — @net owner); нет — null.</summary>
+    public ComponentValues? Account(ClientContext c)
     {
         var id = P.Player["id"];
         foreach (var entity in c.Each(P.Player))
             if (c.Get(entity, P.Player) is { } player && player.Number(id) == c.Player)
-                return player.Number(P.Player["credits"]);
-        return 0;
+                return player;
+        return null;
+    }
+
+    /// <summary>Кредиты своего игрока.</summary>
+    public double Credits(ClientContext c) => Account(c)?.Number(P.Player["credits"]) ?? 0;
+
+    /// <summary>Радиус тела юнита, тайлы; нет тела — запасной.</summary>
+    public double Radius(ClientContext c, uint entity, double fallback = 0.5) =>
+        c.Get(entity, P.Body) is { } body ? body.Number(P.Body["radius"]) : fallback;
+
+    /// <summary>Размер основания здания, тайлы; нет основания — null.</summary>
+    public (double W, double H)? Size(ClientContext c, uint entity) =>
+        c.Get(entity, P.Footprint) is { } footprint ? (footprint.Number(P.Footprint["w"]), footprint.Number(P.Footprint["h"])) : null;
+
+    /// <summary>Середина сущности: у здания — середина основания (место здания — левый верхний тайл), у остальных — Position.</summary>
+    public (double X, double Y)? Center(ClientContext c, uint entity)
+    {
+        if (c.Pose(entity) is not { } at)
+            return null;
+        return Size(c, entity) is { } size ? (at.X + size.W / 2, at.Y + size.H / 2) : (at.X, at.Y);
+    }
+
+    /// <summary>Сколько тиков строится юнит вида unit (round(buildTime / тик), как buildTicks на хосте); нет времени — 1.</summary>
+    public double BuildTicks(ClientContext c, Kind? unit) =>
+        unit is not null && unit.TryNumber("buildTime", out var seconds) ? Math.Max(1, Math.Floor(seconds / c.TickDt + 0.5)) : 1;
+
+    /// <summary>Очередь производителя: номера видов юнитов (Producer.queue — i32 подряд), первый строится.</summary>
+    public static List<int> Queue(ComponentValues producer, ComponentRef component)
+    {
+        var bytes = producer.Bytes(component["queue"]);
+        var list = new List<int>(bytes.Length / 4);
+        for (var at = 0; at + 4 <= bytes.Length; at += 4)
+            list.Add(System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(at)));
+        return list;
     }
 }
 

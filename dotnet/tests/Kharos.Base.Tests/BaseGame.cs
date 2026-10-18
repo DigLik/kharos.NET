@@ -92,13 +92,20 @@ public static class BaseGame
     public static List<uint> With(KHost host, string component, string field, double value) =>
         [.. With(host, component).Where(e => Num(host, e, component, field) == value)];
 
+    /// <summary>Юниты (Unit и Mover) игрока или всех.</summary>
     public static List<uint> Units(KHost host, uint? player = null) =>
-        [.. With(host, "Unit", "Drive").Where(e => player is null || Num(host, e, "Owner", "player") == player)];
+        [.. With(host, "Unit", "Mover").Where(e => player is null || Num(host, e, "Owner", "player") == player)];
 
-    public static List<uint> Turrets(KHost host) => With(host, "Turret", "Attached");
+    /// <summary>Турели: сущности с Mount (место на носителе).</summary>
+    public static List<uint> Turrets(KHost host) => With(host, "Mount");
 
+    /// <summary>Производитель игрока: в начале партии это MCV (свёрнутая база), потом — главное здание и прочие.</summary>
     public static uint Factory(KHost host, uint player) =>
-        With(host, "Producer").Single(e => Num(host, e, "Owner", "player") == player);
+        With(host, "Producer").First(e => Num(host, e, "Owner", "player") == player);
+
+    /// <summary>Правка редактора (edit.*): приказ с правами редактора и администратора, как у /editor.</summary>
+    public static void Edit<T>(KHost host, string name, T order) where T : class =>
+        host.Send(1, name, MemoryPackSerializer.Serialize(order), Kharos.Engine.World.OrderRights.Editor | Kharos.Engine.World.OrderRights.Admin);
 
     public static (double X, double Y) At(KHost host, uint entity) =>
         (host.World.Number(entity, Builtin.Position, 0), host.World.Number(entity, Builtin.Position, 1));

@@ -27,9 +27,9 @@ public sealed class DispatcherTests
     {
         using var sim = Create(64);
         sim.Send(1, new WorkOrder());
-        sim.Send(1, new BuildOrder { Building = "generator" });
+        sim.Send(1, new ReserveOrder());
         sim.Advance();
-        Assert.Equal(["work: ждёт С3", "build: ждёт С1"], Reasons(sim));
+        Assert.Equal(["work: ждёт С3", "reserve: ждёт С2b"], Reasons(sim));
     }
 
     [Fact]

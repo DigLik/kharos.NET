@@ -55,5 +55,6 @@ public sealed class BaseMod : Mod
         Game = Tables.Games.GetValueOrDefault(ctx.Game);
         // Общее ядра для разделов: таблицы, правила и партия с настройками, схема (Kernel/Base.cs).
         Kernel.Core.Load(Tables, ctx);
+        MiningSection.Load(ctx);
     }
 }

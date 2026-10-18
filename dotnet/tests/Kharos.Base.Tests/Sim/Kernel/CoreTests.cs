@@ -376,9 +376,19 @@ public sealed class CoreTests
     [Fact(DisplayName = "место стало негодным, пока MCV ехал: чужая зона, площадка стройки, дорога — он остаётся машиной")]
     public void SiteSpoiledWhileDriving()
     {
-        // Чужая зона строительства (здание игрока 2 рядом) — правило зон раздела Construction (С1); здесь — площадка и дорога.
         var spoilers = new List<Action<Sim, (int X, int Y)>>
         {
+            // Чужая зона строительства: здание игрока 2 рядом (турель: её ставят и на песок).
+            (sim, target) =>
+            {
+                foreach (var (dx, dy) in (ReadOnlySpan<(int, int)>)[(5, 0), (5, 1), (4, 0), (6, 0), (5, 2), (4, 2), (6, 1)])
+                    if (CanPlace(sim, "turret", target.X + dx, target.Y + dy))
+                    {
+                        Place(sim, "turret", target.X + dx, target.Y + dy, 2);
+                        return;
+                    }
+                throw new InvalidOperationException("Рядом с местом не встать чужой турели");
+            },
             (sim, target) =>
             {
                 var site = sim.World.Spawn();
@@ -429,9 +439,24 @@ public sealed class CoreTests
         Assert.Equal(0u, Core(sim));
     }
 
-    [Fact(DisplayName = "развёрнутая база уничтожает дропы под собой, но не рядом, и получает фазу по счёту зданий", Skip = "ждёт С2а: дропы (dropItems, dropAt)")]
+    [Fact(DisplayName = "развёрнутая база уничтожает дропы под собой, но не рядом, и получает фазу по счёту зданий")]
     public void DeployedBaseClearsDropsUnderIt()
     {
+        var (sim, mcv, site) = Start();
+        using var _sim = sim;
+        // Одно здание уже стоит: у базы фаза анимации — по счёту зданий (пять на каждое).
+        var wall = Data.Buildings["wall"];
+        var (wx, wy) = Enumerable.Range(site.Y - 30, 60).SelectMany(y => Enumerable.Range(site.X - 30, 60).Select(x => (X: x, Y: y)))
+            .Where(at => Math.Abs(at.X - site.X) > 8 || Math.Abs(at.Y - site.Y) > 8)
+            .First(at => Fits(sim, "wall", at.X, at.Y, (int)wall.Width, (int)wall.Height));
+        Place(sim, "wall", wx, wy, 1);
+        sim.DropItems(site.X + 2, site.Y + 2, ("metal", 10));
+        sim.DropItems(site.X + 3, site.Y + 2, ("metal", 10));
+        sim.Send(1, new DeployOrder { Unit = mcv });
+        sim.Seconds(DeploySeconds + 0.2);
+        Assert.Equal(5, sim.Num(Core(sim), "Building.phase"));
+        Assert.Equal(0u, sim.DropAt(site.X + 2, site.Y + 2));
+        Assert.NotEqual(0u, sim.DropAt(site.X + 3, site.Y + 2));
     }
 
     [Fact(DisplayName = "свёрнутая база уносит прочность здания в MCV")]

@@ -6,7 +6,7 @@ namespace Kharos.Host.Tests;
 
 /// <summary>
 /// Слой месторождений (depositLayer.test.ts, часть про слой; Д3): месторождение — предмет слоя «deposits» (вид и запас),
-/// его кладёт мод командой Item. Генератор месторождений и их смена — мод base (С2а), видимость слоёв предметов — сеть (Д4).
+/// его кладёт мод командой Item. Генератор месторождений и их смена — мод base (С2а, тесты — Kharos.Base.Tests/Sim/Mining), видимость слоёв предметов — сеть (Д4).
 /// </summary>
 public sealed class DepositLayerTests
 {
@@ -82,22 +82,12 @@ public sealed class DepositLayerTests
         Assert.Single(loaded.Layers.Cells(layer, LayerOwner.World));
     }
 
-    [Fact(DisplayName = "слой месторождений — в сохранении: и правки, и клетки, взятые до правок карты", Skip = "ждёт С2а: клетки, взятые у генератора")]
-    public void DepositCellsTakenBeforeLandEditsAreSaved()
-    {
-    }
-
-    [Fact(DisplayName = "кисть и правка карты месторождений не создают и не двигают", Skip = "ждёт С2а: генератор месторождений и редактор")]
-    public void BrushAndLandEditsNeitherCreateNorMoveDeposits()
-    {
-    }
-
     [Fact(DisplayName = "месторождения в тумане клиенту не шлются", Skip = "ждёт видимости слоёв предметов в сети (Д4): слои предметов мира пока уходят всем")]
     public void DepositsInFogAreNotSentToClient()
     {
     }
 
-    [Fact(DisplayName = "клиенту шлются ушедшие месторождения, которые игрок помнит, и не шлются новые, которых он не видел", Skip = "ждёт видимости слоёв предметов в сети (Д4) и призраков месторождений (С2а)")]
+    [Fact(DisplayName = "клиенту шлются ушедшие месторождения, которые игрок помнит, и не шлются новые, которых он не видел", Skip = "ждёт видимости слоёв предметов в сети (Д4) и памяти предметных слоёв игрока в движке (призраки и находки месторождений: мод их не ведёт, С2а)")]
     public void GhostDepositsAreSentAndUnseenNewOnesAreNot()
     {
     }

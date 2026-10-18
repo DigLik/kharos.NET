@@ -23,7 +23,7 @@ public sealed class SessionTests
         File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "audio-report.txt"), text + Environment.NewLine);
     }
 
-    [Fact(Skip = "ждёт К")]
+    [Fact]
     public void BankAndVoicesComeFromTheClientMod()
     {
         using var session = new BaseSession();
@@ -42,8 +42,8 @@ public sealed class SessionTests
         Assert.Empty(session.Game.Errors);
     }
 
-    [Fact(Skip = "ждёт К")]
-    public void BuggiesDrivingMakeSoundOverTheBackground()
+    [Fact]
+    public void SquadDrivingMakesSoundOverTheBackground()
     {
         using var session = new BaseSession();
         var engine = session.Engine!;
@@ -76,7 +76,7 @@ public sealed class SessionTests
         Assert.True(quiet > 1e-5, $"фон молчит: {quiet}");
         var voicesIdle = engine.ActiveVoices;
 
-        // Едут: стартёры, моторы с голосами по числу машин, ход.
+        // Едут: стартёры, моторы с голосами по числу машин (пехота шагает без мотора), ход.
         session.Move(units, x + 10, y + 3);
         var driveFrom = session.Output.Count;
         Watch(3);
@@ -84,7 +84,7 @@ public sealed class SessionTests
         var peak = session.Output.Skip(driveFrom).Max(MathF.Abs);
         Assert.True(driving > 3 * quiet, $"моторы не слышны: {driving} против фона {quiet}");
         Assert.True(peak <= 1.2f, $"выход перегружен: {peak}");
-        Assert.True(engine.ActiveVoices >= voicesIdle + units.Count, $"голосов {engine.ActiveVoices} при {voicesIdle} в покое");
+        Assert.True(engine.ActiveVoices >= voicesIdle + session.Motorized(units), $"голосов {engine.ActiveVoices} при {voicesIdle} в покое");
         Assert.All(session.Output.Skip(driveFrom), value => Assert.True(float.IsFinite(value)));
 
         Report(string.Create(CultureInfo.InvariantCulture, $"Фон {quiet:F5}, моторы {driving:F5} (×{driving / quiet:F1}), пик {peak:F3}, голосов {voicesIdle} → {engine.ActiveVoices}"));
@@ -96,24 +96,37 @@ public sealed class SessionTests
         Assert.Null(session.Local.Failure);
     }
 
-    [Fact(Skip = "ждёт К")]
-    public void FactoryAtWorkRunsTheMachineryLoop()
+    [Fact]
+    public void BaseAtWorkRunsTheMachineryLoop()
     {
         using var session = new BaseSession();
         var world = session.Game.Replica.World!;
+        var producer = world.Schema.Id("Producer");
+        var building = world.Schema.Id("Building");
         var deadline = DateTime.UtcNow.AddSeconds(15);
-        var factories = new List<uint>();
-        while (factories.Count == 0)
+        var mcv = new List<uint>();
+        while (mcv.Count == 0)
         {
-            Assert.True(DateTime.UtcNow < deadline, "нет завода");
+            Assert.True(DateTime.UtcNow < deadline, "нет MCV");
             session.Step();
             Thread.Sleep(10);
             world = session.Game.Replica.World!;
-            world.Query([world.Schema.Id("Producer")], factories);
+            world.Query([producer, Builtin.Owner], mcv);
+        }
+        // MCV разворачивается в главное здание — оно производит строителей.
+        session.Game.Send("deploy", MemoryPack.MemoryPackSerializer.Serialize(new global::Base.Shared.Orders.DeployOrder { Unit = mcv[0] }));
+        var factories = new List<uint>();
+        while (factories.Count == 0)
+        {
+            Assert.True(DateTime.UtcNow < deadline, "главное здание не встало");
+            session.Step();
+            Thread.Sleep(10);
+            world = session.Game.Replica.World!;
+            world.Query([producer, building, Builtin.Owner], factories);
         }
         var factory = factories[0];
-        double X() => world.Number(factory, Builtin.Position, 0);
-        double Y() => world.Number(factory, Builtin.Position, 1);
+        double X() => world.Number(factory, Builtin.Position, 0) + 1.5;
+        double Y() => world.Number(factory, Builtin.Position, 1) + 1.5;
         void Watch(double seconds)
         {
             var until = DateTime.UtcNow.AddSeconds(seconds);
@@ -128,16 +141,16 @@ public sealed class SessionTests
         Watch(1.5);
         var voices = session.Engine!.ActiveVoices;
         var before = BaseSession.Rms(session.Output, session.Output.Count - Rate, Rate);
-        session.Game.Send("produce", MemoryPack.MemoryPackSerializer.Serialize(new global::Base.Shared.Orders.ProduceOrder { Producer = factory, Unit = "buggy" }));
+        session.Game.Send("produce", MemoryPack.MemoryPackSerializer.Serialize(new global::Base.Shared.Orders.ProduceOrder { Producer = factory, Unit = "builder" }));
         Watch(2);
         var after = BaseSession.Rms(session.Output, session.Output.Count - Rate, Rate);
-        Report(string.Create(CultureInfo.InvariantCulture, $"Завод: фон {before:F5}, с цехом {after:F5}, голосов {voices} → {session.Engine.ActiveVoices}"));
+        Report(string.Create(CultureInfo.InvariantCulture, $"Главное здание: фон {before:F5}, с цехом {after:F5}, голосов {voices} → {session.Engine.ActiveVoices}"));
         Assert.True(session.Engine.ActiveVoices > voices, "петля цеха не завелась");
         Assert.True(after > 1.5 * before, $"цех не слышен: {before} → {after}");
         Assert.Empty(session.Game.Errors);
     }
 
-    [Fact(Skip = "ждёт К")]
+    [Fact]
     public void AmbienceBackgroundRuns()
     {
         // Быстрый прогон: кадры по 1/60 с, звук — столько же. Пульс и тревога на нуле, а фон живёт: ноты, даль, эхо.
@@ -168,7 +181,7 @@ public sealed class SessionTests
         Assert.Empty(session.Log);
     }
 
-    [Fact(Skip = "ждёт К")]
+    [Fact]
     public void UiClickMakesSound()
     {
         using var fonts = Fonts.Load();
@@ -217,7 +230,7 @@ public sealed class SessionTests
             c.Ui.Button("t:btn", S.Style.Button with { Height = 30 }, () => c.Ui.Text("OK")));
     }
 
-    [Fact(Skip = "ждёт К")]
+    [Fact]
     public void AudioStageCostWithTwentyBuggies()
     {
         // Кадр клиента с 20 багги, которые едут: со звуком и без. Разница медиан — цена звука за кадр (обработчики

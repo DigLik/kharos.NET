@@ -48,7 +48,7 @@ internal sealed class BaseSession : IDisposable
     public static bool Built => BaseGame.Built && File.Exists(Path.Combine(BaseGame.ModDir, "client.wasm"));
 
     /// <param name="audio">Есть ли звук у клиента.</param>
-    /// <param name="buggies">Сколько багги в начале партии (0 — как в игре, три).</param>
+    /// <param name="buggies">Сколько багги в начале партии (0 — как в игре: MCV, две багги и три пехотинца).</param>
     /// <param name="synthetic">Время кадров — шаг 1/60 с, а не часы: быстрый прогон фона.</param>
     public BaseSession(bool audio = true, int buggies = 0, bool synthetic = false)
     {
@@ -56,8 +56,12 @@ internal sealed class BaseSession : IDisposable
         _synthetic = synthetic;
         List<ModPackage> mods = [ModPackage.Read(BaseGame.ModDir)];
         if (buggies > 0)
+        {
+            // Стартовый набор партии — список видов: двадцать багги вместо MCV с отрядом.
+            var kit = string.Join(", ", Enumerable.Repeat("\"buggy\"", buggies));
             mods.Add(new ModPackage("tweak", """{ "name": "tweak", "version": "1", "requires": ["base"] }"""u8,
-                new Dictionary<string, byte[]> { ["games"] = System.Text.Encoding.UTF8.GetBytes($$"""{ "skirmish": { "start": { "buggy": {{buggies}} } } }""") }));
+                new Dictionary<string, byte[]> { ["games"] = System.Text.Encoding.UTF8.GetBytes($$"""{ "skirmish": { "units": [{{kit}}] } }""") }));
+        }
         var content = GameContent.Load(mods);
         Engine = audio ? new AudioEngine(new AudioEngineOptions { Seed = 3 }) : null;
         Local = LocalGame.Start(() => new KHost(content, new KHostOptions { Modules = new Kharos.Plugins.Game.GameModuleOptions { CallTimeoutMs = 1000 }, Seed = 1 }));
@@ -99,15 +103,23 @@ internal sealed class BaseSession : IDisposable
         }
     }
 
-    /// <summary>Свои юниты (с Drive) в реплике.</summary>
+    /// <summary>Свои юниты (с Mover) в реплике.</summary>
     public List<uint> Units()
     {
         var world = Game.Replica.World!;
         var units = new List<uint>();
-        world.Query([world.Schema.Id("Drive"), Builtin.Owner], units);
+        world.Query([world.Schema.Id("Mover"), Builtin.Owner], units);
         units.RemoveAll(entity => world.Number(entity, Builtin.Owner, 0) != Game.Replica.Player);
         units.Sort();
         return units;
+    }
+
+    /// <summary>Сколько из юнитов ездят на моторе: пехота шагает, мотора у неё нет.</summary>
+    public int Motorized(IEnumerable<uint> units)
+    {
+        var world = Game.Replica.World!;
+        var infantry = Game.Content.FindProto("units/infantry")!.Id;
+        return units.Count(entity => (int)world.Number(entity, Builtin.Proto, 0) != infantry);
     }
 
     public (double X, double Y) Centre(IReadOnlyList<uint> units)

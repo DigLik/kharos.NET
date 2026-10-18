@@ -6,6 +6,8 @@ namespace Base.Client;
 /// Чертежи зданий — перенос lib/buildings.luau и buildings/factory/look.luau (buildingArt.ts): ART_TILE пикселей на
 /// тайл, как у местности; начало координат — левый верхний угол основания, высокие части уходят в y &lt; 0. Кадров в цикле
 /// анимации — Frames, чертёж получает фазу цикла t от 0 до 1 и обязан замыкаться при t = 1. Огни кадра — Canvas.Light.
+/// Здание стоит по левому верхнему тайлу (как в TS): точка привязки облика — левый верхний угол основания. Полный чертёж
+/// есть у завода; остальным видам — заглушка по размеру основания и роли (<see cref="Placeholder"/>), чертежи — Н6.
 /// </summary>
 internal static class BuildingArt
 {
@@ -20,6 +22,25 @@ internal static class BuildingArt
     public static readonly uint[] Steel = [0x1c2b3e, 0x2d4560, 0x41617f, 0x6184a3, 0x9bb9d1];
     public static readonly uint[] Iron = [0x1e2024, 0x3a3d43, 0x5b5f66, 0x8b9097, 0xc3c7cc];
     public static readonly uint[] Rust = [0x5e2f24, 0x9a523a, 0xc47a57];
+
+    /// <summary>Роль здания для заглушки: от неё тона плиты.</summary>
+    public enum Role { Storage, Production, Defense, Power, Processing }
+
+    // Тона заглушек по ролям (пять оттенков, как у Steel и Iron).
+    private static readonly uint[] Brown = [0x2e1a14, 0x5e2f24, 0x7e4332, 0x9a523a, 0xc47a57];
+    private static readonly uint[] Gold = [0x2a2208, 0x5a4a10, 0x8a7218, 0xb08e1c, 0xd9b021];
+    private static readonly uint[] Green = [0x10261a, 0x1f4a33, 0x2e6a4a, 0x3f8a62, 0x6fb890];
+
+    /// <summary>Все виды зданий base в порядке data/buildings.json: у каждого есть облик (чертёж или заглушка).</summary>
+    public static readonly string[] Names =
+    [
+        "command", "smelter", "siliconWorks", "distillery", "enricher", "evaporator", "uraniumMill", "blockPlant",
+        "ammoPlant", "partsPlant", "rodPlant", "factory", "lab", "repairStation", "supplyDepot", "airfield",
+        "generator", "accumulator", "reactor", "silo", "interceptor", "matter", "radar", "windtrap", "barracks",
+        "mine", "metalYard", "siliconStore", "fuelTank", "khariteVault", "lithiumStore", "uraniumCask", "blockYard",
+        "ammoBunker", "partsLocker", "rodRack", "requestStation", "spaceport", "wall", "gate", "pipe", "well",
+        "turret", "rocketTurret", "laserTurret", "arcTurret", "shieldGenerator", "cannonTurret",
+    ];
 
     /// <summary>Цвет команды: от погашенного огня к горящему.</summary>
     public static readonly uint[] Team = [0x10358f, 0x1f63d8, 0x5aa9ff, 0xe4f4ff];
@@ -101,8 +122,8 @@ internal static class BuildingArt
             Width = width * Tile + Pad * 2,
             Height = height * Tile + Pad * 2,
             Origin = (Pad, Pad),
-            // Место сущности — центр основания.
-            Anchor = (width * Tile / 2.0, height * Tile / 2.0),
+            // Место сущности — левый верхний тайл основания.
+            Anchor = (0, 0),
             Directions = 1,
             Phases = working ? Frames * 2 : Frames,
             Fps = 8,
@@ -111,6 +132,39 @@ internal static class BuildingArt
             // Портрет: первый кадр работы с полем в 2 пикселя (buildingCanvas в portraits.ts).
             Portrait = new PortraitSpec(width * Tile + 4, height * Tile + 4, canvas => draw(canvas, 0, true)) { Origin = (2, 2) },
         };
+
+    /// <summary>
+    /// Заглушка здания width × height тайлов: плита тонов роли (производство — сталь, оборона — бурый, энергия — золотой,
+    /// переработка — зелёный, склады и прочее — серый) с огнями цвета стороны по углам. Один кадр, без анимации.
+    /// </summary>
+    public static LookSpec Placeholder(int width, int height, Role role)
+    {
+        var tones = role switch { Role.Production => Steel, Role.Defense => Brown, Role.Power => Gold, Role.Processing => Green, _ => Iron };
+        int w = width * Tile, h = height * Tile;
+        void Draw(Canvas g)
+        {
+            Slab(g, 0, 0, w, h, Math.Min(4, h / 4), tones);
+            // Огни стороны: перекрашиваются палитрой (тон основной); по размеру — два или четыре.
+            var lamp = Canvas.Toned(Team[2], 1);
+            g.Rect(3, 3, 2, 2, lamp);
+            g.Rect(w - 5, 3, 2, 2, lamp);
+            if (height > 1)
+            {
+                g.Rect(3, h - 9, 2, 2, lamp);
+                g.Rect(w - 5, h - 9, 2, 2, lamp);
+            }
+        }
+        return new LookSpec((canvas, _, _) => Draw(canvas))
+        {
+            Width = w + Pad * 2,
+            Height = h + Pad * 2,
+            Origin = (Pad, Pad),
+            Anchor = (0, 0),
+            Layer = LookLayer.Building,
+            Shadow = (3, 0.4f),
+            Portrait = new PortraitSpec(w + 4, h + 4, Draw) { Origin = (2, 2) },
+        };
+    }
 
     /// <summary>
     /// Машинный завод, 3×3 — перенос factory из buildingArt.ts: сборочный цех под ребристой крышей с мостовым краном,

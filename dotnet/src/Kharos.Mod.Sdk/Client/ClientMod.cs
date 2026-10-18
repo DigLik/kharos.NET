@@ -34,7 +34,8 @@ public sealed class ClientBuilder
 {
     internal enum Stage { Camera, Ui, Controls, Effects, Atmosphere, Audio, Music, Count }
 
-    internal List<(string Proto, LookSpec Spec)> Looks { get; } = [];
+    internal List<(string Proto, Func<LookSpec> Spec)> Looks { get; } = [];
+    internal List<ModItemLook> ItemLooks { get; } = [];
     internal List<(ModBankInfo Info, BankRender Render)> Bank { get; } = [];
     internal List<ModVoiceInfo> Voices { get; } = [];
     internal Dictionary<string, List<SignalHandler>> Signals { get; } = new(StringComparer.Ordinal);
@@ -46,7 +47,29 @@ public sealed class ClientBuilder
     {
         ArgumentException.ThrowIfNullOrEmpty(proto);
         ArgumentNullException.ThrowIfNull(spec);
+        Looks.Add((proto, () => spec));
+    }
+
+    /// <summary>
+    /// Облик вида proto, который строится при запросе клиента — после <see cref="ClientMod.Load"/>: размер и вид можно
+    /// взять из данных мода.
+    /// </summary>
+    public void Look(string proto, Func<LookSpec> spec)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(proto);
+        ArgumentNullException.ThrowIfNull(spec);
         Looks.Add((proto, spec));
+    }
+
+    /// <summary>
+    /// Предметы слоя layer (слой-«предметы», например месторождения) рисуются обликами: поле field предмета — номер в
+    /// списке looks (вид «раздел/имя», пусто — не рисовать). Место предмета — точка привязки облика.
+    /// </summary>
+    public void ItemLook(string layer, string field, params string[] looks)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(layer);
+        ArgumentException.ThrowIfNullOrEmpty(field);
+        ItemLooks.Add(new ModItemLook { Layer = layer, Field = field, Looks = looks });
     }
 
     /// <summary>Запись банка звуков: render считает каналы при загрузке, на каждый вариант.</summary>
@@ -95,5 +118,6 @@ public sealed class ClientBuilder
         Bank = [.. Bank.Select(entry => entry.Info)],
         Voices = [.. Voices],
         Minimap = MinimapPalette,
+        ItemLooks = [.. ItemLooks],
     };
 }

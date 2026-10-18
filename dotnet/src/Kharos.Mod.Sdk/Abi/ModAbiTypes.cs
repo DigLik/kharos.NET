@@ -174,6 +174,28 @@ sealed partial class ModManifest
 
     /// <summary>Клиент: цвета мини-карты 0xRRGGBB, 4 биома × 4 вида местности (биом за биомом); пусто — по умолчанию.</summary>
     public uint[] Minimap { get; set; } = [];
+
+    /// <summary>Клиент: предметы слоёв, которые клиент рисует обликами видов (месторождения).</summary>
+    public ModItemLook[] ItemLooks { get; set; } = [];
+}
+
+/// <summary>Предметы слоя-«предметов» рисуются обликами: поле Field предмета — номер в Looks (вид «раздел/имя»).</summary>
+[MemoryPackable]
+#if KHAROS_PLUGINS
+public
+#else
+internal
+#endif
+sealed partial class ModItemLook
+{
+    /// <summary>Имя слоя.</summary>
+    public string Layer { get; set; } = "";
+
+    /// <summary>Поле предмета с номером вида.</summary>
+    public string Field { get; set; } = "";
+
+    /// <summary>Виды по номерам поля; пустое имя — предмет не рисуется.</summary>
+    public string[] Looks { get; set; } = [];
 }
 
 /// <summary>Запись банка звуков клиентского мода: имя, шина и сколько вариантов (kh_bank на каждый).</summary>

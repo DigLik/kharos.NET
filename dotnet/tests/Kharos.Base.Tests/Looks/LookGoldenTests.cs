@@ -59,7 +59,8 @@ internal sealed class GoldenTrace
 /// <summary>
 /// Пиксельная сверка графики base с TS-клиентом (docs/dotnet.md, Н3: «кадры совпадают»). Облики берутся из настоящего
 /// client.wasm через клиент партии (kh_look → холст клиента → атлас) и сравниваются с эталоном TS кадр за кадром, до
-/// байта; чертежи всех юнитов и турелей, которых пока нет в данных, — тем же путём потока облика, но без wasm.
+/// байта; чертежи всех юнитов и турелей — тем же путём потока облика, но без wasm. Здания, кроме завода, — заглушки
+/// без эталона TS (чертежи — Н6).
 /// </summary>
 public sealed class LookGoldenTests
 {
@@ -138,21 +139,33 @@ public sealed class LookGoldenTests
         var game = session.Game;
         var checkedFrames = 0;
         var names = new List<string>();
+        var placeholders = new List<string>();
         var problems = new List<string>();
         foreach (var look in game.Looks)
         {
             var name = game.Content.Protos[look.Proto].Path;
             names.Add(name);
-            Assert.True(golden.Frames.TryGetValue(name, out var expected), $"нет эталона для {name}");
+            if (!golden.Frames.TryGetValue(name, out var expected))
+            {
+                // Заглушка здания: один кадр, привязка по левому верхнему тайлу.
+                Assert.StartsWith("buildings/", name);
+                Assert.Single(look.Cells);
+                placeholders.Add(name);
+                continue;
+            }
             problems.AddRange(Compare(name, expected, look, game.Atlas));
             checkedFrames += look.Cells.Length;
         }
-        // Что объявил мод: юнит, турель, здание и шесть месторождений.
-        Assert.Equal(["buildings/factory", "deposits/fuel", "deposits/kharite", "deposits/lithium", "deposits/metal", "deposits/silicon", "deposits/uranium", "turrets/gunner", "units/buggy"], names.Order(StringComparer.Ordinal));
-        Assert.Equal(256 + 64 + 16 + 6, checkedFrames);
+        // Что объявил мод: 18 юнитов, 8 турелей, 48 зданий и 6 месторождений.
+        Assert.Equal(
+            [.. UnitArt.Units.Select(u => "units/" + u.Name), .. UnitArt.Turrets.Select(t => "turrets/" + t.Name), .. BuildingArt.Names.Select(b => "buildings/" + b), .. DepositArt.Types.Select(d => "deposits/" + d)],
+            names, StringComparer.Ordinal);
+        Assert.Equal(golden.Frames.Values.Sum(f => f.FrameHashes.Length), checkedFrames);
+        Assert.Equal(47, placeholders.Count);
+        Assert.DoesNotContain("buildings/factory", placeholders);
         Assert.Empty(problems);
         Assert.Empty(game.Errors);
-        TestContext.Current.SendDiagnosticMessage($"base client.wasm: {checkedFrames} кадров в {names.Count} обликах совпали с TS до байта");
+        TestContext.Current.SendDiagnosticMessage($"base client.wasm: {checkedFrames} кадров в {names.Count - placeholders.Count} обликах совпали с TS до байта, {placeholders.Count} заглушек зданий");
         BaseSession.Png("look-atlas.png", game.Atlas.Pixels, game.Atlas.Width, game.Atlas.Height);
     }
 
@@ -178,11 +191,21 @@ public sealed class LookGoldenTests
         var factory = LookOf("buildings/factory");
         Assert.Equal((80, 80, 1, 16), (factory.Width, factory.Height, factory.Directions, factory.Phases));
         Assert.Equal((16.0, 16.0), factory.Spec.Origin);
-        Assert.Equal((24.0, 24.0), factory.Spec.Anchor);
+        // Здание стоит по левому верхнему тайлу: привязка — левый верхний угол основания.
+        Assert.Equal((0.0, 0.0), factory.Spec.Anchor);
         Assert.Equal((LookLayer.Building, 8f, (3f, 0.4f)), (factory.Spec.Layer, factory.Spec.Fps, factory.Spec.Shadow));
 
+        // Заглушки: по размеру основания (data/buildings.json), один кадр.
+        var wall = LookOf("buildings/wall");
+        Assert.Equal((48, 48, 1, 1), (wall.Width, wall.Height, wall.Directions, wall.Phases));
+        Assert.Equal(((0.0, 0.0), LookLayer.Building), (wall.Spec.Anchor, wall.Spec.Layer));
+        var airfield = LookOf("buildings/airfield");
+        Assert.Equal((4 * 16 + 32, 3 * 16 + 32), (airfield.Width, airfield.Height));
+        Assert.NotNull(airfield.PortraitUv);
+
+        // Месторождение — предмет слоя: место предмета — левый верхний тайл, облик привязан к нему.
         var oil = LookOf("deposits/fuel").Spec;
-        Assert.Equal((LookLayer.Floor, true, (double)16), (oil.Layer, oil.Memory, oil.Anchor.X));
+        Assert.Equal((LookLayer.Floor, true, (double)0), (oil.Layer, oil.Memory, oil.Anchor.X));
         Assert.Null(oil.Shadow);
         Assert.Equal((0.0, 0.0), oil.Origin);
     }
@@ -195,7 +218,8 @@ public sealed class LookGoldenTests
         var frames = 0;
         foreach (var unit in UnitArt.Units)
         {
-            var spec = UnitArt.Look(unit.Name, () => unit.Name == "buggy" ? [new Mount("gunner", -0.16, 0)] : []);
+            // Портрет несёт турели на своих местах: крепления — из data/units.json, как у клиента партии.
+            var spec = UnitArt.Look(unit.Name, () => MountsOf(unit.Name));
             var look = Look.Build(0, LookStream.Decode(Encode(spec)));
             problems.AddRange(Compare("units/" + unit.Name, golden.Frames["units/" + unit.Name], look, null, look.Images));
             frames += look.Images.Count;
@@ -239,6 +263,28 @@ public sealed class LookGoldenTests
             problems.AddRange(Compare("deposits/" + kind, golden.Frames["deposits/" + kind], look, null, look.Images));
         }
         Assert.Empty(problems);
+    }
+
+    [Fact]
+    public void LooksCoverEveryKindInData()
+    {
+        // Виды в data/*.json и чертежи клиента — одни и те же, в одном порядке (слой deposits ссылается на номер записи).
+        Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);
+        string[] Keys(string file) => [.. JsonDocument.Parse(File.ReadAllText(Path.Combine(BaseGame.ModDir, "data", file + ".json"))).RootElement.EnumerateObject().Select(p => p.Name)];
+        Assert.Equal(UnitArt.Units.Select(u => u.Name).Order(StringComparer.Ordinal), Keys("units").Order(StringComparer.Ordinal), StringComparer.Ordinal);
+        Assert.Equal(UnitArt.Turrets.Select(t => t.Name).Order(StringComparer.Ordinal), Keys("turrets").Order(StringComparer.Ordinal), StringComparer.Ordinal);
+        Assert.Equal(BuildingArt.Names.Order(StringComparer.Ordinal), Keys("buildings").Order(StringComparer.Ordinal), StringComparer.Ordinal);
+        // Номер вида месторождения в слое — место записи в deposits.json: порядок обязан совпасть.
+        Assert.Equal(DepositArt.Types, Keys("deposits"), StringComparer.Ordinal);
+    }
+
+    /// <summary>Турели юнита по data/units.json (mounts).</summary>
+    private static IReadOnlyList<Mount> MountsOf(string unit)
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(BaseGame.ModDir, "data", "units.json")));
+        if (!document.RootElement.GetProperty(unit).TryGetProperty("mounts", out var list))
+            return [];
+        return [.. list.EnumerateArray().Select(m => new Mount(m.GetProperty("turret").GetString()!, m.GetProperty("along").GetDouble(), m.GetProperty("across").GetDouble()))];
     }
 
     /// <summary>Поток облика SDK (то, что отдаёт kh_look).</summary>

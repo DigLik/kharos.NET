@@ -28,7 +28,10 @@ internal sealed class RtsCamera(BaseState state)
     private bool _started, _centered;
     private int _frames;
 
-    /// <summary>Первый кадр: масштаб и камера — к своей базе (первое своё здание).</summary>
+    /// <summary>
+    /// Первый кадр: масштаб и камера — туда, где игрок начинает: камера из его счёта (Player.camera: x, y, zoom f64,
+    /// её ставит редактор), иначе первое своё здание, иначе свои юниты (в начале партии это MCV с отрядом).
+    /// </summary>
     private void Begin(ClientContext c)
     {
         var camera = c.Camera;
@@ -39,13 +42,36 @@ internal sealed class RtsCamera(BaseState state)
         }
         if (_centered || ++_frames > Wait)
             return;
+        if (state.Account(c) is { } account && account.Bytes(state.P.Player["camera"]) is { Length: >= 24 } saved)
+        {
+            (camera.X, camera.Y) = (BitConverter.ToDouble(saved, 0), BitConverter.ToDouble(saved, 8));
+            var zoom = BitConverter.ToDouble(saved, 16);
+            _level = Array.IndexOf(Zooms, Zooms.MinBy(level => Math.Abs(level - zoom)));
+            camera.Zoom = Zooms[_level];
+            _centered = true;
+            return;
+        }
         foreach (var entity in c.Each(state.P.Building, state.P.Owner))
-            if (c.Mine(entity) && c.Pose(entity) is { } at)
+            if (c.Mine(entity) && state.Center(c, entity) is { } middle)
             {
-                (camera.X, camera.Y) = (at.X, at.Y + 3);
+                (camera.X, camera.Y) = (middle.X, middle.Y + 3);
                 _centered = true;
                 return;
             }
+        double sumX = 0, sumY = 0;
+        var count = 0;
+        foreach (var entity in c.Each(state.P.Unit, state.P.Owner))
+            if (c.Mine(entity) && c.Pose(entity) is { } at)
+            {
+                sumX += at.X;
+                sumY += at.Y;
+                count++;
+            }
+        if (count > 0)
+        {
+            (camera.X, camera.Y) = (sumX / count, sumY / count + 3);
+            _centered = true;
+        }
     }
 
     public void Update(ClientContext c)

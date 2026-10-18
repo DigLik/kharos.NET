@@ -2,7 +2,10 @@ using Kharos.Engine.Terrain;
 
 namespace Kharos.Engine.Tests.Movement;
 
-/// <summary>cliffs.test.ts, ход: подножие обрыва, пехота на плато, место появления.</summary>
+/// <summary>
+/// cliffs.test.ts, ход: подножие обрыва, пехота на плато, место появления. Правила места и покрытия у обрыва — мод base:
+/// Kharos.Base.Tests/Sim/Construction/CliffsTests.
+/// </summary>
 public sealed class CliffsTests
 {
     /// <summary>Карта 256² с ровной скалой первого яруса 60×60 вокруг начала.</summary>
@@ -98,15 +101,5 @@ public sealed class CliffsTests
         var (x, y) = world.Nav.OpenSpawn(0, 0);
         Assert.True(world.Nav.NotWalledIn(x, y));
         Assert.True(Math.Max(Math.Abs(x), Math.Abs(y)) > 3);
-    }
-
-    [Fact(DisplayName = "здание и разворачивание MCV — по одному правилу: не у подножия обрыва, а через пологий въезд — можно на два яруса", Skip = "ждёт С1: canPlace и canDeploy — правила мода")]
-    public void Placement()
-    {
-    }
-
-    [Fact(DisplayName = "фундамент и дорогу у подножия обрыва не положить, рядом — можно", Skip = "ждёт С1: canPave — правило мода")]
-    public void Paving()
-    {
     }
 }

@@ -143,7 +143,7 @@ public sealed class ClientGame : IDisposable
     private readonly List<(float Bottom, int At)> _buildings = [];
     private readonly List<float> _buildingSprites = [];
     private readonly List<uint> _forget = [];
-    private readonly int _attached = -1, _attachedParent = -1;
+    private readonly List<(int Layer, int Field, Look?[] Looks)> _itemLooks = [];
     private double? _last;
     private double _tickTime;
     private int _fogRevision = -1;
@@ -186,9 +186,6 @@ public sealed class ClientGame : IDisposable
         Scene.SetPalette(ClientScene.DefaultTeams);
         Land = TerrainOf(Replica);
         Tools = new ClientTools(Replica, content, () => Land, Poses, Fonts) { Log = Report };
-        if (Replica.Schema!.Find("Attached") is { } attached && Replica.Schema[attached].Field("parent") is { } parent)
-            (_attached, _attachedParent) = (attached, parent.Index);
-
         _ownsModules = _options.Modules is null;
         _modules = _options.Modules ?? new GameModuleHost(_options.ModuleOptions);
         _lookByProto = new Look?[content.Protos.Count];
@@ -468,6 +465,15 @@ public sealed class ClientGame : IDisposable
                 Fields = [.. c.Fields.Select(f => new ModFieldInfo { Name = f.Name, Kind = (byte)f.Kind, Index = f.Index, Slot = f.Slot })],
             })],
             Data = [.. Content.DataNames.Select(name => new ModDataFile { Name = name, Bytes = Content.DataBytes(name)! })],
+            Layers = [.. Replica.Layers!.Specs.Select((spec, id) => new ModLayerInfo
+            {
+                Name = spec.Name,
+                Id = id,
+                PerPlayer = spec.Scope == LayerScope.Player,
+                Cell = spec.Cell,
+                Channels = spec.Channels.Count,
+                Fields = [.. spec.Fields.Select(field => field.Name)],
+            })],
         };
         var minimap = DefaultMinimap;
         foreach (var package in Content.Mods)
@@ -535,8 +541,37 @@ public sealed class ClientGame : IDisposable
             }
             if (manifest.Minimap.Length == 16)
                 minimap = manifest.Minimap;
+            // Мод, собранный до ItemLooks, их не присылает.
+            foreach (var item in manifest.ItemLooks ?? [])
+                ResolveItemLook(package.Name, item);
         }
         _minimapPalette = minimap;
+    }
+
+    /// <summary>Предметы слоя, которые рисуются обликами видов: слой, поле с номером вида и облики по номерам.</summary>
+    private void ResolveItemLook(string mod, ModItemLook item)
+    {
+        var layers = Replica.Layers!;
+        if (layers.Find(item.Layer) is not { } layer || layers.Spec(layer).IsGrid)
+        {
+            Report($"мод {mod}: предметы слоя {item.Layer} — нет такого слоя предметов");
+            return;
+        }
+        var fields = layers.Spec(layer).Fields;
+        var field = -1;
+        for (var i = 0; i < fields.Count; i++)
+            if (fields[i].Name == item.Field)
+                field = i;
+        if (field < 0)
+        {
+            Report($"мод {mod}: у слоя {item.Layer} нет поля {item.Field}");
+            return;
+        }
+        var looks = new Look?[item.Looks.Length];
+        for (var i = 0; i < looks.Length; i++)
+            if (item.Looks[i].Length > 0 && Content.FindProto(item.Looks[i]) is { } proto)
+                looks[i] = _lookByProto[proto.Id];
+        _itemLooks.Add((layer, field, looks));
     }
 
     private void Prepare(GameModuleInstance instance)
@@ -787,7 +822,7 @@ public sealed class ClientGame : IDisposable
                 continue;
             // Турель — слоем выше своего носителя.
             var layer = (int)look.Spec.Layer;
-            if (_attached >= 0 && world.TryNumber(entity, _attached, _attachedParent, out var parent) && parent >= 1)
+            if (world.TryNumber(entity, Builtin.Mount, 0, out var parent) && parent >= 1)
                 layer = (world.TryNumber((uint)parent, Builtin.Proto, 0, out var parentProto) && LookOf((int)parentProto) is { } carrier ? (int)carrier.Spec.Layer : 0) + 1;
             var phase = 0;
             if (look.Phases > 1)
@@ -848,6 +883,8 @@ public sealed class ClientGame : IDisposable
                 Push(frame.Blooms, [x + light.X, y + light.Y, light.Size * 3 + 2, light.Level]);
             }
         }
+        if (_itemLooks.Count > 0 && Replica.Layers is { } layers)
+            count += ItemSprites(frame, layers, sprite, (left, top, right, bottom), fog);
         if (_buildings.Count > 0)
         {
             _buildings.Sort((a, b) => a.Bottom.CompareTo(b.Bottom));
@@ -863,6 +900,52 @@ public sealed class ClientGame : IDisposable
                 _forget.Add(entity);
         foreach (var entity in _forget)
             _walked.Remove(entity);
+        return count;
+    }
+
+    /// <summary>
+    /// Предметы слоёв, которые мод велел рисовать обликами (месторождения): место предмета — точка привязки облика;
+    /// рисуются там, где разведано, как руда. Возвращает, сколько спрайтов.
+    /// </summary>
+    private int ItemSprites(RenderFrame frame, LayerSet layers, Span<float> sprite, (float Left, float Top, float Right, float Bottom) area, bool fog)
+    {
+        var count = 0;
+        var view = frame.View;
+        foreach (var (layer, field, looks) in _itemLooks)
+        {
+            var size = (double)layers.Spec(layer).Cell;
+            for (var cy = (int)Math.Floor(area.Top / size); cy <= (int)Math.Floor(area.Bottom / size); cy++)
+                for (var cx = (int)Math.Floor(area.Left / size); cx <= (int)Math.Floor(area.Right / size); cx++)
+                    foreach (var item in layers.Items(layer, LayerOwner.World, (cx, cy)))
+                    {
+                        var kind = (int)item.Fields[field];
+                        if ((uint)kind >= (uint)looks.Length || looks[kind] is not { } look)
+                            continue;
+                        var (x, y) = ((float)item.X, (float)item.Y);
+                        if (x < area.Left || x > area.Right || y < area.Top || y > area.Bottom)
+                            continue;
+                        var (tx, ty) = ((int)MathF.Floor(x), (int)MathF.Floor(y));
+                        if (fog && !(look.Spec.Memory ? Replica.Explored(tx, ty) : Replica.Sees(tx, ty)))
+                            continue;
+                        var uv = look.Cells[look.Cell(0, 0)];
+                        var (w, h) = look.Tiles;
+                        sprite[0] = x + look.Offset.X - view.X;
+                        sprite[1] = y + look.Offset.Y - view.Y;
+                        sprite[2] = w;
+                        sprite[3] = h;
+                        sprite[4] = uv.U0;
+                        sprite[5] = uv.V0;
+                        sprite[6] = uv.U1;
+                        sprite[7] = uv.V1;
+                        sprite[8] = 3;
+                        sprite[9] = look.Shadow.Offset;
+                        sprite[10] = look.Shadow.Opacity;
+                        sprite[11] = 1;
+                        var target = frame.SpriteLayers[Math.Min((int)look.Spec.Layer, RenderFrame.Layers - 1)];
+                        foreach (var value in sprite) target.Add(value);
+                        count++;
+                    }
+        }
         return count;
     }
 

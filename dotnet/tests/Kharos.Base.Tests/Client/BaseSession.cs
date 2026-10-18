@@ -2,8 +2,11 @@ using System.Diagnostics;
 using Kharos.Client.Game;
 using Kharos.Client.Ui;
 using Kharos.Content;
+using Base.Shared.Orders;
+using Kharos.Engine.Layers;
 using Kharos.Engine.World;
 using Kharos.Host;
+using MemoryPack;
 using HostGame = Kharos.Host.Host;
 using RenderFrame = Kharos.Gpu.Frame;
 
@@ -102,12 +105,44 @@ internal sealed class BaseSession : IDisposable
     public List<uint> Mine(params string[] components) =>
         [.. With([.. components, "Owner"]).Where(entity => World.Number(entity, Builtin.Owner, 0) == Player)];
 
+    /// <summary>Свои сущности вида path («units/buggy», «buildings/command»), по возрастанию номеров.</summary>
+    public List<uint> Of(string path)
+    {
+        var proto = Content.FindProto(path)!.Id;
+        return [.. Mine("Proto").Where(entity => (int)Number(entity, "Proto", "id") == proto)];
+    }
+
     public (double X, double Y) At(uint entity) => (World.Number(entity, Builtin.Position, 0), World.Number(entity, Builtin.Position, 1));
 
     public double Number(uint entity, string component, string field)
     {
         var id = World.Schema.Id(component);
         return World.Number(entity, id, World.Schema[id].FieldIndex(field));
+    }
+
+    /// <summary>Сколько приказов в очереди Shift у юнита (Orders.list).</summary>
+    public int Queue(uint entity)
+    {
+        var id = World.Schema.Id("Orders");
+        if (!World.Has(entity, id))
+            return 0;
+        var bytes = World.GetBytes(entity, id, World.Schema[id].FieldIndex("list")).ToArray();
+        return bytes.Length == 0 ? 0 : MemoryPackSerializer.Deserialize<OrderQueue>(bytes)?.Items.Length ?? 0;
+    }
+
+    /// <summary>Сколько месторождений в слое deposits у клиента (известные ему).</summary>
+    public int DepositCount()
+    {
+        var layers = Game.Replica.Layers!;
+        var id = layers.Find("deposits") ?? throw new Xunit.Sdk.XunitException("нет слоя deposits");
+        return layers.Cells(id, LayerOwner.World).Sum(cell => layers.Items(id, LayerOwner.World, cell).Count);
+    }
+
+    /// <summary>Режим администратора и редактора карты: дальше приказы edit.* идут с правом редактора (локальной игре пароль не нужен).</summary>
+    public void OpenEditor()
+    {
+        Game.Say("/admin test");
+        Game.Say("/editor");
     }
 
     /// <summary>Кредиты своего игрока по реплике.</summary>

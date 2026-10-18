@@ -70,7 +70,7 @@ public class ServerTests
         Assert.Equal(3, first.Units(2).Count);
     }
 
-    [Fact(Skip = "ждёт Б1: старт партии base на модели TS")]
+    [Fact]
     public async Task BaseGameStarts()
     {
         Assert.SkipUnless(Env.BaseBuilt, Env.NotBuilt);

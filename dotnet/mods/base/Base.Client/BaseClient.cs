@@ -1,3 +1,4 @@
+using Base.Shared.Signals;
 using Kharos.Mod.Sdk;
 using Kharos.Mod.Sdk.Client;
 
@@ -36,13 +37,33 @@ public sealed class BaseClient : ClientMod
 
     public override void Setup(ClientBuilder client)
     {
-        // Облики: только виды, что есть в data (на каждый, которого нет, клиент жалуется в журнал). Остальные чертежи
-        // (UnitArt.Units, UnitArt.Turrets) лежат готовыми: вид появится в данных — добавится строка здесь.
-        client.Look("units/buggy", UnitArt.Look("buggy", () => _state.Data.Find("units/buggy")?.Mounts() ?? []) with { Icon = 56 });
-        client.Look("turrets/gunner", UnitArt.TurretLook("gunner"));
-        client.Look("buildings/factory", BuildingArt.Factory());
+        // Облики всех видов TS из data (на каждый, которого нет в данных, клиент жалуется в журнал): 18 юнитов и 8 турелей
+        // с чертежами из TS, здания — завод с чертежом, остальные заглушками по размеру основания (Н6 — полные чертежи).
+        foreach (var unit in UnitArt.Units)
+        {
+            var name = unit.Name;
+            client.Look("units/" + name, UnitArt.Look(name, () => _state.Data.Find("units/" + name)?.Mounts() ?? []) with { Icon = 56 });
+        }
+        foreach (var (name, _) in UnitArt.Turrets)
+            client.Look("turrets/" + name, UnitArt.TurretLook(name));
+        foreach (var name in BuildingArt.Names)
+        {
+            var building = name;
+            // Размер и роль берутся из данных, они читаются после Load: облик строится по запросу клиента.
+            client.Look("buildings/" + building, () =>
+            {
+                if (building == "factory")
+                    return BuildingArt.Factory();
+                var kind = _state.Data.Find("buildings/" + building);
+                return BuildingArt.Placeholder((int)(kind?.Number("width", 1) ?? 1), (int)(kind?.Number("height", 1) ?? 1), RoleOf(kind));
+            });
+        }
         foreach (var kind in DepositArt.Types)
             client.Look("deposits/" + kind, DepositArt.Look(kind));
+        // Месторождения — предметы слоя deposits: поле kind — номер записи в deposits.json (порядок = DepositArt.Types).
+        client.ItemLook("deposits", "kind", [.. DepositArt.Types.Select(kind => "deposits/" + kind)]);
+        // Хост отказал приказу (refused): короткий сигнал отказа; текст причины — в Н6.
+        client.Signal(RefusedSignal.Name, (c, _) => c.Sound("deny", 0.3f));
         // Мини-карта пустыни (lands/desert.luau): цвета по биомам (эрг, солончаки, красные пустоши, топи) —
         // [песок, скала, болото, горы], средние тона палитр terrain.frag (PALETTE в minimap.ts).
         client.Minimap(
@@ -99,6 +120,22 @@ public sealed class BaseClient : ClientMod
         _orders = new OrderControl(_state);
         _traces = new Traces(_state);
         _weather = new Weather(_state);
+    }
+
+    /// <summary>Роль здания по записи вида (data/buildings.json): от неё цвет заглушки.</summary>
+    private static BuildingArt.Role RoleOf(Kind? kind)
+    {
+        if (kind is null)
+            return BuildingArt.Role.Storage;
+        if (kind.Has("produces"))
+            return BuildingArt.Role.Production;
+        if (kind.Flag("defense") || kind.Has("mounts") || kind.Has("shield"))
+            return BuildingArt.Role.Defense;
+        if (kind.Number("power") > 0 || kind.Has("battery") || kind.Has("burns"))
+            return BuildingArt.Role.Power;
+        if (kind.Has("assembles") || kind.Has("limits"))
+            return BuildingArt.Role.Processing;
+        return BuildingArt.Role.Storage;
     }
 
     /// <summary>Палитра сторон партии (TEAMS из unitArt.ts): своя, чужая, союзная, ничья — тёмный, основной, светлый.</summary>

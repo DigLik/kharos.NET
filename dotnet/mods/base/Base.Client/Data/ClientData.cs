@@ -47,6 +47,9 @@ internal sealed class Kind(string path, JsonElement record)
         return false;
     }
 
+    /// <summary>Булево поле: true — только для true в данных.</summary>
+    public bool Flag(string field) => TryGet(field, out var value) && value.ValueKind == JsonValueKind.True;
+
     public double Number(string field, double fallback = 0) => TryNumber(field, out var number) ? number : fallback;
 
     public string? Text(string field) => TryGet(field, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
@@ -97,9 +100,6 @@ internal sealed class ClientData
 
     /// <summary>Вид по «раздел/имя»; нет — null.</summary>
     public Kind? Find(string path) => _kinds.GetValueOrDefault(path);
-
-    /// <summary>Доход игрока, кредитов в секунду (для подписи панели): у пилота был mechanics/players.income, на модели TS — ждёт К.</summary>
-    public double Income => 0;
 
     /// <summary>Идущая партия: запись data/games.json.</summary>
     public Kind? Game(string name) => Find("games/" + name);

@@ -1,4 +1,5 @@
 using Base.Shared;
+using Base.Shared.Orders;
 using static Kharos.Base.Tests.Kernel.Scene;
 
 namespace Kharos.Base.Tests.Kernel;
@@ -16,14 +17,36 @@ public sealed class SimTests
         throw new InvalidOperationException("В мире не нашлось скалы");
     }
 
-    [Fact(DisplayName = "команда выполняется в начале следующего тика, а не сразу", Skip = "ждёт С1: покрытие (pave)")]
+    [Fact(DisplayName = "команда выполняется в начале следующего тика, а не сразу")]
     public void CommandRunsAtNextTick()
     {
+        using var sim = Create(rules: new { techTree = false });
+        sim.SetCredits(1, 1000);
+        var (x, y) = FreeTile(sim);
+        sim.Send(1, new PaveOrder { Kind = "road", Tiles = [x, y] });
+        Assert.Equal(0u, sim.PaveAt(x, y));
+        var tick = sim.Tick;
+        sim.Advance();
+        Assert.Equal(tick + 1, sim.Tick);
+        Assert.NotEqual(0u, sim.PaveAt(x, y));
     }
 
-    [Fact(DisplayName = "негодная команда отбрасывается", Skip = "ждёт С1: покрытие (pave)")]
+    [Fact(DisplayName = "негодная команда отбрасывается")]
     public void BadCommandIsDropped()
     {
+        using var sim = Create(rules: new { techTree = false });
+        sim.SetCredits(1, 1000);
+        var (x, y) = FreeTile(sim);
+        // Две одинаковые команды за один тик: вторая метит в уже занятый тайл.
+        sim.Send(1, new PaveOrder { Kind = "road", Tiles = [x, y] });
+        sim.Send(1, new PaveOrder { Kind = "road", Tiles = [x, y] });
+        // Команды приходят извне и могут быть какими угодно: вид покрытия, нечётные тайлы, мусор вместо payload, чужое имя.
+        sim.Send(1, new PaveOrder { Kind = "nonsense", Tiles = [x + 1, y] });
+        sim.Send(1, new PaveOrder { Kind = "road", Tiles = [x + 1] });
+        sim.Send(1, PaveOrder.Name, [1, 2, 3]);
+        sim.Send(1, "explode", []);
+        sim.Advance();
+        Assert.Equal(1, sim.Count(Names.Pave.Name));
     }
 
     [Fact(DisplayName = "за границами карты строить нельзя")]
@@ -67,9 +90,22 @@ public sealed class SimTests
         Assert.True(Occupant(loaded, x, y) >= next);
     }
 
-    [Fact(DisplayName = "две симуляции с одинаковыми командами дают одинаковый мир", Skip = "ждёт С1: покрытие (pave)")]
+    [Fact(DisplayName = "две симуляции с одинаковыми командами дают одинаковый мир")]
     public void SameCommandsGiveSameWorld()
     {
+        Sim Run(int[] frames)
+        {
+            var sim = Create(rules: new { techTree = false });
+            sim.SetCredits(1, 1000);
+            var (x, y) = FreeTile(sim);
+            sim.Send(1, new PaveOrder { Kind = "road", Tiles = [x, y, x + 1, y] });
+            foreach (var ticks in frames)
+                sim.Advance(ticks);
+            return sim;
+        }
+        using var one = Run([1, 1]);
+        using var two = Run([2]);
+        Assert.True(one.SameWorld(two));
     }
 
     [Fact(DisplayName = "снимок мира берёт только перечисленные компоненты и не делит данные с миром", Skip = "ECS TS (World.snapshot): в движке .NET — WorldSave, покрыто Н1")]

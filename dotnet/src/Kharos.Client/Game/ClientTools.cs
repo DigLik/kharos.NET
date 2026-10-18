@@ -205,14 +205,16 @@ public sealed class ClientTools : ModTools
     }
 
     /// <summary>
-    /// Сущность под точкой мира (pick в script.rs): юниты — по радиусу Unit (+0,15), здания — по прямоугольнику
-    /// Building; чужое вне обзора не берётся; из попавших — ближайшая.
+    /// Сущность под точкой мира (pick в script.rs): с телом — по радиусу Body (+0,15), с основанием — по прямоугольнику
+    /// Footprint от левого верхнего тайла (место здания — он); чужое вне обзора не берётся; из попавших — ближайшая.
+    /// Турели (Mount) не берутся: у них нет ни тела, ни основания. Моды без тела и основания движка (hello) могут назвать
+    /// радиус полем radius компонента Unit, а размер — width и height компонента Building (место — середина).
     /// </summary>
     public uint? Pick(GameWorld world, double x, double y)
     {
         var schema = world.Schema;
-        var unit = schema.Find("Unit");
-        var building = schema.Find("Building");
+        (int Component, int Field)? unit = schema.Find("Unit") is { } u && schema[u].Field("radius") is { } radiusField ? (u, radiusField.Index) : null;
+        (int Component, int Width, int Height)? building = schema.Find("Building") is { } b && schema[b].Field("width") is { } widthField && schema[b].Field("height") is { } heightField ? (b, widthField.Index, heightField.Index) : null;
         uint? best = null;
         var bestDistance = double.MaxValue;
         foreach (var entity in world.Store(Builtin.Position).Entities)
@@ -224,14 +226,21 @@ public sealed class ClientTools : ModTools
                 continue;
             var (dx, dy) = (x - ex, y - ey);
             bool hit;
-            if (unit is { } u && world.TryNumber(entity, u, 0, out var radius))
-                hit = dx * dx + dy * dy <= (radius + 0.15) * (radius + 0.15);
-            else if (building is { } b && world.Has(entity, b))
+            if (world.TryNumber(entity, Builtin.Footprint, 0, out var w))
             {
-                var def = schema[b];
-                var w = def.Field("width") is { } width && world.TryNumber(entity, b, width.Index, out var wv) ? wv : 1;
-                var h = def.Field("height") is { } height && world.TryNumber(entity, b, height.Index, out var hv) ? hv : 1;
+                var h = world.TryNumber(entity, Builtin.Footprint, 1, out var hv) ? hv : 1;
+                (dx, dy) = (x - (ex + w / 2), y - (ey + h / 2));
                 hit = Math.Abs(dx) <= w / 2 && Math.Abs(dy) <= h / 2;
+            }
+            else if (world.TryNumber(entity, Builtin.Body, 0, out var radius))
+                hit = dx * dx + dy * dy <= (radius + 0.15) * (radius + 0.15);
+            else if (unit is { } legacy && world.TryNumber(entity, legacy.Component, legacy.Field, out var legacyRadius))
+                hit = dx * dx + dy * dy <= (legacyRadius + 0.15) * (legacyRadius + 0.15);
+            else if (building is { } shape && world.Has(entity, shape.Component))
+            {
+                var width = world.TryNumber(entity, shape.Component, shape.Width, out var wv) ? wv : 1;
+                var height = world.TryNumber(entity, shape.Component, shape.Height, out var hv) ? hv : 1;
+                hit = Math.Abs(dx) <= width / 2 && Math.Abs(dy) <= height / 2;
             }
             else
                 hit = false;

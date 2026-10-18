@@ -58,7 +58,7 @@ public static unsafe class ClientRuntime
         try
         {
             Output.Clear();
-            spec.Write(Output);
+            spec().Write(Output);
         }
         catch (Exception ex)
         {

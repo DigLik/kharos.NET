@@ -74,7 +74,7 @@ internal sealed class MachinesAudio
             var (x, y, _) = poses[i];
             if (c.ProtoPath(c.Proto(e)) is { } path && _data.Power.TryGetValue(path, out var power) && power > 0)
                 Add(c, "hum", x, y);
-            if (c.Get(e, producer) is { } values && values.Number(producer["unit"]) != 0 && Busy(e, values.Number(producer["progress"])))
+            if (c.Get(e, producer) is { } values && values.Number(producer["current"]) >= 0 && Busy(e, values.Number(producer["progress"])))
                 Add(c, "machinery", x, y);
         }
         _gone.Clear();

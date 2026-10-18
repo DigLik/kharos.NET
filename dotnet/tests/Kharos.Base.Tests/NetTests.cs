@@ -1,3 +1,4 @@
+using Base.Shared.Orders;
 using Kharos.Engine.World;
 using Kharos.Host;
 using Kharos.Protocol;
@@ -5,7 +6,7 @@ using KHost = Kharos.Host.Host;
 
 namespace Kharos.Base.Tests;
 
-/// <summary>Сеть партии base: что реплика игрока получает по обзору (VisionView) — счета, призраки зданий. Ждут старта партии (Б1).</summary>
+/// <summary>Сеть партии base: что реплика игрока получает по обзору (VisionView) — счета, призраки зданий.</summary>
 public class NetTests
 {
     /// <summary>Клиент на конце транспорта: реплика, которую питает сессия.</summary>
@@ -73,7 +74,7 @@ public class NetTests
         public void Dispose() => Host.Dispose();
     }
 
-    [Fact(Skip = "ждёт Б1")]
+    [Fact]
     public void PlayerAccountReachesOnlyItsOwner()
     {
         Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);
@@ -86,9 +87,13 @@ public class NetTests
             Assert.Equal(player, (uint)client.World.Number(account, client.World.Schema.Id("Player"), client.World.Schema[client.World.Schema.Id("Player")].FieldIndex("id")));
             Assert.Equal(player, (uint)client.World.Number(account, Builtin.Owner, 0));
         }
-        // Доход растёт на хосте — у хозяина счёт обновляется, а чужой так и не приходит.
-        var before = BaseGame.Credits(match.Host, 1);
-        Assert.True(match.Until(() => BaseGame.Credits(match.Host, 1) > before, 100));
+        // Кредиты первого меняются на хосте — у хозяина счёт обновляется, а чужой так и не приходит.
+        Assert.Equal(1500, BaseGame.Credits(match.Host, 1));
+        BaseGame.Edit(match.Host, EditCreditsOrder.Name, new EditCreditsOrder { Player = 1, Amount = 2345 });
+        var player1 = match.One.With("Player").Single();
+        var credits = match.One.World.Schema.Id("Player");
+        double Credits() => match.One.World.Number(player1, credits, match.One.World.Schema[credits].FieldIndex("credits"));
+        Assert.True(match.Until(() => Credits() == 2345, 100), "счёт хозяина не обновился");
         Assert.Single(match.Two.With("Player"));
         Assert.True(match.Two.Has(BaseGame.Wallet(match.Host, 2)));
         Assert.False(match.One.Has(BaseGame.Wallet(match.Host, 2)));
@@ -96,33 +101,51 @@ public class NetTests
         Assert.Empty(match.Host.Errors);
     }
 
-    [Fact(Skip = "ждёт Б1")]
-    public void ForeignFactorySeenOnceStaysAsGhost()
+    /// <summary>Здание игрока player рядом с точкой (x, y): правка редактора пробует места по кругу, пока не встанет.</summary>
+    private static uint PutBuilding(Match match, uint player, string type, double x, double y)
+    {
+        var host = match.Host;
+        var before = BaseGame.With(host, "Building").ToHashSet();
+        foreach (var (dx, dy) in new (int, int)[] { (0, 0), (5, 0), (-5, 0), (0, 5), (0, -5), (7, 7), (-7, 7), (7, -7), (-7, -7), (10, 0), (-10, 0) })
+        {
+            BaseGame.Edit(host, EditBuildingOrder.Name, new EditBuildingOrder { Type = type, X = (int)x + dx, Y = (int)y + dy, Player = player });
+            match.Step();
+            if (BaseGame.With(host, "Building").FirstOrDefault(e => !before.Contains(e)) is var found and not 0)
+                return found;
+        }
+        throw new InvalidOperationException($"здание {type} не встало у ({x}, {y})");
+    }
+
+    [Fact]
+    public void ForeignBuildingSeenOnceStaysAsGhost()
     {
         Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);
         using var match = new Match();
         var host = match.Host;
-        var factory = BaseGame.Factory(host, 1);
-        var (fx, fy) = BaseGame.At(host, factory);
-        var (hx, hy) = BaseGame.At(host, BaseGame.Factory(host, 2));
         match.Step();
-        Assert.True(match.One.Has(factory));
-        Assert.False(match.Two.Has(factory), "чужой завод виден издалека");
+        // Игрок 1 ставит главное здание у своего MCV; игрок 2 живёт далеко и его не видит.
+        var (mx, my) = BaseGame.At(host, BaseGame.Factory(host, 1));
+        var building = PutBuilding(match, 1, "command", mx - 1, my - 1);
+        var (bx, by) = BaseGame.At(host, building);
+        for (var tick = 0; tick < 10; tick++)
+            match.Step();
+        Assert.True(match.One.Has(building));
+        Assert.False(match.Two.Has(building), "чужое здание видно издалека");
 
-        // Игрок 2 подъехал к заводу игрока 1 — завод показался (и юниты хозяина рядом с ним).
-        var units = BaseGame.Units(host, 2);
-        BaseGame.Move(host, 2, fx, fy + 6, [.. units]);
-        Assert.True(match.Until(() => match.Two.Has(factory)), "завод не показался подъехавшим юнитам");
+        // Разведчик игрока 2 вырос рядом со зданием — здание показалось.
+        BaseGame.Edit(host, EditUnitOrder.Name, new EditUnitOrder { Type = "buggy", X = bx + 6.5, Y = by + 1.5, Player = 2 });
+        Assert.True(match.Until(() => match.Two.Has(building), 100), "здание не показалось разведчику");
+        var scout = BaseGame.Units(host, 2).Single(e => Math.Abs(BaseGame.At(host, e).X - (bx + 6.5)) < 1);
 
-        // Уехал далеко: завод вне обзора, но остался призраком; обычные чужие юниты — исчезли.
-        BaseGame.Move(host, 2, hx, hy, [.. units]);
+        // Разведчика больше нет: здание вне обзора, но осталось призраком; чужие юниты, которых не видели, — не пришли.
+        BaseGame.Edit(host, EditEraseOrder.Name, new EditEraseOrder { Entities = [scout] });
         var view = new VisionView(host, 2);
-        Assert.True(match.Until(() => !view.Sees(fx, fy)), "завод не вышел из обзора");
+        Assert.True(match.Until(() => !view.Sees(bx, by)), "здание не вышло из обзора");
         for (var tick = 0; tick < 40; tick++)
             match.Step();
-        Assert.True(match.Two.Has(factory), "завод пропал вне обзора");
-        Assert.Equal(fx, match.Two.World.Number(factory, Builtin.Position, 0), 0.01);
-        Assert.Equal(fy, match.Two.World.Number(factory, Builtin.Position, 1), 0.01);
+        Assert.True(match.Two.Has(building), "здание пропало вне обзора");
+        Assert.Equal(bx, match.Two.World.Number(building, Builtin.Position, 0), 0.01);
+        Assert.Equal(by, match.Two.World.Number(building, Builtin.Position, 1), 0.01);
         Assert.All(BaseGame.Units(host, 1), unit => Assert.False(match.Two.Has(unit)));
         Assert.Empty(host.Errors);
     }

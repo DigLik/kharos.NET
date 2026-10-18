@@ -5,7 +5,8 @@ namespace Base.Client;
 /// <summary>
 /// Облики месторождений — перенос lib/deposits.luau (внешний вид; раскладку месторождений по земле делает хост) и
 /// depositsPass.ts: угловатые глыбы породы с жилами и крошка вокруг, топливо — лужей. Лежат на земле без тени и видны
-/// там, где разведано.
+/// там, где разведано. Месторождение — предмет слоя deposits (не сущность): его место — левый верхний тайл, туда и
+/// привязан облик; клиент рисует предметы слоя обликами deposits/* (<c>ClientBuilder.ItemLook</c>).
 /// </summary>
 internal static class DepositArt
 {
@@ -90,7 +91,7 @@ internal static class DepositArt
             Width = side,
             Height = side,
             Origin = (0, 0),
-            Anchor = (side / 2.0, side / 2.0),
+            Anchor = (0, 0),
             Layer = LookLayer.Floor,
             Shadow = null,
             Memory = true,
