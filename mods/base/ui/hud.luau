@@ -3,6 +3,7 @@
 -- сведения о выбранном, сетка команд 4 × 3). Те же размеры, рамки скина, шрифты и цвета.
 
 local widgets = require("lib/widgets")
+local stats = require("lib/stats")
 local COLORS, shadow = widgets.COLORS, widgets.shadow
 
 local hud = {}
@@ -74,6 +75,7 @@ local function slots(c, selection)
 					cost = unit.data.cost,
 					short = money < unit.data.cost,
 					about = unit.data.about,
+					unit = unit,
 					run = function()
 						c:send("produce", { building = building, unit = name })
 					end,
@@ -84,7 +86,7 @@ local function slots(c, selection)
 	return list
 end
 
--- Карточка ячейки: название с клавишей, пояснение, цена.
+-- Карточка ячейки (slotCard в bar.ts): название с клавишей, пояснение, параметры юнита, цена.
 local function card(ui, slot, hotkey: string)
 	local WIDTH = 264
 	ui:box({ direction = "column", gap = 4, width = WIDTH, align = "stretch" }, function()
@@ -94,6 +96,16 @@ local function card(ui, slot, hotkey: string)
 		end)
 		if slot.about then
 			ui:text(slot.about, { color = COLORS.dim, wrap = WIDTH })
+		end
+		if slot.unit then
+			for _, row in stats.unit(slot.unit) do
+				ui:box({ direction = "row", gap = 10 }, function()
+					ui:box({ width = 90 }, function()
+						ui:text(row.label, { color = COLORS.dim })
+					end)
+					ui:text(row.value)
+				end)
+			end
 		end
 		if slot.cost then
 			ui:box({ direction = "row", align = "center", gap = 4 }, function()
@@ -145,7 +157,11 @@ local function commandGrid(c, list, width: number, height: number)
 							end)
 						end)
 					end)
-					ui:tip(id, slot.label .. (if slot.cost then " — " .. slot.cost .. " кр." else ""))
+					-- Подсказка — карточкой над сеткой, правым краем у указателя.
+					local grid = ui:rect("commands")
+					ui:tip(id, function()
+						card(ui, slot, hotkey)
+					end, if grid then { right = math.max(8, c.screen.w - c.input.x - 40), bottom = c.screen.h - grid.y + 12 } else nil)
 					if click or (c.input.hits[KEY_NAMES[i]] and not c.input.keys.ctrl) then
 						slot.run()
 					end
@@ -211,6 +227,15 @@ local function info(c, selection, width: number, height: number)
 			ui:box({ id = "info:title", width = text }, function()
 				ui:text(title, { font = "title", color = COLORS.bright, shadow = COLORS.ink, lift = 2, ellipsis = true })
 			end)
+			-- Параметры юнита — строкой, целиком — в подсказке.
+			local unitKind = if not many and c:has(first, "Unit") then kind else nil
+			ui:tip("info:title", if many then title elseif unitKind then stats.text(unitKind) else "")
+			if unitKind then
+				ui:box({ id = "info:stats", width = text }, function()
+					ui:text(stats.line(unitKind), { color = COLORS.dim, ellipsis = true })
+				end)
+				ui:tip("info:stats", stats.text(unitKind))
+			end
 			local producer = not many and c:get(first, "Producer")
 			if producer then
 				if producer.unit ~= "" then

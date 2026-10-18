@@ -237,7 +237,7 @@ end)
 
 `ui:image(вид | "coin" | "minimap", w, h, сторона?)` — портрет вида, вписанный в w × h; `ui:button(id, стиль, дети)`
 → щелчок `{ button, shift, ctrl, alt, long }` или nil (`active`, `disabled` в стиле); `ui:clicked`, `ui:hovered`,
-`ui:within`, `ui:held` (→ `{ u, v }`), `ui:tip(id, текст)`, `ui:rect(id)`, `ui:measure(текст, шрифт?)`, `ui.width`,
+`ui:within`, `ui:held` (→ `{ u, v }`), `ui:tip(id, текст или функция, { left, right, top, bottom }?)` (функция строит панель узлами — карточка; без привязки — у указателя), `ui:rect(id)`, `ui:measure(текст, шрифт?)`, `ui.width`,
 `ui.height`. Щелчок приходит кадром позже — по местам узлов прошлого кадра; долгое касание — правый щелчок.
 
 ### Звук

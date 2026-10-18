@@ -563,9 +563,27 @@ impl UserData for UiApi {
     methods.add_method("within", |_, ui, id: String| Ok(ui.0.borrow().gui.within(&id)));
     // Левая кнопка зажата на узле: где указатель в нём (доли ширины и высоты), иначе nil.
     methods.add_method("held", |_, ui, id: String| Ok(ui.0.borrow().gui.held(&id).map(|(u, v)| vec![u, v])));
-    methods.add_method("tip", |_, ui, (id, text): (String, String)| {
-      ui.0.borrow_mut().gui.tip(&id, text);
-      Ok(())
+    // Подсказка узла id, когда на нём задержали указатель: строка — текстом с переносом, функция — строит панель
+    // узлами (карточка), как ui.tip в TS. anchor — где панель на экране ({ left, right, top, bottom }); без него — у
+    // указателя.
+    methods.add_method("tip", |_, ui, (id, content, anchor): (String, Value, Option<Table>)| {
+      if !ui.0.borrow().gui.tip_due(&id) {
+        return Ok(());
+      }
+      match content {
+        Value::Function(build) => {
+          let anchor = anchor.as_ref().map(crate::gui::anchor).transpose()?;
+          let saved = ui.0.borrow_mut().gui.begin_tip();
+          let result = build.call::<()>(());
+          ui.0.borrow_mut().gui.end_tip(saved, anchor);
+          result
+        }
+        Value::String(text) => {
+          ui.0.borrow_mut().gui.tip(&id, text.to_str()?.to_string());
+          Ok(())
+        }
+        _ => Ok(()),
+      }
     });
     methods.add_method("rect", |lua, ui, id: String| {
       let Some(rect) = ui.0.borrow().gui.rect(&id) else { return Ok(None) };

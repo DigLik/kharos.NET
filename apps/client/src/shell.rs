@@ -2,7 +2,8 @@
 //! вертикальной синхронизацией.
 //!
 //! KHAROS_SHOT=кадр.png — снять кадр после KHAROS_SHOT_FRAMES кадров (по умолчанию 120) и выйти: так картинку
-//! проверяют без человека у окна.
+//! проверяют без человека у окна. KHAROS_SHOT_POINTER=x,y — указатель там, в логических пикселях (подсказки,
+//! наведение), пока снимается кадр.
 
 use crate::input::Input;
 use crate::App;
@@ -180,6 +181,11 @@ impl Shell {
     self.input.scale = scale;
     self.input.screen = [size.width as f32 / scale, size.height as f32 / scale];
     self.input.time = self.start.elapsed().as_secs_f64();
+    if self.shot.is_some() {
+      if let Some([x, y]) = std::env::var("KHAROS_SHOT_POINTER").ok().and_then(|value| value.split_once(',').and_then(|(x, y)| Some([x.trim().parse().ok()?, y.trim().parse().ok()?]))) {
+        self.input.pointer = Some([x, y]);
+      }
+    }
     if let Err(error) = app.frame(&self.input, [size.width, size.height]) {
       eprintln!("{error}");
       event_loop.exit();

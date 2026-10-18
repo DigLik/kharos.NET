@@ -465,7 +465,8 @@ pub struct Gui {
   /// Дерево кадра: корневые панели и открытые узлы.
   top: Vec<Node>,
   stack: Vec<Node>,
-  tips: Vec<String>,
+  /// Подсказки кадра — готовыми узлами; показывается последняя.
+  tips: Vec<Node>,
   /// Указатель над интерфейсом по прошлому кадру.
   pub covered: bool,
   /// Кнопку нажали за кадр (Some(недоступна ли она)) и навели на доступную — для звука интерфейса (GUI_PRESS).
@@ -622,13 +623,39 @@ impl Gui {
     }
   }
 
+  /// Пора ли показать подсказку узла id: указатель на нём дольше TIP_DELAY и ничего не нажато.
+  pub fn tip_due(&self, id: &str) -> bool {
+    self.hovered(id) && self.press.is_none() && self.now - self.since >= TIP_DELAY
+  }
+
+  /// Начало подсказки: дальше узлы кладутся в её панель. Возвращает открытые узлы кадра — их вернёт end_tip.
+  pub fn begin_tip(&mut self) -> Vec<Node> {
+    let saved = std::mem::take(&mut self.stack);
+    self.open(Style { direction: Direction::Column, gap: 2.0, padding: [6.0, 10.0, 6.0, 10.0], skin: Some(Skin::Panel), passive: true, ..Default::default() }, None);
+    saved
+  }
+
+  /// Конец подсказки: панель — в подсказки кадра; anchor — где она на экране, без него — у указателя.
+  pub fn end_tip(&mut self, saved: Vec<Node>, anchor: Option<Anchor>) {
+    while self.stack.len() > 1 {
+      let node = self.stack.pop().expect("узел");
+      self.stack.last_mut().expect("панель").children.push(node);
+    }
+    if let Some(mut node) = self.stack.pop() {
+      node.style.anchor = anchor;
+      self.tips.push(node);
+    }
+    self.stack = saved;
+  }
+
+  /// Подсказка строкой, с переносом по TIP_WIDTH.
   pub fn tip(&mut self, id: &str, text: String) {
-    if !self.hovered(id) || self.press.is_some() || text.is_empty() {
+    if text.is_empty() || !self.tip_due(id) {
       return;
     }
-    if self.now - self.since >= TIP_DELAY {
-      self.tips.push(text);
-    }
+    let saved = self.begin_tip();
+    self.leaf(Default::default(), Leaf::Text { text, font: FontName::Body, color: hex(0xd6e6f5), shadow: None, lift: 1.0, wrap: Some(TIP_WIDTH), ellipsis: false, lines: Vec::new() });
+    self.end_tip(saved, None);
   }
 
   pub fn rect(&self, id: &str) -> Option<Rect> {
@@ -646,11 +673,13 @@ impl Gui {
     while !self.stack.is_empty() {
       self.close();
     }
-    if let Some(text) = self.tips.last().cloned() {
-      let mut node = Node { style: Style { direction: Direction::Column, gap: 2.0, padding: [6.0, 10.0, 6.0, 10.0], skin: Some(Skin::Panel), passive: true, ..Default::default() }, ..Default::default() };
-      node.children.push(Node { leaf: Some(Leaf::Text { text, font: FontName::Body, color: hex(0xd6e6f5), shadow: None, lift: 1.0, wrap: Some(TIP_WIDTH), ellipsis: false, lines: Vec::new() }), ..Default::default() });
+    // Подсказка — своей корневой панелью у указателя (или где ей велено), поверх всего; нажатия сквозь неё идут.
+    if let Some(mut node) = self.tips.pop() {
       let (width, height) = (self.width, self.height);
       measure(&mut self.fonts, &mut node, width - 16.0, false);
+      if node.style.anchor.is_some() {
+        self.top.push(node);
+      } else {
       let [px, py] = self.pointer.unwrap_or([0.0, 0.0]);
       let mut x = px + 14.0;
       if x + node.want.0 > width - 8.0 {
@@ -662,6 +691,7 @@ impl Gui {
       }
       node.style.anchor = Some(Anchor { left: Some(x.clamp(8.0, (width - 8.0 - node.want.0).max(8.0))), top: Some(y.clamp(8.0, (height - 8.0 - node.want.1).max(8.0))), ..Default::default() });
       self.top.push(node);
+      }
     }
     let (width, height) = (self.width, self.height);
     let mut top = std::mem::take(&mut self.top);
@@ -1083,10 +1113,15 @@ pub fn style(table: Option<&mlua::Table>) -> mlua::Result<Style> {
   style.scroll = table.get::<Option<bool>>("scroll")?.unwrap_or(false);
   style.clip = table.get::<Option<bool>>("clip")?.unwrap_or(false) || style.scroll;
   style.passive = table.get::<Option<bool>>("passive")?.unwrap_or(false);
-  if let Some(anchor) = table.get::<Option<mlua::Table>>("anchor")? {
-    style.anchor = Some(Anchor { left: number(&anchor, "left")?, right: number(&anchor, "right")?, top: number(&anchor, "top")?, bottom: number(&anchor, "bottom")?, center_x: number(&anchor, "centerX")?, center_y: number(&anchor, "centerY")? });
+  if let Some(table) = table.get::<Option<mlua::Table>>("anchor")? {
+    style.anchor = Some(anchor(&table)?);
   }
   Ok(style)
+}
+
+/// Привязка корневой панели: left, right, top, bottom, centerX, centerY в пикселях.
+pub fn anchor(table: &mlua::Table) -> mlua::Result<Anchor> {
+  Ok(Anchor { left: number(table, "left")?, right: number(table, "right")?, top: number(table, "top")?, bottom: number(table, "bottom")?, center_x: number(table, "centerX")?, center_y: number(table, "centerY")? })
 }
 
 /// Текст из Luau: стиль — font, color, shadow, lift, wrap (true или число), ellipsis.
