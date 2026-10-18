@@ -23,11 +23,14 @@ public sealed class LocalGame : IDisposable
     private readonly ManualResetEventSlim _ready = new();
     private readonly Thread _thread;
     private readonly bool _startGame;
+    private readonly HostSessionOptions _sessionOptions;
     private long _ticks;
     private double _lastTickMs, _maxTickMs, _totalTickMs;
 
-    private LocalGame(Func<Host> create, uint player, TimeSpan step, bool startGame)
+    private LocalGame(Func<Host> create, uint player, TimeSpan step, bool startGame, HostSessionOptions? session)
     {
+        // Одиночной игре канал не тесен: без бюджета байт, вестей о входе и счёта сообщений.
+        _sessionOptions = session ?? new HostSessionOptions { SendRate = 0, Local = true };
         _create = create;
         Player = player;
         Step = step;
@@ -41,9 +44,9 @@ public sealed class LocalGame : IDisposable
     /// Запускает хост в своём потоке: создание (create — в потоке хоста), начало партии, вход игрока, приветствие и
     /// снимок клиенту — и ждёт, пока это сделано. Ошибка создания — исключение здесь же.
     /// </summary>
-    public static LocalGame Start(Func<Host> create, uint player = 1, TimeSpan? step = null, bool startGame = true)
+    public static LocalGame Start(Func<Host> create, uint player = 1, TimeSpan? step = null, bool startGame = true, HostSessionOptions? session = null)
     {
-        var game = new LocalGame(create, player, step ?? TimeSpan.FromMilliseconds(50), startGame);
+        var game = new LocalGame(create, player, step ?? TimeSpan.FromMilliseconds(50), startGame, session);
         game._thread.Start();
         game._ready.Wait();
         if (game.Failure is { } failure)
@@ -78,6 +81,9 @@ public sealed class LocalGame : IDisposable
     /// <summary>Хост на время работы — только для потока хоста; после <see cref="Stop"/> — для разбора (ошибки, мир).</summary>
     public Host? Host { get; private set; }
 
+    /// <summary>Сессия хоста — только для потока хоста; после <see cref="Stop"/> — для разбора.</summary>
+    public HostSession? Session { get; private set; }
+
     /// <summary>Останавливает поток хоста и ждёт его; хост остаётся до <see cref="Dispose"/>.</summary>
     public void Stop()
     {
@@ -105,7 +111,8 @@ public sealed class LocalGame : IDisposable
             Host = host;
             if (_startGame && !host.Started)
                 host.Start();
-            session = new HostSession(host);
+            session = new HostSession(host, _sessionOptions);
+            Session = session;
             session.Connect(_hostEnd, Player);
         }
         catch (Exception error)

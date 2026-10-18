@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text;
+using System.Text.Json;
 using Kharos.Content;
 using Kharos.Engine.Layers;
 using Kharos.Engine.Terrain;
@@ -30,6 +31,18 @@ public sealed class HostOptions
 
     /// <summary>Журнал хоста: ошибки систем и модов, выключение модов.</summary>
     public Action<string>? Log { get; init; }
+
+    /// <summary>Точность прочих чисел в сети, долей единицы (<see cref="NetFormat"/>); 0 — точно.</summary>
+    public double NumberScale { get; init; } = NetFormat.NumberScale;
+
+    /// <summary>Точность отдельных полей: «Компонент.поле» → масштаб (0 — точно), сильнее умолчаний.</summary>
+    public IReadOnlyDictionary<string, double>? NetScales { get; init; }
+
+    /// <summary>
+    /// Компоненты, по которым зритель помнит ушедшее из виду (здания, месторождения): сущность остаётся у клиента
+    /// такой, какой её видели. null — список <c>remember</c> партии (data/games.json), нет и его — ничего.
+    /// </summary>
+    public IReadOnlyList<string>? Remember { get; init; }
 }
 
 /// <summary>Ошибка на хосте: тик, мод (если он виноват), где и что.</summary>
@@ -41,16 +54,27 @@ public sealed class HostException(string message, Exception? inner = null) : Exc
 /// <summary>
 /// Хост (docs/dotnet.md §3, crates/world/src/host.rs): мир по схеме модов, порядок систем, моды хоста в wasm,
 /// инструменты движка, обзор и слои. Тик: приказы игроков → системы модов и движка → сигналы. События движка:
-/// <c>start</c> (payload — имя партии, UTF-8), <c>player_joined</c> (payload — игрок, u32), <c>spawned</c> (entity:u32,
-/// proto:f64). Вызовы — из одного потока.
+/// <c>start</c> (payload — имя партии, UTF-8), <c>player_joined</c> (игрок впервые, u32), <c>player_online</c> и
+/// <c>player_left</c> (игрок вошёл в сеть и вышел из неё, u32), <c>player_respawn</c> (игрок просит начать заново:
+/// u32 и u8 — 1, если велел администратор), <c>spawned</c> (entity:u32, proto:f64). Партию можно сохранить
+/// (<see cref="Save"/>) и продолжить (<see cref="Load"/>). Вызовы — из одного потока.
 /// </summary>
 public sealed class Host : IDisposable
 {
     /// <summary>Событие начала партии: payload — имя партии (UTF-8).</summary>
     public const string StartEvent = "start";
 
-    /// <summary>Событие входа игрока: payload — номер игрока, u32.</summary>
+    /// <summary>Событие первого входа игрока: payload — номер игрока, u32.</summary>
     public const string JoinEvent = "player_joined";
+
+    /// <summary>Игрок в сети (первое подключение): payload — u32.</summary>
+    public const string OnlineEvent = "player_online";
+
+    /// <summary>Игрок вышел из сети (закрылось последнее подключение): payload — u32.</summary>
+    public const string LeftEvent = "player_left";
+
+    /// <summary>Игрок просит начать заново: payload — u32 игрок и u8 (1 — велел администратор).</summary>
+    public const string RespawnEvent = "player_respawn";
 
     /// <summary>Система обзора в порядке тика: на неё можно ссылаться в after/before.</summary>
     public const string VisionSystem = "engine.vision";
@@ -62,6 +86,10 @@ public sealed class Host : IDisposable
     private readonly Dictionary<string, HostMod> _systemOwners = new(StringComparer.Ordinal);
     private readonly Dictionary<string, HostMod> _byName = new(StringComparer.Ordinal);
     private readonly SortedSet<uint> _players = [];
+    private readonly HashSet<uint> _online = [];
+    private readonly int[] _remember;
+    private List<HostPack>? _packs;
+    private bool _landLoaded;
     private readonly List<Signal> _signals = [];
     private readonly WorldChanges _changes = new();
     private readonly GameModuleHost _moduleHost;
@@ -71,16 +99,40 @@ public sealed class Host : IDisposable
     private int _stringsSent;
     private bool _disposed;
 
-    public Host(GameContent content, HostOptions? options = null)
+    public Host(GameContent content, HostOptions? options = null) : this(content, options ?? new HostOptions(), null) { }
+
+    /// <summary>
+    /// Хост из сохранения (<see cref="Save"/>): тот же мир, тик, случайный ряд, игроки и память модов; партия, зерно и
+    /// длина тика — из сохранения. Другая версия файла — <see cref="SaveVersionException"/>, мусор или моды, с которыми
+    /// мир не собирается, — <see cref="HostException"/>.
+    /// </summary>
+    public static Host Load(GameContent content, ReadOnlySpan<byte> save, HostOptions? options = null)
     {
-        options ??= new HostOptions();
+        HostSave decoded;
+        try
+        {
+            decoded = HostSave.Decode(save);
+        }
+        catch (SaveVersionException)
+        {
+            throw;
+        }
+        catch (FormatException error)
+        {
+            throw new HostException($"сохранение не читается: {error.Message}", error);
+        }
+        return new Host(content, options ?? new HostOptions(), decoded);
+    }
+
+    private Host(GameContent content, HostOptions options, HostSave? save)
+    {
         Content = content;
-        Seed = options.Seed;
-        Dt = options.Dt;
+        Seed = save?.Seed ?? options.Seed;
+        Dt = save?.Dt ?? options.Dt;
         _log = options.Log;
         try
         {
-            Game = content.Game(options.Game);
+            Game = content.Game(save?.Game ?? options.Game);
         }
         catch (ContentException error)
         {
@@ -100,7 +152,17 @@ public sealed class Host : IDisposable
         schema.DeclareBytes(ModAbi.StorageComponent, "data");
         StorageComponent = schema.Id(ModAbi.StorageComponent);
         StorageData = schema[StorageComponent].FieldIndex("data");
-        World = new GameWorld(schema) { TrackChanges = true };
+        try
+        {
+            World = save is null ? new GameWorld(schema) : WorldSave.Load(schema, save.World);
+        }
+        catch (FormatException error)
+        {
+            throw new HostException($"сохранение: мир не собирается: {error.Message}", error);
+        }
+        World.TrackChanges = true;
+        Format = NetFormat.Of(schema, options.NumberScale, options.NetScales);
+        _remember = [.. RememberNames(options).Select(name => schema.Find(name) ?? -1).Where(id => id >= 0)];
 
         var layers = new List<LayerSpec>(content.Layers);
         if (Game.Bounds is { } bounds)
@@ -111,11 +173,47 @@ public sealed class Host : IDisposable
                     if (!layers.Any(layer => layer.Name == spec.Name))
                         layers.Add(spec);
             if (Game.Land is { } config)
-                Land = Generate(new Land(config, LandArea.Of(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom)));
+            {
+                if (save?.Land is { } packed)
+                {
+                    try
+                    {
+                        Land = Land.Unpack(config, packed);
+                    }
+                    catch (FormatException error)
+                    {
+                        throw new HostException($"сохранение: карта не читается: {error.Message}", error);
+                    }
+                    _landLoaded = true;
+                }
+                else
+                {
+                    Land = Generate(new Land(config, LandArea.Of(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom)));
+                }
+            }
         }
         Layers = new LayerSet(layers);
         if (Map is { } map && Game.Fog)
             Vision = new Vision(map, Layers);
+        if (save is not null)
+        {
+            try
+            {
+                foreach (var change in LayerCodec.Decode(save.Layers))
+                    if (Layers.Find(change.Layer) is not null)
+                        Layers.Apply(change);
+                foreach (var player in save.ReadPlayers(Roster))
+                {
+                    _players.Add(player);
+                    Layers.AddPlayer(player);
+                    Vision?.Restore(player);
+                }
+            }
+            catch (FormatException error)
+            {
+                throw new HostException($"сохранение не читается: {error.Message}", error);
+            }
+        }
         Tools = new EngineTools(this);
 
         _moduleHost = options.ModuleHost ?? new GameModuleHost(options.Modules);
@@ -146,6 +244,11 @@ public sealed class Host : IDisposable
             if (Vision is { } vision)
                 specs.Add(new SystemSpec { Name = VisionSystem, Key = "vision", System = new DelegateSystem(ctx => { if (ctx.Tick % Kharos.Host.Vision.Ticks == 1) vision.Update(ctx.World); }) });
             Scheduler = new Scheduler(World, specs, Seed);
+            if (save is not null)
+            {
+                Scheduler.Tick = save.Tick;
+                Scheduler.RandomState = save.Random;
+            }
         }
         catch (Exception error) when (error is ModException or ScheduleException or KeyNotFoundException)
         {
@@ -174,10 +277,22 @@ public sealed class Host : IDisposable
                 }, mod.Name);
             }
             // Память мода — сущность с Storage { mod, data }: сохраняется и ходит по сети, как весь мир (Р3).
-            var entity = World.Spawn();
-            World.Add(entity, StorageComponent);
-            World.Set(entity, StorageComponent, "mod", mod.Name);
+            var entity = save is null ? 0 : FindStorage(mod.Name);
+            if (entity == 0)
+            {
+                entity = World.Spawn();
+                World.Add(entity, StorageComponent);
+                World.Set(entity, StorageComponent, "mod", mod.Name);
+            }
             mod.StorageEntity = entity;
+        }
+        if (save is not null)
+        {
+            Started = true;
+            // Загрузка — не изменения: клиенты получат мир снимком.
+            World.TakeChanges(_changes);
+            Layers.TakeChanges();
+            _stringsSent = World.Strings.Count;
         }
     }
 
@@ -200,10 +315,22 @@ public sealed class Host : IDisposable
 
     public EngineTools Tools { get; }
 
+    /// <summary>Точность чисел в сети.</summary>
+    public NetFormat Format { get; }
+
+    /// <summary>Игроки: номера, токены, ники (в сохранении).</summary>
+    public PlayerRoster Roster { get; } = new();
+
+    /// <summary>Карта правлена (или пришла правленой из сохранения): клиентам и в сохранение — байтами.</summary>
+    public bool LandEdited => _landLoaded || (Land?.Revision ?? 0) > 0;
+
+    /// <summary>Кто сейчас в сети (<see cref="Online"/>).</summary>
+    public IReadOnlyCollection<uint> OnlinePlayers => _online;
+
     /// <summary>Моды с кодом хоста, в порядке загрузки.</summary>
     public IReadOnlyList<HostMod> Mods => _mods;
 
-    /// <summary>Вошедшие игроки.</summary>
+    /// <summary>Игроки, хоть раз входившие в партию (в сохранении).</summary>
     public IReadOnlyCollection<uint> Players => _players;
 
     public ulong Tick => Scheduler.Tick;
@@ -248,6 +375,52 @@ public sealed class Host : IDisposable
         return true;
     }
 
+    /// <summary>Игрок в сети: событие <see cref="OnlineEvent"/>. Уже был — false.</summary>
+    public bool Online(uint player)
+    {
+        if (!_online.Add(player))
+            return false;
+        Emit(OnlineEvent, player);
+        return true;
+    }
+
+    /// <summary>Игрок вышел из сети: событие <see cref="LeftEvent"/>. Не был в сети — false.</summary>
+    public bool Offline(uint player)
+    {
+        if (!_online.Remove(player))
+            return false;
+        Emit(LeftEvent, player);
+        return true;
+    }
+
+    /// <summary>Игрок просит начать заново: событие <see cref="RespawnEvent"/>; что делать, решают моды.</summary>
+    public void Respawn(uint player, bool forced = false)
+    {
+        var payload = new byte[5];
+        BinaryPrimitives.WriteUInt32LittleEndian(payload, player);
+        payload[4] = forced ? (byte)1 : (byte)0;
+        Scheduler.Emit(RespawnEvent, payload);
+        Settle();
+    }
+
+    /// <summary>Помнит ли зритель сущность, ушедшую из виду (у неё компонент из <see cref="HostOptions.Remember"/>).</summary>
+    public bool Remembered(uint entity)
+    {
+        foreach (var component in _remember)
+            if (World.Has(entity, component))
+                return true;
+        return false;
+    }
+
+    /// <summary>Есть ли у какого-нибудь мода приказ с таким именем.</summary>
+    public bool HasOrder(string name) => _mods.Any(mod => !mod.Disabled && mod.Manifest.Orders.Contains(name));
+
+    /// <summary>Сохранение партии (на потоке хоста): мир, слои, игроки, тик и случайный ряд.</summary>
+    public byte[] Save() => HostSave.Capture(this).Encode();
+
+    /// <summary>Пакеты модов для клиентов (без кода хоста) — в порядке загрузки; собираются при первом обращении.</summary>
+    public IReadOnlyList<HostPack> Packs => _packs ??= [.. Content.Mods.Select(HostPack.Of)];
+
     /// <summary>Приказ игрока: выполнится в начале следующего тика.</summary>
     public void Send(uint player, string order, byte[] payload) => Scheduler.Send(player, order, payload);
 
@@ -288,6 +461,9 @@ public sealed class Host : IDisposable
     public Welcome Welcome(uint player) => new()
     {
         Player = player,
+        Token = Roster.Get(player)?.Token ?? "",
+        Name = Roster.NameOf(player),
+        Mods = [.. Packs.Select(pack => pack.Ref)],
         Game = Game.Name,
         Seed = Seed,
         Dt = Dt,
@@ -296,9 +472,37 @@ public sealed class Host : IDisposable
         Map = Map,
         Fog = Vision is not null,
         Land = Land?.Config,
-        Components = Protocol.Welcome.Describe(World.Schema),
+        Components = Protocol.Welcome.Describe(World.Schema, Format),
         Layers = [.. Layers.Specs],
     };
+
+    /// <summary>Компоненты памяти зрителя: из настроек или списка remember партии.</summary>
+    private IEnumerable<string> RememberNames(HostOptions options)
+    {
+        if (options.Remember is { } names)
+            return names;
+        if (Game.Data.ValueKind == JsonValueKind.Object && Game.Data.TryGetProperty("remember", out var list) && list.ValueKind == JsonValueKind.Array)
+            return [.. list.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.String).Select(item => item.GetString()!)];
+        return [];
+    }
+
+    /// <summary>Сущность памяти мода в загруженном мире; нет — 0.</summary>
+    private uint FindStorage(string mod)
+    {
+        var field = World.Schema[StorageComponent].FieldIndex("mod");
+        foreach (var entity in World.Store(StorageComponent).Entities)
+            if (World.Get(entity, StorageComponent, field).Text == mod)
+                return entity;
+        return 0;
+    }
+
+    private void Emit(string name, uint player)
+    {
+        var payload = new byte[4];
+        BinaryPrimitives.WriteUInt32LittleEndian(payload, player);
+        Scheduler.Emit(name, payload);
+        Settle();
+    }
 
     /// <summary>Следующее случайное мира (kh.random модов).</summary>
     internal double NextRandom() => Scheduler?.NextRandom() ?? 0;

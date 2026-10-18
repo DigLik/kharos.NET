@@ -92,6 +92,26 @@ public sealed class GameWorld
             _spawned.Add(entity);
     }
 
+    /// <summary>
+    /// Оживляет номер хоста, жил он раньше или нет: реплика клиента, куда сущность вернулась в обзор. Живой — ничего;
+    /// номера до него не выдаются заранее, <see cref="NextEntity"/> — за ним.
+    /// </summary>
+    public void Restore(uint entity)
+    {
+        if (entity is 0 or uint.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(entity), entity, "нет такого номера сущности");
+        if (_alive.Contains(entity))
+            return;
+        _reserved.Remove(entity);
+        if (entity >= NextEntity)
+            NextEntity = entity + 1;
+        _alive.Add(entity);
+        Count++;
+        Revision++;
+        if (TrackChanges)
+            _spawned.Add(entity);
+    }
+
     public bool Alive(uint entity) => _alive.Contains(entity);
 
     /// <summary>Убирает сущность со всеми компонентами. Неживая — ничего.</summary>

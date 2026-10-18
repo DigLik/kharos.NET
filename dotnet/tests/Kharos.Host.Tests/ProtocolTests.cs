@@ -7,34 +7,7 @@ namespace Kharos.Host.Tests;
 /// <summary>Протокол: приветствие, снимок, дельты, реплика равна хосту, вход посреди партии, дельта — только изменения.</summary>
 public class ProtocolTests
 {
-    /// <summary>Мир и слои реплики совпадают с хостом: сущности, компоненты, значения, строки, слои зрителя.</summary>
-    private static void AssertSame(Host host, Replica replica)
-    {
-        var world = replica.World!;
-        var (expected, actual) = (new List<uint>(), new List<uint>());
-        host.World.Entities(expected);
-        world.Entities(actual);
-        Assert.Equal(expected, actual);
-        var schema = host.World.Schema;
-        for (var c = 0; c < schema.Count; c++)
-        {
-            Assert.Equal(host.World.Store(c).Count, world.Store(c).Count);
-            foreach (var entity in host.World.Store(c).Entities)
-            {
-                Assert.True(world.Has(entity, c), $"у {entity} нет {schema[c].Name}");
-                foreach (var field in schema[c].Fields)
-                    Assert.Equal(host.World.Get(entity, c, field.Index), world.Get(entity, c, field.Index));
-            }
-        }
-        for (var id = 0; id < host.Layers.Count; id++)
-        {
-            var spec = host.Layers.Spec(id);
-            var owner = spec.Scope == LayerScope.World ? LayerOwner.World : LayerOwner.Player(replica.Player);
-            var mine = host.Layers.Blocks(id, owner);
-            var theirs = replica.Layers!.Blocks(replica.Layers.Id(spec.Name), owner);
-            Assert.Equal(mine, theirs);
-        }
-    }
+    private static void AssertSame(Host host, Replica replica, IViewFilter? filter = null) => NetAssert.Same(host, replica, filter);
 
     [Fact]
     public void WelcomeRoundTripsAndRebuildsSchema()
@@ -63,7 +36,8 @@ public class ProtocolTests
         var (hostEnd, clientEnd) = MemoryTransport.Pair();
         session.Connect(hostEnd, 1);
         var replica = new Replica();
-        Assert.Equal(2, replica.Pump(clientEnd));
+        // Приветствие, снимок, команды чата, весть о входе, игроки.
+        Assert.Equal(5, replica.Pump(clientEnd));
         AssertSame(host, replica);
 
         // Приказы — через транспорт, как у настоящего клиента.
@@ -85,6 +59,7 @@ public class ProtocolTests
         }
         AssertSame(host, replica);
         Assert.Equal(353, HelloGame.Units(replica.World!, 1).Count);
+        Assert.Equal(0, session.Deferred);
         Assert.True(beeps > 0, "сигналы доходят до реплики");
         Assert.Equal(1, replica.WorldVersion);
         Assert.Empty(host.Errors);
@@ -112,9 +87,11 @@ public class ProtocolTests
         two.Pump(clientTwo);
         one.Pump(clientOne);
         Assert.Equal((2u, 30ul), (two.Player, two.Tick));
-        AssertSame(host, two);
-        AssertSame(host, one);
+        // Второй видит своё и то, что в его обзоре; первый — всё своё (второй далеко).
+        AssertSame(host, two, session.Connections[1].Filter);
+        AssertSame(host, one, session.Connections[0].Filter);
         Assert.Equal(3, HelloGame.Units(two.World!, 2).Count);
+        Assert.Empty(HelloGame.Units(two.World!, 1));
 
         for (var tick = 0; tick < 20; tick++)
         {
@@ -122,8 +99,8 @@ public class ProtocolTests
             one.Pump(clientOne);
             two.Pump(clientTwo);
         }
-        AssertSame(host, one);
-        AssertSame(host, two);
+        AssertSame(host, one, session.Connections[0].Filter);
+        AssertSame(host, two, session.Connections[1].Filter);
         // Слои игрока — только ему: туман второго к первому не приходит.
         var sight = one.Layers!.Id(Fog.Sight);
         Assert.Empty(one.Layers.Cells(sight, LayerOwner.Player(2)));
@@ -167,7 +144,7 @@ public class ProtocolTests
         quiet.Step();
         var empty = quiet.TakeDelta();
         Assert.True(empty.IsEmpty);
-        Assert.True(DeltaCodec.Encode(empty, quiet.World, quiet.Layers, new FullView(1)).Length < 24);
+        Assert.True(DeltaCodec.Encode(empty, quiet.World, quiet.Layers, new FullView(1), quiet.Format).Length < 24);
     }
 
     [Fact]
@@ -182,7 +159,7 @@ public class ProtocolTests
         replica.Pump(clientEnd);
         host.Send(1, "hello.spawn", HelloGame.Spawn(10, 0, 0));
         host.Step();
-        var delta = DeltaCodec.Encode(host.TakeDelta(), host.World, host.Layers, new FullView(1));
+        var delta = DeltaCodec.Encode(host.TakeDelta(), host.World, host.Layers, new FullView(1), host.Format);
         Assert.Throws<FormatException>(() => replica.Apply(delta.AsSpan(0, delta.Length / 2)));
         Assert.Throws<FormatException>(() => new Replica().Apply(delta));
         Assert.Throws<FormatException>(() => replica.Apply([0x7f]));

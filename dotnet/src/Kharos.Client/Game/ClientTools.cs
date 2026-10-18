@@ -10,35 +10,50 @@ using Kharos.Protocol;
 namespace Kharos.Client.Game;
 
 /// <summary>
-/// Место и направление сущностей тиком раньше — для сглаживания между тиками (ClientState.prev и pose в script.rs).
+/// Сглаживание мест между тиками (ClientState.prev и pose в script.rs): сдвинутая дельтой сущность едет от того места,
+/// где её показывали, к новому за span тиков (хост прислал её с опозданием — столько же и догоняет).
 /// </summary>
 public sealed class Poses
 {
-    private readonly Dictionary<uint, (double X, double Y, double Angle)> _previous = [];
+    private readonly Dictionary<uint, Glide> _glides = [];
+    private readonly List<uint> _done = [];
 
-    /// <summary>Доля тика с его прихода, 0..1.</summary>
+    /// <summary>Доля тика с прихода последней дельты, 0..1 (для модов).</summary>
     public double Alpha { get; set; } = 1;
 
-    /// <summary>Запоминает места перед применением тика.</summary>
-    public void Remember(GameWorld world)
+    /// <summary>Время кадра, с: по нему считается, сколько проехано.</summary>
+    public double Time { get; set; }
+
+    /// <summary>Сколько сущностей сейчас в пути.</summary>
+    public int Gliding => _glides.Count;
+
+    /// <summary>Дельта применена в time: сдвинутым — путь от показанного места к новому длиной span × dt.</summary>
+    public void Moved(IReadOnlyList<PoseMove> moves, double time, double dt)
     {
-        _previous.Clear();
-        var position = world.Store(Builtin.Position);
-        var facing = world.Store(Builtin.Facing);
-        var entities = position.Entities;
-        ReadOnlySpan<double> xs = position.Column(0), ys = position.Column(1), angles = facing.Column(0);
-        for (var row = 0; row < entities.Length; row++)
+        foreach (var move in moves)
         {
-            var entity = entities[row];
-            var at = facing.RowOf(entity);
-            _previous[entity] = (xs[row], ys[row], at < 0 ? 0 : angles[at]);
+            var (x, y, angle) = (move.X, move.Y, move.Angle);
+            // Несколько дельт за кадр: путь — от места перед последней (отстаём не больше чем на тик, как раньше).
+            if (_glides.TryGetValue(move.Entity, out var glide) && time > glide.Start && time < glide.Start + glide.Duration)
+                (x, y, angle) = glide.At(time, move.X, move.Y, move.Angle);
+            _glides[move.Entity] = new Glide(x, y, angle, time, Math.Max(dt * move.Span, 1e-6));
+        }
+        // Доехавшие — прочь, чтобы словарь не рос.
+        if (_glides.Count > 64 && _glides.Count > moves.Count * 2)
+        {
+            _done.Clear();
+            foreach (var (entity, glide) in _glides)
+                if (time >= glide.Start + glide.Duration)
+                    _done.Add(entity);
+            foreach (var entity in _done)
+                _glides.Remove(entity);
         }
     }
 
-    /// <summary>Мир сменился снимком: прежних мест нет.</summary>
-    public void Forget() => _previous.Clear();
+    /// <summary>Мир сменился снимком: путей нет.</summary>
+    public void Forget() => _glides.Clear();
 
-    /// <summary>Место и направление сущности сейчас — между прошлым и этим тиком; нет Position — false.</summary>
+    /// <summary>Место и направление сущности сейчас; нет Position — false.</summary>
     public bool TryGet(GameWorld world, uint entity, out double x, out double y, out double angle)
     {
         var position = world.Store(Builtin.Position);
@@ -53,12 +68,20 @@ public sealed class Poses
         var facing = world.Store(Builtin.Facing);
         var at = facing.RowOf(entity);
         angle = at < 0 ? 0 : facing.Column(0)[at];
-        if (!_previous.TryGetValue(entity, out var previous))
-            return true;
-        var t = Alpha;
-        var turn = Euclid(angle - previous.Angle + Math.PI, Math.Tau) - Math.PI;
-        (x, y, angle) = (previous.X + (x - previous.X) * t, previous.Y + (y - previous.Y) * t, previous.Angle + turn * t);
+        if (_glides.TryGetValue(entity, out var glide) && Time < glide.Start + glide.Duration)
+            (x, y, angle) = glide.At(Time, x, y, angle);
         return true;
+    }
+
+    /// <summary>Путь: откуда, когда начат и сколько длится.</summary>
+    private readonly record struct Glide(double X, double Y, double Angle, double Start, double Duration)
+    {
+        public (double X, double Y, double Angle) At(double time, double x, double y, double angle)
+        {
+            var t = Math.Clamp((time - Start) / Duration, 0, 1);
+            var turn = Euclid(angle - Angle + Math.PI, Math.Tau) - Math.PI;
+            return (X + (x - X) * t, Y + (y - Y) * t, Angle + turn * t);
+        }
     }
 
     private static double Euclid(double value, double modulus)

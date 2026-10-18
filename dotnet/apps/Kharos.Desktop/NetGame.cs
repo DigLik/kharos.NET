@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Kharos.Client.Game;
 using Kharos.Client.Net;
+using Kharos.Content;
 using Kharos.Protocol;
 
 namespace Kharos.Desktop;
@@ -63,6 +65,40 @@ internal static class NetGame
         new("version", Welcome.ProtocolVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),
     ];
 
+    /// <summary>Сколько ждать входа: приветствие, моды сервера (их может быть мегабайты при 256 КБ/с) и снимок.</summary>
+    public static readonly TimeSpan EnterTimeout = TimeSpan.FromMinutes(3);
+
+    /// <summary>Кэш модов, присланных серверами, — рядом с журналом.</summary>
+    public static string CacheDirectory { get; } = Path.Combine(Path.GetDirectoryName(DesktopLog.FilePath)!, "mods");
+
+    /// <summary>Свои моды: годятся, если совпали с серверными по хешу; не читаются — не беда, придут с сервера.</summary>
+    public static List<ModPackage> LocalMods(DesktopOptions options)
+    {
+        try
+        {
+            return [.. options.ModRoots.SelectMany(ModPackage.Discover)];
+        }
+        catch (ContentException error)
+        {
+            DesktopLog.Write($"свои моды не прочитаны, всё возьму с сервера: {error.Message}");
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Вход в партию сервера: приветствие, недостающие моды (кэш — <see cref="CacheDirectory"/>), снимок. Токен из
+    /// приветствия запоминается: по нему сервер узнает игрока в следующий раз. Отказ — <see cref="ClientException"/>.
+    /// </summary>
+    public static GameConnector Enter(DesktopOptions options, WebSocketTransport transport, IEnumerable<ModPackage> local)
+    {
+        var connector = GameConnector.Connect(transport, new ContentCache(CacheDirectory), EnterTimeout, local);
+        if (connector.FromCache + connector.Downloaded > 0)
+            DesktopLog.Write($"моды сервера: из кэша {connector.FromCache}, скачано {connector.Downloaded} ({connector.Received / 1024} КБ)");
+        if (connector.Replica.Welcome is { Token.Length: > 0 } welcome && Uri.TryCreate(options.Server, UriKind.Absolute, out var server))
+            new PlayerTokens().Remember(server, welcome.Token);
+        return connector;
+    }
+
     /// <summary>Почему соединение кончилось или не состоялось: текст из Close-кадра сервера (отказ) либо сбой.</summary>
     public static string Describe(WebSocketTransport transport) =>
         transport.CloseReason is { } reason
@@ -73,8 +109,8 @@ internal static class NetGame
 /// <summary>
 /// Токены игрока по адресам серверов, в servers.json рядом с журналом (<c>%LOCALAPPDATA%\Kharos</c> на Windows,
 /// <c>~/.local/share/Kharos</c> на Linux, <c>~/Library/Application Support/Kharos</c> на macOS). Сервер узнаёт игрока
-/// по токену и отдаёт прежнего. Пока сервер сам токен не выдаёт, клиент заводит его сам — случайный, при первом входе.
-/// Когда выдача уйдёт в приветствие, сюда добавится <see cref="Remember"/> из оболочки.
+/// по токену и отдаёт прежнего. Первый раз клиент заводит токен сам (сервер принимает его как нового игрока); токен из
+/// приветствия запоминается (<see cref="Remember"/>, NetGame.Enter) — если сервер выдал свой, дальше идёт он.
 /// </summary>
 internal sealed class PlayerTokens
 {

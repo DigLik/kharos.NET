@@ -48,7 +48,8 @@ public static class Shell
         GlfwWindowing.RegisterPlatform();
         GlfwInput.RegisterPlatform();
 
-        var content = GameContent.Load([.. options.ModRoots.SelectMany(ModPackage.Discover)]);
+        // Свои моды; на сервере они не обязательны — недостающие придут с сервера (GameConnector).
+        List<ModPackage> packages = net is null ? [.. options.ModRoots.SelectMany(ModPackage.Discover)] : NetGame.LocalMods(options);
         var shot = options.Shot;
         var windowOptions = WindowOptions.Default with
         {
@@ -87,9 +88,17 @@ public static class Shell
         ClientGame? game = null;
         try
         {
+            var clientOptions = new ClientGameOptions { Audio = audio, Log = DesktopLog.Write };
             if (net is null)
+            {
+                var content = GameContent.Load(packages);
                 local = LocalGame.Start(() => new HostGame(content, new HostOptions { Game = options.Game, Log = DesktopLog.Write }));
-            game = new ClientGame(content, (ITransport?)local?.Client ?? net!, new ClientGameOptions { Audio = audio, Log = DesktopLog.Write });
+                game = new ClientGame(content, local.Client, clientOptions);
+            }
+            else
+            {
+                game = new ClientGame(NetGame.Enter(options, net, packages), clientOptions);
+            }
             return Loop(options, window, input, gpu, renderer, local, net, game);
         }
         catch (ClientException error) when (net is not null)

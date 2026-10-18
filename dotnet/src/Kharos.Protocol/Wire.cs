@@ -39,6 +39,12 @@ public sealed class WireWriter
         return this;
     }
 
+    public WireWriter F32(float value)
+    {
+        BinaryPrimitives.WriteSingleLittleEndian(Room(4), value);
+        return this;
+    }
+
     public WireWriter Varint(ulong value)
     {
         var room = Room(10);
@@ -118,6 +124,8 @@ public ref struct WireReader(ReadOnlySpan<byte> bytes)
     public int I32() => BinaryPrimitives.ReadInt32LittleEndian(Take(4));
 
     public double F64() => BinaryPrimitives.ReadDoubleLittleEndian(Take(8));
+
+    public float F32() => BinaryPrimitives.ReadSingleLittleEndian(Take(4));
 
     public ulong Varint()
     {

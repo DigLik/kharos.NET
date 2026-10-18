@@ -4,21 +4,11 @@ using Kharos.Engine.World;
 
 namespace Kharos.Protocol;
 
-/// <summary>Вид сообщения: первый байт.</summary>
-public enum MessageType : byte
-{
-    /// <summary>Хост → клиент: кто ты, какая партия, схема, слои, сумма модов.</summary>
-    Welcome = 0x01,
-    /// <summary>Хост → клиент: мир и слои целиком.</summary>
-    Snapshot = 0x02,
-    /// <summary>Хост → клиент: изменения с прошлого сообщения.</summary>
-    Delta = 0x03,
-    /// <summary>Клиент → хост: приказ.</summary>
-    Order = 0x10,
-}
+/// <summary>Поле компонента в описании схемы; Scale — точность числа в сети (<see cref="NetFormat"/>), 0 — точно.</summary>
+public sealed record FieldInfo(string Name, FieldKind Kind, FieldValue Default, double Scale = 0);
 
-/// <summary>Поле компонента в описании схемы.</summary>
-public sealed record FieldInfo(string Name, FieldKind Kind, FieldValue Default);
+/// <summary>Мод хоста для доставки: имя, версия, хеш пакета (<see cref="ContentPack"/>) и его сжатый размер.</summary>
+public sealed record ModRef(string Name, string Version, byte[] Hash, int Size);
 
 /// <summary>Компонент в описании схемы: номер — место в списке.</summary>
 public sealed record ComponentInfo(string Name, IReadOnlyList<FieldInfo> Fields);
@@ -36,10 +26,11 @@ public readonly record struct MapBounds(int Left, int Top, int Right, int Bottom
 /// Приветствие (хост → клиент, первым): кто игрок, партия, зерно и местность, длина тика, сумма модов, схема мира и
 /// слои. По схеме клиент строит свой мир-реплику — номера компонентов совпадают с хостом.
 /// <code>
-/// 0x01 version:varint player:varint game:str seed:varint dt:f64 tick:varint checksum:blob
+/// 0x01 version:varint player:varint token:str name:str game:str seed:varint dt:f64 tick:varint checksum:blob
+///      mods:varint (name:str version:str hash:32 size:varint)
 ///      map:u8 [left top right bottom:svarint] fog:u8
 ///      land:u8 [GeneratorConfig: seed:svarint, 24 × f64 по порядку свойств, blank:u8]
-///      components:varint (name:str fields:varint (name:str kind:u8 default))
+///      components:varint (name:str fields:varint (name:str kind:u8 default [scale:f64 у числа]))
 ///      layers:varint (name:str scope:u8 channels:varint u8× cell:varint fields:varint (name:str channel:u8) flags:u8)
 ///   default: число — f64, флаг — u8, строка — str, байты — ничего
 ///   flags: 1 save, 2 send, 4 remember, 8 allies
@@ -48,11 +39,20 @@ public readonly record struct MapBounds(int Left, int Top, int Right, int Bottom
 public sealed class Welcome
 {
     /// <summary>Версия протокола: разошлась — клиент предлагает обновиться.</summary>
-    public const int ProtocolVersion = 1;
+    public const int ProtocolVersion = 2;
 
     public int Version { get; init; } = ProtocolVersion;
     public required uint Player { get; init; }
     public required string Game { get; init; }
+
+    /// <summary>По чему хост узнает игрока при следующем входе (и после перезапуска сервера); клиенту — запомнить.</summary>
+    public string Token { get; init; } = "";
+
+    /// <summary>Ник игрока, как его видят все.</summary>
+    public string Name { get; init; } = "";
+
+    /// <summary>Моды хоста в порядке загрузки: чего нет в кэше, клиент просит (<see cref="MessageType.Fetch"/>).</summary>
+    public IReadOnlyList<ModRef> Mods { get; init; } = [];
 
     /// <summary>Зерно мира (случайный ряд хоста).</summary>
     public ulong Seed { get; init; }
@@ -78,9 +78,12 @@ public sealed class Welcome
     public required IReadOnlyList<ComponentInfo> Components { get; init; }
     public IReadOnlyList<LayerSpec> Layers { get; init; } = [];
 
-    /// <summary>Описание схемы мира.</summary>
-    public static List<ComponentInfo> Describe(Schema schema) =>
-        [.. schema.Components.Select(c => new ComponentInfo(c.Name, [.. c.Fields.Select(f => new FieldInfo(f.Name, f.Kind, f.Default))]))];
+    /// <summary>Описание схемы мира с точностью чисел (null — точно).</summary>
+    public static List<ComponentInfo> Describe(Schema schema, NetFormat? format = null) =>
+        [.. schema.Components.Select(c => new ComponentInfo(c.Name, [.. c.Fields.Select(f => new FieldInfo(f.Name, f.Kind, f.Default, format?.Scale(c.Id, f.Index) ?? 0))]))];
+
+    /// <summary>Точность чисел по описанию схемы.</summary>
+    public NetFormat BuildFormat() => new([.. Components.Select(c => c.Fields.Select(f => f.Kind == FieldKind.Number ? f.Scale : 0).ToArray())]);
 
     /// <summary>Схема по описанию; номера компонентов — как у хоста, иначе <see cref="FormatException"/>.</summary>
     public Schema BuildSchema()
@@ -102,7 +105,14 @@ public sealed class Welcome
     public byte[] Encode()
     {
         var w = new WireWriter(1024);
-        w.Byte((byte)MessageType.Welcome).Varint((ulong)Version).Varint(Player).Text(Game).Varint(Seed).F64(Dt).Varint(Tick).Blob(Checksum);
+        w.Byte((byte)MessageType.Welcome).Varint((ulong)Version).Varint(Player).Text(Token).Text(Name).Text(Game).Varint(Seed).F64(Dt).Varint(Tick).Blob(Checksum);
+        w.Varint((ulong)Mods.Count);
+        foreach (var mod in Mods)
+        {
+            if (mod.Hash.Length != Messages.HashSize)
+                throw new ArgumentException($"мод {mod.Name}: хеш не 32 байта");
+            w.Text(mod.Name).Text(mod.Version).Raw(mod.Hash).Varint((ulong)mod.Size);
+        }
         w.Bool(Map is not null);
         if (Map is { } map)
             w.SVarint(map.Left).SVarint(map.Top).SVarint(map.Right).SVarint(map.Bottom);
@@ -119,7 +129,7 @@ public sealed class Welcome
                 w.Text(field.Name).Byte((byte)field.Kind);
                 switch (field.Kind)
                 {
-                    case FieldKind.Number: w.F64(field.Default.Number); break;
+                    case FieldKind.Number: w.F64(field.Default.Number).F64(field.Scale); break;
                     case FieldKind.Flag: w.Bool(field.Default.Flag); break;
                     case FieldKind.String: w.Text(field.Default.Text ?? ""); break;
                 }
@@ -149,18 +159,23 @@ public sealed class Welcome
         if (version != ProtocolVersion)
             throw new FormatException($"протокол хоста {version}, клиента {ProtocolVersion}");
         var player = r.U32();
+        var token = r.Text();
+        var name = r.Text();
         var game = r.Text();
         var seed = r.Varint();
         var dt = r.F64();
         var tick = r.Varint();
         var checksum = r.Blob().ToArray();
+        var mods = new ModRef[r.Count(Messages.HashSize)];
+        for (var at = 0; at < mods.Length; at++)
+            mods[at] = new ModRef(r.Text(), r.Text(), r.Take(Messages.HashSize).ToArray(), r.Int());
         MapBounds? map = r.Bool() ? new MapBounds((int)r.SVarint(), (int)r.SVarint(), (int)r.SVarint(), (int)r.SVarint()) : null;
         var fog = r.Bool();
         var land = r.Bool() ? ReadGenerator(ref r) : null;
         var components = new ComponentInfo[r.Count()];
         for (var id = 0; id < components.Length; id++)
         {
-            var name = r.Text();
+            var componentName = r.Text();
             var fields = new FieldInfo[r.Count()];
             for (var at = 0; at < fields.Length; at++)
             {
@@ -172,16 +187,19 @@ public sealed class Welcome
                     FieldKind.Flag => FieldValue.Of(r.Bool()),
                     FieldKind.String => FieldValue.Of(r.Text()),
                     FieldKind.Bytes => FieldValue.Of([]),
-                    _ => throw new FormatException($"{name}.{fieldName}: вид {(int)kind}"),
+                    _ => throw new FormatException($"{componentName}.{fieldName}: вид {(int)kind}"),
                 };
-                fields[at] = new FieldInfo(fieldName, kind, value);
+                var scale = kind == FieldKind.Number ? r.F64() : 0;
+                if (!(scale >= 0 && double.IsFinite(scale)))
+                    throw new FormatException($"{componentName}.{fieldName}: точность {scale}");
+                fields[at] = new FieldInfo(fieldName, kind, value, scale);
             }
-            components[id] = new ComponentInfo(name, fields);
+            components[id] = new ComponentInfo(componentName, fields);
         }
         var layers = new LayerSpec[r.Count()];
         for (var at = 0; at < layers.Length; at++)
         {
-            var name = r.Text();
+            var layerName = r.Text();
             var scope = (LayerScope)r.Byte();
             var channels = new Channel[r.Count()];
             for (var c = 0; c < channels.Length; c++)
@@ -193,8 +211,8 @@ public sealed class Welcome
             var flags = r.Byte();
             layers[at] = new LayerSpec
             {
-                Name = name,
-                Scope = scope <= LayerScope.Player ? scope : throw new FormatException($"{name}: scope {(int)scope}"),
+                Name = layerName,
+                Scope = scope <= LayerScope.Player ? scope : throw new FormatException($"{layerName}: scope {(int)scope}"),
                 Channels = channels,
                 Cell = cell,
                 Fields = fields,
@@ -208,7 +226,7 @@ public sealed class Welcome
             throw new FormatException("лишние байты в приветствии");
         return new Welcome
         {
-            Version = version, Player = player, Game = game, Seed = seed, Dt = dt, Tick = tick, Checksum = checksum,
+            Version = version, Player = player, Token = token, Name = name, Game = game, Seed = seed, Dt = dt, Tick = tick, Checksum = checksum, Mods = mods,
             Map = map, Fog = fog, Land = land, Components = components, Layers = layers,
         };
     }

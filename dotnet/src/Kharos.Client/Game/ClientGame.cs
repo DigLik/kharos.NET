@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Kharos.Audio;
 using Kharos.Audio.Graph;
 using Kharos.Client.Looks;
+using Kharos.Client.Net;
 using Kharos.Client.Ui;
 using Kharos.Content;
 using Kharos.Engine.Layers;
@@ -151,15 +152,28 @@ public sealed class ClientGame : IDisposable
     private Renderer? _uploaded;
     private (byte[] Alpha, int Width, int Height)? _fogImage;
     private int _fogImageRevision, _fogDelivered;
+    private ViewBox? _viewSent;
+    private double _viewSentAt = double.NegativeInfinity;
+    private readonly List<ChatLine> _chat = [];
     private bool _disposed;
 
+    /// <summary>Партия со своими модами: ждёт приветствие и снимок; моды хоста должны совпасть со своими.</summary>
     public ClientGame(GameContent content, ITransport transport, ClientGameOptions? options = null)
+        : this(content, transport, new Replica(), options, connected: false) { }
+
+    /// <summary>Партия с модами, которые собрал вход (<see cref="GameConnector"/>: свои, из кэша или от хоста).</summary>
+    public ClientGame(GameConnector connector, ClientGameOptions? options = null)
+        : this(connector.Content ?? throw new ClientException("вход не закончен: модов хоста ещё нет"), connector.Transport, connector.Replica, options, connected: true) { }
+
+    private ClientGame(GameContent content, ITransport transport, Replica replica, ClientGameOptions? options, bool connected)
     {
         _options = options ?? new ClientGameOptions();
         Content = content;
         _transport = transport;
-        Replica = new Replica();
-        Connect(_options.ConnectTimeout);
+        Replica = replica;
+        if (!connected || !Replica.Ready)
+            Connect(_options.ConnectTimeout);
+        TakeInbox();
         var welcome = Replica.Welcome!;
         if (!welcome.Checksum.AsSpan().SequenceEqual(content.Checksum))
             throw new ClientException("моды хоста и клиента разошлись: суммы не совпали");
@@ -171,7 +185,7 @@ public sealed class ClientGame : IDisposable
         Scene = new ClientScene(Gui) { LookOf = proto => (uint)proto < (uint)_lookByProto!.Length ? _lookByProto[proto] : null };
         Scene.SetPalette(ClientScene.DefaultTeams);
         if (welcome.Land is { } config && welcome.Map is { } map)
-            Land = new Land(config, LandArea.Of(map.Left, map.Top, map.Right, map.Bottom));
+            Land = Replica.Land is { } packed ? UnpackLand(config, packed) : new Land(config, LandArea.Of(map.Left, map.Top, map.Right, map.Bottom));
         Tools = new ClientTools(Replica, content, () => Land, Poses, Fonts) { Log = Report };
         if (Replica.Schema!.Find("Attached") is { } attached && Replica.Schema[attached].Field("parent") is { } parent)
             (_attached, _attachedParent) = (attached, parent.Index);
@@ -223,6 +237,25 @@ public sealed class ClientGame : IDisposable
 
     /// <summary>Сбои модов и разбора (последние 1000).</summary>
     public List<string> Errors { get; } = [];
+
+    /// <summary>Строки чата по порядку прихода (последние 200).</summary>
+    public IReadOnlyList<ChatLine> Chat => _chat;
+
+    /// <summary>Игроки партии, как их прислал хост.</summary>
+    public IReadOnlyList<PlayerInfo> Players { get; private set; } = [];
+
+    /// <summary>Команды чата, доступные этому подключению, и в режиме ли администратора.</summary>
+    public IReadOnlyList<CommandInfo> Commands { get; private set; } = [];
+    public bool Admin { get; private set; }
+
+    /// <summary>Хост отказал или выгнал: причина; null — нет.</summary>
+    public string? Refused { get; private set; }
+
+    /// <summary>Строка чата или команда («/…») хосту.</summary>
+    public void Say(string text) => _transport.Send(Protocol.Messages.Say(text));
+
+    /// <summary>Начать заново (что делать, решают моды хоста).</summary>
+    public void Respawn() => _transport.Send(Protocol.Messages.Respawn());
 
     /// <summary>Облик вида; нет — null.</summary>
     public Look? LookOf(int proto) => (uint)proto < (uint)_lookByProto.Length ? _lookByProto[proto] : null;
@@ -302,6 +335,7 @@ public sealed class ClientGame : IDisposable
         _drift = (Euclid(_drift.X + atmosphere.WindX * (float)dt, Renderer.Window), Euclid(_drift.Y + atmosphere.WindY * (float)dt, Renderer.Window));
         frame.Drift = _drift;
         Decals((float)dt, frame);
+        SendView(frame.View, time);
         UpdateFog(frame);
         var sprites = Sprites(frame, time);
         var done = Stopwatch.GetTimestamp();
@@ -340,16 +374,83 @@ public sealed class ClientGame : IDisposable
         {
             if (_transport.TryReceive(out var message))
             {
-                Replica.Apply(message);
+                if (Replica.Apply(message) == MessageType.Refused)
+                    throw new ClientException($"хост не пустил: {Protocol.Messages.ReadRefused(message).Reason}");
                 continue;
             }
             if (_transport.Closed)
-                throw new ClientException("хост закрыл соединение до снимка мира");
+                throw new ClientException(ClosedReason(_transport, "хост закрыл соединение до снимка мира"));
             if (watch.Elapsed > timeout)
                 throw new ClientException($"нет приветствия и снимка за {timeout.TotalSeconds:0.#} с");
             Thread.Sleep(1);
         }
         _tickTime = 0;
+    }
+
+    /// <summary>Карта, правленная на хосте, — байтами.</summary>
+    private static Land UnpackLand(GeneratorConfig config, byte[] packed)
+    {
+        try
+        {
+            return Land.Unpack(config, packed);
+        }
+        catch (FormatException error)
+        {
+            throw new ClientException($"карта хоста не читается: {error.Message}", error);
+        }
+    }
+
+    /// <summary>Почему закрылся транспорт: причина из кадра закрытия WebSocket, иначе fallback.</summary>
+    internal static string ClosedReason(ITransport transport, string fallback) =>
+        transport is WebSocketTransport { CloseReason: { Length: > 0 } reason } ? $"сервер закрыл соединение: {reason}" : fallback;
+
+    /// <summary>Сообщения вне мира: чат, игроки, команды, отказ.</summary>
+    private void TakeInbox()
+    {
+        foreach (var message in Replica.Inbox)
+        {
+            try
+            {
+                switch ((MessageType)message[0])
+                {
+                    case MessageType.Chat:
+                        _chat.AddRange(Protocol.Messages.ReadChat(message));
+                        if (_chat.Count > 200)
+                            _chat.RemoveRange(0, _chat.Count - 200);
+                        break;
+                    case MessageType.Players:
+                        Players = Protocol.Messages.ReadPlayers(message);
+                        break;
+                    case MessageType.Commands:
+                        (var commands, Admin) = Protocol.Messages.ReadCommands(message);
+                        Commands = commands;
+                        break;
+                    case MessageType.Refused:
+                        Refused = Protocol.Messages.ReadRefused(message).Reason;
+                        Report($"хост: {Refused}");
+                        break;
+                }
+            }
+            catch (FormatException error)
+            {
+                Report($"сообщение хоста: {error.Message}");
+            }
+        }
+        Replica.Inbox.Clear();
+    }
+
+    /// <summary>Экран — хосту, когда сдвинулся на тайл или раз в секунду: по нему хост решает, что слать первым.</summary>
+    private void SendView(View view, double time)
+    {
+        var (left, top, right, bottom) = view.Bounds(0);
+        var box = new ViewBox(left, top, right, bottom);
+        if (_viewSent is { } sent && time - _viewSentAt < 1 && Math.Abs(sent.Left - box.Left) < 1 && Math.Abs(sent.Top - box.Top) < 1 && Math.Abs(sent.Right - box.Right) < 1 && Math.Abs(sent.Bottom - box.Bottom) < 1)
+            return;
+        if (!float.IsFinite(left) || !float.IsFinite(top) || !float.IsFinite(right) || !float.IsFinite(bottom) || right < left || bottom < top)
+            return;
+        _viewSent = box;
+        _viewSentAt = time;
+        _transport.Send(Protocol.Messages.View(box));
     }
 
     private void LoadMods(Welcome welcome)
@@ -483,20 +584,22 @@ public sealed class ClientGame : IDisposable
 
     // ------------------------------------------------------------------ кадр
 
-    /// <summary>Сообщения хоста; перед каждой дельтой места запоминаются — между ними кадр сглаживает.</summary>
+    /// <summary>Сообщения хоста; сдвинутые дельтой сущности кадр ведёт от прежнего места к новому (за span тиков).</summary>
     private void Pump(double time)
     {
+        var dt = Replica.Welcome?.Dt ?? 0.05;
+        Poses.Time = time;
         while (_transport.TryReceive(out var message))
         {
-            if (message.Length > 0 && message[0] == (byte)MessageType.Delta && Replica.World is { } world)
-            {
-                Poses.Remember(world);
-                _tickTime = time;
-            }
             var version = Replica.WorldVersion;
             try
             {
-                Replica.Apply(message);
+                var type = Replica.Apply(message);
+                if (type == MessageType.Delta)
+                {
+                    Poses.Moved(Replica.Moves, time, dt);
+                    _tickTime = time;
+                }
             }
             catch (FormatException error)
             {
@@ -508,6 +611,8 @@ public sealed class ClientGame : IDisposable
                 _tickTime = time;
             }
         }
+        if (Replica.Inbox.Count > 0)
+            TakeInbox();
     }
 
     private void RunMod(ClientModule mod, in FrameClock clock, in ClientInput input)

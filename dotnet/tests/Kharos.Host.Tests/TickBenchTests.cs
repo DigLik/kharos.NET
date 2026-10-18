@@ -15,7 +15,8 @@ public class TickBenchTests
     {
         using var host = HelloGame.Create();
         host.Start();
-        var session = new HostSession(host);
+        // Без бюджета байт: замер — сколько весит тик целиком.
+        var session = new HostSession(host, new HostSessionOptions { SendRate = 0 });
         var (hostEnd, clientEnd) = MemoryTransport.Pair();
         session.Connect(hostEnd, 1);
         var replica = new Replica();
@@ -65,13 +66,34 @@ public class TickBenchTests
             var before = timings[timing.Name];
             output?.WriteLine($"  {timing.Name}: сборка {F((timing.Gather - before.Gather) / ticks)}, система {F((timing.Run - before.Run) / ticks)}, возврат {F((timing.Scatter - before.Scatter) / ticks)}, команды {F((timing.Commands - before.Commands) / ticks)} мс на тик");
         }
+        NetAssert.Same(host, replica);
+        var stateless = DeltaCodec.Encode(session.LastDelta!, host.World, host.Layers, new FullView(1), host.Format);
+        output?.WriteLine($"  последняя рассылка: {session.Connections[0].LastDeltaBytes / 1024} КБ, та же дельта без памяти о зрителе — {stateless.Length / 1024} КБ");
         host.Step();
         var delta = Stopwatch.GetTimestamp();
         var taken = host.TakeDelta();
         var build = Stopwatch.GetElapsedTime(delta).TotalMilliseconds;
         delta = Stopwatch.GetTimestamp();
-        var encoded = DeltaCodec.Encode(taken, host.World, host.Layers, new FullView(1));
+        var encoded = DeltaCodec.Encode(taken, host.World, host.Layers, new FullView(1), host.Format);
         output?.WriteLine($"  сборка дельты {F(build)} мс, кодирование {F(Stopwatch.GetElapsedTime(delta).TotalMilliseconds)} мс, {encoded.Length / 1024} КБ, полей {taken.Fields.Count}");
+        var exact = DeltaCodec.Encode(taken, host.World, host.Layers, new FullView(1), NetFormat.Exact(host.World.Schema));
+        output?.WriteLine($"  та же дельта без квантования (f64): {exact.Length / 1024} КБ; с квантованием — {encoded.Length * 100 / exact.Length}%");
+
+        // С бюджетом сервера (256 КБ/с): сколько уходит и сколько ждёт очереди.
+        session.Connections[0].SendRate = 256 * 1024;
+        double budgeted = 0, sent = 0, deferred = 0;
+        for (var k = 0; k < 40; k++)
+        {
+            session.PumpOrders();
+            host.Step();
+            var started = Stopwatch.GetTimestamp();
+            session.Broadcast();
+            budgeted += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            sent += session.Connections[0].LastDeltaBytes;
+            deferred += session.Deferred;
+            replica.Pump(clientEnd);
+        }
+        output?.WriteLine($"с бюджетом 256 КБ/с: рассылка {F(budgeted / 40)} мс, {sent / 40 / 1024:0.0} КБ на тик, отложено в среднем {deferred / 40:0} сущностей");
         Assert.Empty(host.Errors);
         // Общие машины CI — не замер: там время только печатается.
         if (Environment.GetEnvironmentVariable("CI") != "true")

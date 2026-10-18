@@ -50,6 +50,44 @@ public sealed class Vision
             _cells[player] = new byte[Size];
     }
 
+    /// <summary>Обзор игрока из его слоя «разведано» (загрузка сохранения): видимое пересчитает <see cref="Update"/>.</summary>
+    public void Restore(uint player)
+    {
+        AddPlayer(player);
+        if (_layers is null || _explored < 0)
+            return;
+        var cells = _cells[player];
+        var owner = LayerOwner.Player(player);
+        var width = Bounds.Width;
+        for (var i = 0; i < cells.Length; i++)
+            cells[i] = _layers.Get(_explored, owner, Bounds.Left + i % width, Bounds.Top + i / width, 0) != 0 ? (byte)1 : (byte)0;
+    }
+
+    /// <summary>Вся карта игроку разведана (/reveal).</summary>
+    public void Reveal(uint player)
+    {
+        AddPlayer(player);
+        var old = _cells[player];
+        var fresh = (byte[])old.Clone();
+        for (var i = 0; i < fresh.Length; i++)
+            if (fresh[i] == 0)
+                fresh[i] = 1;
+        Mirror(player, old, fresh);
+        _cells[player] = fresh;
+        _changed[player] = _changed.GetValueOrDefault(player) + 1;
+    }
+
+    /// <summary>Игрок начинает заново: всё не разведано.</summary>
+    public void Forget(uint player)
+    {
+        if (!_cells.TryGetValue(player, out var old))
+            return;
+        var fresh = new byte[Size];
+        Mirror(player, old, fresh);
+        _cells[player] = fresh;
+        _changed[player] = _changed.GetValueOrDefault(player) + 1;
+    }
+
     /// <summary>Растёт, когда у игрока поменялось видимое.</summary>
     public long Changed(uint player) => _changed.GetValueOrDefault(player);
 

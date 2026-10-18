@@ -27,19 +27,27 @@ public static class Fog
 }
 
 /// <summary>
-/// Что зритель получает: сущности и слои. Сейчас (Н3) — всё, кроме чужих слоёв игрока; фильтр по обзору — Н4, он
-/// встаёт сюда же, не трогая кодек.
+/// Что зритель получает: сущности и слои. <see cref="FullView"/> — всё; фильтр по обзору — VisionView хоста.
 /// </summary>
 public interface IViewFilter
 {
     /// <summary>Игрок-зритель.</summary>
     uint Player { get; }
 
-    /// <summary>Видна ли сущность зрителю.</summary>
+    /// <summary>Видна ли сущность зрителю сейчас.</summary>
     bool Entity(uint entity);
 
     /// <summary>Уходит ли изменение слоя зрителю.</summary>
     bool Layer(LayerSpec spec, LayerOwner owner);
+
+    /// <summary>
+    /// Помнит ли зритель сущность, ушедшую из виду (здание, месторождение): она остаётся у клиента какой её видели
+    /// последней, без изменений, а погибшая — пока зритель не увидит её место.
+    /// </summary>
+    bool Remembers(uint entity) => false;
+
+    /// <summary>Видит ли зритель место (x, y) сейчас.</summary>
+    bool Sees(double x, double y) => true;
 }
 
 /// <summary>Всё видно: сущности все, слои мира с send и свои слои игрока с send.</summary>
