@@ -15,6 +15,7 @@
   </Folder>
   <Folder Name="/mods/">
     <Project Path="mods/base/Base.Host/Base.Host.csproj" />
+    <Project Path="mods/hello/Hello.Client/Hello.Client.csproj" />
     <Project Path="mods/hello/Hello.Host/Hello.Host.csproj" />
   </Folder>
   <Folder Name="/tests/">

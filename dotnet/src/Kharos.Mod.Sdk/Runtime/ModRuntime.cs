@@ -205,14 +205,14 @@ public static unsafe class ModRuntime
         return Done(Commands.Pointer, Commands.Length);
     }
 
-    private static byte* SharedBlock()
+    internal static byte* SharedBlock()
     {
         if (_shared is null)
             _shared = (byte*)NativeMemory.AlignedAlloc(ModAbi.SharedSize, 8);
         return _shared;
     }
 
-    private static int Done(byte* ptr, int len)
+    internal static int Done(byte* ptr, int len)
     {
         var shared = SharedBlock();
         *(int*)(shared + ModAbi.SharedOutPtr) = (int)(nint)ptr;
@@ -228,7 +228,7 @@ public static unsafe class ModRuntime
         return 0;
     }
 
-    private static int Fail(int code, string message)
+    internal static int Fail(int code, string message)
     {
         var shared = SharedBlock();
         _error.Clear();

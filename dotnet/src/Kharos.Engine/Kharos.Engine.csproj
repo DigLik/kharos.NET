@@ -4,4 +4,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Числа договора с модом (номера инструментов kh.tool, коды ошибок) — общий файл SDK. -->
+    <Compile Include="..\Kharos.Mod.Sdk\Abi\ModAbi.cs" Link="Tools\ModAbi.cs" />
+  </ItemGroup>
 </Project>

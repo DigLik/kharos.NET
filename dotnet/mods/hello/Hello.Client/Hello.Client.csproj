@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Пробный клиентский мод: облик ровера, HUD с кнопкой, голос щелчка, колея (docs/dotnet.md, Н3). client.wasm — tools/build-mods.ps1. -->
+  <PropertyGroup>
+    <KharosModClass>Hello.HelloClient</KharosModClass>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Payload приказов — тот же файл, что у хоста. -->
+    <Compile Include="..\Hello.Host\Orders.cs" Link="Orders.cs" />
+  </ItemGroup>
+</Project>

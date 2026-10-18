@@ -6,6 +6,7 @@
   "requires": [],
   "game": "hello",
   "host": "host.wasm",
+  "client": "client.wasm",
   "components": {
     "Drive": { "speed": 0, "turn": 0, "tx": 0, "ty": 0 },
     "Unit": { "radius": 0.5 }

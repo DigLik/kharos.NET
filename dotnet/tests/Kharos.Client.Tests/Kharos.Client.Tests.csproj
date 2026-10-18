@@ -3,15 +3,26 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Без теневого стека CET: клиентские моды — в Wasmtime (см. Kharos.Plugins.Tests). -->
     <CetCompat>false</CetCompat>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Kharos.Client\Kharos.Client.csproj" />
+    <!-- Хост одиночной игры — партия hello для сквозных тестов клиента. -->
+    <ProjectReference Include="..\..\src\Kharos.Host\Kharos.Host.csproj" />
+    <!-- Сторона мода: запись потоков SDK сверяется с разбором клиента вне wasm. -->
+    <ProjectReference Include="..\..\src\Kharos.Mod.Sdk\Kharos.Mod.Sdk.csproj" />
+    <PackageReference Include="MemoryPack" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <!-- Картинки интерфейса и атласов для просмотра глазами: dotnet/.cache/client/. -->
     <PackageReference Include="StbImageWriteSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Мод hello: приказы и клиентский мод — тот же код, что в host.wasm и client.wasm. -->
+    <Compile Include="..\..\mods\hello\Hello.Host\Orders.cs" Link="Hello\Orders.cs" />
+    <Compile Include="..\..\mods\hello\Hello.Client\HelloClient.cs" Link="Hello\HelloClient.cs" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

@@ -33,6 +33,15 @@ internal unsafe struct NativeBuffer
         return new Span<byte>(_data + Length, count);
     }
 
+    /// <summary>Освобождает память (буферы вне мода: тесты, разовая запись).</summary>
+    public void Free()
+    {
+        NativeMemory.Free(_data);
+        _data = null;
+        _capacity = 0;
+        Length = 0;
+    }
+
     public void Write(ReadOnlySpan<byte> bytes)
     {
         bytes.CopyTo(Room(bytes.Length));

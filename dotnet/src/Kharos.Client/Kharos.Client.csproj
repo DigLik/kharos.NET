@@ -15,6 +15,11 @@
     <InternalsVisibleTo Include="Kharos.Client.Tests" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Числа договора с клиентским модом (форматы потоков, номера инструментов) — общие файлы SDK. -->
+    <Compile Include="..\Kharos.Mod.Sdk\Abi\ModAbi.cs" Link="Game\Abi\ModAbi.cs" />
+    <Compile Include="..\Kharos.Mod.Sdk\Abi\ClientAbi.cs" Link="Game\Abi\ClientAbi.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- Ark Pixel 12 и 10 (OFL, Fonts/OFL.txt) — ресурсами сборки. -->
     <EmbeddedResource Include="Fonts\ark-pixel-12px.otf" LogicalName="Kharos.Client.Fonts.ark-pixel-12px.otf" />
     <EmbeddedResource Include="Fonts\ark-pixel-10px.otf" LogicalName="Kharos.Client.Fonts.ark-pixel-10px.otf" />

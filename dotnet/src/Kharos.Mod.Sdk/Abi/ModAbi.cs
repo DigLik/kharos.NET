@@ -10,10 +10,12 @@
 //   kh_system(system, n) -> i32                система над n сущностями кадра; в out — буфер команд
 //   kh_event(handler, ptr, len) -> i32         событие: payload; в out — буфер команд
 //   kh_command(order, player, ptr, len) -> i32 приказ игрока; в out — буфер команд
-//   Клиентские (зарезервированы, Н3): kh_look(kind, canvas), kh_frame(...).
+//   Клиентские (client.wasm, вместо четырёх предыдущих): kh_look(look), kh_bank(entry, variant, rate),
+//   kh_frame(ptr, len) — форматы в Abi/ClientAbi.cs.
 //
 // Импорты, которые даёт хост (всё остальное — отказ при загрузке):
-//   kh.log(level, ptr, len), kh.random() -> f64, kh.tool(id, inPtr, inLen, outPtr, outCap) -> i32;
+//   kh.log(level, ptr, len), kh.random() -> f64, kh.tool(id, inPtr, inLen, outPtr, outCap) -> i32 (у клиента — свой
+//   набор инструментов над репликой, ClientAbi.Tool*);
 //   wasi_snapshot_preview1.* — заглушки без часов, файлов и среды (см. GameImports в Kharos.Plugins).
 //
 // Буфер команд — байт в байт формат движка (Kharos.Engine.World.CommandBuffer): движок применяет его как есть.

@@ -11,12 +11,14 @@
   <ItemGroup>
     <ProjectReference Include="$(KharosModSdkDir)Kharos.Mod.Sdk.csproj" />
     <PackageReference Include="MemoryPack" />
-    <Compile Include="$(KharosModSdkDir)build\ModExports.cs" Link="Generated\ModExports.cs" Visible="false" />
+    <!-- Экспорты: у клиентского мода (client.wasm) — свои (kh_look, kh_bank, kh_frame), у мода хоста — системы и приказы. -->
+    <Compile Include="$(KharosModSdkDir)build\ModExports.cs" Link="Generated\ModExports.cs" Visible="false" Condition="'$(KharosModOutput)' != 'client.wasm'" />
+    <Compile Include="$(KharosModSdkDir)build\ClientExports.cs" Link="Generated\ClientExports.cs" Visible="false" Condition="'$(KharosModOutput)' == 'client.wasm'" />
   </ItemGroup>
 
   <!-- Псевдоним KharosModEntry — класс мода из KharosModClass: на него ссылаются экспорты. -->
   <Target Name="KharosModEntry" BeforeTargets="CoreCompile">
-    <Error Condition="'$(KharosModClass)' == ''" Text="Мод: задай KharosModClass — полное имя класса, наследника Kharos.Mod.Sdk.Mod." />
+    <Error Condition="'$(KharosModClass)' == ''" Text="Мод: задай KharosModClass — полное имя класса, наследника Kharos.Mod.Sdk.Mod (у *.Client — Kharos.Mod.Sdk.Client.ClientMod)." />
     <WriteLinesToFile File="$(KharosModEntryFile)" Overwrite="true" WriteOnlyWhenDifferent="true"
                       Lines="// &lt;auto-generated/&gt;;global using KharosModEntry = global::$(KharosModClass)%3B" />
     <ItemGroup>

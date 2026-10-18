@@ -90,7 +90,7 @@ sealed partial class ModDataFile
     public byte[] Bytes { get; set; } = [];
 }
 
-/// <summary>Что мод объявил: системы, обработчики событий, приказы. Отдаётся из kh_load.</summary>
+/// <summary>Что мод объявил: системы, обработчики событий, приказы (хост); облики, звуки (клиент). Отдаётся из kh_load.</summary>
 [MemoryPackable]
 #if KHAROS_PLUGINS
 public
@@ -110,6 +110,53 @@ sealed partial class ModManifest
 
     /// <summary>Приказы игроков; номер — id для kh_command.</summary>
     public string[] Orders { get; set; } = [];
+
+    /// <summary>Клиент: виды «раздел/имя», у которых мод рисует облик; номер — id для kh_look.</summary>
+    public string[] Looks { get; set; } = [];
+
+    /// <summary>Клиент: записи банка звуков; номер — id для kh_bank.</summary>
+    public ModBankInfo[] Bank { get; set; } = [];
+
+    /// <summary>Клиент: голоса по имени — готовые графы KHVG (c.audio:voice по виду).</summary>
+    public ModVoiceInfo[] Voices { get; set; } = [];
+
+    /// <summary>Клиент: цвета мини-карты 0xRRGGBB, 4 биома × 4 вида местности (биом за биомом); пусто — по умолчанию.</summary>
+    public uint[] Minimap { get; set; } = [];
+}
+
+/// <summary>Запись банка звуков клиентского мода: имя, шина и сколько вариантов (kh_bank на каждый).</summary>
+[MemoryPackable]
+#if KHAROS_PLUGINS
+public
+#else
+internal
+#endif
+sealed partial class ModBankInfo
+{
+    /// <summary>Имя записи (как в c.audio:play, sample узла голоса).</summary>
+    public string Name { get; set; } = "";
+
+    /// <summary>Шина: battle, world, interface, music.</summary>
+    public string Bus { get; set; } = "world";
+
+    /// <summary>Вариантов (звучат вразнобой).</summary>
+    public int Variants { get; set; } = 1;
+}
+
+/// <summary>Голос клиентского мода по имени: граф в двоичном формате KHVG.</summary>
+[MemoryPackable]
+#if KHAROS_PLUGINS
+public
+#else
+internal
+#endif
+sealed partial class ModVoiceInfo
+{
+    /// <summary>Имя голоса.</summary>
+    public string Name { get; set; } = "";
+
+    /// <summary>Граф голоса (KHVG).</summary>
+    public byte[] Graph { get; set; } = [];
 }
 
 /// <summary>Объявление системы — как SystemSpec движка.</summary>

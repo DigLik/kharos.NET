@@ -37,7 +37,8 @@ public readonly ref struct SystemFrame
 
 /// <summary>
 /// Экземпляр игрового мода: своё хранилище Wasmtime с пределом памяти, рантайм мода запущен, kh_load сделан.
-/// Вызовы — из одного потока. Состояния между вызовами у мода нет, поэтому после ловушки (<see cref="Faulted"/>)
+/// У мода хоста — системы, события и приказы; у клиентского (ModLoadInfo.Side = "client") — облики, звуки и кадр
+/// (<see cref="Look"/>, <see cref="Bank"/>, <see cref="Frame(ReadOnlySpan{byte})"/>). Вызовы — из одного потока. Состояния между вызовами у мода нет, поэтому после ловушки (<see cref="Faulted"/>)
 /// экземпляр выбрасывается и создаётся новый.
 /// </summary>
 public sealed class GameModuleInstance : IDisposable
@@ -45,10 +46,13 @@ public sealed class GameModuleInstance : IDisposable
     private readonly GameModule _module;
     private readonly Store _store;
     private readonly Wasmtime.Memory _memory;
-    private readonly Func<int, int, int> _prepare;
-    private readonly Func<int, int, int> _system;
-    private readonly Func<int, int, int, int> _event;
-    private readonly Func<int, int, int, int, int> _command;
+    private readonly Func<int, int, int>? _prepare;
+    private readonly Func<int, int, int>? _system;
+    private readonly Func<int, int, int, int>? _event;
+    private readonly Func<int, int, int, int, int>? _command;
+    private readonly Func<int, int>? _look;
+    private readonly Func<int, int, int, int>? _bank;
+    private readonly Func<int, int, int>? _frame;
     private readonly Func<int, int> _alloc;
     private readonly Action<int> _free;
     private readonly int _shared;
@@ -67,6 +71,7 @@ public sealed class GameModuleInstance : IDisposable
         var host = module.Host;
         var options = host.Options;
         ModId = module.ModId;
+        IsClient = module.LoadInfo.Side == ClientAbi.Side;
         Random = new ModRandom(module.LoadInfo.Seed ^ (ulong)StableHash(ModId));
         _callTicks = host.EpochTicks(options.CallTimeoutMs);
 
@@ -92,10 +97,19 @@ public sealed class GameModuleInstance : IDisposable
             var load = Export(instance.GetFunction("kh_load")?.WrapFunc<int, int, int>(), "kh_load");
             _alloc = Export(instance.GetFunction("kh_alloc")?.WrapFunc<int, int>(), "kh_alloc");
             _free = Export(instance.GetFunction("kh_free")?.WrapAction<int>(), "kh_free");
-            _prepare = Export(instance.GetFunction("kh_prepare")?.WrapFunc<int, int, int>(), "kh_prepare");
-            _system = Export(instance.GetFunction("kh_system")?.WrapFunc<int, int, int>(), "kh_system");
-            _event = Export(instance.GetFunction("kh_event")?.WrapFunc<int, int, int, int>(), "kh_event");
-            _command = Export(instance.GetFunction("kh_command")?.WrapFunc<int, int, int, int, int>(), "kh_command");
+            if (IsClient)
+            {
+                _look = Export(instance.GetFunction("kh_look")?.WrapFunc<int, int>(), "kh_look");
+                _bank = Export(instance.GetFunction("kh_bank")?.WrapFunc<int, int, int, int>(), "kh_bank");
+                _frame = Export(instance.GetFunction("kh_frame")?.WrapFunc<int, int, int>(), "kh_frame");
+            }
+            else
+            {
+                _prepare = Export(instance.GetFunction("kh_prepare")?.WrapFunc<int, int, int>(), "kh_prepare");
+                _system = Export(instance.GetFunction("kh_system")?.WrapFunc<int, int, int>(), "kh_system");
+                _event = Export(instance.GetFunction("kh_event")?.WrapFunc<int, int, int, int>(), "kh_event");
+                _command = Export(instance.GetFunction("kh_command")?.WrapFunc<int, int, int, int, int>(), "kh_command");
+            }
             data.Owner = this;
 
             var started = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -142,6 +156,9 @@ public sealed class GameModuleInstance : IDisposable
 
     /// <summary>Имя мода.</summary>
     public string ModId { get; }
+
+    /// <summary>Клиентский мод: облики, звуки и кадр вместо систем и приказов.</summary>
+    public bool IsClient { get; }
 
     /// <summary>Что мод объявил в kh_load.</summary>
     public ModManifest Manifest { get; }
@@ -199,7 +216,7 @@ public sealed class GameModuleInstance : IDisposable
             _store.SetEpochDeadline(_callTicks);
             try
             {
-                frame = _prepare(system, n);
+                frame = Need(_prepare, "kh_prepare")(system, n);
             }
             catch (Exception ex) when (ex is not ModException)
             {
@@ -244,7 +261,7 @@ public sealed class GameModuleInstance : IDisposable
         int code;
         try
         {
-            code = _system(system, n);
+            code = Need(_system, "kh_system")(system, n);
         }
         catch (Exception ex) when (ex is not ModException)
         {
@@ -284,7 +301,7 @@ public sealed class GameModuleInstance : IDisposable
         int code;
         try
         {
-            code = _event(handler, ptr, payload.Length);
+            code = Need(_event, "kh_event")(handler, ptr, payload.Length);
         }
         catch (Exception ex) when (ex is not ModException)
         {
@@ -304,13 +321,75 @@ public sealed class GameModuleInstance : IDisposable
         int code;
         try
         {
-            code = _command(order, (int)player, ptr, payload.Length);
+            code = Need(_command, "kh_command")(order, (int)player, ptr, payload.Length);
         }
         catch (Exception ex) when (ex is not ModException)
         {
             throw Trap(ex, $"приказ {Name(Manifest.Orders, order)}");
         }
         Check(code, $"приказ {Name(Manifest.Orders, order)}");
+        return Output();
+    }
+
+    /// <summary>
+    /// kh_look: облик вида Manifest.Looks[look] — поток облика (ClientAbi) в памяти мода, верен до следующего вызова.
+    /// Предел времени — как у загрузки: облик рисуется раз.
+    /// </summary>
+    public ReadOnlySpan<byte> Look(int look)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ThrowIfUnusable();
+        _store.SetEpochDeadline(_module.Host.EpochTicks(_module.Host.Options.LoadTimeoutMs));
+        int code;
+        try
+        {
+            code = Need(_look, "kh_look")(look);
+        }
+        catch (Exception ex) when (ex is not ModException)
+        {
+            throw Trap(ex, $"облик {Name(Manifest.Looks, look)}");
+        }
+        Check(code, $"облик {Name(Manifest.Looks, look)}");
+        return Output();
+    }
+
+    /// <summary>kh_bank: вариант variant записи Manifest.Bank[entry] при частоте rate — channels:u8 frames:u32 f32×.</summary>
+    public ReadOnlySpan<byte> Bank(int entry, int variant, int rate)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ThrowIfUnusable();
+        _store.SetEpochDeadline(_module.Host.EpochTicks(_module.Host.Options.LoadTimeoutMs));
+        var name = (uint)entry < (uint)Manifest.Bank.Length ? Manifest.Bank[entry].Name : $"№{entry}";
+        int code;
+        try
+        {
+            code = Need(_bank, "kh_bank")(entry, variant, rate);
+        }
+        catch (Exception ex) when (ex is not ModException)
+        {
+            throw Trap(ex, $"звук {name}");
+        }
+        Check(code, $"звук {name}");
+        return Output();
+    }
+
+    /// <summary>kh_frame: вход кадра (ClientAbi) — в память мода; возвращает выход кадра (до следующего вызова).</summary>
+    public ReadOnlySpan<byte> Frame(ReadOnlySpan<byte> input)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ThrowIfUnusable();
+        var ptr = Scratch(input);
+        _store.SetEpochDeadline(_callTicks);
+        int code;
+        try
+        {
+            code = Need(_frame, "kh_frame")(ptr, input.Length);
+        }
+        catch (Exception ex) when (ex is not ModException)
+        {
+            throw Trap(ex, "кадр");
+        }
+        Check(code, "кадр");
         return Output();
     }
 
@@ -422,6 +501,9 @@ public sealed class GameModuleInstance : IDisposable
     private string Flush() => _storeData.LastError is { } line ? $": {line}" : "";
 
     private static string Name(string[] names, int id) => (uint)id < (uint)names.Length ? names[id] : $"№{id}";
+
+    private T Need<T>(T? function, string name) where T : class =>
+        function ?? throw new ModAbiException(ModId, IsClient ? $"{name}: у клиентского мода его нет" : $"{name}: у мода хоста его нет");
 
     private T Export<T>(T? function, string name) where T : class =>
         function ?? throw new ModAbiException(ModId, $"нет экспорта {name} нужного вида");

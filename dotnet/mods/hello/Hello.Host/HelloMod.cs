@@ -7,6 +7,7 @@ namespace Hello;
 
 /// <summary>
 /// Пробный мод (docs/dotnet.md, Н2–Н3): ходовая над Position, Facing, Drive и теснота инструментом движка Separate;
+/// юниты — вида units/rover (data/units.json);
 /// компоненты Drive и Unit объявлены в mod.json. События: start, player_joined (три юнита у дома игрока),
 /// hello.arrived (сигнал клиентам). Приказы: hello.spawn, hello.move, hello.probe (ответ инструментов сигналом);
 /// hello.spin, hello.hog, hello.fail, hello.bad — для тестов пределов и сбоев.
@@ -34,6 +35,8 @@ public sealed class HelloMod : Mod
     private ComponentRef _drive = null!;
     private ComponentRef _unit = null!;
     private ComponentRef _sight = null!;
+    private ComponentRef _proto = null!;
+    private int? _rover;
 
     public override void Setup(ModBuilder mod)
     {
@@ -85,6 +88,7 @@ public sealed class HelloMod : Mod
         _drive = ctx.Component("Drive");
         _unit = ctx.Component("Unit");
         _sight = ctx.Component("Sight");
+        _proto = ctx.Component("Proto");
     }
 
     /// <summary>Доехал: сигнал клиентам с тем же payload (entity:u32, x:f64, y:f64).</summary>
@@ -157,6 +161,25 @@ public sealed class HelloMod : Mod
             .Number(_drive["tx"], x).Number(_drive["ty"], y);
         commands.Add(entity, _unit).Number(_unit["radius"], Radius);
         commands.Add(entity, _sight).Number(_sight["radius"], Sight);
+        if (Rover() is { } rover)
+            commands.Add(entity, _proto).Number(_proto["id"], rover);
+    }
+
+    /// <summary>Вид юнита — units/rover (облик рисует Hello.Client). Без инструментов движка (тесты песочницы) — без вида.</summary>
+    private int? Rover()
+    {
+        if (_rover is null)
+        {
+            try
+            {
+                _rover = Tools.ProtoId("units/rover") is >= 0 and var id ? id : null;
+            }
+            catch (ToolException)
+            {
+                return null;
+            }
+        }
+        return _rover;
     }
 
     /// <summary>Память мода: сколько юнитов создано всего (u32). Хост без памяти — молча.</summary>
