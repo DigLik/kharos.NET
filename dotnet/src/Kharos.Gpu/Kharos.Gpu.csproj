@@ -8,5 +8,13 @@
     <PackageReference Include="Silk.NET.WebGPU" />
     <PackageReference Include="Silk.NET.WebGPU.Native.WGPU" />
     <PackageReference Include="Silk.NET.WebGPU.Extensions.WGPU" />
+    <PackageReference Include="StbImageWriteSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Программы WGSL: common.wgsl — общее начало, остальные — по проходу (Pipelines.Source). -->
+    <EmbeddedResource Include="Shaders\*.wgsl" LogicalName="Kharos.Gpu.Shaders.%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Kharos.Gpu.Tests" />
   </ItemGroup>
 </Project>

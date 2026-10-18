@@ -7,6 +7,10 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Kharos.Gpu\Kharos.Gpu.csproj" />
+    <!-- Земля для кадров — настоящим генератором; сам Kharos.Gpu движок не знает. -->
+    <ProjectReference Include="..\..\src\Kharos.Engine\Kharos.Engine.csproj" />
+    <!-- Скрытое окно — проверка поверхности и переноса кадра в окно; на экране ничего не появляется. -->
+    <PackageReference Include="Silk.NET.Windowing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
