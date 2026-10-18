@@ -36,6 +36,23 @@ pub struct Particle {
   pub drift: bool,
 }
 
+/// След на земле (decalsPass.ts): отрезок в тайлах, ширина в тайлах, цвет 0..1, непрозрачность, доля закрашенных
+/// пикселей, зерно растворения, возраст и срок в секундах.
+#[derive(Clone, Copy, Debug)]
+pub struct Decal {
+  pub line: [f32; 4],
+  pub width: f32,
+  pub color: [f32; 3],
+  pub opacity: f32,
+  pub density: f32,
+  pub seed: f32,
+  pub age: f32,
+  pub life: f32,
+}
+
+/// Больше следов разом не бывает: самые старые уступают место новым (TRACE_LIMIT).
+pub const DECAL_LIMIT: usize = 12_000;
+
 /// Разовый звук, заказанный скриптом за кадр: запись банка, громкость, сторона, скорость.
 pub struct SoundOrder {
   pub voice: String,
@@ -64,6 +81,7 @@ pub struct ClientState {
   pub outbox: Vec<(String, Json)>,
   pub sounds: Vec<SoundOrder>,
   pub particles: Vec<Particle>,
+  pub decals: std::collections::VecDeque<Decal>,
   /// Слой поверх мира — в тайлах.
   pub draw: crate::ui::Batch,
   pub gui: crate::gui::Gui,
@@ -265,6 +283,37 @@ impl UserData for Ctx {
       if state.particles.len() < 20_000 {
         state.particles.push(particle);
       }
+      Ok(())
+    });
+    // След на земле: c:decal({ from = { x, y }, to = { x, y }, width, color, opacity, density, life }) — отрезок и
+    // ширина в тайлах, цвет — 0xrrggbb или { r, g, b } от 0 до 1. Лежит под юнитами и темнеет ночью с землёй; с
+    // четверти срока растворяется пиксель за пикселем; вне обзора своего игрока забывается.
+    methods.add_method("decal", |_, c, spec: Table| {
+      let point = |key: &str| -> mlua::Result<[f32; 2]> {
+        let table: Table = spec.get(key)?;
+        Ok([table.get(1)?, table.get(2)?])
+      };
+      let get = |key: &str, default: f32| spec.get::<Option<f32>>(key).map(|value| value.unwrap_or(default));
+      let color = match spec.get::<Value>("color")? {
+        Value::Table(rgb) => [rgb.get(1)?, rgb.get(2)?, rgb.get(3)?],
+        Value::Nil => [1.0; 3],
+        value => {
+          let value = u32::try_from(value.as_i64().unwrap_or(0xffffff)).unwrap_or(0xffffff);
+          [(value >> 16 & 0xff) as f32 / 255.0, (value >> 8 & 0xff) as f32 / 255.0, (value & 0xff) as f32 / 255.0]
+        }
+      };
+      let ([x1, y1], [x2, y2]) = (point("from")?, point("to")?);
+      let opacity = get("opacity", 1.0)?;
+      let life = get("life", 60.0)?;
+      if opacity <= 0.0 || life <= 0.0 {
+        return Ok(());
+      }
+      let mut state = c.state.borrow_mut();
+      let seed = kharos_engine::terrain::hash(x1 as f64 * 16.0, y1 as f64 * 16.0, state.time + state.decals.len() as f64) as f32 * 1000.0;
+      if state.decals.len() >= DECAL_LIMIT {
+        state.decals.pop_front();
+      }
+      state.decals.push_back(Decal { line: [x1, y1, x2, y2], width: get("width", 1.0 / 16.0)?, color, opacity, density: get("density", 1.0)?, seed, age: 0.0, life });
       Ok(())
     });
     // Сущности со всеми компонентами списка — номерами.

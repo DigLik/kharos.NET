@@ -18,6 +18,8 @@ use std::rc::Rc;
 
 /// Длина тика хоста.
 pub const STEP: f64 = 0.05;
+/// С какой доли срока следы на земле растворяются: пиксель за пикселем, каждый в свой случайный момент.
+const FADE_FROM: f32 = 0.25;
 /// Сколько тиков догонять за кадр, если кадр затянулся.
 const MAX_TICKS: u32 = 5;
 
@@ -34,6 +36,8 @@ pub struct Game {
   panels: Vec<(String, Function)>,
   controls: Vec<(String, Function)>,
   atmosphere: Vec<(String, Function)>,
+  /// Что живёт только на экране (раздел `effects`): следы, пыль — раз в кадр.
+  effects: Vec<(String, Function)>,
   /// Скрипты звука (раздел `audio`): моторы, фон, интерфейс — раз в кадр.
   sounds: Vec<(String, Function)>,
   music: Option<Table>,
@@ -113,7 +117,7 @@ impl Game {
     }
     let atlas = atlas::pack(&mut looks);
 
-    let state = Rc::new(RefCell::new(ClientState { world: host.state.clone(), prev: HashMap::new(), alpha: 0.0, view: View { x: 0.0, y: 0.0, zoom: 32.0, screen: [1280.0, 800.0], scale: 1.0 }, input: Input::default(), time: 0.0, dt: 0.0, player, outbox: Vec::new(), sounds: Vec::new(), particles: Vec::new(), draw: Default::default(), gui: Gui::new(fonts), looks: looks.iter().map(|look| (look.proto, look_info(look))).collect(), audio: None, land: None, protos: client.list.iter().map(|proto| client.by_id(proto.id).expect("вид")).collect() }));
+    let state = Rc::new(RefCell::new(ClientState { world: host.state.clone(), prev: HashMap::new(), alpha: 0.0, view: View { x: 0.0, y: 0.0, zoom: 32.0, screen: [1280.0, 800.0], scale: 1.0 }, input: Input::default(), time: 0.0, dt: 0.0, player, outbox: Vec::new(), sounds: Vec::new(), particles: Vec::new(), decals: Default::default(), draw: Default::default(), gui: Gui::new(fonts), looks: looks.iter().map(|look| (look.proto, look_info(look))).collect(), audio: None, land: None, protos: client.list.iter().map(|proto| client.by_id(proto.id).expect("вид")).collect() }));
     let table = || lua.create_table().map_err(error("таблица"));
     let ctx = Ctx { state: state.clone(), input: table()?, camera: table()?, shared: table()?, atmosphere: table()?, music: table()?, protos: client.protos.clone(), game: game_table.clone() };
     ctx.camera.set("x", 0.0).map_err(error("камера"))?;
@@ -148,6 +152,7 @@ impl Game {
     };
     let panels = list("ui", "ui", "draw")?;
     let controls = list("controls", "controls", "update")?;
+    let effects = list("effects", "effects", "update")?;
 
     let mut audio = Audio::new();
     if audio.is_none() {
@@ -225,7 +230,7 @@ impl Game {
       None => None,
     };
 
-    Ok(Self { host, client, state, ctx, ctx_data, camera, panels, controls, atmosphere, sounds, music, signals, looks, look_of, atlas: Some(atlas), land, minimap, audio, walked: HashMap::new(), drift: [0.0; 2], fog_seen: None, bar: 0, next_bar: 0.0, accumulator: 0.0, last: None, pending: Vec::new(), palette })
+    Ok(Self { host, client, state, ctx, ctx_data, camera, panels, controls, atmosphere, effects, sounds, music, signals, looks, look_of, atlas: Some(atlas), land, minimap, audio, walked: HashMap::new(), drift: [0.0; 2], fog_seen: None, bar: 0, next_bar: 0.0, accumulator: 0.0, last: None, pending: Vec::new(), palette })
   }
 
   /// Кадр: тики, подача, звук. Возвращает, что рисовать.
@@ -293,6 +298,9 @@ impl Game {
       update.call::<()>(&self.ctx_data).map_err(error(label))?;
     }
 
+    for (label, update) in &self.effects {
+      update.call::<()>(&self.ctx_data).map_err(error(label))?;
+    }
     // Атмосфера.
     for (label, update) in &self.atmosphere {
       update.call::<()>((&self.ctx.atmosphere, &self.ctx_data)).map_err(error(label))?;
@@ -399,6 +407,7 @@ impl Game {
       self.drift[axis] = (self.drift[axis] + frame.wind[axis] * dt).rem_euclid(512.0);
     }
     frame.drift = self.drift;
+    self.decals(&mut frame, view, dt);
     let state = self.state.borrow();
     let world = state.world.borrow();
     // Туман войны: тайл — 0,94 неразведанный, 0,5 разведанный, 0 видимый (fogPass.ts); рамка в тайл — неразведанная.
@@ -515,6 +524,31 @@ impl Game {
     drop(state);
     self.walked.retain(|_, walk| time - walk.seen < 2.0);
     Ok(frame)
+  }
+
+  /// Следы на земле: стареют, с FADE_FROM срока растворяются (доля оставшихся пикселей — плавная ступень), вне
+  /// обзора своего игрока забываются; что в кадре — в frame.decals (decalsPass.ts).
+  fn decals(&mut self, frame: &mut Frame, view: &View, dt: f32) {
+    let mut state = self.state.borrow_mut();
+    let state = &mut *state;
+    let world = state.world.borrow();
+    let player = state.player;
+    let bounds = view.bounds(2.0);
+    state.decals.retain_mut(|decal| {
+      decal.age += dt;
+      let [_, _, x, y] = decal.line;
+      if decal.age >= decal.life || world.vision.as_ref().is_some_and(|vision| !vision.sees(player, x as f64, y as f64)) {
+        return false;
+      }
+      if x < bounds[0] || x > bounds[2] || y < bounds[1] || y > bounds[3] {
+        return true;
+      }
+      let share = ((decal.age / decal.life - FADE_FROM) / (1.0 - FADE_FROM)).max(0.0);
+      let left = 1.0 - share * share * (3.0 - 2.0 * share);
+      let [r, g, b] = decal.color;
+      frame.decals.extend_from_slice(&[decal.line[0], decal.line[1], decal.line[2], decal.line[3], decal.width, 0.0, 0.0, 0.0, 0.0, r, g, b, decal.opacity, left, decal.density, decal.seed]);
+      true
+    });
   }
 
   pub fn palette(&self) -> &[f32] {

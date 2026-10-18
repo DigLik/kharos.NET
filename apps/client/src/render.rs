@@ -51,11 +51,17 @@ pub const LAYERS: usize = 7;
 /// Чисел на спрайт: левый верхний угол и размер в тайлах (от камеры), uv кадра, сторона, сдвиг и сила тени, серость.
 pub const SPRITE: usize = 12;
 
+/// Чисел на след на земле.
+pub const DECAL: usize = 16;
+
 /// Что рисовать в кадре.
 #[derive(Default)]
 pub struct Frame {
   /// Спрайты по слоям, SPRITE чисел на каждый.
   pub layers: Vec<Vec<f32>>,
+  /// Следы на земле, DECAL чисел на каждый: отрезок, ширина, кадр атласа (ширина 0 — белый), цвет и
+  /// непрозрачность, сколько осталось, плотность, зерно.
+  pub decals: Vec<f32>,
   /// Фары: x, y, радиус в текселях, яркость.
   pub spots: Vec<f32>,
   /// Ореолы фар, тот же формат.
@@ -162,6 +168,66 @@ void main() {
   vec3 rgb = tone >= 1.0 && tone <= 3.0 ? uPalette[vTeam * 3 + int(tone) - 1] : texel.rgb;
   if (vGrey > 0.5) rgb = vec3(dot(rgb, vec3(0.3, 0.59, 0.11)));
   color = vec4(rgb, 1.0);
+}
+"#;
+
+// Следы на земле — decalsPass.ts: отрезок шириной aWidth, всё решается для пикселя мира целиком, по его центру.
+const DECAL_VS: &str = r#"
+layout(location = 0) in vec2 aCorner;
+layout(location = 1) in vec4 aLine;
+layout(location = 2) in float aWidth;
+layout(location = 3) in vec4 aFrame;
+layout(location = 4) in vec4 aTint;
+layout(location = 5) in vec3 aFade;
+out vec2 vLocal;
+out vec2 vWorld;
+out vec4 vFrame;
+out vec4 vTint;
+out vec3 vFade;
+void main() {
+  vec2 span = aLine.zw - aLine.xy;
+  float size = max(length(span), 1e-4);
+  vec2 along = span / size;
+  vec2 across = vec2(-along.y, along.x);
+  // Четырёхугольник шире на пиксель мира с каждой стороны: пиксель, чей центр внутри, закрашивается целиком.
+  float pad = 1.0 / TEXELS;
+  vec2 local = vec2(mix(-pad / size, 1.0 + pad / size, aCorner.x), mix(-pad / aWidth, 1.0 + pad / aWidth, aCorner.y));
+  vec2 tile = aLine.xy + span * local.x + across * (local.y - 0.5) * aWidth;
+  vLocal = local;
+  vWorld = tile * TEXELS;
+  vFrame = aFrame;
+  vTint = aTint;
+  vFade = aFade;
+  gl_Position = clip(tile);
+}
+"#;
+
+const DECAL_FS: &str = r#"
+in vec2 vLocal;
+in vec2 vWorld;
+in vec4 vFrame;
+in vec4 vTint;
+in vec3 vFade;
+uniform sampler2D uAtlas;
+out vec4 finalColor;
+
+// Случайное число от 0 до 1 для пикселя мира и зерна: у каждого следа пиксели гаснут в свой черёд.
+float grain(vec2 cell, float seed) {
+  vec3 p = fract(vec3(cell.xyx + seed) * vec3(0.1031, 0.1030, 0.0973));
+  p += dot(p, p.yzx + 33.33);
+  return fract((p.x + p.y) * p.z);
+}
+
+void main() {
+  vec2 cell = floor(vWorld);
+  mat2 toLocal = mat2(dFdx(vLocal), dFdy(vLocal)) * inverse(mat2(dFdx(vWorld), dFdy(vWorld)));
+  vec2 local = vLocal + toLocal * (cell + 0.5 - vWorld);
+  if (any(lessThan(local, vec2(0.0))) || any(greaterThan(local, vec2(1.0)))) discard;
+  vec4 texel = vFrame.z > 0.0 ? texture(uAtlas, vFrame.xy + local * vFrame.zw) : vec4(1.0);
+  if (texel.a < 0.5) discard;
+  // Дизеринг шумом: доля закрашенных пикселей — плотность, умноженная на то, сколько осталось до исчезновения.
+  if (vFade.x * vFade.y <= grain(cell, vFade.z)) discard;
+  finalColor = vec4(texel.rgb * vTint.rgb, 1.0) * vTint.a;
 }
 "#;
 
@@ -346,6 +412,7 @@ struct Programs {
   sprite: glow::Program,
   spot: glow::Program,
   beam: glow::Program,
+  decal: glow::Program,
   blit: glow::Program,
   batch: glow::Program,
 }
@@ -364,6 +431,8 @@ pub struct Renderer {
   sprite_data: glow::Buffer,
   spot_vao: glow::VertexArray,
   spot_data: glow::Buffer,
+  decal_vao: glow::VertexArray,
+  decal_data: glow::Buffer,
   beam_vao: glow::VertexArray,
   beam_data: glow::Buffer,
   empty_vao: glow::VertexArray,
@@ -397,7 +466,7 @@ impl Renderer {
     let with = |source: &str| format!("{COMMON}{source}");
     let terrain = TERRAIN_FS.split_once('\n').map_or(TERRAIN_FS, |(_, rest)| rest);
     let weather = WEATHER_FS.split_once('\n').map_or(WEATHER_FS, |(_, rest)| rest);
-    let programs = Programs { terrain: gl.program(TERRAIN_VS, terrain)?, weather: gl.program(TERRAIN_VS, weather)?, fog: gl.program(TERRAIN_VS, FOG_FS)?, sprite: gl.program(&with(SPRITE_VS), &with(SPRITE_FS))?, spot: gl.program(&with(SPOT_VS), &with(SPOT_FS))?, beam: gl.program(&with(BEAM_VS), &with(BEAM_FS))?, blit: gl.program(BLIT_VS, BLIT_FS)?, batch: gl.program(&with(BATCH_VS), &with(BATCH_FS))? };
+    let programs = Programs { terrain: gl.program(TERRAIN_VS, terrain)?, weather: gl.program(TERRAIN_VS, weather)?, fog: gl.program(TERRAIN_VS, FOG_FS)?, sprite: gl.program(&with(SPRITE_VS), &with(SPRITE_FS))?, spot: gl.program(&with(SPOT_VS), &with(SPOT_FS))?, beam: gl.program(&with(BEAM_VS), &with(BEAM_FS))?, decal: gl.program(&with(DECAL_VS), &with(DECAL_FS))?, blit: gl.program(BLIT_VS, BLIT_FS)?, batch: gl.program(&with(BATCH_VS), &with(BATCH_FS))? };
     unsafe {
       let raw = &gl.gl;
       let corners = raw.create_buffer()?;
@@ -407,6 +476,7 @@ impl Renderer {
       let (sprite_vao, sprite_data) = gl.instanced(corners, &[4, 4, 4]);
       let (spot_vao, spot_data) = gl.instanced(corners, &[4]);
       let (beam_vao, beam_data) = gl.instanced(corners, &[4, 4]);
+      let (decal_vao, decal_data) = gl.instanced(corners, &[4, 1, 4, 4, 3]);
       let empty_vao = raw.create_vertex_array()?;
       let batch_vao = raw.create_vertex_array()?;
       let batch_vertices = raw.create_buffer()?;
@@ -425,7 +495,7 @@ impl Renderer {
       let font = gl.texture([ATLAS_SIZE as i32; 2], glow::R8, glow::RED, None);
       raw.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
       raw.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::LINEAR as i32);
-      Ok(Self { gl, programs, sprite_vao, sprite_data, spot_vao, spot_data, beam_vao, beam_data, empty_vao, batch_vao, batch_vertices, batch_indices, font, font_generation: 0, atlas: None, skin: None, fog: None, minimap: None, land: None, occluders: None, lightmap: None, size: [0, 0] })
+      Ok(Self { gl, programs, sprite_vao, sprite_data, spot_vao, spot_data, decal_vao, decal_data, beam_vao, beam_data, empty_vao, batch_vao, batch_vertices, batch_indices, font, font_generation: 0, atlas: None, skin: None, fog: None, minimap: None, land: None, occluders: None, lightmap: None, size: [0, 0] })
     }
   }
 
@@ -632,6 +702,19 @@ impl Renderer {
       gl.active_texture(glow::TEXTURE0);
       gl.disable(glow::BLEND);
       self.terrain(view, frame, size);
+      // Следы — над землёй и под юнитами, до освещения: ночью темнеют вместе с землёй.
+      if !frame.decals.is_empty() {
+        gl.enable(glow::BLEND);
+        gl.blend_func(glow::ONE, glow::ONE_MINUS_SRC_ALPHA);
+        let program = self.programs.decal;
+        self.camera(program, view);
+        if let Some(atlas) = self.atlas {
+          gl.bind_texture(glow::TEXTURE_2D, Some(atlas));
+        }
+        self.gl.upload(self.decal_data, &frame.decals);
+        gl.bind_vertex_array(Some(self.decal_vao));
+        gl.draw_arrays_instanced(glow::TRIANGLE_STRIP, 0, 4, (frame.decals.len() / DECAL) as i32);
+      }
 
       // По слою: сначала тени слоя, потом он сам — тень соседа не ляжет на кабину.
       gl.enable(glow::BLEND);

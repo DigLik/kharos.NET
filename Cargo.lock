@@ -1706,6 +1706,7 @@ name = "kharos-world"
 version = "0.1.0"
 dependencies = [
  "kharos-content",
+ "kharos-engine",
  "mlua",
  "serde_json",
 ]

@@ -582,6 +582,25 @@ units.gaits = {
 	lancer = "wheels", tank = "tracks", artillery = "wheels", tesla = "tracks", carrier = "wheels", supplier = "wheels", drone = "air", airTruck = "air", gunship = "air", bomber = "air",
 }
 
+-- Следы юнита на земле: колеи от колёс и гусениц или отпечатки ног. sides — где они лежат, в пикселях спрайта вправо
+-- от оси юнита; width — их ширина в пикселях. Совпадают с колёсами, гусеницами и ступнями на чертеже.
+units.traces = {
+	mcv = { sides = { -8, 8 }, width = 5 },
+	builder = { sides = { -4, 4 }, width = 3 },
+	infantry = { sides = { -1.5, 1.5 }, width = 1.4 },
+	truck = { sides = { -4.5, 4.5 }, width = 3 },
+	rocketeer = { sides = { -1.5, 1.5 }, width = 1.4 },
+	buggy = { sides = { -4.5, 4.5 }, width = 3 },
+	flamer = { sides = { -1.5, 1.5 }, width = 1.4 },
+	flak = { sides = { -4.5, 4.5 }, width = 3 },
+	lancer = { sides = { -4.5, 4.5 }, width = 3 },
+	tank = { sides = { -7.5, 7.5 }, width = 4 },
+	artillery = { sides = { -6, 6 }, width = 3 },
+	tesla = { sides = { -7.5, 7.5 }, width = 4 },
+	carrier = { sides = { -9, 9 }, width = 3.2 },
+	supplier = { sides = { -7, 7 }, width = 3.4 },
+}
+
 -- Свет юнита: фары (вдоль, поперёк — в пикселях спрайта, радиус ореола) и луч вперёд из точки along на оси юнита.
 units.lights = {
 
@@ -691,6 +710,8 @@ function units.look(name: string, mounts: { any }?)
 		shadow = if air then { 10, 0.25 } else { 2, 0.4 },
 		draw = units.art[name],
 		lights = units.lights[name],
+		-- Следы на земле (effects/traces): где и какой ширины, и ход — ноги шагают, а не катятся.
+		traces = if units.traces[name] then { sides = units.traces[name].sides, width = units.traces[name].width, legs = gait == "legs" } else nil,
 	}
 end
 
