@@ -4,11 +4,12 @@
 use crate::atlas::{self, Look};
 use crate::audio::{Audio, Sound};
 use crate::input::Input;
-use crate::render::{Frame, View, TEAMS, TEXELS};
+use crate::render::{Frame, View, LAYERS, SPRITE, TEAMS, TEXELS};
 use crate::script::{fill_input, look_info, ClientState, Ctx, Particle};
 use crate::ui::{Font, Ui};
 use kharos_content::vm::function;
 use kharos_content::{Content, Mod, Side};
+use kharos_engine::terrain::{GeneratorConfig, Land, LandArea};
 use kharos_world::{Entity, Host, Signal};
 use mlua::{AnyUserData, Function, LuaSerdeExt, Table, Value};
 use std::cell::RefCell;
@@ -22,8 +23,8 @@ const MAX_TICKS: u32 = 5;
 /// Сколько звуков юнитов звучит разом.
 const UNIT_VOICES: usize = 8;
 
-/// Палитра по умолчанию: свой синий, красный, зелёный, жёлтый, фиолетовый, бирюзовый, оранжевый, серый.
-const TEAMS_DEFAULT: [[u32; 3]; TEAMS] = [[0x1f63d8, 0x5aa9ff, 0xe4f4ff], [0x1f63d8, 0x5aa9ff, 0xe4f4ff], [0x8f1f1f, 0xe0503c, 0xffd8c8], [0x1f6f2f, 0x4cc060, 0xd8ffd0], [0x8f6f10, 0xe8c040, 0xfff4c0], [0x5a2a8f, 0xa070e0, 0xf0e0ff], [0x106f6f, 0x40c8c0, 0xd0fff8], [0x8f4a10, 0xf09040, 0xffe8c8]];
+/// Палитра по умолчанию — TEAMS из unitArt.ts: свои синие, чужие красные, союзники зелёные; ничьи — серые.
+const TEAMS_DEFAULT: [[u32; 3]; TEAMS] = [[0x1f63d8, 0x5aa9ff, 0xe4f4ff], [0xb3261e, 0xff6b5a, 0xffe9e4], [0x1f7a3c, 0x4ec973, 0xe8fff0], [0x1f63d8, 0x5aa9ff, 0xe4f4ff]];
 
 /// Звуки атмосферы: вид, имя голоса в его `voices` и ручки.
 struct Ambience {
@@ -58,8 +59,19 @@ pub struct Game {
   last: Option<f64>,
   pending: Vec<Signal>,
   palette: Vec<f32>,
-  ground: [[f32; 3]; 3],
-  field: f32,
+  /// Общий атлас и земля — отдаются рендеру один раз.
+  pub atlas: Option<(Vec<u8>, [usize; 2])>,
+  pub land: Option<Land>,
+  /// Пройденный путь сущностей на экране: от него — кадр хода (колёса, гусеницы, ноги), как в unitsPass.ts.
+  walked: HashMap<Entity, Walk>,
+}
+
+/// Путь сущности: где её нарисовали в прошлый раз, сколько прошла и когда видели.
+struct Walk {
+  x: f32,
+  y: f32,
+  distance: f32,
+  seen: f64,
 }
 
 fn rgb(value: u32) -> [f32; 3] {
@@ -104,8 +116,9 @@ impl Game {
         looks.push(built);
       }
     }
+    let atlas = atlas::pack(&mut looks);
 
-    let state = Rc::new(RefCell::new(ClientState { world: host.state.clone(), prev: HashMap::new(), alpha: 0.0, view: View { x: 0.0, y: 0.0, zoom: 32.0, screen: [1280.0, 800.0], scale: 1.0 }, input: Input::default(), time: 0.0, dt: 0.0, player, outbox: Vec::new(), sounds: Vec::new(), particles: Vec::new(), draw: Default::default(), ui: Ui::new(font), looks: looks.iter().enumerate().map(|(index, look)| (look.proto, look_info(index, look))).collect(), protos: client.list.iter().map(|proto| client.by_id(proto.id).expect("вид")).collect() }));
+    let state = Rc::new(RefCell::new(ClientState { world: host.state.clone(), prev: HashMap::new(), alpha: 0.0, view: View { x: 0.0, y: 0.0, zoom: 32.0, screen: [1280.0, 800.0], scale: 1.0 }, input: Input::default(), time: 0.0, dt: 0.0, player, outbox: Vec::new(), sounds: Vec::new(), particles: Vec::new(), draw: Default::default(), ui: Ui::new(font), looks: looks.iter().map(|look| (look.proto, look_info(look))).collect(), protos: client.list.iter().map(|proto| client.by_id(proto.id).expect("вид")).collect() }));
     let table = || lua.create_table().map_err(error("таблица"));
     let ctx = Ctx { state: state.clone(), input: table()?, camera: table()?, shared: table()?, atmosphere: table()?, music: table()?, protos: client.protos.clone(), game: game_table.clone() };
     ctx.camera.set("x", 0.0).map_err(error("камера"))?;
@@ -189,22 +202,35 @@ impl Game {
       }
     }
 
-    // Палитра сторон и земля.
+    // Палитра сторон: своя, чужая, союзная (`teams = { own, foe, ally }`), ничья — серым поверх своей.
     let mut teams = TEAMS_DEFAULT;
-    if let Some(list) = config.get::<Option<Vec<Vec<u32>>>>("teams").map_err(error("client.teams"))? {
-      for (slot, colors) in teams.iter_mut().zip(list) {
-        for (tone, value) in slot.iter_mut().zip(colors) {
-          *tone = value;
+    if let Some(table) = config.get::<Option<Table>>("teams").map_err(error("client.teams"))? {
+      for (slot, key) in teams.iter_mut().zip(["own", "foe", "ally"]) {
+        if let Some(colors) = table.get::<Option<Vec<u32>>>(key).map_err(error(format!("client.teams.{key}")))? {
+          for (tone, value) in slot.iter_mut().zip(colors) {
+            *tone = value;
+          }
         }
       }
     }
+    teams[3] = teams[0];
     let palette: Vec<f32> = teams.iter().flat_map(|team| team.iter().flat_map(|&value| rgb(value))).collect();
-    let ground_table = config.get::<Option<Table>>("ground").map_err(error("client.ground"))?;
-    let ground_color = |key: &str, default: u32| ground_table.as_ref().and_then(|table| table.get::<Option<u32>>(key).ok().flatten()).unwrap_or(default);
-    let ground = [rgb(ground_color("sand", 0xb08a5c)), rgb(ground_color("rock", 0x6b6058)), rgb(ground_color("edge", 0x2a2420))];
-    let field = game_table.get::<Option<Table>>("data").ok().flatten().and_then(|data| data.get::<Option<f32>>("size").ok().flatten()).unwrap_or(0.0);
 
-    Ok(Self { host, client, state, ctx, ctx_data, camera, panels, controls, ambience, music, signals, looks, look_of, audio, held, loads: HashMap::new(), bar: 0, next_bar: 0.0, accumulator: 0.0, last: None, pending: Vec::new(), palette, ground, field })
+    // Земля: генератор из вида `lands/` партии (data.land), карта — data.size тайлов от центра.
+    let data = game_table.get::<Option<Table>>("data").map_err(error("data партии"))?;
+    let land_name = data.as_ref().and_then(|data| data.get::<Option<String>>("land").ok().flatten());
+    let land = match land_name {
+      Some(name) => {
+        let kind = named(&client, "lands", &name)?;
+        let generator: serde_json::Value = lua.from_value(kind.get::<Value>("data").map_err(error(format!("lands/{name}.data")))?).map_err(error(format!("lands/{name}.data")))?;
+        let config: GeneratorConfig = serde_json::from_value(generator).map_err(|problem| format!("lands/{name}.data: {problem}"))?;
+        let size = data.as_ref().and_then(|data| data.get::<Option<i32>>("size").ok().flatten()).unwrap_or(64);
+        Some(Land::new(config, LandArea::of(-size, -size, size, size)))
+      }
+      None => None,
+    };
+
+    Ok(Self { host, client, state, ctx, ctx_data, camera, panels, controls, ambience, music, signals, looks, look_of, atlas: Some(atlas), land, audio, held, loads: HashMap::new(), walked: HashMap::new(), bar: 0, next_bar: 0.0, accumulator: 0.0, last: None, pending: Vec::new(), palette })
   }
 
   /// Кадр: тики, подача, звук. Возвращает, что рисовать.
@@ -242,7 +268,7 @@ impl Game {
     // Сигналы хоста.
     for signal in std::mem::take(&mut self.pending) {
       let Some(handlers) = self.signals.get(&signal.name) else { continue };
-      let payload = lua.to_value(&signal.payload).map_err(error(&signal.name))?;
+      let payload = kharos_content::vm::to_lua(&lua, &signal.payload).map_err(error(&signal.name))?;
       for (label, handler) in handlers {
         handler.call::<()>((&self.ctx_data, payload.clone())).map_err(error(format!("{label}.signals.{}", signal.name)))?;
       }
@@ -289,7 +315,7 @@ impl Game {
     for (name, args) in outbox {
       self.host.send(player, &name, args);
     }
-    Ok((self.build(&view)?, view))
+    Ok((self.build(&view, input.time)?, view))
   }
 
   /// Звук кадра: заказанные скриптами, юниты рядом с камерой, атмосфера, музыка.
@@ -441,9 +467,9 @@ impl Game {
     state.particles = particles;
   }
 
-  /// Кадр для рендера: спрайты видимых сущностей, огни, свет атмосферы.
-  fn build(&self, view: &View) -> Result<Frame, String> {
-    let mut frame = Frame { sprites: vec![Vec::new(); self.looks.len()], palette: self.palette.clone(), ground: self.ground, field: self.field, ..Default::default() };
+  /// Кадр для рендера: спрайты видимых сущностей по слоям, огни, свет атмосферы.
+  fn build(&mut self, view: &View, time: f64) -> Result<Frame, String> {
+    let mut frame = Frame { layers: vec![Vec::new(); LAYERS], palette: self.palette.clone(), time: time as f32, ..Default::default() };
     let light = self.ctx.atmosphere.get::<Option<Table>>("light").ok().flatten();
     frame.ambient = light.map_or([1.0; 3], |light| [light.get::<f32>("r").unwrap_or(1.0), light.get::<f32>("g").unwrap_or(1.0), light.get::<f32>("b").unwrap_or(1.0)]);
     frame.lamps = self.ctx.atmosphere.get::<Option<f32>>("lamps").ok().flatten().unwrap_or(0.0).clamp(0.0, 1.0);
@@ -451,10 +477,17 @@ impl Game {
     let world = state.world.borrow();
     let schema = &world.world.schema;
     let (Some(position), Some(proto), Some(owner)) = (schema.id("Position"), schema.id("Proto"), schema.id("Owner")) else { return Ok(frame) };
-    let drive = schema.id("Drive");
-    let bounds = view.bounds(4.0);
+    let attached = schema.id("Attached");
+    let bounds = view.bounds(7.0);
     let snap = |value: f32| (value * TEXELS).round() / TEXELS;
     let lights = frame.lamps > 0.0;
+    // Слой и порядок внутри слоя (здания — по нижнему краю: нижние перекрывают верхние).
+    let mut sorted: Vec<(usize, f32, [f32; SPRITE])> = Vec::new();
+    let layer_of = |entity: Entity| -> Option<usize> {
+      let id = world.world.num(entity, proto, "id")?;
+      let look = &self.looks[*self.look_of.get(&(id as u32))?];
+      Some(look.layer as usize)
+    };
     for &entity in &world.world.stores[position].entities {
       let Some(id) = world.world.num(entity, proto, "id") else { continue };
       let Some(&index) = self.look_of.get(&(id as u32)) else { continue };
@@ -464,10 +497,41 @@ impl Game {
         continue;
       }
       let look = &self.looks[index];
-      let moving = drive.and_then(|id| world.world.num(entity, id, "moving")).unwrap_or(0.0) > 0.0;
-      let phase = if look.phases > 1 && (look.always || moving) { (state.time * look.fps as f64) as usize % look.phases } else { 0 };
-      let team = world.world.num(entity, owner, "player").unwrap_or(0.0) as usize % TEAMS;
-      frame.sprites[index].extend_from_slice(&[snap(x), snap(y), look.cell(angle, phase) as f32, team as f32]);
+      // Турель — слоем выше своего носителя.
+      let parent = attached.and_then(|id| world.world.num(entity, id, "parent")).filter(|&parent| parent >= 1.0);
+      let layer = match parent {
+        Some(parent) => layer_of(parent as Entity).unwrap_or(0) + 1,
+        None => look.layer as usize,
+      };
+      // Кадр: у ходовых — по пройденному пути, у остальных — по времени.
+      let phase = match look.step {
+        Some(step) if look.phases > 1 => {
+          let walk = self.walked.entry(entity).or_insert(Walk { x, y, distance: 0.0, seen: time });
+          let moved = (x - walk.x).hypot(y - walk.y);
+          if moved < 1.0 {
+            walk.distance += moved;
+          }
+          walk.x = x;
+          walk.y = y;
+          walk.seen = time;
+          (walk.distance / step) as usize % look.phases
+        }
+        _ if look.phases > 1 => (time * look.fps as f64) as usize % look.phases,
+        _ => 0,
+      };
+      let player = world.world.num(entity, owner, "player").unwrap_or(0.0) as u32;
+      let (team, grey) = if player == 0 {
+        (3.0, 1.0)
+      } else if player == state.player {
+        (0.0, 0.0)
+      } else {
+        (1.0, 0.0)
+      };
+      let cell = look.cell(angle, phase);
+      let [u0, v0, u1, v1] = look.cells[cell];
+      let [w, h] = look.tiles();
+      let (left, top) = (x + look.offset[0] - view.x, y + look.offset[1] - view.y);
+      sorted.push((layer, y + look.offset[1] + h, [left, top, w, h, u0, v0, u1, v1, team, look.shadow[0], look.shadow[1], grey]));
       if !lights {
         continue;
       }
@@ -481,12 +545,22 @@ impl Game {
       if let Some([along, length, near, spread, level]) = look.lights.beam {
         frame.beams.extend_from_slice(&[snap(x + along * forward_x), snap(y + along * forward_y), length, level, cos, sin, near, spread]);
       }
-      for &[gx, gy, radius] in &look.lights.glows {
-        let (lx, ly) = (snap(x + gx / TEXELS), snap(y + gy / TEXELS));
-        frame.spots.extend_from_slice(&[lx, ly, radius * 2.0, 0.8]);
-        frame.blooms.extend_from_slice(&[lx, ly, radius, 0.6]);
+      // Огни кадра (здания): как lights.add в buildingsPass.ts — пятно в 16 радиусов лампы, ореол в 3 + 2.
+      for &[lx, ly, size, level] in &look.frame_lights[cell] {
+        if level <= 0.0 {
+          continue;
+        }
+        frame.spots.extend_from_slice(&[x + lx, y + ly, size * 16.0, level]);
+        frame.blooms.extend_from_slice(&[x + lx, y + ly, size * 3.0 + 2.0, level]);
       }
     }
+    sorted.sort_by(|a, b| a.0.cmp(&b.0).then(if a.0 == 2 { a.1.total_cmp(&b.1) } else { std::cmp::Ordering::Equal }));
+    for (layer, _, sprite) in sorted {
+      frame.layers[layer.min(LAYERS - 1)].extend_from_slice(&sprite);
+    }
+    drop(world);
+    drop(state);
+    self.walked.retain(|_, walk| time - walk.seen < 2.0);
     Ok(frame)
   }
 

@@ -16,6 +16,7 @@ bytemuck = { version = "1", features = ["derive"] }
 fontdue = "0.9"
 glow = "0.18"
 kharos-content = { path = "../../crates/content" }
+kharos-engine = { path = "../../crates/engine" }
 kharos-world = { path = "../../crates/world" }
 mlua = { version = "0.12", features = ["luau", "luau-jit", "serde"] }
 png = "0.17"

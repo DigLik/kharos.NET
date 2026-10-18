@@ -1,20 +1,21 @@
 //! Рендер кадра (шейдеры света — из `crates/content-bench/src/bin/render.rs`, а те — из `lightingPass.ts`):
 //!
-//! 1. земля — по текселям мира, 16 на тайл;
-//! 2. тени и спрайты видов — инстансами, по атласу на облик, цвет стороны — палитрой игрока;
+//! 1. земля — `terrain.frag` из TS как есть, по окну тайлов вокруг камеры (`map/landWindow.ts`);
+//! 2. тени и спрайты по слоям (наземные, их турели, здания, турели зданий, летающие, их турели) — инстансами из
+//!    общего атласа, цвет стороны — палитрой, ничьё — серым;
 //! 3. когда атмосфера темнее дня — карта силуэтов, карта освещённости (цвет атмосферы, фары, лучи с тенями,
 //!    свечения), умножение на неё и ореолы;
 //! 4. слой поверх мира (выделение, частицы) и интерфейс — батчами треугольников.
 
-use crate::atlas::Look;
 use crate::gl::{Gl, Target};
 use crate::ui::{Batch, FontAtlas, Paint, ATLAS_SIZE};
 use glow::HasContext as _;
+use kharos_engine::terrain::{Land, CHUNK_SIZE};
 
 /// Текселей на тайл.
 pub const TEXELS: f32 = 16.0;
-/// Сторон в палитре: по три цвета (тёмный, основной, светлый) на игрока.
-pub const TEAMS: usize = 8;
+/// Сторон в палитре: своя, чужая, союзная, ничья — по три цвета (тёмный, основной, светлый), как TEAMS в unitArt.ts.
+pub const TEAMS: usize = 4;
 
 /// Камера: центр в тайлах и логических пикселей на тайл.
 #[derive(Clone, Copy, Debug)]
@@ -44,11 +45,16 @@ impl View {
   }
 }
 
+/// Слоёв спрайтов: наземные, их турели, здания, турели зданий, летающие, их турели.
+pub const LAYERS: usize = 6;
+/// Чисел на спрайт: левый верхний угол и размер в тайлах (от камеры), uv кадра, сторона, сдвиг и сила тени, серость.
+pub const SPRITE: usize = 12;
+
 /// Что рисовать в кадре.
 #[derive(Default)]
 pub struct Frame {
-  /// По облику: инстансы x, y, ячейка атласа, сторона.
-  pub sprites: Vec<Vec<f32>>,
+  /// Спрайты по слоям, SPRITE чисел на каждый.
+  pub layers: Vec<Vec<f32>>,
   /// Фары: x, y, радиус в текселях, яркость.
   pub spots: Vec<f32>,
   /// Ореолы фар, тот же формат.
@@ -60,9 +66,8 @@ pub struct Frame {
   pub lamps: f32,
   /// Палитры сторон: TEAMS × 3 цвета.
   pub palette: Vec<f32>,
-  /// Земля: цвета песка, камня и границы поля и её размер (−size..size, 0 — без границы).
-  pub ground: [[f32; 3]; 3],
-  pub field: f32,
+  /// Секунды — анимация болот.
+  pub time: f32,
 }
 
 const COMMON: &str = r#"
@@ -76,80 +81,63 @@ vec4 clip(vec2 tile) {
 }
 "#;
 
-const LAND_VS: &str = r#"
-out vec2 vTile;
+// Полноэкранный квадрат для terrain.frag: vUV — 0..1 от левого верхнего угла экрана.
+const TERRAIN_VS: &str = r#"
+out vec2 vUV;
 void main() {
-  vec2 corner = vec2(gl_VertexID & 1, gl_VertexID >> 1) * 2.0 - 1.0;
-  vTile = uCamera + vec2(corner.x, -corner.y) * uScreen / 2.0 / uZoom;
-  gl_Position = vec4(corner, 0.0, 1.0);
+  vec2 corner = vec2(gl_VertexID & 1, gl_VertexID >> 1);
+  vUV = corner;
+  gl_Position = vec4(corner.x * 2.0 - 1.0, 1.0 - corner.y * 2.0, 0.0, 1.0);
 }
 "#;
 
-// Земля: шум по тайлам даёт пятна камня, у каждого текселя — своя крупинка; за краем поля — темнее.
-const LAND_FS: &str = r#"
-in vec2 vTile;
-uniform vec3 uSand;
-uniform vec3 uRock;
-uniform vec3 uEdge;
-uniform float uField;
-out vec4 color;
-float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-float noise(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
-}
-void main() {
-  vec2 texel = floor(vTile * TEXELS);
-  vec2 at = (texel + 0.5) / TEXELS;
-  float patches = noise(at / 9.0) * 0.6 + noise(at / 3.0) * 0.3 + noise(at) * 0.1;
-  float grain = hash(texel);
-  // Край камня — по текселям, с крупинкой: пиксель-арт, а не размытое пятно.
-  float rock = step(0.6, patches + (grain - 0.5) * 0.03);
-  float rim = step(0.6, patches + 0.012 + (grain - 0.5) * 0.03) - rock;
-  vec3 base = mix(uSand, uRock, rock);
-  base = mix(base, uRock * 1.25, rim * 0.6);
-  // Пятна оттенка песка и камня.
-  base *= 0.93 + 0.08 * grain + 0.1 * (noise(at / 1.7) - 0.5) + 0.06 * step(0.8, noise(at * 0.7 + 31.0));
-  if (uField > 0.0 && (abs(at.x) > uField || abs(at.y) > uField)) base = mix(base, uEdge, 0.6);
-  color = vec4(base, 1.0);
-}
-"#;
+/// Шейдер земли из TS — тот же файл, без строки версии: её подставляет `Gl::program`.
+const TERRAIN_FS: &str = include_str!("../../../packages/client/src/map/terrain.frag");
+
+/// Окно земли вокруг камеры, как `map/landWindow.ts`: текстура WINDOW × WINDOW тайлов, тайл (x, y) — в текселе
+/// (x mod WINDOW, y mod WINDOW), чанки дописываются по мере движения камеры.
+const WINDOW: i32 = 512;
+const WINDOW_CHUNKS: i32 = WINDOW / CHUNK_SIZE;
 
 const SPRITE_VS: &str = r#"
 layout(location = 0) in vec2 aCorner;
-layout(location = 1) in vec4 aSprite;
-uniform vec2 uGrid;
-uniform float uFrame;
-uniform vec2 uShift;
+layout(location = 1) in vec4 aRect;
+layout(location = 2) in vec4 aFrame;
+layout(location = 3) in vec4 aMore;
+uniform int uMode;
 out vec2 vUv;
 flat out int vTeam;
+flat out float vShadow;
+flat out float vGrey;
 void main() {
-  vec2 tile = aSprite.xy + (aCorner - 0.5) * uFrame + uShift;
-  gl_Position = clip(tile);
-  vec2 cell = vec2(mod(aSprite.z, uGrid.x), floor(aSprite.z / uGrid.x));
-  vUv = (cell + aCorner) / uGrid;
-  vTeam = int(aSprite.w);
+  vec2 shift = uMode == 1 ? vec2(aMore.y) : vec2(0.0);
+  vec2 px = (aRect.xy + aCorner * aRect.zw + shift) * uZoom;
+  gl_Position = vec4(px.x / uScreen.x * 2.0, -px.y / uScreen.y * 2.0, 0.0, 1.0);
+  vUv = mix(aFrame.xy, aFrame.zw, aCorner);
+  vTeam = int(aMore.x + 0.5);
+  vShadow = aMore.z;
+  vGrey = aMore.w;
 }
 "#;
 
-// uMode: 0 — спрайт (метка тона в альфе: 254 − тон — цвет стороны из палитры), 1 — тень, 2 — силуэт.
+// uMode: 0 — спрайт (метка тона в альфе — цвет стороны из палитры, как sprites.ts), 1 — тень, 2 — силуэт.
 const SPRITE_FS: &str = r#"
 in vec2 vUv;
 flat in int vTeam;
+flat in float vShadow;
+flat in float vGrey;
 uniform sampler2D uAtlas;
-uniform vec3 uPalette[24];
+uniform vec3 uPalette[12];
 uniform int uMode;
-uniform float uShadow;
 out vec4 color;
 void main() {
   vec4 texel = texture(uAtlas, vUv);
   if (texel.a < 0.5) discard;
-  if (uMode == 1) { color = vec4(0.0, 0.0, 0.0, uShadow); return; }
+  if (uMode == 1) { color = vec4(0.0, 0.0, 0.0, vShadow); return; }
   if (uMode == 2) { color = vec4(1.0); return; }
-  float mark = floor(texel.a * 255.0 + 0.5);
-  vec3 rgb = mark < 254.5 ? uPalette[vTeam * 3 + int(254.0 - mark)] : texel.rgb;
+  float tone = floor((1.0 - texel.a) * 255.0 + 0.5);
+  vec3 rgb = tone >= 1.0 && tone <= 3.0 ? uPalette[vTeam * 3 + int(tone) - 1] : texel.rgb;
+  if (vGrey > 0.5) rgb = vec3(dot(rgb, vec3(0.3, 0.59, 0.11)));
   color = vec4(rgb, 1.0);
 }
 "#;
@@ -291,7 +279,7 @@ in vec4 vColor;
 uniform sampler2D uAtlas;
 uniform int uKind;
 uniform int uTeam;
-uniform vec3 uPalette[24];
+uniform vec3 uPalette[12];
 out vec4 color;
 void main() {
   if (uKind == 0) {
@@ -300,14 +288,14 @@ void main() {
   }
   vec4 texel = texture(uAtlas, vUv);
   if (texel.a < 0.5) discard;
-  float mark = floor(texel.a * 255.0 + 0.5);
-  vec3 rgb = mark < 254.5 ? uPalette[uTeam * 3 + int(254.0 - mark)] : texel.rgb;
+  float tone = floor((1.0 - texel.a) * 255.0 + 0.5);
+  vec3 rgb = tone >= 1.0 && tone <= 3.0 ? uPalette[uTeam * 3 + int(tone) - 1] : texel.rgb;
   color = vec4(rgb, 1.0) * vColor;
 }
 "#;
 
 struct Programs {
-  land: glow::Program,
+  terrain: glow::Program,
   sprite: glow::Program,
   spot: glow::Program,
   beam: glow::Program,
@@ -315,11 +303,11 @@ struct Programs {
   batch: glow::Program,
 }
 
-/// Атлас облика на видеокарте.
-struct Sheet {
+/// Окно земли: текстура тайлов и какой чанк лежит в каждом слоте.
+struct LandWindow {
+  land: Land,
   texture: glow::Texture,
-  grid: [f32; 2],
-  frame: f32,
+  slots: Vec<Option<(i32, i32)>>,
 }
 
 pub struct Renderer {
@@ -337,7 +325,9 @@ pub struct Renderer {
   batch_indices: glow::Buffer,
   font: glow::Texture,
   font_generation: u64,
-  sheets: Vec<Sheet>,
+  /// Общий атлас обликов.
+  atlas: Option<glow::Texture>,
+  land: Option<LandWindow>,
   occluders: Option<Target>,
   lightmap: Option<Target>,
   size: [i32; 2],
@@ -345,20 +335,25 @@ pub struct Renderer {
 
 const LIGHT_COLOR: [f32; 3] = [0xa8 as f32 / 255.0, 0xd0 as f32 / 255.0, 1.0];
 const BLOOM_COLOR: [f32; 3] = [0x5a as f32 / 255.0, 0xa9 as f32 / 255.0, 1.0];
-const SHADOW_SHIFT: f32 = 2.0 / TEXELS;
+/// Барханы, как настройки по умолчанию в TS (`settings.ts`): эрг 0,6, красные пустоши и отступ.
+const DUNES: [f32; 3] = [0.9 - 0.6 * 0.6, 0.9 - 0.35 * 0.6, 0.15];
+
+/// Сколько раз в секунду шагает анимация болот (`SWAMP_FPS` в terrainPass.ts).
+const SWAMP_FPS: f32 = 5.0;
 
 impl Renderer {
   pub fn new(gl: glow::Context) -> Result<Self, String> {
     let gl = Gl::new(gl);
     let with = |source: &str| format!("{COMMON}{source}");
-    let programs = Programs { land: gl.program(&with(LAND_VS), &with(LAND_FS))?, sprite: gl.program(&with(SPRITE_VS), &with(SPRITE_FS))?, spot: gl.program(&with(SPOT_VS), &with(SPOT_FS))?, beam: gl.program(&with(BEAM_VS), &with(BEAM_FS))?, blit: gl.program(BLIT_VS, BLIT_FS)?, batch: gl.program(&with(BATCH_VS), &with(BATCH_FS))? };
+    let terrain = TERRAIN_FS.split_once('\n').map_or(TERRAIN_FS, |(_, rest)| rest);
+    let programs = Programs { terrain: gl.program(TERRAIN_VS, terrain)?, sprite: gl.program(&with(SPRITE_VS), &with(SPRITE_FS))?, spot: gl.program(&with(SPOT_VS), &with(SPOT_FS))?, beam: gl.program(&with(BEAM_VS), &with(BEAM_FS))?, blit: gl.program(BLIT_VS, BLIT_FS)?, batch: gl.program(&with(BATCH_VS), &with(BATCH_FS))? };
     unsafe {
       let raw = &gl.gl;
       let corners = raw.create_buffer()?;
       raw.bind_buffer(glow::ARRAY_BUFFER, Some(corners));
       let quad: [f32; 8] = [0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0];
       raw.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&quad), glow::STATIC_DRAW);
-      let (sprite_vao, sprite_data) = gl.instanced(corners, &[4]);
+      let (sprite_vao, sprite_data) = gl.instanced(corners, &[4, 4, 4]);
       let (spot_vao, spot_data) = gl.instanced(corners, &[4]);
       let (beam_vao, beam_data) = gl.instanced(corners, &[4, 4]);
       let empty_vao = raw.create_vertex_array()?;
@@ -379,18 +374,48 @@ impl Renderer {
       let font = gl.texture([ATLAS_SIZE as i32; 2], glow::R8, glow::RED, None);
       raw.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
       raw.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::LINEAR as i32);
-      Ok(Self { gl, programs, sprite_vao, sprite_data, spot_vao, spot_data, beam_vao, beam_data, empty_vao, batch_vao, batch_vertices, batch_indices, font, font_generation: 0, sheets: Vec::new(), occluders: None, lightmap: None, size: [0, 0] })
+      Ok(Self { gl, programs, sprite_vao, sprite_data, spot_vao, spot_data, beam_vao, beam_data, empty_vao, batch_vao, batch_vertices, batch_indices, font, font_generation: 0, atlas: None, land: None, occluders: None, lightmap: None, size: [0, 0] })
     }
   }
 
-  /// Загружает атласы обликов; номер облика — его место в списке.
-  pub fn load_looks(&mut self, looks: &[Look]) {
-    for sheet in self.sheets.drain(..) {
-      unsafe { self.gl.gl.delete_texture(sheet.texture) };
+  /// Общий атлас обликов (`atlas::pack`).
+  pub fn load_atlas(&mut self, pixels: &[u8], size: [usize; 2]) {
+    if let Some(texture) = self.atlas.take() {
+      unsafe { self.gl.gl.delete_texture(texture) };
     }
-    for look in looks {
-      let texture = self.gl.texture(look.size(), glow::RGBA8, glow::RGBA, Some(&look.pixels));
-      self.sheets.push(Sheet { texture, grid: [look.columns as f32, look.rows as f32], frame: look.frame as f32 / TEXELS });
+    self.atlas = Some(self.gl.texture([size[0] as i32, size[1] as i32], glow::RGBA8, glow::RGBA, Some(pixels)));
+  }
+
+  /// Земля, по которой рисовать.
+  pub fn set_land(&mut self, land: Land) {
+    let texture = self.gl.texture([WINDOW, WINDOW], glow::RGBA8, glow::RGBA, None);
+    self.land = Some(LandWindow { land, texture, slots: vec![None; (WINDOW_CHUNKS * WINDOW_CHUNKS) as usize] });
+  }
+
+  /// Чанки вокруг камеры — в окно, если их там ещё нет.
+  fn update_land(&mut self, view: &View) {
+    let Some(window) = &mut self.land else { return };
+    let margin = 2.0;
+    let half = [view.screen[0] / 2.0 / view.zoom + margin, view.screen[1] / 2.0 / view.zoom + margin];
+    let chunk = CHUNK_SIZE as f32;
+    let (from_x, to_x) = (((view.x - half[0]) / chunk).floor() as i32, ((view.x + half[0]) / chunk).floor() as i32);
+    let (from_y, to_y) = (((view.y - half[1]) / chunk).floor() as i32, ((view.y + half[1]) / chunk).floor() as i32);
+    let gl = &self.gl.gl;
+    for chunk_y in from_y..=to_y {
+      for chunk_x in from_x..=to_x {
+        let (slot_x, slot_y) = (chunk_x.rem_euclid(WINDOW_CHUNKS), chunk_y.rem_euclid(WINDOW_CHUNKS));
+        let slot = (slot_y * WINDOW_CHUNKS + slot_x) as usize;
+        if window.slots[slot] == Some((chunk_x, chunk_y)) {
+          continue;
+        }
+        let bytes = window.land.chunk(chunk_x, chunk_y);
+        unsafe {
+          gl.bind_texture(glow::TEXTURE_2D, Some(window.texture));
+          gl.pixel_store_i32(glow::UNPACK_ALIGNMENT, 1);
+          gl.tex_sub_image_2d(glow::TEXTURE_2D, 0, slot_x * CHUNK_SIZE, slot_y * CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE, glow::RGBA, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(Some(bytes)));
+        }
+        window.slots[slot] = Some((chunk_x, chunk_y));
+      }
     }
   }
 
@@ -402,26 +427,21 @@ impl Renderer {
     gl.uniform_2_f32(gl.get_uniform_location(program, "uScreen").as_ref(), view.screen[0], view.screen[1]);
   }
 
-  unsafe fn sprites(&self, view: &View, frame: &Frame, mode: i32, shift: f32, shadow: f32) {
+  /// Спрайты слоёв layers: mode 0 — сами, 1 — тени, 2 — силуэты.
+  unsafe fn sprites(&self, view: &View, frame: &Frame, layers: std::ops::Range<usize>, mode: i32) {
+    let Some(atlas) = self.atlas else { return };
     let gl = &self.gl.gl;
     let program = self.programs.sprite;
     self.camera(program, view);
     let uniform = |name: &str| gl.get_uniform_location(program, name);
     gl.uniform_1_i32(uniform("uMode").as_ref(), mode);
-    gl.uniform_2_f32(uniform("uShift").as_ref(), shift, shift);
-    gl.uniform_1_f32(uniform("uShadow").as_ref(), shadow);
     gl.uniform_3_f32_slice(uniform("uPalette").as_ref(), &frame.palette);
+    gl.bind_texture(glow::TEXTURE_2D, Some(atlas));
     gl.bind_vertex_array(Some(self.sprite_vao));
-    for (index, instances) in frame.sprites.iter().enumerate() {
-      let Some(sheet) = self.sheets.get(index) else { continue };
-      if instances.is_empty() {
-        continue;
-      }
+    for layer in layers {
+      let Some(instances) = frame.layers.get(layer).filter(|list| !list.is_empty()) else { continue };
       self.gl.upload(self.sprite_data, instances);
-      gl.uniform_2_f32(uniform("uGrid").as_ref(), sheet.grid[0], sheet.grid[1]);
-      gl.uniform_1_f32(uniform("uFrame").as_ref(), sheet.frame);
-      gl.bind_texture(glow::TEXTURE_2D, Some(sheet.texture));
-      gl.draw_arrays_instanced(glow::TRIANGLE_STRIP, 0, 4, (instances.len() / 4) as i32);
+      gl.draw_arrays_instanced(glow::TRIANGLE_STRIP, 0, 4, (instances.len() / SPRITE) as i32);
     }
   }
 
@@ -451,35 +471,55 @@ impl Renderer {
     self.occluders = Some(self.gl.target(size, glow::R8, glow::RED));
   }
 
-  /// Кадр мира: земля, тени, спрайты, свет.
+  /// Земля шейдером из TS — прямо в экран: uZoom и uScreenSize в физических пикселях.
+  unsafe fn terrain(&self, view: &View, frame: &Frame, size: [i32; 2]) {
+    let Some(window) = &self.land else {
+      self.gl.gl.clear_color(0.16, 0.13, 0.1, 1.0);
+      self.gl.gl.clear(glow::COLOR_BUFFER_BIT);
+      return;
+    };
+    let gl = &self.gl.gl;
+    let program = self.programs.terrain;
+    gl.use_program(Some(program));
+    let uniform = |name: &str| gl.get_uniform_location(program, name);
+    let zoom = view.zoom * view.scale;
+    gl.uniform_1_i32(uniform("uMap").as_ref(), 0);
+    gl.uniform_2_f32(uniform("uScreenSize").as_ref(), size[0] as f32, size[1] as f32);
+    gl.uniform_2_f32(uniform("uCamera").as_ref(), view.x.rem_euclid(WINDOW as f32), view.y.rem_euclid(WINDOW as f32));
+    gl.uniform_1_f32(uniform("uZoom").as_ref(), zoom);
+    gl.uniform_1_f32(uniform("uPixel").as_ref(), 1.0 / zoom);
+    gl.uniform_1_f32(uniform("uTime").as_ref(), (frame.time * SWAMP_FPS).floor() / SWAMP_FPS);
+    gl.uniform_1_f32(uniform("uSamples").as_ref(), 4.0);
+    gl.uniform_3_f32(uniform("uDunes").as_ref(), DUNES[0], DUNES[1], DUNES[2]);
+    gl.bind_texture(glow::TEXTURE_2D, Some(window.texture));
+    gl.bind_vertex_array(Some(self.empty_vao));
+    gl.draw_arrays(glow::TRIANGLE_STRIP, 0, 4);
+  }
+
+  /// Кадр мира: земля, тени и спрайты по слоям, свет.
   pub fn draw_world(&mut self, view: &View, frame: &Frame, size: [i32; 2]) {
     self.size = size;
     let night = frame.ambient.iter().any(|&channel| channel < 0.97);
     if night {
       self.targets(size);
     }
+    self.update_land(view);
     let gl = &self.gl.gl;
     unsafe {
       gl.bind_framebuffer(glow::FRAMEBUFFER, None);
       gl.viewport(0, 0, size[0], size[1]);
       gl.active_texture(glow::TEXTURE0);
       gl.disable(glow::BLEND);
-      let land = self.programs.land;
-      self.camera(land, view);
-      let uniform = |name: &str| gl.get_uniform_location(land, name);
-      for (name, color) in ["uSand", "uRock", "uEdge"].into_iter().zip(frame.ground) {
-        gl.uniform_3_f32(uniform(name).as_ref(), color[0], color[1], color[2]);
-      }
-      gl.uniform_1_f32(uniform("uField").as_ref(), frame.field);
-      gl.bind_vertex_array(Some(self.empty_vao));
-      gl.draw_arrays(glow::TRIANGLE_STRIP, 0, 4);
+      self.terrain(view, frame, size);
 
+      // По слою: сначала тени слоя, потом он сам — тень соседа не ляжет на кабину.
       gl.enable(glow::BLEND);
       gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
-      let daylight = frame.ambient.iter().sum::<f32>() / 3.0;
-      self.sprites(view, frame, 1, SHADOW_SHIFT, 0.4 * daylight.clamp(0.3, 1.0));
+      for layer in 0..LAYERS {
+        self.sprites(view, frame, layer..layer + 1, 1);
+        self.sprites(view, frame, layer..layer + 1, 0);
+      }
       gl.disable(glow::BLEND);
-      self.sprites(view, frame, 0, 0.0, 0.0);
       if !night {
         return;
       }
@@ -487,7 +527,8 @@ impl Renderer {
       gl.bind_framebuffer(glow::FRAMEBUFFER, Some(occluders.framebuffer));
       gl.clear_color(0.0, 0.0, 0.0, 0.0);
       gl.clear(glow::COLOR_BUFFER_BIT);
-      self.sprites(view, frame, 2, 0.0, 0.0);
+      // Летающие лучам фар не мешают: они выше.
+      self.sprites(view, frame, 0..4, 2);
 
       gl.enable(glow::BLEND);
       gl.blend_func(glow::ONE, glow::ONE);
@@ -554,11 +595,11 @@ impl Renderer {
             gl.uniform_1_i32(uniform("uKind").as_ref(), 0);
             gl.bind_texture(glow::TEXTURE_2D, Some(self.font));
           }
-          Paint::Sprite { look, team } => {
-            let Some(sheet) = self.sheets.get(look) else { continue };
+          Paint::Sprite { team } => {
+            let Some(atlas) = self.atlas else { continue };
             gl.uniform_1_i32(uniform("uKind").as_ref(), 1);
             gl.uniform_1_i32(uniform("uTeam").as_ref(), team as i32);
-            gl.bind_texture(glow::TEXTURE_2D, Some(sheet.texture));
+            gl.bind_texture(glow::TEXTURE_2D, Some(atlas));
           }
         }
         gl.draw_elements(glow::TRIANGLES, (end - start) as i32, glow::UNSIGNED_INT, (start * 4) as i32);

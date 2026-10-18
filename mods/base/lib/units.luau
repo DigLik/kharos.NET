@@ -1,0 +1,688 @@
+--!strict
+-- Чертежи юнитов и турелей, вид сверху — перенос packages/client/src/game/units/unitArt.ts один в один: тот же холст
+-- (canvas — как Pixmap), те же цвета и фигуры, поэтому и пиксели те же. Рисуются в пикселях спрайта, 16 на тайл,
+-- начало координат — центр юнита; каждое направление — заново: повёрнутый чертёж растеризуется чище, чем повёрнутая
+-- картинка. Массивы цветов — с нуля, как в TS.
+
+local units = {}
+
+-- Сторона кадра в пикселях: два тайла.
+units.FRAME = 32
+-- Кадров поворота: соседние отличаются меньше чем на пиксель-два, поворот выглядит непрерывным.
+units.DIRECTIONS = 64
+-- Кадров хода наземного юнита; протектор и звенья повторяются через столько пикселей и сдвигаются на пиксель за кадр.
+units.PHASES = 4
+-- Тайлов пути на кадр хода: колёса и гусеницы — пиксель за пиксель пути, ноги шагают реже.
+units.STEP = { tracks = 1 / 16, wheels = 1 / 16, legs = 0.2 }
+
+-- Цвета сторон: тёмный, основной, светлый. Свои — синие, чужие — красные, союзники — зелёные.
+units.TEAMS = {
+	own = { 0x1f63d8, 0x5aa9ff, 0xe4f4ff },
+	foe = { 0xb3261e, 0xff6b5a, 0xffe9e4 },
+	ally = { 0x1f7a3c, 0x4ec973, 0xe8fff0 },
+}
+
+local function toned(color: number, tone: number): number
+	return color + (tone + 1) * 0x1000000
+end
+
+-- Маска цвета стороны: спрайт рисуется один раз на все стороны, цвет подставляет шейдер палитрой.
+local MASK_TEAM = { [0] = toned(0x1f63d8, 0), toned(0x5aa9ff, 1), toned(0xe4f4ff, 2) }
+
+local INK = 0x0b111b
+local STEEL = { [0] = 0x1c2b3e, 0x2d4560, 0x41617f, 0x6184a3, 0x9bb9d1 }
+local IRON = { [0] = 0x1e2024, 0x3a3d43, 0x5b5f66, 0x8b9097, 0xc3c7cc }
+local HAZARD = { [0] = 0x7a5a16, 0xc9962b, 0xf0c95a }
+local ENERGY = { [0] = 0x4f9dff, 0x9fd0ff, 0xf2fbff }
+local PHASES = units.PHASES
+
+-- Перо, повёрнутое вместе с юнитом: координаты — вперёд (along) и вправо (across) от его центра. Так чертёж описывается
+-- один раз, как будто юнит смотрит вправо.
+local function pen(g, angle: number)
+	local forwardX, forwardY = math.cos(angle), math.sin(angle)
+	local function x(along: number, across: number): number
+		return along * forwardX - across * forwardY
+	end
+	local function y(along: number, across: number): number
+		return along * forwardY + across * forwardX
+	end
+	return {
+		-- Брусок вдоль хода: от from до to по оси «вперёд», со сдвигом across вбок, толщиной width.
+		bar = function(from: number, to: number, across: number, width: number, color: number)
+			g:line(x(from, across), y(from, across), x(to, across), y(to, across), width, color)
+		end,
+		-- Брусок поперёк хода: на расстоянии along вперёд, от from до to по оси «вправо».
+		beam = function(along: number, from: number, to: number, width: number, color: number)
+			g:line(x(along, from), y(along, from), x(along, to), y(along, to), width, color)
+		end,
+		dot = function(along: number, across: number, radius: number, color: number)
+			g:circle(x(along, across), y(along, across), radius, color)
+		end,
+		-- Отрезок между двумя точками, каждая — вперёд и вправо от центра.
+		line = function(fromAlong: number, fromAcross: number, toAlong: number, toAcross: number, width: number, color: number)
+			g:line(x(fromAlong, fromAcross), y(fromAlong, fromAcross), x(toAlong, toAcross), y(toAlong, toAcross), width, color)
+		end,
+	}
+end
+
+-- Поперечные полоски через PHASES пикселей на отрезке от from до to вдоль хода: звенья гусеницы или протектор шины.
+-- На кадре phase они сдвинуты вперёд на phase пикселей.
+local function treads(p, from: number, to: number, across: number, half: number, phase: number, color: number)
+	local along = from + phase
+	while along - PHASES >= from do
+		along -= PHASES
+	end
+	while along <= to do
+		p.beam(along, across - half, across + half, 1, color)
+		along += PHASES
+	end
+end
+
+-- Шина: чёрный брусок длиной 2·half вдоль хода, по которому бежит протектор.
+local function tire(p, along: number, across: number, half: number, width: number, phase: number)
+	p.bar(along - half, along + half, across, width, INK)
+	treads(p, along - half + 0.5, along + half - 0.5, across, width / 2 - 0.5, phase, IRON[2])
+end
+
+-- Ноги пехотинца: на кадрах 1 и 3 одна ступня впереди, другая сзади; на 0 и 2 обе под плечами.
+local function legs(p, phase: number)
+	local stride = if phase == 1 then 2.6 elseif phase == 3 then -2.6 else 0
+	if stride == 0 then
+		return
+	end
+	for _, across in { -1.5, 1.5 } do
+		local along = if across < 0 then stride else -stride
+		p.dot(along, across, 1.3, INK)
+		p.dot(along, across, 0.7, IRON[2])
+	end
+end
+
+-- Колёса лёгкой машины: по два с каждого борта.
+local function wheels(p, side: number, spread: number, phase: number)
+	for _, across in { -side, side } do
+		for _, wheel in { -spread, spread } do
+			tire(p, wheel, across, 2, 3, phase)
+		end
+	end
+end
+
+-- Гусеницы и корпус тяжёлой машины.
+local function heavyHull(p, team, phase: number)
+	for _, side in { -7.5, 7.5 } do
+		p.bar(-11, 11, side, 6, INK)
+		p.bar(-10, 10, side, 4, IRON[1])
+		treads(p, -10, 10, side, 2, phase, IRON[0])
+	end
+	p.bar(-9, 10, 0, 12, INK)
+	p.bar(-8, 9, 0, 10, STEEL[1])
+	p.bar(-8, 9, -4, 2, STEEL[2])
+	p.bar(-8, -6, 0, 10, team[0])
+end
+
+-- Пушка главного здания: широкий купол цвета команды с линзой и спаренный излучатель с голубыми концами. Купол —
+-- along пикселей вперёд от центра, стволы длиной reach. Та же пушка стоит на крыше главного здания и на MCV.
+local function coreGun(p, along: number, reach: number, team)
+	for _, side in { -2.2, 2.2 } do
+		p.bar(along + 2, along + reach, side, 2.8, INK)
+		p.bar(along + 2.5, along + reach - 0.5, side, 1.4, IRON[3])
+		p.dot(along + reach, side, 1.3, ENERGY[1])
+		p.dot(along + reach, side, 0.6, ENERGY[2])
+	end
+	p.dot(along, 0, 7.2, INK)
+	p.dot(along, 0, 6.2, STEEL[2])
+	p.dot(along - 0.8, 0, 4.8, team[0])
+	p.dot(along - 1.8, -1.8, 2, team[1])
+	p.dot(along + 2.2, 0, 1.8, INK)
+	p.dot(along + 2.2, 0, 1.1, ENERGY[0])
+end
+
+local draw = {}
+
+-- MCV: широкая гусеничная машина с кабиной спереди и пушкой будущего ядра на крыше.
+function draw.mcv(g, angle, team, phase)
+	local p = pen(g, angle)
+	for _, side in { -8, 8 } do
+		p.bar(-13, 13, side, 7, INK)
+		p.bar(-12, 12, side, 5, IRON[1])
+		treads(p, -12, 12, side, 2.5, phase, IRON[0])
+	end
+	p.bar(-11, 12, 0, 14, INK)
+	p.bar(-10, 11, 0, 12, STEEL[1])
+	p.bar(-10, 11, -5, 2, STEEL[2])
+	p.bar(6, 11, 0, 10, STEEL[3])
+	p.bar(8, 10, 0, 6, team[2])
+	-- Пушка будущего ядра едет на крыше — отдельной турелью mcv, см. TURRET_ART.
+end
+
+-- Строитель: небольшая колёсная машина со стрелой.
+function draw.builder(g, angle, team, phase)
+	local p = pen(g, angle)
+	for _, side in { -4, 4 } do
+		for _, wheel in { -3.5, 3.5 } do tire(p, wheel, side, 2, 3, phase) end
+	end
+	p.bar(-6, 6, 0, 8, INK)
+	p.bar(-5, 5, 0, 6, HAZARD[1])
+	p.bar(-5, 5, -2.5, 1, HAZARD[2])
+	p.bar(-5, -3, 0, 6, HAZARD[0])
+	p.bar(2, 4, 0, 4, team[1])
+	p.bar(-1, 8, 2, 2, INK)
+	p.dot(8, 2, 1.5, IRON[3])
+end
+
+-- Пехотинец: плечи, голова и оружие.
+function draw.infantry(g, angle, team, phase)
+	local p = pen(g, angle)
+	legs(p, phase)
+	p.beam(0, -3.5, 3.5, 5, INK)
+	p.beam(0, -2.5, 2.5, 3, team[0])
+	p.bar(0, 5, 2.5, 1.2, INK)
+	p.dot(0.5, 0, 2, INK)
+	p.dot(0.5, 0, 1.2, STEEL[4])
+end
+
+-- Грузовик: кабина спереди и открытый кузов с рудой.
+function draw.truck(g, angle, team, phase)
+	local p = pen(g, angle)
+	for _, side in { -4.5, 4.5 } do
+		for _, wheel in { -5, 0, 5 } do tire(p, wheel, side, 1.5, 3, phase) end
+	end
+	p.bar(-8, 8, 0, 9, INK)
+	-- Кузов: борта и руда внутри.
+	p.bar(-7, 2, 0, 7, IRON[2])
+	p.bar(-6, 1, 0, 5, 0x6b2f1e)
+	p.bar(-5, 0, -1, 2, 0xb5562e)
+	p.dot(-2, 1, 1, 0xe58a4a)
+	-- Кабина.
+	p.bar(3, 7, 0, 7, HAZARD[1])
+	p.bar(3, 7, -3, 1, HAZARD[2])
+	p.bar(5, 6, 0, 5, team[2])
+	-- Излучатель транспортного луча за кабиной.
+	p.dot(2, 0, 1.8, INK)
+	p.dot(2, 0, 1.2, 0x5ff2d0)
+	p.dot(1.6, -0.4, 0.5, 0xd8fff6)
+end
+
+-- Ракетчик: пехотинец с трубой на плече.
+function draw.rocketeer(g, angle, team, phase)
+	local p = pen(g, angle)
+	legs(p, phase)
+	p.beam(0, -3.5, 3.5, 5, INK)
+	p.beam(0, -2.5, 2.5, 3, team[0])
+	p.bar(-4, 6, -2.5, 3.2, INK)
+	p.bar(-3, 5, -2.5, 1.6, IRON[3])
+	p.dot(5.5, -2.5, 1, HAZARD[2])
+	p.dot(0.5, 0.5, 2, INK)
+	p.dot(0.5, 0.5, 1.2, STEEL[4])
+end
+
+-- Огнемётчик: баллоны за спиной, брандспойт в руках и горящий запальник на конце.
+function draw.flamer(g, angle, team, phase)
+	local p = pen(g, angle)
+	legs(p, phase)
+	-- Баллоны за спиной.
+	for _, across in { -1.6, 1.6 } do
+		p.dot(-2.2, across, 1.6, INK)
+		p.dot(-2.2, across, 1, HAZARD[1])
+	end
+	p.beam(0, -3.5, 3.5, 5, INK)
+	p.beam(0, -2.5, 2.5, 3, team[0])
+	-- Брандспойт и запальник.
+	p.bar(-1, 6, 1.8, 2.4, INK)
+	p.bar(0, 5, 1.8, 1, IRON[3])
+	p.dot(6.2, 1.8, 1.1, 0xff8a2a)
+	p.dot(0.5, -0.3, 2, INK)
+	p.dot(0.5, -0.3, 1.2, STEEL[4])
+end
+
+-- Зенитка: лёгкое колёсное шасси с поворотной платформой и спаренной автопушкой, задранной вверх.
+function draw.flak(g, angle, team, phase)
+	local p = pen(g, angle)
+	wheels(p, 4.5, 4.5, phase)
+	p.bar(-7, 6, 0, 8, INK)
+	p.bar(-6, 5, 0, 6, STEEL[1])
+	p.bar(-6, 5, -2.5, 1, STEEL[3])
+	p.bar(-6, -4, 0, 6, team[0])
+	-- Платформа и два ствола.
+	p.dot(-0.5, 0, 3.6, INK)
+	p.dot(-0.5, 0, 2.8, STEEL[2])
+	for _, across in { -1.4, 1.4 } do
+		p.bar(0, 9, across, 1.8, INK)
+		p.bar(1, 8.5, across, 0.8, IRON[4])
+	end
+	p.dot(-0.5, 0, 1.4, team[1])
+end
+
+-- Багги: узкая быстрая машина с дугой безопасности. Пассажира с миниганом рисует gunnerTurret поверх.
+function draw.buggy(g, angle, team, phase)
+	local p = pen(g, angle)
+	wheels(p, 4.5, 4, phase)
+	p.bar(-6, 7, 0, 7, INK)
+	p.bar(-5, 6, 0, 5, IRON[2])
+	p.bar(-5, 6, -2, 1, IRON[3])
+	p.bar(-5, -3, 0, 5, team[0])
+	-- Водитель за лобовым стеклом и дуга над ним.
+	p.bar(4.5, 6, 0, 4, team[2])
+	p.dot(2.5, 0, 1.3, INK)
+	p.dot(2.5, 0, 0.8, STEEL[4])
+	p.beam(1, -3.5, 3.5, 1, INK)
+end
+
+-- Лазерная машина: излучатель на шасси.
+function draw.lancer(g, angle, team, phase)
+	local p = pen(g, angle)
+	wheels(p, 4.5, 4.5, phase)
+	p.bar(-7, 6, 0, 8, INK)
+	p.bar(-6, 5, 0, 6, STEEL[1])
+	p.bar(-6, 5, -2.5, 1, STEEL[3])
+	p.bar(-6, -4, 0, 6, team[0])
+	p.bar(-2, 8, 0, 3.4, INK)
+	p.bar(-1, 7, 0, 1.6, STEEL[4])
+	p.dot(8, 0, 1.6, 0xff4d6d)
+	p.dot(-2, 0, 3.2, INK)
+	p.dot(-2, 0, 2.2, team[1])
+end
+
+-- Танк: гусеницы, корпус и погон под башню. Башня — отдельная турель, её рисует cannonTurret поверх.
+function draw.tank(g, angle, team, phase)
+	local p = pen(g, angle)
+	heavyHull(p, team, phase)
+	p.bar(6, 9, 0, 8, STEEL[2])
+	p.beam(7.5, -3, 3, 1, STEEL[0])
+	p.dot(-1, 0, 6.4, INK)
+	p.dot(-1, 0, 5.6, STEEL[0])
+end
+
+-- Артиллерия: гаубица на колёсном лафете. Две пары колёс, станины с сошниками назад, щит расчёта и длинный ствол
+-- с дульным тормозом вперёд — ствол длиннее корпуса, видно издалека.
+function draw.artillery(g, angle, team, phase)
+	local p = pen(g, angle)
+	-- Станины расходятся назад, на концах — сошники.
+	p.line(-1, -3, -12, -6, 2.4, INK)
+	p.line(-1, 3, -12, 6, 2.4, INK)
+	p.line(-1, -3, -11.5, -5.8, 1, IRON[2])
+	p.line(-1, 3, -11.5, 5.8, 1, IRON[2])
+	p.beam(-12, -7.5, -4.5, 1.6, IRON[3])
+	p.beam(-12, 4.5, 7.5, 1.6, IRON[3])
+	for _, along in { -3, 3 } do
+		for _, across in { -6, 6 } do
+			tire(p, along, across, 2.2, 3, phase)
+		end
+	end
+	-- Лафет.
+	p.bar(-6, 5, 0, 9, INK)
+	p.bar(-5, 4, 0, 7, STEEL[1])
+	p.bar(-5, 4, -2.8, 1, STEEL[3])
+	p.bar(-5, -3, 0, 7, team[0])
+	-- Щит расчёта.
+	p.beam(2.5, -5, 5, 2, INK)
+	p.beam(2.5, -4.5, 4.5, 1, STEEL[3])
+	-- Ствол с дульным тормозом.
+	p.bar(-2, 14, 0, 3.4, INK)
+	p.bar(-1, 13, 0, 1.8, IRON[3])
+	p.bar(-1, 13, -0.6, 0.6, IRON[4])
+	p.bar(12.5, 15, 0, 4.2, INK)
+	p.bar(13, 14.5, 0, 2.6, IRON[2])
+	p.dot(-1.5, 0, 2.6, INK)
+	p.dot(-1.5, 0, 1.8, team[1])
+end
+
+-- Разрядник: тяжёлое шасси с погоном и кожухами питания. Катушка — отдельная турель, её рисует arcTurret поверх.
+function draw.tesla(g, angle, team, phase)
+	local p = pen(g, angle)
+	heavyHull(p, team, phase)
+	for _, side in { -3.5, 3.5 } do p.bar(5, 9, side, 2, ENERGY[0]) end
+	p.dot(0, 0, 6.6, INK)
+	p.dot(0, 0, 5.8, IRON[1])
+end
+
+-- Носитель: колёсное шасси танка — по три колеса с борта и плоская палуба с четырьмя гнёздами под турели.
+-- Сами турели — отдельные сущности, их рисует turretArt.ts поверх.
+function draw.carrier(g, angle, team, phase)
+	local p = pen(g, angle)
+	for _, side in { -9, 9 } do
+		for _, wheel in { -8, 0, 8 } do
+			p.bar(wheel - 3, wheel + 3, side, 4.6, INK)
+			p.bar(wheel - 2.3, wheel + 2.3, side, 3.2, IRON[1])
+			treads(p, wheel - 2.3, wheel + 2.3, side, 1.6, phase, IRON[3])
+		end
+	end
+	p.bar(-12, 12, 0, 15, INK)
+	p.bar(-11, 11, 0, 13, STEEL[1])
+	p.bar(-11, 11, -5.5, 2, STEEL[2])
+	p.bar(-11, -9, 0, 13, team[0])
+	p.bar(10, 12, 0, 8, team[2])
+	p.beam(0.5, -5.5, 5.5, 1, STEEL[0])
+end
+
+-- Машина снабжения: длинное шестиколёсное шасси, кабина спереди, за ней — кузов с ящиками патронов под тентом
+-- и мачта излучателя раздачи. Пулемётчика рисует gunnerTurret поверх, над кабиной.
+function draw.supplier(g, angle, team, phase)
+	local p = pen(g, angle)
+	for _, side in { -7, 7 } do
+		for _, wheel in { -8, -2.5, 6 } do tire(p, wheel, side, 2, 3.4, phase) end
+	end
+	p.bar(-12, 11, 0, 11, INK)
+	p.bar(-11, 10, 0, 9, STEEL[1])
+	p.bar(-11, 10, -3.8, 1.4, STEEL[2])
+	-- Кузов: тент в цвет стороны и ящики под ним рядами.
+	p.bar(-11, 2, 0, 10, INK)
+	p.bar(-10.5, 1.5, 0, 9, team[0])
+	for _, along in { -8.5, -4.5, -0.5 } do
+		for _, across in { -2.4, 2.4 } do
+			p.bar(along - 1.4, along + 1.4, across, 3.6, INK)
+			p.bar(along - 1, along + 1, across, 2.8, 0x5b6b2e)
+			p.bar(along - 1, along + 1, across - 0.9, 0.8, 0x8a9c4a)
+		end
+	end
+	p.beam(-11, -4.5, 4.5, 1, HAZARD[1])
+	-- Кабина.
+	p.bar(3, 10, 0, 10, INK)
+	p.bar(3.5, 9.5, 0, 9, HAZARD[1])
+	p.bar(3.5, 9.5, -3.5, 1.2, HAZARD[2])
+	p.bar(8, 9.5, 0, 7, team[2])
+	-- Мачта излучателя раздачи на заднем борту.
+	p.dot(-11.5, 3.5, 2, INK)
+	p.dot(-11.5, 3.5, 1.3, 0x5ff2d0)
+	p.dot(-11.9, 3.1, 0.5, 0xd8fff6)
+end
+
+-- Дрон: четыре винта крестом и маленький корпус.
+function draw.drone(g, angle, team)
+	local p = pen(g, angle)
+	for _, pair in { { 4, 4 }, { 4, -4 }, { -4, 4 }, { -4, -4 } } do
+		local along, across = pair[1], pair[2]
+		p.line(0, 0, along, across, 2.4, INK)
+		p.line(0, 0, along, across, 1, IRON[2])
+		p.dot(along, across, 2.8, INK)
+		p.dot(along, across, 1.8, IRON[3])
+		p.dot(along, across, 0.7, IRON[0])
+	end
+	p.bar(0, 6, 0, 1.6, INK)
+	p.dot(0, 0, 3.2, INK)
+	p.dot(0, 0, 2.2, team[0])
+	p.dot(0.5, -0.5, 1, team[2])
+end
+
+-- Летающий грузовик: четыре винта на длинных балках, под ними — грузовой контейнер в жёлто-чёрных полосах.
+function draw.airTruck(g, angle, team)
+	local p = pen(g, angle)
+	for _, pair in { { 6, 6 }, { 6, -6 }, { -6, 6 }, { -6, -6 } } do
+		local along, across = pair[1], pair[2]
+		p.line(0, 0, along, across, 2.4, INK)
+		p.line(0, 0, along, across, 1, IRON[2])
+		p.dot(along, across, 3.2, INK)
+		p.dot(along, across, 2.2, IRON[3])
+		p.dot(along, across, 0.8, IRON[0])
+	end
+	-- Контейнер.
+	p.bar(-4.5, 4.5, 0, 8, INK)
+	p.bar(-3.5, 3.5, 0, 6, HAZARD[1])
+	for _, along in { -2, 1 } do p.beam(along, -3, 3, 1, HAZARD[0]) end
+	-- Кабина спереди.
+	p.bar(4, 7, 0, 4, INK)
+	p.bar(4.5, 6.5, 0, 2.4, team[0])
+	p.dot(6, -0.6, 0.7, team[2])
+end
+
+-- Штурмовик: фюзеляж, крылья с ракетными блоками и хвост.
+function draw.gunship(g, angle, team)
+	local p = pen(g, angle)
+	p.beam(-1, -11, 11, 6, INK)
+	p.beam(-1, -10, 10, 4, STEEL[1])
+	p.beam(-2, -10, 10, 1, STEEL[3])
+	p.beam(-1, -10, -7, 4, team[0])
+	p.beam(-1, 7, 10, 4, team[0])
+	for _, side in { -6.5, 6.5 } do
+		p.bar(-2, 6, side, 3.4, INK)
+		p.bar(-1, 5, side, 1.6, IRON[3])
+		p.dot(5.5, side, 0.9, HAZARD[2])
+	end
+	p.beam(-9, -4, 4, 3.4, INK)
+	p.beam(-9, -3, 3, 1.6, STEEL[2])
+	p.bar(-10, 10, 0, 6, INK)
+	p.bar(-9, 9, 0, 4, STEEL[2])
+	p.bar(-9, 9, -1.5, 1, STEEL[3])
+	p.bar(4, 8, 0, 2.6, team[2])
+end
+
+-- Бомбардировщик: широкое крыло-стрела с двумя моторами, бомбовый отсек на брюхе и двойной хвост.
+function draw.bomber(g, angle, team)
+	local p = pen(g, angle)
+	-- Крыло-стрела: от носа назад к законцовкам.
+	for _, side in { -1, 1 } do
+		p.line(4, 0, -6, side * 13, 5, INK)
+		p.line(4, 0, -6, side * 12.5, 3, STEEL[1])
+		p.line(3, side * 1, -5, side * 11.5, 1, STEEL[3])
+		p.dot(-6, side * 12, 1.4, team[0])
+		-- Мотор на крыле.
+		p.bar(-3, 4, side * 6, 3.4, INK)
+		p.bar(-2, 3, side * 6, 1.8, IRON[3])
+		p.dot(4, side * 6, 1, HAZARD[2])
+	end
+	-- Двойной хвост.
+	for _, side in { -3, 3 } do
+		p.bar(-12, -7, side, 2.4, INK)
+		p.bar(-11, -7, side, 1, STEEL[2])
+	end
+	-- Фюзеляж и бомбовый отсек.
+	p.bar(-11, 11, 0, 6, INK)
+	p.bar(-10, 10, 0, 4, STEEL[2])
+	p.bar(-10, 10, -1.5, 1, STEEL[3])
+	p.bar(-5, 3, 0, 3, INK)
+	p.bar(-4, 2, 0, 1.6, HAZARD[1])
+	p.bar(-10, -7, 0, 4, team[0])
+	p.bar(6, 10, 0, 2.6, team[2])
+end
+
+-- Танковая башня: круглая, с люком и длинным стволом с дульным тормозом.
+function draw.cannonTurret(g, angle, team)
+	local p = pen(g, angle)
+	p.bar(2, 13, 0, 3.6, INK)
+	p.bar(2, 12.5, 0, 1.6, IRON[3])
+	p.bar(11.5, 14, 0, 4.4, INK)
+	p.bar(12, 13.5, 0, 2.6, IRON[2])
+	p.dot(0, 0, 5.4, INK)
+	p.dot(0, 0, 4.4, STEEL[2])
+	p.dot(-1, 0, 3.4, team[0])
+	p.dot(-1.5, -1.5, 1.6, team[1])
+	p.dot(-2, 1.5, 1, IRON[4])
+end
+
+-- Ракетная турель: квадратный блок с двумя пусковыми трубами.
+function draw.rocketTurret(g, angle, team)
+	local p = pen(g, angle)
+	p.bar(-3, 3, 0, 6.4, INK)
+	p.bar(-2.4, 2.4, 0, 5, team[0])
+	p.bar(-2.4, -1.2, 0, 5, team[1])
+	for _, side in { -1.5, 1.5 } do
+		p.bar(0, 6, side, 2.2, INK)
+		p.bar(0.5, 5.5, side, 1, IRON[4])
+		p.dot(5.6, side, 0.6, HAZARD[2])
+	end
+end
+
+-- Ремонтная турель: жёлтый купол с рукой-излучателем.
+function draw.repairTurret(g, angle)
+	local p = pen(g, angle)
+	p.bar(0, 5.5, 0, 2.2, INK)
+	p.bar(0, 5, 0, 1, IRON[3])
+	p.dot(5.6, 0, 1.5, INK)
+	p.dot(5.6, 0, 0.9, 0x7dffa8)
+	p.dot(-0.5, 0, 3.4, INK)
+	p.dot(-0.5, 0, 2.6, HAZARD[1])
+	p.dot(-1.2, -0.8, 1, HAZARD[2])
+end
+
+-- Разрядная башня: катушка на кольце и два электрода вперёд со светящимися концами.
+function draw.arcTurret(g, angle, team)
+	local p = pen(g, angle)
+	for _, side in { -2.6, 2.6 } do
+		p.bar(2, 11, side, 2.6, INK)
+		p.bar(2, 10, side, 1.2, IRON[3])
+		p.dot(11, side, 1.4, ENERGY[1])
+		p.dot(11, side, 0.6, ENERGY[2])
+	end
+	p.dot(0, 0, 5.4, INK)
+	p.dot(0, 0, 4.6, IRON[2])
+	p.beam(-3.5, -2.5, 2.5, 1.4, team[0])
+	p.dot(0, 0, 3.4, INK)
+	p.dot(0, 0, 2.6, ENERGY[0])
+	p.dot(0, 0, 1.2, ENERGY[2])
+end
+
+-- Пассажир багги: плечи и шлем в цвет команды, миниган — светлый блок стволов с жёлтым дульным срезом.
+function draw.gunnerTurret(g, angle, team)
+	local p = pen(g, angle)
+	p.beam(0, -3.6, 3.6, 4.4, INK)
+	p.beam(0, -2.8, 2.8, 2.8, team[1])
+	p.bar(0, 7.5, 1.8, 3, INK)
+	p.bar(1, 7, 1.8, 1.4, IRON[4])
+	p.dot(7.2, 1.8, 0.8, HAZARD[2])
+	p.dot(-1, -0.6, 1.5, INK)
+	p.dot(-1, -0.6, 0.9, team[2])
+end
+
+-- Лазерная турель: купол цвета команды и один излучатель с голубой линзой на конце.
+function draw.laserTurret(g, angle, team)
+	local p = pen(g, angle)
+	p.bar(1, 10, 0, 2.6, INK)
+	p.bar(1.5, 9.5, 0, 1.2, IRON[3])
+	p.dot(10, 0, 1.4, ENERGY[1])
+	p.dot(10, 0, 0.7, ENERGY[2])
+	p.dot(0, 0, 4.6, INK)
+	p.dot(0, 0, 3.8, STEEL[2])
+	p.dot(-0.6, 0, 2.8, team[0])
+	p.dot(-1.2, -1.2, 1.1, team[1])
+end
+
+function draw.coreTurret(g, angle, team)
+	coreGun(pen(g, angle), 0, 14, team)
+end
+
+-- Чертёж юнита по виду: draw(canvas, угол, фаза) в маске цвета стороны.
+units.art = {}
+for _, name in { "mcv", "builder", "infantry", "truck", "rocketeer", "flamer", "buggy", "flak", "lancer", "tank", "artillery", "tesla", "carrier", "supplier", "drone", "airTruck", "gunship", "bomber" } do
+	local art = draw[name]
+	units.art[name] = function(canvas, angle: number, phase: number)
+		art(canvas, angle, MASK_TEAM, phase)
+	end
+end
+
+-- Турели: свой кадр в 32 пикселя и одно положение хода.
+units.turrets = {}
+for name, art in { gunner = draw.gunnerTurret, arc = draw.arcTurret, cannon = draw.cannonTurret, rocket = draw.rocketTurret, repair = draw.repairTurret, laser = draw.laserTurret, core = draw.coreTurret, mcv = draw.coreTurret } do
+	units.turrets[name] = function(canvas, angle: number)
+		art(canvas, angle, MASK_TEAM, 0)
+	end
+end
+
+-- Чем юнит ходит: от этого анимация хода.
+units.gaits = {
+	mcv = "tracks", builder = "wheels", infantry = "legs", truck = "wheels", rocketeer = "legs", flamer = "legs", buggy = "wheels", flak = "wheels",
+	lancer = "wheels", tank = "tracks", artillery = "wheels", tesla = "tracks", carrier = "wheels", supplier = "wheels", drone = "air", airTruck = "air", gunship = "air", bomber = "air",
+}
+
+-- Свет юнита: фары (вдоль, поперёк — в пикселях спрайта, радиус ореола) и луч вперёд из точки along на оси юнита.
+units.lights = {
+
+	mcv = {
+		lamps = { { 12, -4, 3 }, { 12, 4, 3 } },
+		beam = { along = 14, length = 72, near = 7, spread = 0.3, level = 1 },
+	},
+	builder = {
+		lamps = { { 6, -2, 2 }, { 6, 2, 2 } },
+		beam = { along = 10, length = 52, near = 4, spread = 0.3, level = 1 },
+	},
+	truck = {
+		lamps = { { 8, -2.5, 2 }, { 8, 2.5, 2 } },
+		beam = { along = 11, length = 56, near = 4.5, spread = 0.3, level = 1 },
+	},
+	infantry = {
+		lamps = { { 5, 2.5, 1.5 } },
+		beam = { along = 7, length = 36, near = 1.5, spread = 0.22, level = 0.9 },
+	},
+	rocketeer = {
+		lamps = { { 4, 2.5, 1.5 } },
+		beam = { along = 7, length = 36, near = 1.5, spread = 0.22, level = 0.9 },
+	},
+	flamer = {
+		lamps = { { 6, 1.5, 1.5 } },
+		beam = { along = 7, length = 30, near = 1.5, spread = 0.25, level = 0.8 },
+	},
+	flak = {
+		lamps = { { 7, -2.5, 2 }, { 7, 2.5, 2 } },
+		beam = { along = 10, length = 56, near = 4, spread = 0.3, level = 1 },
+	},
+	buggy = {
+		lamps = { { 7, -2, 2 }, { 7, 2, 2 } },
+		beam = { along = 10, length = 60, near = 4, spread = 0.28, level = 1 },
+	},
+	lancer = {
+		lamps = { { 6, -2.5, 2 }, { 6, 2.5, 2 } },
+		beam = { along = 10, length = 52, near = 4, spread = 0.3, level = 1 },
+	},
+	tank = {
+		lamps = { { 10, -4, 2.5 }, { 10, 4, 2.5 } },
+		beam = { along = 15, length = 60, near = 6, spread = 0.3, level = 1 },
+	},
+	artillery = {
+		lamps = { { 6, -3, 2 }, { 6, 3, 2 } },
+		beam = { along = 9, length = 52, near = 4, spread = 0.3, level = 1 },
+	},
+	tesla = {
+		lamps = { { 10, -4, 2.5 }, { 10, 4, 2.5 } },
+		beam = { along = 13, length = 60, near = 6, spread = 0.3, level = 1 },
+	},
+	carrier = {
+		lamps = { { 12, -4.5, 2.5 }, { 12, 4.5, 2.5 } },
+		beam = { along = 15, length = 60, near = 6, spread = 0.3, level = 1 },
+	},
+	supplier = {
+		lamps = { { 10, -3.5, 2.5 }, { 10, 3.5, 2.5 } },
+		beam = { along = 13, length = 60, near = 5, spread = 0.3, level = 1 },
+	},
+	airTruck = {
+		lamps = { { 7, 0, 1.5 } },
+		beam = { along = 8, length = 44, near = 2, spread = 0.3, level = 0.8 },
+	},
+	drone = {
+		lamps = { { 5, 0, 1.5 } },
+		beam = { along = 7, length = 40, near = 2, spread = 0.3, level = 0.8 },
+	},
+	bomber = {
+		lamps = { { 9, -6, 2 }, { 9, 6, 2 } },
+		beam = { along = 13, length = 56, near = 4, spread = 0.32, level = 0.9 },
+	},
+	gunship = {
+		lamps = { { 10, 0, 2.5 } },
+		beam = { along = 12, length = 64, near = 4, spread = 0.35, level = 1 },
+	},
+}
+
+-- Облик юнита вида name: кадр, направления, фазы хода, огни — для поля look вида.
+function units.look(name: string)
+	local gait = units.gaits[name]
+	local air = gait == "air"
+	return {
+		size = units.FRAME,
+		directions = units.DIRECTIONS,
+		phases = if air then 1 else units.PHASES,
+		step = units.STEP[gait],
+		layer = if air then "air" else "ground",
+		shadow = if air then { 10, 0.25 } else { 2, 0.4 },
+		draw = units.art[name],
+		lights = units.lights[name],
+	}
+end
+
+-- Облик турели: тень — вдвое ближе, чем у носителя.
+function units.turretLook(name: string)
+	return {
+		size = 32,
+		directions = units.DIRECTIONS,
+		shadow = { 1, 0.4 },
+		draw = units.turrets[name],
+	}
+end
+
+return units

@@ -203,7 +203,7 @@ impl Host {
     }
     for (player, name, args) in std::mem::take(&mut self.orders) {
       let Some((label, handler)) = self.commands.get(&name).cloned() else { continue };
-      let args = self.lua().to_value(&args).map_err(lua_error(format!("приказ {name}")))?;
+      let args = kharos_content::vm::to_lua(self.lua(), &args).map_err(lua_error(format!("приказ {name}")))?;
       handler.call::<()>((&self.ctx, player, args)).map_err(lua_error(format!("{label}.commands.{name}")))?;
       self.settle(&format!("{label}.commands.{name}"))?;
     }
@@ -267,7 +267,7 @@ impl Host {
       }
       for (name, payload) in events {
         let Some(list) = self.handlers.get(&name).cloned() else { continue };
-        let value = self.lua().to_value(&payload).map_err(lua_error(&name))?;
+        let value = kharos_content::vm::to_lua(self.lua(), &payload).map_err(lua_error(&name))?;
         for (label, handler) in list {
           handler.call::<()>((&self.ctx, value.clone())).map_err(lua_error(format!("{label}.on.{name}")))?;
           apply(&mut self.state.borrow_mut()).map_err(|error| format!("{label}.on.{name}: {error}"))?;
@@ -456,6 +456,9 @@ fn apply(state: &mut State) -> Result<(), Error> {
           state.world.add(entity, component, &values)?;
         }
         state.grid = None;
+        // Событие видам: новую сущность можно доснарядить (турели на носителе и т. п.).
+        let proto = state.world.schema.id("Proto").and_then(|id| state.world.num(entity, id, "id"));
+        state.events.push(("spawned".into(), serde_json::json!({ "entity": entity, "proto": proto })));
       }
       Op::Destroy(entity) => {
         state.world.destroy(entity);
@@ -627,7 +630,7 @@ impl UserData for Ctx {
       let id = this.component(&component)?;
       let value = this.state.borrow().world.get(entity_of(entity)?, id);
       match value {
-        Some(map) => lua.to_value(&Json::Object(map)),
+        Some(map) => kharos_content::vm::to_lua(lua, &Json::Object(map)),
         None => Ok(Value::Nil),
       }
     });

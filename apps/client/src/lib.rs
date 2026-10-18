@@ -3,7 +3,7 @@
 //!
 //! KHAROS_MODS — папки с модами через `:` (по умолчанию `mods` рядом или выше по дереву), KHAROS_GAME — партия.
 
-mod atlas;
+pub mod atlas;
 mod audio;
 mod game;
 mod gl;
@@ -56,8 +56,13 @@ impl App {
     let mut renderer = Renderer::new(gl)?;
     let font = ui::Font::new(FONT)?;
     let game = std::env::var("KHAROS_GAME").ok();
-    let game = Game::new(mods()?, game.as_deref(), 1, font)?;
-    renderer.load_looks(&game.looks);
+    let mut game = Game::new(mods()?, game.as_deref(), 1, font)?;
+    if let Some((pixels, size)) = game.atlas.take() {
+      renderer.load_atlas(&pixels, size);
+    }
+    if let Some(land) = game.land.take() {
+      renderer.set_land(land);
+    }
     Ok(Self { renderer, game })
   }
 

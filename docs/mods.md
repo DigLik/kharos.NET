@@ -129,7 +129,8 @@ systems = {
 
 ### События и приказы
 
-`on = { имя = function(ctx, данные) end }`. События движка: `start { game }` — начало партии, `player_joined { player }`.
+`on = { имя = function(ctx, данные) end }`. События движка: `start { game }` — начало партии, `player_joined { player }`, `spawned { entity, proto }` — сущность
+появилась (proto — номер вида или nil).
 
 `commands = { имя = function(ctx, игрок, аргументы) end }` — приказ игрока, выполняется в начале тика. Проверять
 аргументы и права — дело обработчика: приходит что угодно.

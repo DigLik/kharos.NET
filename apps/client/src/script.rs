@@ -45,9 +45,8 @@ pub struct SoundOrder {
   pub bus: String,
 }
 
-/// Облики для скриптов: номер облика по номеру вида и всё, что нужно значку.
+/// Значок вида для скриптов: кадр его облика в атласе.
 pub struct LookInfo {
-  pub index: usize,
   pub uv: [f32; 4],
 }
 
@@ -239,7 +238,7 @@ impl UserData for Ctx {
           }
         }
       }
-      lua.to_value(&Json::Object(map))
+      kharos_content::vm::to_lua(lua, &Json::Object(map))
     });
     methods.add_method("has", |_, c, (e, component): (f64, String)| {
       let state = c.state.borrow();
@@ -388,14 +387,14 @@ impl UserData for UiApi {
       let response = ui.0.borrow_mut().ui.interact(id(&key), [x, y, w, h]);
       Ok((response.clicked, response.hovered, response.down))
     });
-    // Значок вида: кадр его облика (направление icon) размером size, цветом стороны team (номер игрока).
+    // Значок вида: кадр его облика (направление icon) размером size, стороной team (0 — своя, 1 — чужая, 2 — союзная).
     methods.add_method("icon", |_, ui, (proto, x, y, size, team): (Table, f32, f32, f32, Option<u32>)| {
       let id: u32 = proto.get("id")?;
       let mut state = ui.0.borrow_mut();
       let Some(info) = state.looks.get(&id) else { return Ok(()) };
-      let (index, uv) = (info.index, info.uv);
-      let team = team.unwrap_or(state.player) as usize % crate::render::TEAMS;
-      state.ui.batch.quad([x, y], [x + size, y + size], uv, [255; 4], Paint::Sprite { look: index, team });
+      let uv = info.uv;
+      let team = team.unwrap_or(0) as usize % crate::render::TEAMS;
+      state.ui.batch.quad([x, y], [x + size, y + size], uv, [255; 4], Paint::Sprite { team });
       Ok(())
     });
     // Полоса: доля fraction заполнена цветом.
@@ -445,7 +444,7 @@ pub fn fill_input(lua: &Lua, table: &Table, input: &Input, view: &View, over_ui:
   Ok(())
 }
 
-/// Значок облика для `c.ui:icon`.
-pub fn look_info(index: usize, look: &Look) -> LookInfo {
-  LookInfo { index, uv: look.uv(look.cell(look.icon as f64 / look.directions.max(1) as f64 * crate::atlas::TURN, 0)) }
+/// Значок облика для `c.ui:icon` (после упаковки атласа).
+pub fn look_info(look: &Look) -> LookInfo {
+  LookInfo { uv: look.cells[look.cell(look.icon as f64 / look.directions.max(1) as f64 * crate::atlas::TURN, 0)] }
 }

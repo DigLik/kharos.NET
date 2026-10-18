@@ -29,7 +29,9 @@ fn player_starts_with_factory_buggies_and_credits() {
   let host = host();
   assert_eq!(all(&host, "Building").len(), 1);
   assert_eq!(all(&host, "Drive").len(), 3);
-  assert_eq!(credits(&host), 600.0);
+  // У каждого багги — стрелок на месте за водителем.
+  assert_eq!(all(&host, "Turret").len(), 3);
+  assert_eq!(credits(&host), 1000.0);
   assert!(host.system_names().contains(&"moves/wheels.drive".to_string()), "{:?}", host.system_names());
 }
 
@@ -42,10 +44,10 @@ fn factory_makes_a_buggy_for_credits_and_it_drives_out() {
   host.send(2, "produce", json!({ "building": factory, "unit": "buggy" }));
   host.send(1, "produce", json!({ "building": factory, "unit": "factory" }));
   host.tick(0.05).unwrap();
-  assert_eq!(credits(&host), 500.0);
-  // 4 секунды выпуска — 80 тиков; за них доход — 4 раза по 5.
+  assert_eq!(credits(&host), 750.0);
+  // 7 секунд выпуска — 140 тиков; за них доход — 7 раз по 5.
   let mut produced = Vec::new();
-  for _ in 0..80 {
+  for _ in 0..140 {
     host.tick(0.05).unwrap();
     produced.extend(host.signals().into_iter().filter(|signal| signal.name == "produced"));
   }
@@ -54,7 +56,8 @@ fn factory_makes_a_buggy_for_credits_and_it_drives_out() {
   let drives = all(&host, "Drive");
   assert_eq!(drives.len(), 4);
   assert!(drives.iter().any(|(_, drive)| drive["moving"] == json!(true)), "новый едет к точке");
-  assert_eq!(credits(&host), 520.0);
+  assert_eq!(all(&host, "Turret").len(), 4);
+  assert_eq!(credits(&host), 785.0);
 }
 
 #[test]

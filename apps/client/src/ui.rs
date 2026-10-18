@@ -12,11 +12,11 @@ pub struct Vertex {
   pub color: [u8; 4],
 }
 
-/// Чем красить отрезок батча: шрифтовой атлас или атлас вида (номер облика) с палитрой стороны (номер игрока).
+/// Чем красить отрезок батча: шрифтовой атлас или атлас обликов с палитрой стороны team.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Paint {
   Font,
-  Sprite { look: usize, team: usize },
+  Sprite { team: usize },
 }
 
 #[derive(Default)]

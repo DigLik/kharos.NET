@@ -1632,6 +1632,7 @@ dependencies = [
  "glutin",
  "glutin-winit",
  "kharos-content",
+ "kharos-engine",
  "kharos-world",
  "mlua",
  "png",

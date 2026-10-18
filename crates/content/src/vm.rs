@@ -122,6 +122,12 @@ fn normalize(path: &str) -> Option<String> {
   Some(joined.strip_suffix(".luau").map(str::to_string).unwrap_or(joined))
 }
 
+/// JSON в значение Luau: `null` — nil (по умолчанию mlua даёт вместо него особое значение, и `if x then` его пропускает).
+pub fn to_lua<T: serde::Serialize + ?Sized>(lua: &Lua, value: &T) -> mlua::Result<Value> {
+  use mlua::LuaSerdeExt;
+  lua.to_value_with(value, mlua::serde::SerializeOptions::new().serialize_none_to_null(false).serialize_unit_to_null(false))
+}
+
 /// Функция из таблицы, если она там есть.
 pub fn function(table: &Table, key: &str) -> mlua::Result<Option<Function>> {
   match table.get::<Value>(key)? {

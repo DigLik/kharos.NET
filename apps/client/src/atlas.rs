@@ -1,30 +1,38 @@
-//! Облик видов: чертёж `look.draw(canvas, угол, фаза)` растеризуется в атлас — кадр на каждое направление и фазу.
-//! Холст — векторные фигуры в пикселях спрайта (16 на тайл), начало — центр; пиксель закрашивается, если в фигуру
-//! попал его центр, — выходит пиксель-арт. Цвет стороны — метка тона (`canvas:team(тон)`): в атласе альфа 254 − тон,
-//! шейдер перекрашивает такой пиксель палитрой игрока.
+//! Облики видов: чертёж `look.draw(canvas, угол, фаза)` растеризуется в кадры — по одному на направление и фазу, —
+//! а кадры всех обликов пакуются в один атлас, как в TS (`render/atlas.ts`). Холст — тот же, что `Pixmap` в TS: фигуры
+//! без сглаживания, пиксель закрашивается, если его центр попал в фигуру, начало координат — `origin`. Цвет стороны —
+//! метка тона (`canvas.toned(цвет, тон)`): альфа 254 − тон, шейдер перекрашивает такой пиксель палитрой стороны.
 
 use mlua::{Function, Lua, Table, UserData, UserDataFields, UserDataMethods, Value};
 
 pub const TURN: f64 = std::f64::consts::PI * 2.0;
+/** Пикселей спрайта на тайл. */
+pub const TILE: f32 = 16.0;
 
 /// Холст одного кадра. Цвет — 0xRRGGBB, у цвета стороны в старшем байте тон + 1.
 pub struct Canvas {
-  pub size: usize,
+  pub width: usize,
+  pub height: usize,
+  pub origin: [f64; 2],
   pub data: Vec<u32>,
+  /// Огни кадра: x, y, радиус, яркость — в пикселях холста от начала координат.
+  pub lights: Vec<[f64; 4]>,
 }
 
 impl Canvas {
+  /// Закрашивает пиксели в границах, центр которых проходит проверку inside, — ровно как `Pixmap.fill` в TS:
+  /// пиксель i занимает [i, i + 1).
   fn fill(&mut self, color: u32, bounds: [f64; 4], inside: impl Fn(f64, f64) -> bool) {
-    let half = self.size as f64 / 2.0;
+    let [ox, oy] = self.origin;
     let [left, top, right, bottom] = bounds;
-    let x0 = ((left + half).floor().max(0.0)) as usize;
-    let y0 = ((top + half).floor().max(0.0)) as usize;
-    let x1 = ((right + half).ceil().min(self.size as f64)) as usize;
-    let y1 = ((bottom + half).ceil().min(self.size as f64)) as usize;
-    for py in y0..y1 {
-      for px in x0..x1 {
-        if inside(px as f64 + 0.5 - half, py as f64 + 0.5 - half) {
-          self.data[py * self.size + px] = color;
+    let from_x = ((left + ox - 0.5).ceil() as i64).max(0);
+    let to_x = (((right + ox - 0.5).ceil() as i64) - 1).min(self.width as i64 - 1);
+    let from_y = ((top + oy - 0.5).ceil() as i64).max(0);
+    let to_y = (((bottom + oy - 0.5).ceil() as i64) - 1).min(self.height as i64 - 1);
+    for py in from_y..=to_y {
+      for px in from_x..=to_x {
+        if inside(px as f64 + 0.5 - ox, py as f64 + 0.5 - oy) {
+          self.data[py as usize * self.width + px as usize] = color;
         }
       }
     }
@@ -47,41 +55,39 @@ fn polygon_inside(points: &[(f64, f64)], x: f64, y: f64) -> bool {
 
 impl UserData for Canvas {
   fn add_fields<F: UserDataFields<Self>>(fields: &mut F) {
-    fields.add_field_method_get("size", |_, canvas| Ok(canvas.size));
+    fields.add_field_method_get("width", |_, canvas| Ok(canvas.width));
+    fields.add_field_method_get("height", |_, canvas| Ok(canvas.height));
   }
 
   fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
     methods.add_method_mut("circle", |_, canvas, (x, y, radius, color): (f64, f64, f64, u32)| {
-      canvas.fill(color, [x - radius, y - radius, x + radius, y + radius], |px, py| (px - x).powi(2) + (py - y).powi(2) <= radius * radius);
+      canvas.fill(color, [x - radius, y - radius, x + radius, y + radius], |px, py| (px - x).powi(2) + (py - y).powi(2) <= radius.powi(2));
       Ok(())
     });
+    // Окружность линией толщиной width.
     methods.add_method_mut("ring", |_, canvas, (x, y, radius, width, color): (f64, f64, f64, f64, u32)| {
-      let (outer, inner) = (radius + width / 2.0, (radius - width / 2.0).max(0.0));
-      canvas.fill(color, [x - outer, y - outer, x + outer, y + outer], |px, py| {
-        let distance = (px - x).powi(2) + (py - y).powi(2);
-        distance <= outer * outer && distance >= inner * inner
-      });
+      let outer = radius + width / 2.0;
+      canvas.fill(color, [x - outer, y - outer, x + outer, y + outer], |px, py| ((px - x).hypot(py - y) - radius).abs() <= width / 2.0);
       Ok(())
     });
+    // Отрезок толщиной width с прямыми торцами.
     methods.add_method_mut("line", |_, canvas, (ax, ay, bx, by, width, color): (f64, f64, f64, f64, f64, u32)| {
       let (dx, dy) = (bx - ax, by - ay);
-      let length = dx * dx + dy * dy;
+      let length = dx.hypot(dy);
+      if length == 0.0 {
+        return Ok(());
+      }
       let half = width / 2.0;
       canvas.fill(color, [ax.min(bx) - half, ay.min(by) - half, ax.max(bx) + half, ay.max(by) + half], |px, py| {
-        let t = if length > 0.0 { (((px - ax) * dx + (py - ay) * dy) / length).clamp(0.0, 1.0) } else { 0.0 };
-        (px - ax - dx * t).powi(2) + (py - ay - dy * t).powi(2) <= half * half
+        let along = ((px - ax) * dx + (py - ay) * dy) / length;
+        let across = ((px - ax) * dy - (py - ay) * dx) / length;
+        along >= 0.0 && along <= length && across.abs() <= half
       });
       Ok(())
     });
-    // Прямоугольник с центром (x, y), размером w × h, повёрнутый на angle.
-    methods.add_method_mut("rect", |_, canvas, (x, y, w, h, angle, color): (f64, f64, f64, f64, f64, u32)| {
-      let (cos, sin) = (angle.cos(), angle.sin());
-      let reach = (w * w + h * h).sqrt() / 2.0;
-      canvas.fill(color, [x - reach, y - reach, x + reach, y + reach], |px, py| {
-        let (dx, dy) = (px - x, py - y);
-        let (u, v) = (dx * cos + dy * sin, -dx * sin + dy * cos);
-        u.abs() <= w / 2.0 && v.abs() <= h / 2.0
-      });
+    // Прямоугольник: левый верхний угол (x, y), размер w × h.
+    methods.add_method_mut("rect", |_, canvas, (x, y, w, h, color): (f64, f64, f64, f64, u32)| {
+      canvas.fill(color, [x, y, x + w, y + h], |_, _| true);
       Ok(())
     });
     // Многоугольник: { x1, y1, x2, y2, … }, чётно-нечётное правило.
@@ -98,46 +104,55 @@ impl UserData for Canvas {
       Ok(())
     });
     methods.add_method_mut("pixel", |_, canvas, (x, y, color): (f64, f64, u32)| {
-      let half = canvas.size as f64 / 2.0;
-      let (px, py) = ((x + half).floor(), (y + half).floor());
-      if px >= 0.0 && py >= 0.0 && (px as usize) < canvas.size && (py as usize) < canvas.size {
-        let size = canvas.size;
-        canvas.data[py as usize * size + px as usize] = color;
-      }
+      canvas.fill(color, [x.floor(), y.floor(), x.floor() + 1.0, y.floor() + 1.0], |_, _| true);
       Ok(())
     });
-    // Цвет стороны тона 0 (тёмный), 1 (основной) или 2 (светлый): перекрасит палитра игрока.
-    methods.add_method("team", |_, _, tone: u32| Ok(0x5aa9ff + (tone.min(2) + 1) * 0x1000000));
-    // Цвет темнее (k < 1) или светлее (k > 1).
-    methods.add_function("shade", |_, (color, k): (u32, f64)| {
-      let channel = |shift: u32| ((((color >> shift) & 0xff) as f64 * k).round().clamp(0.0, 255.0) as u32) << shift;
-      Ok((color & 0xff000000) | channel(16) | channel(8) | channel(0))
+    // Огонь кадра в точке (x, y) холста: size — радиус лампы в пикселях, level — яркость 0..1 (EmitLight в TS).
+    methods.add_method_mut("light", |_, canvas, (x, y, size, level): (f64, f64, f64, f64)| {
+      canvas.lights.push([x, y, size, level]);
+      Ok(())
     });
+    // Цвет с меткой тона tone (0 — тёмный, 1 — основной, 2 — светлый): toned в TS.
+    methods.add_function("toned", |_, (color, tone): (u32, u32)| Ok(color + (tone + 1) * 0x1000000));
   }
 }
 
-/// Огни облика: фары (вдоль, поперёк, радиус — в пикселях спрайта), луч, свечения неподвижных (x, y, радиус).
+/// Слой рисования: наземные юниты под зданиями, летающие — над всеми. Турель — слоем выше своего носителя.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Layer {
+  Ground = 0,
+  Building = 2,
+  Air = 4,
+}
+
+/// Огни юнита: фары (вдоль, поперёк, радиус — в пикселях спрайта) и луч.
 #[derive(Clone, Debug, Default)]
 pub struct Lights {
   pub lamps: Vec<[f32; 3]>,
   /// along, length, near, spread, level.
   pub beam: Option<[f32; 5]>,
-  pub glows: Vec<[f32; 3]>,
 }
 
-/// Облик вида: атлас и что нужно рисовать и звучать.
+/// Облик вида.
 pub struct Look {
   pub proto: u32,
-  pub frame: usize,
+  /// Кадр в пикселях.
+  pub size: [usize; 2],
+  /// Левый верхний угол кадра от места сущности, в тайлах.
+  pub offset: [f32; 2],
   pub directions: usize,
   pub phases: usize,
-  pub columns: usize,
-  pub rows: usize,
-  /// RGBA атласа: кадр (фаза · directions + направление) в ячейке по строкам.
-  pub pixels: Vec<u8>,
-  /// Кадров в секунду анимации; анимируется всегда или только на ходу.
+  /// Кадры до упаковки (RGBA), потом — их место в атласе (u0, v0, u1, v1).
+  pub images: Vec<Vec<u8>>,
+  pub cells: Vec<[f32; 4]>,
+  /// Огни каждого кадра: смещение от места сущности в тайлах, радиус в пикселях, яркость.
+  pub frame_lights: Vec<Vec<[f32; 4]>>,
+  /// Кадров в секунду анимации (у зданий и всего, что анимируется всегда); у ходовых — тайлов пути на кадр.
   pub fps: f32,
-  pub always: bool,
+  pub step: Option<f32>,
+  pub layer: Layer,
+  /// Тень: сдвиг в тайлах и непрозрачность.
+  pub shadow: [f32; 2],
   pub lights: Lights,
   /// Таблица `look` — звук и прочее берутся из неё по ходу.
   pub table: Table,
@@ -146,21 +161,15 @@ pub struct Look {
 }
 
 impl Look {
-  pub fn size(&self) -> [i32; 2] {
-    [(self.columns * self.frame) as i32, (self.rows * self.frame) as i32]
-  }
-
-  /// uv кадра в атласе: [u0, v0, u1, v1].
-  pub fn uv(&self, cell: usize) -> [f32; 4] {
-    let (column, row) = (cell % self.columns, cell / self.columns);
-    let [w, h] = [self.columns as f32, self.rows as f32];
-    [column as f32 / w, row as f32 / h, (column + 1) as f32 / w, (row + 1) as f32 / h]
-  }
-
   /// Кадр направления angle (радианы) в фазе phase.
   pub fn cell(&self, angle: f64, phase: usize) -> usize {
     let direction = if self.directions <= 1 { 0 } else { (angle / TURN * self.directions as f64).round().rem_euclid(self.directions as f64) as usize };
     (phase % self.phases.max(1)) * self.directions + direction
+  }
+
+  /// Размер кадра в тайлах.
+  pub fn tiles(&self) -> [f32; 2] {
+    [self.size[0] as f32 / TILE, self.size[1] as f32 / TILE]
   }
 }
 
@@ -172,32 +181,46 @@ fn numbers<const N: usize>(table: &Table) -> mlua::Result<[f32; N]> {
   Ok(out)
 }
 
-/// Растеризует облик вида proto (таблица вида с полем `look`).
+fn pair(table: &Table, key: &str, default: [f64; 2]) -> mlua::Result<[f64; 2]> {
+  Ok(match table.get::<Value>(key)? {
+    Value::Table(pair) => [pair.get(1)?, pair.get(2)?],
+    Value::Integer(n) => [n as f64; 2],
+    Value::Number(n) => [n; 2],
+    _ => default,
+  })
+}
+
+/// Растеризует облик вида proto (таблица `look`):
+///
+/// - `size` — кадр в пикселях: число (квадрат) или `{ w, h }`, по умолчанию 32;
+/// - `origin` — начало координат чертежа в кадре, по умолчанию центр;
+/// - `anchor` — точка чертежа, которая стоит на месте сущности, по умолчанию начало координат;
+/// - `directions`, `phases`, `fps`, `step` (тайлов пути на кадр хода), `layer` ("ground", "building", "air"),
+///   `shadow = { сдвиг в пикселях, непрозрачность }`, `lights`, `icon`.
 pub fn build(lua: &Lua, proto: u32, look: Table) -> mlua::Result<Look> {
   let draw: Function = look.get("draw")?;
-  let frame: usize = look.get::<Option<usize>>("frame")?.unwrap_or(32);
+  let [width, height] = pair(&look, "size", [32.0, 32.0])?.map(|value| value as usize);
+  let origin = pair(&look, "origin", [width as f64 / 2.0, height as f64 / 2.0])?;
+  let anchor = pair(&look, "anchor", [0.0, 0.0])?;
   let directions: usize = look.get::<Option<usize>>("directions")?.unwrap_or(1).max(1);
   let phases: usize = look.get::<Option<usize>>("phases")?.unwrap_or(1).max(1);
-  let count = directions * phases;
-  let columns = (count as f64).sqrt().ceil() as usize;
-  let rows = count.div_ceil(columns);
-  let width = columns * frame;
-  let mut pixels = vec![0u8; width * rows * frame * 4];
+  let mut images = Vec::new();
+  let mut frame_lights = Vec::new();
   for phase in 0..phases {
     for direction in 0..directions {
-      let canvas = lua.create_userdata(Canvas { size: frame, data: vec![0; frame * frame] })?;
+      let canvas = lua.create_userdata(Canvas { width, height, origin, data: vec![0; width * height], lights: Vec::new() })?;
       draw.call::<()>((&canvas, direction as f64 / directions as f64 * TURN, phase))?;
-      let cell = phase * directions + direction;
-      let (left, top) = (cell % columns * frame, cell / columns * frame);
-      for (at, &color) in canvas.borrow::<Canvas>()?.data.iter().enumerate() {
+      let canvas = canvas.borrow::<Canvas>()?;
+      let mut pixels = vec![0u8; width * height * 4];
+      for (at, &color) in canvas.data.iter().enumerate() {
         if color == 0 {
           continue;
         }
-        let mark = color >> 24;
-        let alpha = if mark == 0 { 255 } else { 255 - mark as u8 };
-        let offset = ((top + at / frame) * width + left + at % frame) * 4;
-        pixels[offset..offset + 4].copy_from_slice(&[(color >> 16) as u8, (color >> 8) as u8, color as u8, alpha]);
+        let alpha = 255 - (color >> 24) as u8;
+        pixels[at * 4..at * 4 + 4].copy_from_slice(&[(color >> 16) as u8, (color >> 8) as u8, color as u8, alpha]);
       }
+      images.push(pixels);
+      frame_lights.push(canvas.lights.iter().map(|&[x, y, size, level]| [((x - anchor[0]) / 16.0) as f32, ((y - anchor[1]) / 16.0) as f32, size as f32, level as f32]).collect());
     }
   }
   let mut lights = Lights::default();
@@ -205,19 +228,60 @@ pub fn build(lua: &Lua, proto: u32, look: Table) -> mlua::Result<Look> {
     if let Some(lamps) = table.get::<Option<Vec<Table>>>("lamps")? {
       lights.lamps = lamps.iter().map(numbers::<3>).collect::<mlua::Result<_>>()?;
     }
-    if let Some(glows) = table.get::<Option<Vec<Table>>>("glows")? {
-      lights.glows = glows.iter().map(numbers::<3>).collect::<mlua::Result<_>>()?;
-    }
     if let Some(beam) = table.get::<Option<Table>>("beam")? {
       let get = |key: &str, default: f32| beam.get::<Option<f32>>(key).map(|value| value.unwrap_or(default));
       lights.beam = Some([get("along", 8.0)?, get("length", 60.0)?, get("near", 4.0)?, get("spread", 0.28)?, get("level", 1.0)?]);
     }
   }
-  let fps = look.get::<Option<f32>>("fps")?.unwrap_or(8.0);
-  let always = look.get::<Option<String>>("animate")?.as_deref() == Some("always") || directions == 1;
+  let layer = match look.get::<Option<String>>("layer")?.as_deref() {
+    Some("building") => Layer::Building,
+    Some("air") => Layer::Air,
+    _ => Layer::Ground,
+  };
+  let shadow = match look.get::<Option<Table>>("shadow")? {
+    Some(table) => [table.get::<f32>(1)? / TILE, table.get::<f32>(2)?],
+    None => [2.0 / TILE, 0.4],
+  };
   let icon = match look.get::<Value>("icon")? {
     Value::Table(table) => table.get::<Option<usize>>("direction")?.unwrap_or(0),
     _ => 0,
   };
-  Ok(Look { proto, frame, directions, phases, columns, rows, pixels, fps, always, lights, table: look, icon })
+  let offset = [(-(origin[0] + anchor[0]) / 16.0) as f32, (-(origin[1] + anchor[1]) / 16.0) as f32];
+  Ok(Look { proto, size: [width, height], offset, directions, phases, images, cells: Vec::new(), frame_lights, fps: look.get::<Option<f32>>("fps")?.unwrap_or(8.0), step: look.get::<Option<f32>>("step")?, layer, shadow, lights, table: look, icon })
+}
+
+/// Общий атлас: кадры всех обликов полками по строкам. Возвращает пиксели RGBA и размер; места кадров — в `cells`.
+pub fn pack(looks: &mut [Look]) -> (Vec<u8>, [usize; 2]) {
+  const WIDTH: usize = 4096;
+  let mut order: Vec<usize> = (0..looks.len()).collect();
+  order.sort_by_key(|&index| std::cmp::Reverse(looks[index].size[1]));
+  let mut places: Vec<Vec<[usize; 2]>> = looks.iter().map(|_| Vec::new()).collect();
+  let (mut x, mut y, mut row) = (0, 0, 0);
+  for &index in &order {
+    let [w, h] = looks[index].size;
+    for _ in 0..looks[index].images.len() {
+      if x + w > WIDTH {
+        x = 0;
+        y += row;
+        row = 0;
+      }
+      places[index].push([x, y]);
+      x += w;
+      row = row.max(h);
+    }
+  }
+  let height = (y + row).max(1);
+  let mut pixels = vec![0u8; WIDTH * height * 4];
+  for (index, look) in looks.iter_mut().enumerate() {
+    let [w, h] = look.size;
+    look.cells = places[index].iter().map(|&[px, py]| [px as f32 / WIDTH as f32, py as f32 / height as f32, (px + w) as f32 / WIDTH as f32, (py + h) as f32 / height as f32]).collect();
+    for (image, &[px, py]) in look.images.iter().zip(&places[index]) {
+      for row in 0..h {
+        let to = ((py + row) * WIDTH + px) * 4;
+        pixels[to..to + w * 4].copy_from_slice(&image[row * w * 4..(row + 1) * w * 4]);
+      }
+    }
+    look.images.clear();
+  }
+  (pixels, [WIDTH, height])
 }
