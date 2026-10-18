@@ -158,6 +158,12 @@ public sealed class GameModuleInstance : IDisposable
     /// <summary>Источник kh.random от мира (Scheduler.NextRandom движка); null — <see cref="Random"/>.</summary>
     public Func<double>? RandomSource { get; set; }
 
+    /// <summary>Инструменты движка (kh.tool) для этого экземпляра: так им виден свой мир и свой мод; null — из <see cref="GameModuleOptions.Tools"/>.</summary>
+    public ModToolHandler? Tools { get; set; }
+
+    /// <summary>Мод, которому принадлежит экземпляр.</summary>
+    public GameModule Module => _module;
+
     /// <summary>Была ловушка: экземпляр негоден.</summary>
     public bool Faulted { get; private set; }
 

@@ -95,13 +95,28 @@ internal static class GameImports
             return owner is null ? 0.0 : owner.NextRandom();
         });
 
+        // Инструмент движка: свой обработчик экземпляра или общий набор. Адреса вне памяти и исключения инструмента —
+        // код ErrorBadInput, а не ловушка: мод продолжает работать.
         linker.DefineFunction(kh, "tool", (Caller caller, int id, int inPtr, int inLen, int outPtr, int outCap) =>
         {
             var data = Data(caller);
-            if (!data.Options.Tools.TryGetValue(id, out var tool))
-                return ModAbi.ErrorUnknownId;
             var memory = Memory(caller);
-            return tool(memory.GetSpan(inPtr, inLen), memory.GetSpan(outPtr, outCap));
+            var size = memory.GetLength();
+            if (inLen < 0 || outCap < 0 || inPtr < 0 || outPtr < 0 || (long)inPtr + inLen > size || (long)outPtr + outCap > size)
+                return ModAbi.ErrorBadInput;
+            var input = memory.GetSpan(inPtr, inLen);
+            var output = memory.GetSpan(outPtr, outCap);
+            try
+            {
+                if (data.Owner?.Tools is { } handler)
+                    return handler(id, input, output);
+                return data.Options.Tools.TryGetValue(id, out var tool) ? tool(input, output) : ModAbi.ErrorUnknownId;
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                data.Options.Log?.Invoke(new ModLogEntry(data.ModId, 3, $"инструмент {id}: {ex.Message}"));
+                return ModAbi.ErrorBadInput;
+            }
         });
 
         linker.DefineFunction(Wasi, "environ_get", (int environ, int buffer) => ErrnoSuccess);

@@ -104,4 +104,36 @@ internal static class ModAbi
 
     /// <summary>Полей в одной записи Add/Set не больше (байт счёта, маска u64 движка).</summary>
     public const int MaxFields = 64;
+
+    // Инструменты движка: kh.tool(id, inPtr, inLen, outPtr, outCap) -> i32. Ответ ≥ 0 — длина результата; если она
+    // больше outCap, ничего не записано: мод зовёт снова с местом не меньше ответа (инструменты только читают мир, повтор
+    // даёт то же). Отрицательный — ошибка: ErrorUnknownId (нет инструмента), ErrorBadInput (вход не разобран, нет
+    // компонента). Числа — little-endian; u32 счёт, f64 значения, номер компонента — u32 из схемы (-1 — «жива ли»).
+    //
+    //   1 Near      in: m:u32 k:u32 component:u32×k (x:f64 y:f64 r:f64)×m   out: на точку — count:u32 entity:u32×count
+    //               сущности с Position в круге и со всеми компонентами, по возрастанию номеров
+    //   2 Separate  in: n:u32 strength:f64 flags:u32 x:f64×n y:f64×n radius:f64×n [moving:f64×n, если flags & 1]
+    //               out: x:f64×n y:f64×n — расталкивание корпусов (стоящий уступает идущему втрое охотнее)
+    //   3 Terrain   in: n:u32 (x:f64 y:f64)×n   out: (terrain:u8 biome:u8 foot:u8)×n; у партии нет местности — пусто
+    //   4 Get       in: entity:u32 component:u32   out: нет компонента — пусто; иначе поля по порядку: число, флаг и
+    //               строка — f64 (флаг 0/1, строка — номер), байты — len:u32 и байты
+    //   5 Has       in: component:i32 n:u32 entity:u32×n   out: u8×n (component -1 — жива ли сущность)
+    //   6 Count     in: component:u32   out: count:u32
+    //   7 Proto     in: 0:u8 и "раздел/имя" (UTF-8) → out: id:i32 (-1 — нет); 1:u8 id:u32 → out: "раздел/имя" (пусто — нет)
+    //   8 Text      in: id:u32   out: строка мира (UTF-8)
+    //   9 StringId  in: строка (UTF-8)   out: id:i32 (-1 — такой строки в мире нет)
+    //  10 Storage   in: пусто   out: entity:u32 и байты памяти мода (сущность с Storage { mod, data })
+    public const int ToolNear = 1;
+    public const int ToolSeparate = 2;
+    public const int ToolTerrain = 3;
+    public const int ToolGet = 4;
+    public const int ToolHas = 5;
+    public const int ToolCount = 6;
+    public const int ToolProto = 7;
+    public const int ToolText = 8;
+    public const int ToolStringId = 9;
+    public const int ToolStorage = 10;
+
+    /// <summary>Компонент памяти мода (объявляет хост): mod — имя мода, data — байты.</summary>
+    public const string StorageComponent = "Storage";
 }

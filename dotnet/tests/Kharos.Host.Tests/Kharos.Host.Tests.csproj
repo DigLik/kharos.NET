@@ -3,13 +3,23 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Без теневого стека CET: ловушки Wasmtime на Windows (см. Kharos.Plugins.Tests). -->
     <CetCompat>false</CetCompat>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Kharos.Host\Kharos.Host.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Content\Kharos.Content.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Protocol\Kharos.Protocol.csproj" />
+    <PackageReference Include="MemoryPack" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Payload приказов мода hello и его ходовая — тот же код, что в host.wasm. -->
+    <Compile Include="..\..\mods\hello\Hello.Host\Orders.cs" Link="Hello\Orders.cs" />
+    <Compile Include="..\..\mods\hello\Hello.Host\Wheels.cs" Link="Hello\Wheels.cs" />
+    <Compile Include="..\..\src\Kharos.Mod.Sdk\Abi\ModAbi.cs" Link="Hello\ModAbi.cs" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

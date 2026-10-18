@@ -1,0 +1,8 @@
+{
+  "hello": {
+    "title": "Привет",
+    "size": 256,
+    "fog": true,
+    "land": "dunes"
+  }
+}

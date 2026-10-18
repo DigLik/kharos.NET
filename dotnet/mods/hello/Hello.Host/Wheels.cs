@@ -19,11 +19,11 @@ public static class Wheels
     /// <summary>Угол в (−π, π].</summary>
     public static double Wrap(double angle) => angle - FullTurn * Math.Floor(angle / FullTurn + 0.5);
 
-    /// <summary>Новая цель: как retarget у crates/content-bench, от номера сущности и тика.</summary>
+    /// <summary>Новая цель: как retarget у crates/content-bench, от номера сущности и тика; поле — ±200 тайлов от центра.</summary>
     public static (double X, double Y) Retarget(uint entity, ulong tick)
     {
         var seed = (entity * 7919UL + tick * 104729UL) % 1000003UL;
-        return (seed % 500 + 0.5, seed / 500 % 500 + 0.5);
+        return (seed % 400 - 200.0 + 0.5, seed / 400 % 400 - 200.0 + 0.5);
     }
 
     /// <summary>Тик ходовой над n сущностями: x, y, facing, tx, ty меняются на месте.</summary>

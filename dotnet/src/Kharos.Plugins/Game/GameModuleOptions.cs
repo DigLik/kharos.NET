@@ -6,8 +6,14 @@ namespace Kharos.Plugins.Game;
 /// <param name="Message">Текст.</param>
 public readonly record struct ModLogEntry(string ModId, int Level, string Message);
 
-/// <summary>Инструмент движка для kh.tool: байты запроса → байты ответа; вернуть записанное или отрицательный код.</summary>
+/// <summary>
+/// Инструмент движка для kh.tool: байты запроса → байты ответа. Вернуть длину ответа (больше output — ничего не
+/// записывать, мод позовёт снова с местом побольше) или отрицательный код (ModAbi.Error*).
+/// </summary>
 public delegate int ModTool(ReadOnlySpan<byte> input, Span<byte> output);
+
+/// <summary>Все инструменты одним обработчиком (<see cref="GameModuleInstance.Tools"/>): номер, запрос, место под ответ.</summary>
+public delegate int ModToolHandler(int id, ReadOnlySpan<byte> input, Span<byte> output);
 
 /// <summary>Пределы и настройки игровых модов — одни на хосте и на клиенте (docs/dotnet.md, §4.2).</summary>
 public sealed class GameModuleOptions
@@ -30,7 +36,7 @@ public sealed class GameModuleOptions
     /// <summary>Журнал модов; null — молча.</summary>
     public Action<ModLogEntry>? Log { get; set; }
 
-    /// <summary>Инструменты движка по номеру (kh.tool). Заготовка: набор задаст движок.</summary>
+    /// <summary>Инструменты по номеру (kh.tool) для экземпляров без своего <see cref="GameModuleInstance.Tools"/>.</summary>
     public IDictionary<int, ModTool> Tools { get; } = new Dictionary<int, ModTool>();
 
     internal void Validate()

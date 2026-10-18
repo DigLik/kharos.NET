@@ -32,12 +32,15 @@ public class HelloModTests
 
         Assert.Equal(1, GameModuleHost.AbiVersion);
         Assert.Equal(1, instance.Manifest.Abi);
-        var drive = Assert.Single(instance.Manifest.Systems);
+        Assert.Equal(2, instance.Manifest.Systems.Length);
+        var drive = instance.Manifest.Systems[0];
         Assert.Equal("hello.drive", drive.Name);
         Assert.Equal(["Position", "Facing", "Drive"], drive.Query);
         Assert.Equal(["Position", "Facing", "Drive"], drive.Write);
-        Assert.Equal(["orders"], drive.After);
-        Assert.Equal(["hello.arrived"], instance.Manifest.Events);
+        Assert.Empty(drive.After);
+        var crowd = instance.Manifest.Systems[1];
+        Assert.Equal(("hello.crowd", "drive"), (crowd.Name, Assert.Single(crowd.After)));
+        Assert.Equal(["hello.arrived", "player_joined"], instance.Manifest.Events);
         Assert.Contains("hello.spawn", instance.Manifest.Orders);
         Assert.Equal(HelloModule.Width, instance.Systems[0].Width);
         Assert.All(module.Imports, i => Assert.Contains(i, GameModuleHost.AllowedImports));
@@ -92,10 +95,12 @@ public class HelloModTests
         var bytes = instance.RunOrder(instance.OrderId("hello.spawn"), 3, payload, new ModCall(5, 0.05, 100)).ToArray();
         var commands = ModCommands.Decode(bytes);
 
-        // На юнита: Spawn, Add Position, Add Facing, Add Owner, Add Drive.
-        Assert.Equal(10, commands.Count);
+        // На юнита: Spawn, Add Position, Facing, Owner, Drive, Unit, Sight. Памяти мода без хоста нет — её запись молчит.
+        Assert.Equal(14, commands.Count);
         Assert.Equal((ModCommandOp.Spawn, 100u), (commands[0].Op, commands[0].Entity));
-        Assert.Equal((ModCommandOp.Spawn, 101u), (commands[5].Op, commands[5].Entity));
+        Assert.Equal((ModCommandOp.Spawn, 101u), (commands[7].Op, commands[7].Entity));
+        Assert.Equal((HelloModule.Unit, 0.5), (commands[5].Component, Assert.Single(commands[5].Fields).Number));
+        Assert.Equal((HelloModule.Sight, 6.0), (commands[6].Component, Assert.Single(commands[6].Fields).Number));
         var position = commands[1];
         Assert.Equal((ModCommandOp.Add, 100u, HelloModule.Position), (position.Op, position.Entity, position.Component));
         Assert.Equal([0, 1], position.Fields.Select(f => (int)f.Field));

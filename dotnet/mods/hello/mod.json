@@ -1,11 +1,13 @@
 {
-  "id": "hello",
+  "name": "hello",
   "title": "Hello",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "abi": 1,
   "requires": [],
+  "game": "hello",
   "host": "host.wasm",
   "components": {
-    "Drive": { "speed": 0, "turn": 0, "tx": 0, "ty": 0 }
+    "Drive": { "speed": 0, "turn": 0, "tx": 0, "ty": 0 },
+    "Unit": { "radius": 0.5 }
   }
 }

@@ -1,5 +1,9 @@
 {
   "arrival": 0.5,
   "speed": 4,
-  "turn": 3
+  "turn": 3,
+  "radius": 0.5,
+  "sight": 6,
+  "crowd": 0.5,
+  "start": 3
 }

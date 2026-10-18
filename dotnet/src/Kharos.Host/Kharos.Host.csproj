@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Хост: тик, игроки, приказы, системы модов, инструменты движка, рассылка (docs/dotnet.md, §3). Без платформы. -->
-  <PropertyGroup>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Kharos.Engine\Kharos.Engine.csproj" />
     <ProjectReference Include="..\Kharos.Plugins\Kharos.Plugins.csproj" />
     <ProjectReference Include="..\Kharos.Content\Kharos.Content.csproj" />
     <ProjectReference Include="..\Kharos.Protocol\Kharos.Protocol.csproj" />
-
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Числа договора с модом (номера инструментов, коды ошибок) — общий файл SDK, как в Kharos.Plugins. -->
+    <Compile Include="..\Kharos.Mod.Sdk\Abi\ModAbi.cs" Link="Abi\ModAbi.cs" />
   </ItemGroup>
 </Project>

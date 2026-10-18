@@ -28,6 +28,9 @@ sealed partial class ModLoadInfo
 
     /// <summary>Данные мода: data/*.json после патчей, по имени файла без расширения.</summary>
     public ModDataFile[] Data { get; set; } = [];
+
+    /// <summary>Идущая партия — запись из data/games.json; пусто — партии нет (тесты).</summary>
+    public string Game { get; set; } = "";
 }
 
 /// <summary>Компонент схемы.</summary>

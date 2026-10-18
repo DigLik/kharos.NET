@@ -4,12 +4,12 @@ namespace Kharos.Plugins.Tests;
 
 /// <summary>
 /// Мод hello для тестов и замера (файл подключён и в tools/Kharos.Plugins.Bench): путь к собранному host.wasm,
-/// схема мира как у движка (компоненты Builtin и Drive из mods/hello/mod.json) и ModLoadInfo.
+/// схема мира как у движка (компоненты Builtin, Drive и Unit из mods/hello/mod.json) и ModLoadInfo.
 /// </summary>
 public static class HelloModule
 {
     /// <summary>Номера компонентов схемы.</summary>
-    public const int Position = 0, Facing = 1, Owner = 2, Proto = 3, Sight = 4, Drive = 5;
+    public const int Position = 0, Facing = 1, Owner = 2, Proto = 3, Sight = 4, Drive = 5, Unit = 6;
 
     /// <summary>Столбцов в кадре hello.drive: Position(x, y), Facing(angle), Drive(speed, turn, tx, ty).</summary>
     public const int Width = 7;
@@ -63,6 +63,7 @@ public static class HelloModule
                 Component("Proto", Proto, "id"),
                 Component("Sight", Sight, "radius"),
                 Component("Drive", Drive, "speed", "turn", "tx", "ty"),
+                Component("Unit", Unit, "radius"),
             ],
             Data = [.. data],
         };

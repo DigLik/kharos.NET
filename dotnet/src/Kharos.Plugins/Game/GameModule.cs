@@ -84,7 +84,11 @@ public sealed class GameModule : IDisposable
             _pool.Enqueue(instance);
     }
 
-    internal void Strike() => Interlocked.Increment(ref _strikes);
+    /// <summary>
+    /// Засчитать сбой: перерасход времени (считает сам экземпляр) или то, что заметил движок, — неверный буфер команд,
+    /// ловушка. После <see cref="GameModuleOptions.MaxStrikes"/> мод выключен.
+    /// </summary>
+    public void Strike() => Interlocked.Increment(ref _strikes);
 
     /// <summary>Раскладки систем по манифесту и схеме из ModLoadInfo.</summary>
     internal ModSystemLayout[] Layouts(ModManifest manifest)

@@ -20,6 +20,9 @@ public static unsafe class ModRuntime
     private static ModBuilder? _builder;
     private static Frame[] _frames = [];
 
+    /// <summary>Схема мира после kh_load — для инструментов (<see cref="Tools"/>).</summary>
+    internal static WorldSchema? Schema { get; private set; }
+
     /// <summary>Кадр системы: блок столбцов и номера сущностей в памяти вне GC.</summary>
     private struct Frame
     {
@@ -87,6 +90,7 @@ public static unsafe class ModRuntime
 
             _builder = builder;
             _frames = frames;
+            Schema = schema;
             _out.Clear();
             _out.Write(MemoryPackSerializer.Serialize(manifest));
             return Done(_out.Pointer, _out.Length);

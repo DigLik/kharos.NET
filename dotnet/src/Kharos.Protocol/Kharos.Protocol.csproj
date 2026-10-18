@@ -1,10 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Сообщения, кодек дельт по схеме, транспорт (docs/dotnet.md, §4.4). Без платформы. -->
-  <PropertyGroup>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
+  <!-- Сообщения, кодек дельт по схеме, транспорт, реплика (docs/dotnet.md, §4.4). Без платформы. -->
   <ItemGroup>
     <ProjectReference Include="..\Kharos.Engine\Kharos.Engine.csproj" />
-
   </ItemGroup>
 </Project>

@@ -77,4 +77,6 @@ internal sealed class WorldSchema
 
     public ComponentRef Get(string name) =>
         _byName.TryGetValue(name, out var component) ? component : throw new KeyNotFoundException($"нет компонента {name}");
+
+    public ComponentRef? Find(string name) => _byName.GetValueOrDefault(name);
 }

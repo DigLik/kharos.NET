@@ -22,6 +22,9 @@ public sealed class LoadContext
     /// <summary>Зерно мира.</summary>
     public ulong Seed => _info.Seed;
 
+    /// <summary>Идущая партия (запись data/games.json); пусто — нет.</summary>
+    public string Game => _info.Game;
+
     /// <summary>Компонент схемы по имени — для команд.</summary>
     public ComponentRef Component(string name) => _schema.Get(name);
 
