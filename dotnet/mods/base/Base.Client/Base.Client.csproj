@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Клиентская часть мода base: облики, HUD, камера, управление, эффекты, атмосфера, звук из Luau-пилота (docs/dotnet.md, Р11). client.wasm — tools/build-mods.ps1. -->
+  <PropertyGroup>
+    <KharosModClass>Base.Client.BaseClient</KharosModClass>
+    <RootNamespace>Base.Client</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Payload приказов и сигналов — те же файлы, что у хоста. -->
+    <Compile Include="..\Base.Host\Payloads.cs" Link="Payloads.cs" />
+  </ItemGroup>
+</Project>
