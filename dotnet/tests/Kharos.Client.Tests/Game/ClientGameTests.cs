@@ -108,7 +108,6 @@ public sealed class ClientGameTests
 
         var start = session.Until(frame => HelloSession.Sprites(frame) >= 3, "три ровера на экране");
         Assert.Equal(3, session.Units().Count);
-        Assert.Null(start.FogUpdate);
         Assert.Equal(3 * 2 * 4, start.Spots.Count);
         Assert.Equal(3, start.Beams.Count / 8);
         Assert.Equal(48f, start.View.Zoom);

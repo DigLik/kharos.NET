@@ -6,6 +6,7 @@
   "requires": [],
   "game": "skirmish",
   "host": "host.wasm",
+  "client": "client.wasm",
   "components": {
     "Drive": { "move": "", "speed": 0, "turn": 0, "tx": 0, "ty": 0, "moving": false },
     "Attached": { "parent": 0, "along": 0, "across": 0 },

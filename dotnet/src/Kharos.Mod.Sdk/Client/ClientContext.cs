@@ -184,6 +184,17 @@ public sealed class ClientContext
 
     internal WorldSchema? Schema { get; set; }
 
+    private LoadContext? _load;
+
+    /// <summary>Байты файла данных мира (имя без .json, например «units») — виды и их правки модами; нет — false.</summary>
+    public bool TryData(string name, out ReadOnlySpan<byte> bytes)
+    {
+        if (_load is { } load)
+            return load.TryData(name, out bytes);
+        bytes = default;
+        return false;
+    }
+
     /// <summary>Компонент схемы мира по имени.</summary>
     public ComponentRef Component(string name) => (Schema ?? throw new InvalidOperationException("схемы ещё нет")).Get(name);
 
@@ -337,8 +348,9 @@ public sealed class ClientContext
     public void Sound(string name, double x, double y, float volume = 1, float reach = 0.6f, float detune = 0.08f) =>
         _out.U8(ClientAbi.OpSoundAt).Str(name).F64(x).F64(y).F32(volume).F32(reach).F32(detune);
 
-    /// <summary>Разовый звук без места: громкость и сторона как есть.</summary>
-    public void Sound(string name, float volume = 1, float pan = 0) => Audio.Play(name, volume, pan);
+    /// <summary>Разовый звук без места: громкость и сторона как есть; высота чуть случайна (detune — доля, как у c:sound).</summary>
+    public void Sound(string name, float volume = 1, float pan = 0, float detune = 0.08f) =>
+        Audio.Play(name, volume, pan, (float)(1 + (Audio.Random() * 2 - 1) * detune));
 
     /// <summary>Частица: место и скорость в тайлах, сколько живёт, цвет, размер в текселях, сносит ли ветром.</summary>
     public void Particle(double x, double y, double vx = 0, double vy = 0, float life = 1, uint color = 0xffffff, float size = 1, bool drift = true) =>
@@ -423,6 +435,7 @@ public sealed class ClientContext
     internal void Load(LoadContext ctx, WorldSchema schema)
     {
         Schema = schema;
+        _load = ctx;
         Game = ctx.Game;
     }
 

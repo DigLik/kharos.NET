@@ -324,6 +324,19 @@ public sealed class ClientAudio
     /// <summary>Время звука, секунды: для расписания нот и автоматизации.</summary>
     public double Now { get; private set; }
 
+    private uint _random = (uint)DateTime.UtcNow.Ticks | 1;
+
+    /// <summary>Случайное число [0, 1] (c.audio:random пилота): xorshift32; высота разовых звуков, начала петель.</summary>
+    public double Random()
+    {
+        var state = _random;
+        state ^= state << 13;
+        state ^= state >> 17;
+        state ^= state << 5;
+        _random = state;
+        return state / (double)uint.MaxValue;
+    }
+
     internal void Begin(ref ByteReader r)
     {
         Available = r.U8() != 0;
