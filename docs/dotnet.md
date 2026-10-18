@@ -59,26 +59,30 @@ UserPluginSystem. Здесь — карта нынешнего кода, при�
 
 **TS — играбельная игра** (около 44 тыс. строк): все механики, сеть, сервер.
 
-```
-i18n ─┐  ecs ─┐  base(JSON) ─┐  data ─┐
-      │       └──────────────┴───────┴─► sim-ts (15,8 тыс., 39 систем) ◄── shared (земля)
-      │                                     │  ▲ клиент берёт ~84 импорта: ~300 правил интерфейса
-      │                                  protocol (v52: кодек дельт, сохранение KHRS v23)
-      │                                     │
-      │                                  host (интерес игроков, бюджет 256 КБ/с) ──► mods (luau.wasm, API v1)
-      │                                     │
-      └──────────────────────────────────► client (26,5 тыс.: WebGL 2, GUI на Canvas 2D, синтез WebAudio, реплика)
-                                            ▲
-                         apps/web (Vite)        apps/server (Bun.serve, ACME)
+Стрелка — «зависит от».
+
+```mermaid
+flowchart TB
+  web["apps/web<br/>Vite"] --> client
+  server["apps/server<br/>Bun.serve, ACME"] --> host
+  client["client · 26,5 тыс.<br/>WebGL 2, GUI на Canvas 2D,<br/>синтез WebAudio, реплика"] --> host
+  client -- "~84 импорта:<br/>~300 правил интерфейса" --> sim
+  host["host<br/>интерес игроков,<br/>бюджет 256 КБ/с"] --> protocol
+  host --> mods["mods<br/>luau.wasm, API v1"]
+  protocol["protocol<br/>кодек дельт v52,<br/>сохранение KHRS v23"] --> sim
+  sim["sim-ts · 15,8 тыс.<br/>39 систем"] --> ecs & data & base["base<br/>JSON"] & shared["shared<br/>земля"]
+  client & host --> i18n
 ```
 
 **Rust и Luau — целевая архитектура, пилот** (К4 из `docs/content.md`): один юнит, одно здание, производство, приказ
 ехать. Ни сети, ни боя, ни стройки.
 
-```
-crates/engine (земля до байта, слои, JS-математика)
-   └─► crates/world (столбцы f64, хост, API ctx) ◄── crates/content (mlua, моды, require)
-          └─► apps/client (glow, GLSL ES 3, свой UI на fontdue, граф web-audio-api) ◄── mods/base (5 тыс. Luau)
+```mermaid
+flowchart TB
+  client["apps/client<br/>glow, GLSL ES 3, свой UI на fontdue,<br/>граф web-audio-api"] --> world
+  client -. "исполняет" .-> base["mods/base<br/>5 тыс. строк Luau"]
+  world["crates/world<br/>столбцы f64, хост, API ctx"] --> engine["crates/engine<br/>земля до байта, слои, JS-математика"]
+  world --> content["crates/content<br/>mlua, моды, require"]
 ```
 
 | Часть | Что с ней | Откуда берём при переносе |
@@ -103,45 +107,62 @@ crates/engine (земля до байта, слои, JS-математика)
 
 ## 3. Решение на .NET
 
-```
-dotnet/
-  Kharos.slnx, Directory.Build.props, Directory.Packages.props, global.json
-  src/
-    Kharos.Engine/        — без платформы: мир столбцами по схеме модов, порядок систем, буфер команд, события;
-                            земля и DetMath; слои; инструменты (пути, поля потоков, ход, столкновения, поиск в
-                            радиусе и по лучу, обзор и память, сети-графы, следы, занятость)
-    Kharos.Plugins/       — копия UserPluginSystem: абстракции, Wasmtime, ABI игры
-    Kharos.Content/       — загрузка модов: манифест, порядок по requires, data/*.json, патчи, сумма для сверки
-    Kharos.Protocol/      — сообщения, двоичный кодек дельт по схеме, формат сохранения
-    Kharos.Host/          — хост: тик, игроки, приказы, интерес и бюджет отправки, чат и команды, пределы
-    Kharos.Client/        — реплика, кадр, камера, атлас обликов, UI-ядро, оболочка (меню, настройки, чат,
-                            подключение, сохранения, редактор), клиентский API модов
-    Kharos.Gpu/           — проходы рендера и WGSL поверх Silk.NET.WebGPU
-    Kharos.Audio/         — API графа, DSP на C#, вывод через Silk.NET.OpenAL (OpenAL Soft)
-    Kharos.I18n/          — словари и t(), генератор ключей
-    Kharos.Mod.Sdk/       — для мододела: API хоста и клиента на C#, генератор экспортов, сборка NativeAOT-LLVM
-  apps/
-    Kharos.Desktop/       — Silk.NET Windowing + Input, NativeAOT; хост одиночной игры в процессе, в своём потоке
-    Kharos.Server/        — ASP.NET Core, Kestrel WebSocket, settings.json
-  mods/base/
-    mod.json, data/*.json
-    Base.Host/            — системы, события, приказы → host.wasm
-    Base.Client/          — облики, звуки, HUD, камера, управление, эффекты, атмосфера, музыка → client.wasm
-  tests/                  — Kharos.Engine.Tests, Kharos.Base.Tests (сценарии), эталоны кадров и звука
-  tools/                  — Balance, Bench, Smoke, FontBake, бенчмарки плагинов
-```
+Всё лежит в `dotnet/`: решение `Kharos.slnx`, `Directory.Build.props`, `Directory.Packages.props`, `global.json`.
 
-Зависимости (стрелка — «зависит от»):
+| Путь | Что внутри |
+|---|---|
+| `src/Kharos.Engine` | Без платформы: мир столбцами по схеме модов, порядок систем, буфер команд, события; земля и `DetMath`; слои; инструменты — пути, поля потоков, ход, столкновения, поиск в радиусе и по лучу, обзор и память, сети-графы, следы, занятость |
+| `src/Kharos.Plugins` | Копия UserPluginSystem: абстракции, Wasmtime, ABI игры |
+| `src/Kharos.Content` | Загрузка модов: манифест, порядок по `requires`, `data/*.json`, патчи, сумма для сверки |
+| `src/Kharos.Protocol` | Сообщения, двоичный кодек дельт по схеме, формат сохранения |
+| `src/Kharos.Host` | Хост: тик, игроки, приказы, интерес и бюджет отправки, чат и команды, пределы |
+| `src/Kharos.Client` | Реплика, кадр, камера, атлас обликов, UI-ядро, клиентский API модов; оболочка — меню, настройки, чат, подключение, сохранения, редактор |
+| `src/Kharos.Gpu` | Проходы рендера и WGSL поверх Silk.NET.WebGPU |
+| `src/Kharos.Audio` | API графа, DSP на C#, вывод через Silk.NET.OpenAL (OpenAL Soft) |
+| `src/Kharos.I18n` | Словари и `t()`, генератор ключей |
+| `src/Kharos.Mod.Sdk` | Для мододела: API хоста и клиента на C#, экспорты ABI, сборка NativeAOT-LLVM |
+| `apps/Kharos.Desktop` | Silk.NET Windowing и Input, NativeAOT; хост одиночной игры в процессе, в своём потоке |
+| `apps/Kharos.Server` | ASP.NET Core, WebSocket на Kestrel, `settings.json` |
+| `mods/base` | `mod.json`, `data/*.json`; `Base.Host` — системы, события, приказы → `host.wasm`; `Base.Client` — облики, звуки, HUD, камера, управление, эффекты, атмосфера, музыка → `client.wasm` |
+| `tests` | `Kharos.Engine.Tests`, `Kharos.Plugins.Tests`, сценарии base, эталоны кадров и звука |
+| `tools` | Balance, Bench, Smoke, FontBake, бенчмарки плагинов, `wasi-sdk`, `build-mods` |
 
-```
-Kharos.I18n   Kharos.Plugins   Kharos.Engine ◄─ Kharos.Content
-                    ▲                ▲              ▲
-                    └──── Kharos.Host ──► Kharos.Protocol
-                              ▲   ▲           ▲
-          Kharos.Server ──────┘   │      Kharos.Client ──► Engine, Content, Plugins, Protocol, I18n, Gpu, Audio
-                                  │           ▲
-                          Kharos.Desktop ─────┘   (Desktop связывает клиент и хост одиночной игры)
-Kharos.Mod.Sdk — отдельно: от него зависят только моды (Base.Host, Base.Client); ABI описан в нём и в Kharos.Plugins.
+Зависимости, стрелка — «зависит от»:
+
+```mermaid
+flowchart TB
+  subgraph apps [Приложения]
+    Desktop[Kharos.Desktop]
+    Server[Kharos.Server]
+  end
+  subgraph platform [С платформой]
+    Client[Kharos.Client]
+    Gpu["Kharos.Gpu<br/>Silk.NET.WebGPU"]
+    Audio["Kharos.Audio<br/>Silk.NET.OpenAL"]
+  end
+  subgraph core [Без платформы]
+    Host[Kharos.Host]
+    Protocol[Kharos.Protocol]
+    Content[Kharos.Content]
+    Engine[Kharos.Engine]
+    Plugins["Kharos.Plugins<br/>Wasmtime"]
+    I18n[Kharos.I18n]
+  end
+  subgraph mods [Моды, net10.0 → wasm]
+    Base["mods/base<br/>Base.Host, Base.Client"]
+    Sdk[Kharos.Mod.Sdk]
+  end
+
+  Desktop --> Client & Host
+  Server --> Host
+  Client --> Gpu & Audio & Protocol & Content & Plugins & I18n
+  Host --> Protocol & Content & Plugins
+  Protocol --> Engine
+  Content --> Engine
+  Base --> Sdk
+  Plugins -. "общий файл ABI" .- Sdk
+  Host -. "исполняет host.wasm" .-> Base
+  Client -. "исполняет client.wasm" .-> Base
 ```
 
 Правила:
