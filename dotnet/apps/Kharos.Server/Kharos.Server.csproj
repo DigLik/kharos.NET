@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Выделенный сервер: Kestrel + WebSocket со сжатием, хост игры в своём потоке (docs/dotnet.md, §1 «Сервер», Н4). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>kharos-server</AssemblyName>
+    <RootNamespace>Kharos.Server</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Ловушка wasm роняет процесс с теневым стеком Windows (docs/dotnet.md, Н2). -->
+    <CetCompat>false</CetCompat>
+    <!-- Обычная сборка — обычный exe (на него ссылаются тесты); dotnet publish -c Release -r linux-x64 — самодостаточный NativeAOT. -->
+    <PublishAot Condition="'$(_IsPublishing)' == 'true'">true</PublishAot>
+    <SelfContained Condition="'$(_IsPublishing)' == 'true'">true</SelfContained>
+    <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+    <PublishDocumentationFile>false</PublishDocumentationFile>
+    <DebugType>none</DebugType>
+    <!-- Своё приложение, не веб-проект по умолчанию: ни статических файлов, ни Razor, ни конфигурации appsettings. -->
+    <EnableDefaultContentItems>false</EnableDefaultContentItems>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
+    <!-- Предупреждения отсечения и AOT дают зависимости (Wasmtime, MemoryPack), не наш код: на публикации не ошибки. -->
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+    <IlcTreatWarningsAsErrors>false</IlcTreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);IL2104;IL3053;IL3000;IL3002</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Игра base рядом с программой: mod.json, data/*.json и wasm (после tools/build-mods.ps1); hello и исходники не берутся. -->
+    <None Include="..\..\mods\base\mod.json;..\..\mods\base\*.wasm" Link="mods\base\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\mods\base\data\*.json" Link="mods\base\data\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Kharos.Host\Kharos.Host.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Content\Kharos.Content.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Protocol\Kharos.Protocol.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Engine\Kharos.Engine.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Kharos.Server.Tests" />
+  </ItemGroup>
+</Project>
