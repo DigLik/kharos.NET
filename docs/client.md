@@ -1,6 +1,6 @@
 # Клиент на Rust: wgpu и egui
 
-**[заменено, 2026-10-18]** Клиент — .NET: Silk.NET и Blazor WebAssembly на WebGPU, `docs/dotnet.md`.
+**[заменено, 2026-10-18]** Клиент — .NET только для десктопа: Silk.NET на WebGPU, браузер не поддерживается, `docs/dotnet.md`.
 
 **[заменено, 2026-10-17]** Стек клиента — пилот `rwgpu` (winit, glow, свой интерфейс, fontdue), а не `wgpu` и `egui`:
 `docs/content.md`, §6. Ниже — прежнее решение.
