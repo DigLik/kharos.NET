@@ -10,6 +10,14 @@
     <ProjectReference Include="..\Kharos.Protocol\Kharos.Protocol.csproj" />
     <ProjectReference Include="..\Kharos.Gpu\Kharos.Gpu.csproj" />
     <ProjectReference Include="..\Kharos.Audio\Kharos.Audio.csproj" />
-
+    <!-- Растеризатор шрифтов: управляемый, без платформенных библиотек, безопасен для NativeAOT. -->
+    <PackageReference Include="StbTrueTypeSharp" />
+    <InternalsVisibleTo Include="Kharos.Client.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Ark Pixel 12 и 10 (OFL, Fonts/OFL.txt) — ресурсами сборки. -->
+    <EmbeddedResource Include="Fonts\ark-pixel-12px.otf" LogicalName="Kharos.Client.Fonts.ark-pixel-12px.otf" />
+    <EmbeddedResource Include="Fonts\ark-pixel-10px.otf" LogicalName="Kharos.Client.Fonts.ark-pixel-10px.otf" />
+    <None Include="Fonts\OFL.txt" CopyToOutputDirectory="PreserveNewest" Link="Fonts\OFL.txt" />
   </ItemGroup>
 </Project>
