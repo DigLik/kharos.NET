@@ -5,8 +5,8 @@
 local orders = {}
 
 orders.data = {
-	mark = 0x7cff8a,
-	rally = 0xffd060,
+	mark = 0x73eb8c,
+	rally = 0x73eb8c,
 	-- Долгое касание, секунд.
 	hold = 0.5,
 }
