@@ -112,7 +112,8 @@ public sealed class ScenarioHarnessTests
         Assert.Equal(40, sim.HealthOf(entity));
         Assert.True(sim.Has(entity, "Health"));
         Assert.Contains(entity, sim.With(Names.Health.Name, Names.Owner.Name));
-        Assert.Equal([entity], sim.With("Owner", "player", 2));
+        // У игрока 2 есть ещё сущность счёта (Player, Owner — ядро base): она без Position.
+        Assert.Equal([sim.Wallet(2), entity], sim.With("Owner", "player", 2));
         Assert.Equal([entity], sim.Of(2, Names.Health.Name));
         Assert.Empty(sim.Of(1, Names.Health.Name));
         sim.Remove(entity, Names.Health.Name);
@@ -183,7 +184,7 @@ public sealed class ScenarioHarnessTests
         sim.Flush();
         Assert.Equal(1, applied);
         Assert.Equal(0.0, dt);
-        Assert.Equal(tick + 1, sim.Tick);
+        Assert.Equal(tick, sim.Tick);
         Assert.Equal(0, sim.Ticks);
         Assert.Equal(0.0, sim.Time);
         sim.Advance();

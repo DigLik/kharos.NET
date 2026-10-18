@@ -192,3 +192,13 @@ public sealed partial class EditAddPlayerOrder
 {
     public const string Name = "edit.addPlayer";
 }
+
+/// <summary>edit.start: стартовый набор игрока (кредиты и юниты партии) вокруг тайла (x, y), как spawnStartingUnits.</summary>
+[MemoryPackable]
+public sealed partial class EditStartOrder
+{
+    public const string Name = "edit.start";
+    public uint Player { get; set; }
+    public int X { get; set; }
+    public int Y { get; set; }
+}

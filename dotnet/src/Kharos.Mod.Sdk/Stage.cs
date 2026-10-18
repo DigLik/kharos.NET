@@ -173,7 +173,8 @@ public sealed class Stage
             return false;
         if (_frame is not null && _binding is not null && _binding.OffsetOf(component.Id) >= 0 && _frame.RowOf(entity) >= 0)
             return true;
-        return Read(entity, component) is not null;
+        // У метки полей нет: Get ответит пусто и тогда, когда она есть.
+        return component.Tag ? Tools.Has(entity, component) : Read(entity, component) is not null;
     }
 
     /// <summary>Значение до вызова: из кадра (в нынешнем виде — со своими правками столбцов) или инструментом.</summary>

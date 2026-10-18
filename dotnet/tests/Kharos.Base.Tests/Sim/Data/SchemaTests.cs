@@ -132,8 +132,9 @@ public sealed class SchemaTests
         Assert.Equal(Builtin.Count + 50 + 1, host.World.Schema.Count);
         Assert.NotNull(host.Layers.Find("deposits"));
         Assert.NotNull(host.Layers.Find("traces"));
-        // Каркас: механики придут с разделами (Б1 и дальше), стартового набора у партии test нет.
-        Assert.Empty(BaseGame.With(host, "Owner"));
+        // Стартового набора у партии test нет: у вошедшего — только сущность счёта (ядро Б1), без места на карте.
+        Assert.Single(BaseGame.With(host, "Owner"));
+        Assert.Empty(BaseGame.With(host, "Owner", "Position"));
     }
 
     [Fact]

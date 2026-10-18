@@ -6,8 +6,8 @@ using MemoryPack;
 namespace Kharos.Base.Scenario;
 
 // Правки мира для подготовки сцены — приказы edit.* с правами редактора и администратора (Base.Shared/Orders/EditOrders.cs,
-// editOps.ts в TS). Каждая применяется сразу (Flush: нулевой тик), так что вслед за ней мир готов, а Put* возвращают
-// номер новой сущности. Обработчики edit.* пишет ядро base (Б1); пока их нет, помощники бросают NotImplementedException
+// editOps.ts в TS). Каждая применяется сразу (Flush: без тика), так что вслед за ней мир готов, а Put* возвращают
+// номер новой сущности. Обработчики edit.* пишет ядро base (Б1); нет обработчика — помощники бросают NotImplementedException
 // с понятной причиной. Что нужно только данным и не требует мода — пишите в мир прямо (Set/Add из Sim.World.cs).
 public sealed partial class Sim
 {

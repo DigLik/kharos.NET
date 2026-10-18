@@ -48,7 +48,7 @@ public sealed class SimOptions
     public bool ThrowOnError { get; init; } = true;
 
     /// <summary>
-    /// Правки (<c>edit.*</c>) применяются нулевым по времени тиком (<c>Scheduler.Step(0)</c>): мир не стареет, а номер
+    /// Правки (<c>edit.*</c>) применяются без тика (<c>Host.Apply</c>): мир не стареет, а номер
     /// новой сущности известен сразу. false — настоящим тиком (0,05 с на каждую правку).
     /// </summary>
     public bool ZeroTimeEdits { get; init; } = true;

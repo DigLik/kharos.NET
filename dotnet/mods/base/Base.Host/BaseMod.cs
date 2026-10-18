@@ -53,5 +53,7 @@ public sealed class BaseMod : Mod
     {
         Tables = BaseTables.Load(name => ctx.TryData(name, out var bytes) ? bytes.ToArray() : null);
         Game = Tables.Games.GetValueOrDefault(ctx.Game);
+        // Общее ядра для разделов: таблицы, правила и партия с настройками, схема (Kernel/Base.cs).
+        Kernel.Core.Load(Tables, ctx);
     }
 }

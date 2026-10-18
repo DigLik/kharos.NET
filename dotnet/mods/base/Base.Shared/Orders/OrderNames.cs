@@ -35,6 +35,6 @@ public static class OrderNames
         EditPaintOrder.Name, EditBuildingOrder.Name, EditUnitOrder.Name, EditDepositOrder.Name, EditSetDepositOrder.Name,
         EditRemoveDepositOrder.Name, EditEraseOrder.Name, EditMoveOrder.Name, EditOwnerOrder.Name, EditHealthOrder.Name,
         EditFacingOrder.Name, EditTurretOrder.Name, EditStockOrder.Name, EditClearTasksOrder.Name, EditOrderOrder.Name,
-        EditCreditsOrder.Name, EditCameraOrder.Name, EditAddPlayerOrder.Name,
+        EditCreditsOrder.Name, EditCameraOrder.Name, EditAddPlayerOrder.Name, EditStartOrder.Name,
     ];
 }

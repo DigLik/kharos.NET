@@ -128,7 +128,7 @@ public sealed partial class Sim : IDisposable
     /// <summary>Параметры, с которыми партия создана.</summary>
     public SimOptions Options => _options;
 
-    /// <summary>Номер тика планировщика (правки <c>edit.*</c> с нулевым временем тоже считаются).</summary>
+    /// <summary>Номер тика планировщика (правки <c>edit.*</c> тика не двигают).</summary>
     public ulong Tick => Host.Tick;
 
     /// <summary>Прошедшее время игры, секунды: тики <see cref="Advance"/> × <see cref="Dt"/>; нулевые тики правок не в счёт.</summary>
@@ -181,8 +181,8 @@ public sealed partial class Sim : IDisposable
     }
 
     /// <summary>
-    /// Применяет отправленные приказы, не двигая время: нулевой тик (<c>Scheduler.Step(0)</c>), системы видят dt = 0.
-    /// Так правки <c>edit.*</c> дают сразу готовый мир, а номер новой сущности — известным. С
+    /// Применяет отправленные приказы, не двигая время: <c>Host.Apply</c> — без тика, системы не работают, обработчики
+    /// видят dt = 0. Так правки <c>edit.*</c> дают сразу готовый мир, а номер новой сущности — известным. С
     /// <see cref="SimOptions.ZeroTimeEdits"/> = false — настоящий тик.
     /// </summary>
     public void Flush()
@@ -192,19 +192,10 @@ public sealed partial class Sim : IDisposable
             Advance();
             return;
         }
-        Host.Scheduler.Step(0);
+        Host.Apply();
         _pending = 0;
-        // Сигналы нулевого тика берём у планировщика сами; TakeDelta нужен, чтобы хост не принял их за свежие на следующем тике.
-        foreach (var signal in Host.Scheduler.Signals)
-            Signals.Add(new SimSignal(Host.Tick, signal.Name, signal.Payload, signal.To, signal.At));
-        Host.TakeDelta();
-        // Ошибки нулевого тика забирает сам вызывающий: хост доложит о них при следующем настоящем тике.
-        if (_options.ThrowOnError && Host.Scheduler.Errors.Count > 0)
-        {
-            var errors = Host.Scheduler.Errors.Select(error => $"{error.Tick} {error.Source}: {error.Message}").ToList();
-            Host.Scheduler.Errors.Clear();
-            throw new SimErrorException(errors);
-        }
+        Drain();
+        Throw();
     }
 
     /// <summary>Ввести игрока в партию (событие <c>player_joined</c>); уже вошедший — false.</summary>
