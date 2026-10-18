@@ -2,9 +2,11 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Kharos.Audio;
 using Kharos.Client.Game;
+using Kharos.Client.Net;
 using Kharos.Content;
 using Kharos.Gpu;
 using Kharos.Host;
+using Kharos.Protocol;
 using Silk.NET.Input;
 using Silk.NET.Input.Glfw;
 using Silk.NET.Maths;
@@ -25,6 +27,22 @@ public static class Shell
     private const double ShotFrameSeconds = 1.0 / 60;
 
     public static int Run(DesktopOptions options)
+    {
+        // Сервер — вместо одиночной партии (NetGame.cs); соединение открывается до окна: отказ не мигнёт пустым окном.
+        WebSocketTransport? net = null;
+        if (options.Server is not null && (net = NetGame.Connect(options)) is null)
+            return 1;
+        try
+        {
+            return RunWindow(options, net);
+        }
+        finally
+        {
+            net?.Dispose();
+        }
+    }
+
+    private static int RunWindow(DesktopOptions options, WebSocketTransport? net)
     {
         // Платформы окон и ввода регистрируются явно: поиск по сборкам через отражение не годится для NativeAOT.
         GlfwWindowing.RegisterPlatform();
@@ -69,9 +87,16 @@ public static class Shell
         ClientGame? game = null;
         try
         {
-            local = LocalGame.Start(() => new HostGame(content, new HostOptions { Game = options.Game, Log = DesktopLog.Write }));
-            game = new ClientGame(content, local.Client, new ClientGameOptions { Audio = audio, Log = DesktopLog.Write });
-            return Loop(options, window, input, gpu, renderer, local, game);
+            if (net is null)
+                local = LocalGame.Start(() => new HostGame(content, new HostOptions { Game = options.Game, Log = DesktopLog.Write }));
+            game = new ClientGame(content, (ITransport?)local?.Client ?? net!, new ClientGameOptions { Audio = audio, Log = DesktopLog.Write });
+            return Loop(options, window, input, gpu, renderer, local, net, game);
+        }
+        catch (ClientException error) when (net is not null)
+        {
+            // Сервер не пустил (пароль, версия) или оборвал вход: причина — в Close-кадре.
+            DesktopLog.Write($"вход на сервер не удался: {error.Message}; {NetGame.Describe(net)}");
+            return 1;
         }
         finally
         {
@@ -82,7 +107,7 @@ public static class Shell
         }
     }
 
-    private static int Loop(DesktopOptions options, IWindow window, InputMap input, GpuContext gpu, Renderer renderer, LocalGame local, ClientGame game)
+    private static int Loop(DesktopOptions options, IWindow window, InputMap input, GpuContext gpu, Renderer renderer, LocalGame? local, WebSocketTransport? net, ClientGame game)
     {
         var clock = Stopwatch.StartNew();
         var shot = options.Shot;
@@ -90,9 +115,15 @@ public static class Shell
         while (!window.IsClosing)
         {
             window.DoEvents();
-            if (local.Failure is { } failure)
+            if (local?.Failure is { } failure)
             {
                 DesktopLog.Write($"хост остановился: {failure}");
+                return 1;
+            }
+            // Закрыт — и всё пришедшее уже разобрано кадром; переподключение решит будущее меню.
+            if (net is { Closed: true })
+            {
+                DesktopLog.Write(NetGame.Describe(net));
                 return 1;
             }
             if (input.ToggleFullscreen)
@@ -128,7 +159,7 @@ public static class Shell
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(shot.Path) ?? ".");
                     renderer.SavePng(shot.Path);
-                    ReportShot(game, local, frames, buffer);
+                    ReportShot(game, local?.Ticks ?? 0, frames, buffer);
                     return 0;
                 }
                 // Хост идёт по часам, а не по кадрам: без паузы 60 кадров пролетели бы за миг игры.
@@ -140,9 +171,9 @@ public static class Shell
         return 0;
     }
 
-    private static void ReportShot(ClientGame game, LocalGame local, int frames, Vector2D<int> buffer)
+    private static void ReportShot(ClientGame game, long ticks, int frames, Vector2D<int> buffer)
     {
-        DesktopLog.Write($"снимок: {buffer.X}x{buffer.Y}, кадров {frames}, тиков {local.Ticks}, спрайтов {game.Stats.Sprites}, ошибок клиента {game.Errors.Count}");
+        DesktopLog.Write($"снимок: {buffer.X}x{buffer.Y}, кадров {frames}, тиков {ticks}, спрайтов {game.Stats.Sprites}, ошибок клиента {game.Errors.Count}");
         foreach (var error in game.Errors.Take(5))
             DesktopLog.Write($"ошибка клиента: {error}");
     }

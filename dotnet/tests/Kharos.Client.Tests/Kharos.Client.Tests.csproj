@@ -7,6 +7,10 @@
     <CetCompat>false</CetCompat>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Kestrel для тестов транспорта WebSocket: сервер на localhost, как у настоящего. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Kharos.Client\Kharos.Client.csproj" />
     <!-- Хост одиночной игры — партия hello для сквозных тестов клиента. -->
     <ProjectReference Include="..\..\src\Kharos.Host\Kharos.Host.csproj" />

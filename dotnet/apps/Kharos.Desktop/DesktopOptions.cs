@@ -7,9 +7,11 @@ public sealed record ShotOptions(string Path, int Frames, (float X, float Y)? Po
 
 /// <summary>
 /// Настройки запуска из окружения (как у пилота): KHAROS_MODS — папки с модами через разделитель путей, KHAROS_GAME —
-/// партия, KHAROS_AUDIO=off — без звука, KHAROS_SCALE — масштаб интерфейса вместо масштаба экрана.
+/// партия, KHAROS_AUDIO=off — без звука, KHAROS_SCALE — масштаб интерфейса вместо масштаба экрана. Сеть (Н4):
+/// KHAROS_SERVER=ws://хост:порт — играть на сервере вместо одиночной партии, KHAROS_NAME — ник, KHAROS_PASSWORD — пароль сервера.
 /// </summary>
-public sealed record DesktopOptions(IReadOnlyList<string> ModRoots, string? Game, bool Audio, float? Scale, ShotOptions? Shot)
+public sealed record DesktopOptions(IReadOnlyList<string> ModRoots, string? Game, bool Audio, float? Scale, ShotOptions? Shot,
+    string? Server = null, string? Name = null, string? Password = null)
 {
     public static DesktopOptions FromEnvironment()
     {
@@ -17,7 +19,7 @@ public sealed record DesktopOptions(IReadOnlyList<string> ModRoots, string? Game
             ? new ShotOptions(Path.GetFullPath(path), Int(Env("KHAROS_SHOT_FRAMES")) ?? 60, Pointer(Env("KHAROS_SHOT_POINTER")), Size(Env("KHAROS_SHOT_SIZE")))
             : null;
         return new DesktopOptions(FindModRoots(), Env("KHAROS_GAME"), !string.Equals(Env("KHAROS_AUDIO"), "off", StringComparison.OrdinalIgnoreCase),
-            Float(Env("KHAROS_SCALE")), shot);
+            Float(Env("KHAROS_SCALE")), shot, Env("KHAROS_SERVER"), Env("KHAROS_NAME"), Env("KHAROS_PASSWORD"));
     }
 
     /// <summary>KHAROS_MODS; иначе папка mods рядом с программой, а из репозитория — dotnet/mods выше по дереву.</summary>
