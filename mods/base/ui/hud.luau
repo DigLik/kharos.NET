@@ -259,7 +259,8 @@ local function minimapView(c, side: number)
 			ui:image("minimap", inner, inner)
 			for _, e in c:each({ "Owner", "Position" }) do
 				local building = c:get(e, "Building")
-				if building or c:has(e, "Unit") then
+				local p0 = c:get(e, "Position")
+				if (building or c:has(e, "Unit")) and (c:mine(e) or c:sees(p0.x, p0.y)) then
 					local owner = c:get(e, "Owner").player
 					local color = if owner == c.player then SIDE_COLORS.own elseif owner == 0 then SIDE_COLORS.neutral else SIDE_COLORS.foe
 					local p = c:get(e, "Position")

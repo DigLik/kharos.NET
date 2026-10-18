@@ -13,9 +13,13 @@ pub struct Vertex {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Paint {
   Font,
-  Sprite { team: usize },
+  Sprite {
+    team: usize,
+  },
   Skin,
   Minimap,
+  /// Туман войны на мини-карте: альфа из картинки обзора.
+  Fog,
 }
 
 #[derive(Default)]

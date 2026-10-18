@@ -61,6 +61,8 @@ pub struct State {
   rng: u64,
   /// Места сущностей по клеткам для `ctx:near`; None — устарела.
   grid: Option<Grid>,
+  /// Обзор игроков; None — у партии нет карты (data.size).
+  pub vision: Option<crate::vision::Vision>,
 }
 
 /// Клетки 4 × 4 тайла: сущности с Position.
@@ -118,7 +120,7 @@ impl Host {
       return Err(format!("нет партии games/{game}"));
     }
     let schema = Rc::new(schema_of(&content)?);
-    let state = Rc::new(RefCell::new(State { world: World::new(schema.clone()), ops: Vec::new(), events: Vec::new(), signals: Vec::new(), tick: 0, dt: 0.05, rng: seed.max(1), grid: None }));
+    let state = Rc::new(RefCell::new(State { world: World::new(schema.clone()), ops: Vec::new(), events: Vec::new(), signals: Vec::new(), tick: 0, dt: 0.05, rng: seed.max(1), grid: None, vision: None }));
     let lua = &content.lua;
     let storage = lua.create_table().map_err(lua_error("storage"))?;
     let game_table = content.get("games", game).expect("партия");
@@ -152,6 +154,12 @@ impl Host {
       }
     }
     let systems = order_systems(systems)?;
+    // Обзор — по карте партии: data.size тайлов от центра, data.fog — есть ли туман (по умолчанию есть).
+    let data: Option<Table> = content.get("games", game).and_then(|table| table.get::<Option<Table>>("data").ok().flatten());
+    if let Some(size) = data.as_ref().and_then(|data| data.get::<Option<i32>>("size").ok().flatten()) {
+      let fog = data.as_ref().and_then(|data| data.get::<Option<bool>>("fog").ok().flatten()).unwrap_or(true);
+      state.borrow_mut().vision = Some(crate::vision::Vision::new(crate::vision::Bounds { left: -size, top: -size, right: size, bottom: size }, fog));
+    }
     Ok(Self { content, game: game.to_string(), state, systems, handlers, commands, orders: Vec::new(), ctx, storage })
   }
 
@@ -213,6 +221,13 @@ impl Host {
         continue;
       }
       self.run_system(index)?;
+    }
+    if tick % crate::vision::TICKS == 1 {
+      let mut state = self.state.borrow_mut();
+      let State { world, vision, .. } = &mut *state;
+      if let Some(vision) = vision {
+        vision.update(world);
+      }
     }
     Ok(())
   }

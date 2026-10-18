@@ -10,6 +10,8 @@ factory.data = {
 	height = 3,
 	-- Что выпускает: виды из units/.
 	produces = { "buggy" },
+	-- Сколько тайлов от центра видит: половина большей стороны и ещё 4, как у зданий в TS.
+	sight = 5.5,
 	-- Куда выходит готовый юнит — от центра, в тайлах.
 	exit = { 0, 2.2 },
 }
@@ -20,6 +22,7 @@ factory.entity = function(kind)
 		Owner = {},
 		Producer = {},
 		Building = { width = kind.data.width, height = kind.data.height },
+		Sight = { radius = kind.data.sight },
 	}
 end
 

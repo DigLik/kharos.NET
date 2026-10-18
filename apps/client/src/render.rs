@@ -72,6 +72,10 @@ pub struct Frame {
   pub palette: Vec<f32>,
   /// Секунды — анимация болот.
   pub time: f32,
+  /// Туман войны: левый верхний угол текстуры в тайлах (рамка в тайл за краем карты) и новая картинка, если обзор
+  /// поменялся (альфа на тайл, размер). None — тумана нет.
+  pub fog: Option<[f32; 2]>,
+  pub fog_update: Option<(Vec<u8>, [i32; 2])>,
 }
 
 const COMMON: &str = r#"
@@ -259,6 +263,23 @@ void main() {
 }
 "#;
 
+// Туман: тайл — тексель, сглаживание между ними даёт мягкий край обзора; за рамкой — растянутая рамка (CLAMP_TO_EDGE).
+const FOG_FS: &str = r#"
+in vec2 vUV;
+uniform vec2 uCamera;
+uniform float uZoom;
+uniform vec2 uScreenSize;
+uniform vec2 uOrigin;
+uniform vec2 uSize;
+uniform sampler2D uFog;
+out vec4 color;
+void main() {
+  vec2 tile = uCamera + (vUV - 0.5) * uScreenSize / uZoom;
+  float alpha = texture(uFog, (tile - uOrigin) / uSize).r;
+  color = vec4(0.0, 0.0, 0.0, alpha);
+}
+"#;
+
 const BLIT_VS: &str = r#"
 out vec2 vUv;
 void main() {
@@ -299,8 +320,13 @@ uniform sampler2D uAtlas;
 uniform int uKind;
 uniform int uTeam;
 uniform vec3 uPalette[12];
+uniform vec2 uInset;
 out vec4 color;
 void main() {
+  if (uKind == 2) {
+    color = vec4(0.0, 0.0, 0.0, texture(uAtlas, uInset + vUv * (1.0 - 2.0 * uInset)).r * vColor.a);
+    return;
+  }
   if (uKind == 0) {
     color = vec4(vColor.rgb, vColor.a * texture(uAtlas, vUv).r);
     return;
@@ -316,6 +342,7 @@ void main() {
 struct Programs {
   terrain: glow::Program,
   weather: glow::Program,
+  fog: glow::Program,
   sprite: glow::Program,
   spot: glow::Program,
   beam: glow::Program,
@@ -348,6 +375,7 @@ pub struct Renderer {
   /// Общий атлас обликов и скин интерфейса.
   atlas: Option<glow::Texture>,
   skin: Option<glow::Texture>,
+  fog: Option<(glow::Texture, [i32; 2])>,
   minimap: Option<glow::Texture>,
   land: Option<LandWindow>,
   occluders: Option<Target>,
@@ -369,7 +397,7 @@ impl Renderer {
     let with = |source: &str| format!("{COMMON}{source}");
     let terrain = TERRAIN_FS.split_once('\n').map_or(TERRAIN_FS, |(_, rest)| rest);
     let weather = WEATHER_FS.split_once('\n').map_or(WEATHER_FS, |(_, rest)| rest);
-    let programs = Programs { terrain: gl.program(TERRAIN_VS, terrain)?, weather: gl.program(TERRAIN_VS, weather)?, sprite: gl.program(&with(SPRITE_VS), &with(SPRITE_FS))?, spot: gl.program(&with(SPOT_VS), &with(SPOT_FS))?, beam: gl.program(&with(BEAM_VS), &with(BEAM_FS))?, blit: gl.program(BLIT_VS, BLIT_FS)?, batch: gl.program(&with(BATCH_VS), &with(BATCH_FS))? };
+    let programs = Programs { terrain: gl.program(TERRAIN_VS, terrain)?, weather: gl.program(TERRAIN_VS, weather)?, fog: gl.program(TERRAIN_VS, FOG_FS)?, sprite: gl.program(&with(SPRITE_VS), &with(SPRITE_FS))?, spot: gl.program(&with(SPOT_VS), &with(SPOT_FS))?, beam: gl.program(&with(BEAM_VS), &with(BEAM_FS))?, blit: gl.program(BLIT_VS, BLIT_FS)?, batch: gl.program(&with(BATCH_VS), &with(BATCH_FS))? };
     unsafe {
       let raw = &gl.gl;
       let corners = raw.create_buffer()?;
@@ -397,7 +425,7 @@ impl Renderer {
       let font = gl.texture([ATLAS_SIZE as i32; 2], glow::R8, glow::RED, None);
       raw.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
       raw.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::LINEAR as i32);
-      Ok(Self { gl, programs, sprite_vao, sprite_data, spot_vao, spot_data, beam_vao, beam_data, empty_vao, batch_vao, batch_vertices, batch_indices, font, font_generation: 0, atlas: None, skin: None, minimap: None, land: None, occluders: None, lightmap: None, size: [0, 0] })
+      Ok(Self { gl, programs, sprite_vao, sprite_data, spot_vao, spot_data, beam_vao, beam_data, empty_vao, batch_vao, batch_vertices, batch_indices, font, font_generation: 0, atlas: None, skin: None, fog: None, minimap: None, land: None, occluders: None, lightmap: None, size: [0, 0] })
     }
   }
 
@@ -548,6 +576,47 @@ impl Renderer {
     gl.disable(glow::BLEND);
   }
 
+  /// Туман войны поверх освещённого мира (fogPass.ts).
+  unsafe fn fog(&mut self, view: &View, frame: &Frame, size: [i32; 2]) {
+    if let Some((pixels, fog_size)) = &frame.fog_update {
+      match &self.fog {
+        Some((texture, old)) if old == fog_size => {
+          self.gl.gl.bind_texture(glow::TEXTURE_2D, Some(*texture));
+          self.gl.gl.pixel_store_i32(glow::UNPACK_ALIGNMENT, 1);
+          self.gl.gl.tex_sub_image_2d(glow::TEXTURE_2D, 0, 0, 0, fog_size[0], fog_size[1], glow::RED, glow::UNSIGNED_BYTE, glow::PixelUnpackData::Slice(Some(pixels)));
+        }
+        _ => {
+          if let Some((texture, _)) = self.fog.take() {
+            self.gl.gl.delete_texture(texture);
+          }
+          let texture = self.gl.texture(*fog_size, glow::R8, glow::RED, Some(pixels));
+          self.gl.gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
+          self.gl.gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::LINEAR as i32);
+          self.fog = Some((texture, *fog_size));
+        }
+      }
+    }
+    let (Some(origin), Some((texture, fog_size))) = (frame.fog, &self.fog) else { return };
+    let gl = &self.gl.gl;
+    let program = self.programs.fog;
+    gl.use_program(Some(program));
+    let uniform = |name: &str| gl.get_uniform_location(program, name);
+    let zoom = view.zoom * view.scale;
+    gl.uniform_2_f32(uniform("uCamera").as_ref(), view.x, view.y);
+    gl.uniform_1_f32(uniform("uZoom").as_ref(), zoom);
+    gl.uniform_2_f32(uniform("uScreenSize").as_ref(), size[0] as f32, size[1] as f32);
+    gl.uniform_2_f32(uniform("uOrigin").as_ref(), origin[0], origin[1]);
+    gl.uniform_2_f32(uniform("uSize").as_ref(), fog_size[0] as f32, fog_size[1] as f32);
+    gl.uniform_1_i32(uniform("uFog").as_ref(), 0);
+    gl.active_texture(glow::TEXTURE0);
+    gl.bind_texture(glow::TEXTURE_2D, Some(*texture));
+    gl.enable(glow::BLEND);
+    gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
+    gl.bind_vertex_array(Some(self.empty_vao));
+    gl.draw_arrays(glow::TRIANGLE_STRIP, 0, 4);
+    gl.disable(glow::BLEND);
+  }
+
   /// Кадр мира: земля, тени и спрайты по слоям, свет.
   pub fn draw_world(&mut self, view: &View, frame: &Frame, size: [i32; 2]) {
     self.size = size;
@@ -579,6 +648,7 @@ impl Renderer {
         gl.blend_func(glow::ONE, glow::ONE);
         self.spots(view, &frame.blooms, BLOOM_COLOR, bloom);
         gl.disable(glow::BLEND);
+        self.fog(view, frame, size);
         return;
       }
       let (occluders, lightmap) = (self.occluders.as_ref().expect("силуэты"), self.lightmap.as_ref().expect("свет"));
@@ -616,6 +686,7 @@ impl Renderer {
       gl.blend_func(glow::ONE, glow::ONE);
       self.spots(view, &frame.blooms, BLOOM_COLOR, bloom);
       gl.disable(glow::BLEND);
+      self.fog(view, frame, size);
     }
   }
 
@@ -659,6 +730,13 @@ impl Renderer {
           None => gl.disable(glow::SCISSOR_TEST),
         }
         match paint {
+          Paint::Fog => {
+            let Some((fog, size)) = &self.fog else { continue };
+            // uKind 2 — чёрный с альфой из красного канала; рамка картинки срезана uv-сдвигом в шейдере.
+            gl.uniform_1_i32(uniform("uKind").as_ref(), 2);
+            gl.uniform_2_f32(uniform("uInset").as_ref(), 1.0 / size[0] as f32, 1.0 / size[1] as f32);
+            gl.bind_texture(glow::TEXTURE_2D, Some(*fog));
+          }
           Paint::Minimap => {
             let Some(minimap) = self.minimap else { continue };
             gl.uniform_1_i32(uniform("uKind").as_ref(), 1);

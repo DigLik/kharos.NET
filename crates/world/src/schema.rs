@@ -12,7 +12,8 @@
 //! буферами; `Any` — по сущности, через `ctx:get` и `ctx:set`. Один компонент могут объявлять несколько видов: поля
 //! складываются, одно поле с разными видами — ошибка.
 //!
-//! Компоненты движка — `Position`, `Facing`, `Owner`, `Proto` — объявлены всегда: по ним клиент рисует и сглаживает.
+//! Компоненты движка — `Position`, `Facing`, `Owner`, `Proto`, `Sight` — объявлены всегда: по ним клиент рисует и
+//! сглаживает, а обзор считает, кто что видит.
 
 use serde_json::Value;
 use std::collections::HashMap;
@@ -74,8 +75,8 @@ pub struct Schema {
   by_name: HashMap<String, ComponentId>,
 }
 
-/// Компоненты движка: место, направление, владелец и вид.
-pub const BUILTIN: &[(&str, &[(&str, f64)])] = &[("Position", &[("x", 0.0), ("y", 0.0)]), ("Facing", &[("angle", 0.0)]), ("Owner", &[("player", 0.0)]), ("Proto", &[("id", 0.0)])];
+/// Компоненты движка: место, направление, владелец, вид и глаз (обзор, vision.rs).
+pub const BUILTIN: &[(&str, &[(&str, f64)])] = &[("Position", &[("x", 0.0), ("y", 0.0)]), ("Facing", &[("angle", 0.0)]), ("Owner", &[("player", 0.0)]), ("Proto", &[("id", 0.0)]), ("Sight", &[("radius", 0.0)])];
 
 impl Schema {
   pub fn new() -> Self {

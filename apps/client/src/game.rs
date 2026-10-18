@@ -57,6 +57,8 @@ pub struct Game {
   walked: HashMap<Entity, Walk>,
   /// Путь, пройденный ветром, — для осадков.
   drift: [f32; 2],
+  /// С какой правкой обзора нарисован туман.
+  fog_seen: Option<u64>,
 }
 
 /// Путь сущности: где её нарисовали в прошлый раз, сколько прошла и когда видели.
@@ -223,7 +225,7 @@ impl Game {
       None => None,
     };
 
-    Ok(Self { host, client, state, ctx, ctx_data, camera, panels, controls, atmosphere, sounds, music, signals, looks, look_of, atlas: Some(atlas), land, minimap, audio, walked: HashMap::new(), drift: [0.0; 2], bar: 0, next_bar: 0.0, accumulator: 0.0, last: None, pending: Vec::new(), palette })
+    Ok(Self { host, client, state, ctx, ctx_data, camera, panels, controls, atmosphere, sounds, music, signals, looks, look_of, atlas: Some(atlas), land, minimap, audio, walked: HashMap::new(), drift: [0.0; 2], fog_seen: None, bar: 0, next_bar: 0.0, accumulator: 0.0, last: None, pending: Vec::new(), palette })
   }
 
   /// Кадр: тики, подача, звук. Возвращает, что рисовать.
@@ -399,6 +401,26 @@ impl Game {
     frame.drift = self.drift;
     let state = self.state.borrow();
     let world = state.world.borrow();
+    // Туман войны: тайл — 0,94 неразведанный, 0,5 разведанный, 0 видимый (fogPass.ts); рамка в тайл — неразведанная.
+    if let Some(vision) = world.vision.as_ref().filter(|vision| vision.fog) {
+      let bounds = vision.bounds;
+      frame.fog = Some([(bounds.left - 1) as f32, (bounds.top - 1) as f32]);
+      let changed = vision.changed.get(&state.player).copied().unwrap_or(0);
+      if self.fog_seen != Some(changed) {
+        self.fog_seen = Some(changed);
+        let (w, h) = (bounds.width() + 2, bounds.height() + 2);
+        let mut pixels = vec![(0.94f32 * 255.0).round() as u8; (w * h) as usize];
+        if let Some(cells) = vision.cells.get(&state.player) {
+          for y in 0..bounds.height() {
+            for x in 0..bounds.width() {
+              let cell = cells[(y * bounds.width() + x) as usize];
+              pixels[((y + 1) * w + x + 1) as usize] = [240u8, 128, 0][cell as usize];
+            }
+          }
+        }
+        frame.fog_update = Some((pixels, [w, h]));
+      }
+    }
     let schema = &world.world.schema;
     let (Some(position), Some(proto), Some(owner)) = (schema.id("Position"), schema.id("Proto"), schema.id("Owner")) else { return Ok(frame) };
     let attached = schema.id("Attached");
@@ -421,6 +443,11 @@ impl Game {
         continue;
       }
       let look = &self.looks[index];
+      // Чужое вне обзора не видно: хост TS его и не прислал бы.
+      let player_of = world.world.num(entity, owner, "player").unwrap_or(0.0) as u32;
+      if player_of != state.player && world.vision.as_ref().is_some_and(|vision| !vision.sees(state.player, x as f64, y as f64)) {
+        continue;
+      }
       // Турель — слоем выше своего носителя.
       let parent = attached.and_then(|id| world.world.num(entity, id, "parent")).filter(|&parent| parent >= 1.0);
       let layer = match parent {

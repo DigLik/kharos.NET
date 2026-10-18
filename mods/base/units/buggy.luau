@@ -32,6 +32,7 @@ buggy.entity = function(kind)
 		Owner = {},
 		Drive = { move = "wheels", speed = d.speed, turn = d.turn },
 		Unit = { radius = d.radius },
+		Sight = { radius = d.sight },
 	}
 end
 

@@ -137,8 +137,13 @@ impl ClientState {
     let unit = world.schema.id("Unit");
     let building = world.schema.id("Building");
     let mut best: Option<(f64, Entity)> = None;
+    let owner = world.schema.id("Owner");
     for &entity in &world.stores[position].entities {
       let Some([ex, ey, _]) = self.pose(entity) else { continue };
+      let foreign = owner.and_then(|id| world.num(entity, id, "player")).is_some_and(|player| player as u32 != self.player);
+      if foreign && state.vision.as_ref().is_some_and(|vision| !vision.sees(self.player, ex, ey)) {
+        continue;
+      }
       let (dx, dy) = (x - ex, y - ey);
       let hit = if let Some(radius) = unit.and_then(|id| world.num(entity, id, "radius")) {
         dx * dx + dy * dy <= (radius + 0.15).powi(2)
@@ -309,6 +314,17 @@ impl UserData for Ctx {
       Ok(owner == Some(state.player as f64))
     });
     methods.add_method("pick", |_, c, (x, y): (f64, f64)| Ok(c.state.borrow().pick(x, y)));
+    // Видит ли свой игрок тайл сейчас и бывал ли он в виду (туман войны).
+    methods.add_method("sees", |_, c, (x, y): (f64, f64)| {
+      let state = c.state.borrow();
+      let world = state.world.borrow();
+      Ok(world.vision.as_ref().is_none_or(|vision| vision.sees(state.player, x, y)))
+    });
+    methods.add_method("explored", |_, c, (x, y): (f64, f64)| {
+      let state = c.state.borrow();
+      let world = state.world.borrow();
+      Ok(world.vision.as_ref().is_none_or(|vision| vision.explored(state.player, x, y)))
+    });
     // Случайное число 0..1 от координат и сида — тот же hash, что у генератора местности и погоды в TS.
     methods.add_function("hash", |_, (x, y, seed): (f64, f64, f64)| Ok(kharos_engine::terrain::hash(x, y, seed)));
     // Сущности с Position в прямоугольнике мира и со всеми компонентами списка.

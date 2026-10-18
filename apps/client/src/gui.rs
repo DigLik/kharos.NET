@@ -983,7 +983,11 @@ fn paint(fonts: &mut Fonts, batch: &mut Batch, node: &Node, clip: Option<[f32; 4
     Some(Leaf::Image { image, .. }) => match *image {
       Image::Sprite { uv, team } => batch.quad_clipped([rect.x, rect.y], [rect.x + rect.w, rect.y + rect.h], uv, faded([255; 4], alpha), Paint::Sprite { team }, clip),
       Image::Coin => batch.quad_clipped([rect.x, rect.y], [rect.x + rect.w, rect.y + rect.h], skin_uv(120.0, 0.0, 8.0, 8.0), faded([255; 4], alpha), Paint::Skin, clip),
-      Image::Minimap => batch.quad_clipped([rect.x, rect.y], [rect.x + rect.w, rect.y + rect.h], [0.0, 0.0, 1.0, 1.0], faded([255; 4], alpha), Paint::Minimap, clip),
+      Image::Minimap => {
+        batch.quad_clipped([rect.x, rect.y], [rect.x + rect.w, rect.y + rect.h], [0.0, 0.0, 1.0, 1.0], faded([255; 4], alpha), Paint::Minimap, clip);
+        // Туман поверх: та же картинка обзора, что у карты, без её рамки.
+        batch.quad_clipped([rect.x, rect.y], [rect.x + rect.w, rect.y + rect.h], [0.0, 0.0, 1.0, 1.0], faded([255; 4], alpha), Paint::Fog, clip);
+      }
     },
     _ => {}
   }
