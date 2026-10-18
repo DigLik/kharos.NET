@@ -1,14 +1,27 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Kharos.Audio/Kharos.Audio.csproj" />
+    <Project Path="src/Kharos.Client/Kharos.Client.csproj" />
+    <Project Path="src/Kharos.Content/Kharos.Content.csproj" />
     <Project Path="src/Kharos.Engine/Kharos.Engine.csproj" />
+    <Project Path="src/Kharos.Gpu/Kharos.Gpu.csproj" />
+    <Project Path="src/Kharos.Host/Kharos.Host.csproj" />
     <Project Path="src/Kharos.Mod.Sdk/Kharos.Mod.Sdk.csproj" />
     <Project Path="src/Kharos.Plugins/Kharos.Plugins.csproj" />
+    <Project Path="src/Kharos.Protocol/Kharos.Protocol.csproj" />
+  </Folder>
+  <Folder Name="/apps/">
+    <Project Path="apps/Kharos.Desktop/Kharos.Desktop.csproj" />
   </Folder>
   <Folder Name="/mods/">
     <Project Path="mods/hello/Hello.Host/Hello.Host.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Kharos.Audio.Tests/Kharos.Audio.Tests.csproj" />
+    <Project Path="tests/Kharos.Client.Tests/Kharos.Client.Tests.csproj" />
     <Project Path="tests/Kharos.Engine.Tests/Kharos.Engine.Tests.csproj" />
+    <Project Path="tests/Kharos.Gpu.Tests/Kharos.Gpu.Tests.csproj" />
+    <Project Path="tests/Kharos.Host.Tests/Kharos.Host.Tests.csproj" />
     <Project Path="tests/Kharos.Plugins.Tests/Kharos.Plugins.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">

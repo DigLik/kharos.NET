@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Клиент: реплика, кадр, камера, атлас обликов, UI, клиентский API модов (docs/dotnet.md, §4.3). -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Kharos.Engine\Kharos.Engine.csproj" />
+    <ProjectReference Include="..\Kharos.Plugins\Kharos.Plugins.csproj" />
+    <ProjectReference Include="..\Kharos.Content\Kharos.Content.csproj" />
+    <ProjectReference Include="..\Kharos.Protocol\Kharos.Protocol.csproj" />
+    <ProjectReference Include="..\Kharos.Gpu\Kharos.Gpu.csproj" />
+    <ProjectReference Include="..\Kharos.Audio\Kharos.Audio.csproj" />
+
+  </ItemGroup>
+</Project>

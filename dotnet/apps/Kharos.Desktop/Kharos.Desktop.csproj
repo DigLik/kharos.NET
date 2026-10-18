@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Десктоп: окно и ввод Silk.NET, хост одиночной игры в процессе (docs/dotnet.md, Р10). -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>kharos</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Ловушка wasm роняет процесс с теневым стеком Windows (docs/dotnet.md, Н2). -->
+    <CetCompat>false</CetCompat>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Kharos.Client\Kharos.Client.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Host\Kharos.Host.csproj" />
+    <PackageReference Include="Silk.NET.Windowing" />
+    <PackageReference Include="Silk.NET.Input" />
+  </ItemGroup>
+</Project>

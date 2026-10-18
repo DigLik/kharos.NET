@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Рендер кадра на Silk.NET.WebGPU и WGSL (docs/dotnet.md, §4.3). Контракт кадра — Frame.cs и Batch.cs. -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+
+    <PackageReference Include="Silk.NET.WebGPU" />
+    <PackageReference Include="Silk.NET.WebGPU.Native.WGPU" />
+    <PackageReference Include="Silk.NET.WebGPU.Extensions.WGPU" />
+  </ItemGroup>
+</Project>

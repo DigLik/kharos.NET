@@ -15,5 +15,14 @@
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit.v3" Version="3.0.1" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageVersion Include="Silk.NET.WebGPU" Version="2.23.0" />
+    <PackageVersion Include="Silk.NET.WebGPU.Native.WGPU" Version="2.23.0" />
+    <PackageVersion Include="Silk.NET.WebGPU.Extensions.WGPU" Version="2.23.0" />
+    <PackageVersion Include="Silk.NET.Windowing" Version="2.23.0" />
+    <PackageVersion Include="Silk.NET.Input" Version="2.23.0" />
+    <PackageVersion Include="Silk.NET.OpenAL" Version="2.23.0" />
+    <PackageVersion Include="Silk.NET.OpenAL.Soft.Native" Version="1.23.1" />
+    <PackageVersion Include="StbTrueTypeSharp" Version="1.26.13" />
+    <PackageVersion Include="StbImageWriteSharp" Version="1.16.7" />
   </ItemGroup>
 </Project>

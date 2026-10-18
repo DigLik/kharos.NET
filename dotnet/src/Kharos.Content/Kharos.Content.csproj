@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Загрузка модов: манифест, порядок по requires, data/*.json, wasm (docs/dotnet.md, Р12). Без платформы. -->
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Kharos.Engine\Kharos.Engine.csproj" />
+    <ProjectReference Include="..\Kharos.Plugins\Kharos.Plugins.csproj" />
+
+  </ItemGroup>
+</Project>
