@@ -25,11 +25,12 @@ local function order(c, x: number, y: number)
 	end
 	if #units > 0 then
 		c:send("move", { units = units, x = x, y = y })
+		c:sound("order", { volume = 0.35 })
 		table.insert(marks, { x = x, y = y, time = c.time, color = orders.data.mark })
 	elseif building then
 		c:send("rally", { building = building, x = x, y = y })
 		table.insert(marks, { x = x, y = y, time = c.time, color = orders.data.rally })
-		c:sound("order", { pitch = 0.75, gain = 0.5 })
+		c:sound("place", { volume = 0.35 })
 	end
 end
 

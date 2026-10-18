@@ -148,7 +148,6 @@ local function commandGrid(c, list, width: number, height: number)
 					ui:tip(id, slot.label .. (if slot.cost then " — " .. slot.cost .. " кр." else ""))
 					if click or (c.input.hits[KEY_NAMES[i]] and not c.input.keys.ctrl) then
 						slot.run()
-						c:sound("click", { pitch = 1.3, gain = 0.4 })
 					end
 				end
 			end)

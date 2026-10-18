@@ -140,19 +140,21 @@ production.systems = {
 	},
 }
 
--- Подача сигналов на клиенте: готовый юнит звенит и пылит, отказ — жужжит.
+-- На клиенте: машина выехала из завода — шипит воротина и катится рольставня (worldSounds.ts), и своему игроку —
+-- уведомление «машина готова»; отказ — жужжание.
 production.signals = {
 	produced = function(c, signal)
-		c:sound("ready", { x = signal.x, y = signal.y, gain = if signal.player == c.player then 1 else 0.4 })
-		for _ = 1, 14 do
-			local angle = math.random() * math.pi * 2
-			local speed = 0.6 + math.random() * 1.4
-			c:particle({ x = signal.x, y = signal.y, vx = math.cos(angle) * speed, vy = math.sin(angle) * speed, life = 0.5 + math.random() * 0.4, color = 0xa0c8b090, size = 1, drift = false })
+		local at = c:get(signal.building, "Position")
+		if at then
+			c:sound("rollout", { x = at.x, y = at.y, volume = 0.45 })
+		end
+		if signal.player == c.player then
+			c:sound("unitReady", { volume = 0.4 })
 		end
 	end,
 	refused = function(c, signal)
 		if signal.player == c.player then
-			c:sound("deny")
+			c:sound("deny", { volume = 0.35 })
 		end
 	end,
 }

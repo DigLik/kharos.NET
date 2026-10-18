@@ -36,13 +36,12 @@ pub struct Particle {
   pub drift: bool,
 }
 
-/// Звук, заказанный скриптом за кадр.
+/// Разовый звук, заказанный скриптом за кадр: запись банка, громкость, сторона, скорость.
 pub struct SoundOrder {
   pub voice: String,
-  pub at: Option<[f32; 2]>,
   pub gain: f32,
-  pub pitch: f64,
-  pub bus: String,
+  pub pan: f32,
+  pub rate: f32,
 }
 
 /// Значок вида для скриптов: портрет (или кадр значка) в атласе и его размер в пикселях.
@@ -69,11 +68,34 @@ pub struct ClientState {
   pub draw: crate::ui::Batch,
   pub gui: crate::gui::Gui,
   pub looks: HashMap<u32, LookInfo>,
+  /// Синтезатор, если звуку есть куда выйти.
+  pub audio: Option<Rc<crate::audio::Audio>>,
+  /// Местность — для вопросов скриптов.
+  pub land: Option<RefCell<kharos_engine::terrain::Land>>,
   /// Таблицы видов клиентской машины по номерам.
   pub protos: Vec<Table>,
 }
 
+/// Издалека слышно тише: при таком масштабе громкость полная, при вдвое меньшем — вдвое тише (hearing.ts).
+const NEAR_ZOOM: f32 = 32.0;
+/// На сколько звук случайно выше или ниже: одинаковые выстрелы подряд не звучат как запись (DETUNE в audio.ts).
+const DETUNE: f64 = 0.08;
+
 impl ClientState {
+  /// Насколько слышно то, что в (x, y): 1 — на экране вблизи, 0 — далеко за краем; за краем звук стихает на reach
+  /// полуширин экрана (nearness в hearing.ts).
+  pub fn nearness(&self, x: f32, y: f32, reach: f32) -> f32 {
+    let view = &self.view;
+    let half = [view.screen[0] / 2.0 / view.zoom, view.screen[1] / 2.0 / view.zoom];
+    let outside = 0f32.max((x - view.x).abs() - half[0]).max((y - view.y).abs() - half[1]);
+    (1.0 - outside / (half[0] * reach)).max(0.0) * (view.zoom / NEAR_ZOOM).min(1.0)
+  }
+
+  /// В какой стороне x: −1 — у левого края экрана, 1 — у правого (sideOf).
+  pub fn side(&self, x: f32) -> f32 {
+    (x - self.view.x) / (self.view.screen[0] / 2.0 / self.view.zoom)
+  }
+
   fn component(&self, name: &str) -> mlua::Result<usize> {
     self.world.borrow().world.schema.id(name).ok_or_else(|| mlua::Error::runtime(format!("нет компонента {name}")))
   }
@@ -185,6 +207,7 @@ impl UserData for Ctx {
     });
     fields.add_field_method_get("draw", |_, c| Ok(Draw(c.state.clone())));
     fields.add_field_method_get("ui", |_, c| Ok(UiApi(c.state.clone())));
+    fields.add_field_method_get("audio", |_, c| Ok(c.state.borrow().audio.clone().map(AudioApi)));
     fields.add_field_method_get("screen", |lua, c| {
       let state = c.state.borrow();
       let table = lua.create_table()?;
@@ -200,17 +223,35 @@ impl UserData for Ctx {
       c.state.borrow_mut().outbox.push((name, args));
       Ok(())
     });
-    // c:sound("click") или c:sound("motor", { x = 3, y = 4, gain = 0.5, pitch = 1.2, bus = "sfx" }).
-    methods.add_method("sound", |_, c, (voice, options): (String, Option<Table>)| {
+    // Разовая запись банка: c:sound("click", { volume = 0.35 }) — без места, c:sound("rollout", { x, y, volume,
+    // reach }) — в мире: тише вдали и в своей стороне, как play в soundscape.ts. Высота чуть случайна.
+    methods.add_method("sound", |_, c, (name, options): (String, Option<Table>)| {
       let get = |key: &str| options.as_ref().and_then(|table| table.get::<Option<f64>>(key).ok().flatten());
-      let at = match (get("x"), get("y")) {
-        (Some(x), Some(y)) => Some([x as f32, y as f32]),
-        _ => None,
+      let mut state = c.state.borrow_mut();
+      let volume = get("volume").unwrap_or(1.0) as f32;
+      let (gain, pan) = match (get("x"), get("y")) {
+        (Some(x), Some(y)) => (volume * state.nearness(x as f32, y as f32, get("reach").unwrap_or(0.6) as f32), state.side(x as f32) * 0.8),
+        _ => (volume, get("pan").unwrap_or(0.0) as f32),
       };
-      let bus = options.as_ref().and_then(|table| table.get::<Option<String>>("bus").ok().flatten()).unwrap_or_else(|| "sfx".into());
-      c.state.borrow_mut().sounds.push(SoundOrder { voice, at, gain: get("gain").unwrap_or(1.0) as f32, pitch: get("pitch").unwrap_or(1.0), bus });
+      let detune = get("detune").unwrap_or(DETUNE);
+      let rate = match &state.audio {
+        Some(audio) => 1.0 + (audio.random() * 2.0 - 1.0) * detune,
+        None => 1.0,
+      } as f32;
+      state.sounds.push(SoundOrder { voice: name, gain, pan, rate });
       Ok(())
     });
+    // Местность в тайле: вид (0 — болото, 1 — песок, 2 — скала, 3 — гора) и биом (0 — эрг, 1 — солончаки,
+    // 2 — красные пустоши, 3 — топи); nil — местности нет.
+    methods.add_method("terrain", |_, c, (x, y): (f64, f64)| {
+      let state = c.state.borrow();
+      let Some(land) = &state.land else { return Ok((None, None)) };
+      let tile = land.borrow_mut().tile(x.floor() as i32, y.floor() as i32);
+      Ok((Some(tile[0] & 3), Some(tile[1] >> 6)))
+    });
+    // Слышимость точки мира (0..1) и её сторона (−1..1): для своих голосов — моторов, гулов.
+    methods.add_method("nearness", |_, c, (x, y, reach): (f32, f32, Option<f32>)| Ok(c.state.borrow().nearness(x, y, reach.unwrap_or(0.6))));
+    methods.add_method("side", |_, c, x: f32| Ok(c.state.borrow().side(x)));
     // c:particle({ x, y, vx, vy, life, color, size, drift }).
     methods.add_method("particle", |_, c, spec: Table| {
       let get = |key: &str, default: f32| spec.get::<Option<f32>>(key).map(|value| value.unwrap_or(default));
@@ -328,6 +369,42 @@ impl UserData for Draw {
   }
 }
 
+/// `c.audio` — синтезатор (как Audio в audio.ts): разовые записи, петли, свои голоса.
+pub struct AudioApi(Rc<crate::audio::Audio>);
+
+impl UserData for AudioApi {
+  fn add_fields<F: UserDataFields<Self>>(fields: &mut F) {
+    fields.add_field_method_get("now", |_, audio| Ok(audio.0.now()));
+  }
+
+  fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
+    // Запись банка сразу: громкость, сторона −1..1, скорость (1 — как есть).
+    methods.add_method("play", |_, audio, (name, volume, pan, rate): (String, f32, Option<f32>, Option<f32>)| {
+      audio.0.play(&name, volume, pan.unwrap_or(0.0), rate.unwrap_or(1.0));
+      Ok(())
+    });
+    // Фоновая петля банка: громкость (0 — молчит) и сторона; меняется плавно, сколько ни зови.
+    methods.add_method("loop", |_, audio, (name, volume, pan): (String, f32, Option<f32>)| {
+      audio.0.loop_level(&name, volume, pan.unwrap_or(0.0));
+      Ok(())
+    });
+    // Свой голос — вид из sounds/ со схемой или таблица { graph, update }: { bus, into (узел другого голоса), at,
+    // length, note, velocity, args }.
+    methods.add_method("voice", |lua, audio, (voice, options): (Value, Option<Table>)| {
+      let get = |key: &str| options.as_ref().map_or(Ok(None), |table| table.get::<Option<f64>>(key));
+      let bus = options.as_ref().map_or(Ok(None), |table| table.get::<Option<String>>("bus"))?.unwrap_or_else(|| "world".into());
+      let into = crate::audio::NodeTarget::from_value(&options.as_ref().map_or(Ok(Value::Nil), |table| table.get::<Value>("into"))?)?;
+      let args = options.as_ref().map_or(Ok(Value::Nil), |table| table.get::<Value>("args"))?;
+      audio.0.start(lua, &voice, &bus, into.as_ref(), get("at")?, get("length")?, get("note")?.unwrap_or(440.0), get("velocity")?.unwrap_or(1.0), args)
+    });
+    methods.add_method("volume", |_, audio, (bus, volume): (String, f32)| {
+      audio.0.set_volume(&bus, volume);
+      Ok(())
+    });
+    methods.add_method("random", |_, audio, ()| Ok(audio.0.random()));
+  }
+}
+
 /// `c.ui` — интерфейс, как `Ui` в gui/ui.ts: узлы описываются каждый кадр, раскладывает и рисует движок.
 pub struct UiApi(Rc<RefCell<ClientState>>);
 
@@ -356,6 +433,9 @@ impl UserData for UiApi {
     fields.add_field_method_get("width", |_, ui| Ok(ui.0.borrow().gui.width));
     fields.add_field_method_get("height", |_, ui| Ok(ui.0.borrow().gui.height));
     fields.add_field_method_get("now", |_, ui| Ok(ui.0.borrow().gui.now()));
+    // Нажатие кнопки за кадр: "click" или "deny" (недоступна), иначе nil; навели ли на доступную — для звука.
+    fields.add_field_method_get("pressed", |_, ui| Ok(ui.0.borrow().gui.pressed_button.map(|disabled| if disabled { "deny" } else { "click" })));
+    fields.add_field_method_get("hovered_button", |_, ui| Ok(ui.0.borrow().gui.hovered_button));
   }
 
   fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {

@@ -16,6 +16,9 @@ buggy.data = {
 	time = 7,
 	hp = 150,
 	sight = 11,
+	-- Мотор (sounds/motors) и тон машины против него: мелкие выше, громоздкие ниже.
+	motor = "petrol",
+	pitch = 1.18,
 	-- Турели на корпусе: вид из turrets/ и место — вперёд и вправо от центра, в тайлах.
 	mounts = { { turret = "gunner", along = -0.16, across = 0 } },
 }
@@ -34,13 +37,6 @@ end
 
 -- Облик — чертёж из lib/units (перенос unitArt.ts), звук — мотор.
 buggy.look = units.look("buggy", buggy.data.mounts)
-buggy.look.sound = {
-	voice = "motor",
-	gain = 0.5,
-	control = function(knobs, unit)
-		knobs.pitch = 0.9 + (unit.entity % 7) * 0.03
-	end,
-}
 buggy.look.icon = { direction = 56 }
 
 return buggy

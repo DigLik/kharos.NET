@@ -59,14 +59,4 @@ local look = b.look(3, 3, function(g, t: number)
 	b.lamp(g, 41, 36, 2, b.pulse(t, 0.5))
 end)
 
--- Цех гудит, громче — когда работает.
-look.sound = {
-	voice = "hum",
-	gain = 0.6,
-	control = function(knobs, unit, c)
-		local producer = c:get(unit.entity, "Producer")
-		knobs.load = if producer and producer.unit ~= "" then 1 else 0.15
-	end,
-}
-
 return look

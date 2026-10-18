@@ -238,24 +238,49 @@ end)
 
 ### Звук
 
-Голос (`sounds/`) — схема узлов Web Audio, которую строит Luau, а звук считает движок:
+Как в TS-клиенте (`packages/client/src/audio`): сэмплы звуков считает Luau один раз при загрузке, а Web Audio их
+играет. Виды раздела `sounds/` дают банк записей и голоса:
 
 ```luau
 return {
-	graph = function(s)            -- s.at, s.length (nil — пока держат), s.note (Гц), s.velocity, s.rate
-		local osc = s:osc("sawtooth", 42)
-		local filter = s:filter("lowpass", 320, 4)
-		s:lfo(9, 2.5):to(osc.frequency)
-		osc:to(filter):to(s:env({ attack = 0.01, release = 0.3 })):to(s:out())
-		return { osc = osc, filter = filter }   -- получит update
+	-- Банк: запись — буфер f32 (моно) или таблица буферов (стерео), вариантов несколько — звучат вразнобой.
+	bank = {
+		click = { bus = "interface", variants = 3, render = function(rate, variant) return dsp.render(…) end },
+	},
+	-- Голос: граф узлов и его ручки (как у motorVoice.ts). s.args — что передал тот, кто заводит голос.
+	graph = function(s)
+		local idle = s:sample("motor:" .. s.args.motor .. ":idle", { loop = true })
+		local tone = s:filter("lowpass", 500, 0.7)
+		idle:to(tone):to(s:out())
+		return { idle = idle, tone = tone }
 	end,
-	update = function(n, knobs) n.filter.frequency = 260 + knobs.load * 1100 end,
+	update = function(n, knobs) n.idle.rate:glide(knobs.rate, 0.06) end,
 }
 ```
 
-Узлы: `osc(волна, частота)`, `noise("white"|"pink"|"brown")`, `const(v)`, `filter(вид, частота, q)`, `gain(v)`,
-`delay(время)`, `shape(сила)`, `pan(v)`, `lfo(частота, размах)`, `env({ attack, decay, sustain, release, peak })`,
-`out()`. `a:to(b)` соединяет (и с параметром: `a:to(osc.frequency)`). Параметры: `узел.частота = v` — плавно,
-`узел.frequency:set(v, когда?)`, `:ramp(v, когда)`, `:exp(v, когда)`, `:target(v, когда, tau)`. Запечённый звук —
-`bake = { length, render = function(out, rate, n) end }`: `render` пишет `n` отсчётов f32 в буфер один раз при загрузке.
-Шины: `sfx`, `units`, `ambience`, `music`.
+Синтез — `lib/dsp.luau` (перенос `synth.ts`: `random`, `lowpass`, `highpass`, `bandpass`, `render`, `loop`,
+`noiseLoop`, `reverbImpulse`); звуки Kharos — `sounds/synth.luau`, `sounds/motors.luau`, `sounds/world.luau`.
+
+Узлы голоса: `osc(волна, частота)`, `noise(цвет)`, `sample(запись, { loop, offset, variant })`, `reverb(запись)`,
+`const(v)`, `filter(вид, частота, q)`, `gain(v)`, `delay(время)`, `shape(сила)`, `pan(v)`, `lfo(частота, размах)`,
+`env({ attack, decay, sustain, release, peak })`, `out()`; `a:to(b)` — и с параметром, и с узлом другого голоса.
+Параметр: `узел.частота = v`, `:set(v, когда?)`, `:ramp(v, когда)`, `:exp(v, когда)`, `:target(v, когда, tau)`,
+`:glide(v, tau)`; у записи — `rate`.
+
+Что и когда звучит, решают скрипты раздела `audio/` (`update(c)` раз в кадр; партия выбирает их в `client.audio`):
+
+| | |
+|---|---|
+| `c:sound(запись, { x, y, volume, reach, detune })` | разовый звук: в мире — тише вдали и в своей стороне (`hearing.ts`) |
+| `c.audio:play(запись, громкость, сторона?, скорость?)` | разовый звук как есть; не больше 32 разом |
+| `c.audio:loop(запись, громкость, сторона)` | фоновая петля: громкость и сторона меняются плавно |
+| `c.audio:voice(вид или { graph, update }, { bus, into, at, length, note, velocity, args })` | свой голос: `set(ручки)`, `place(громкость, сторона)`, `release(секунды)`, `nodes` |
+| `c:nearness(x, y, reach?)`, `c:side(x)`, `c.audio.now`, `c.audio:volume(группа, v)` | |
+| `c.ui.pressed`, `c.ui.hovered_button` | нажали кнопку (`"click"` или `"deny"`), навели на неё — для звука интерфейса |
+
+Группы громкости: `battle`, `world`, `interface`, `music`; на выходе компрессор. `KHAROS_AUDIO_LEVEL=1` печатает
+уровень на выходе — проверить, что звук есть, не слушая.
+
+Скрипты Kharos: `audio/interface` (кнопки, выделение), `audio/motors` (моторы с моделью езды `lib/drive.luau` —
+стартер, передачи, холостые, толпа), `audio/machines` (работа зданий), `audio/ambience` (фон: ветер, гулы, шорох,
+подложка в миноре, даль сквозь эхо), `audio/flight` (ветер полёта камеры).

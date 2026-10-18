@@ -2,7 +2,7 @@
 //! тики хоста по 50 мс с накоплением, потом скрипты подачи, звук и сборка кадра для рендера.
 
 use crate::atlas::{self, Look};
-use crate::audio::{Audio, Sound};
+use crate::audio::Audio;
 use crate::gui::{Fonts, Gui};
 use crate::input::Input;
 use crate::render::{Frame, View, LAYERS, SPRITE, TEAMS, TEXELS};
@@ -20,19 +20,9 @@ use std::rc::Rc;
 pub const STEP: f64 = 0.05;
 /// Сколько тиков догонять за кадр, если кадр затянулся.
 const MAX_TICKS: u32 = 5;
-/// Сколько звуков юнитов звучит разом.
-const UNIT_VOICES: usize = 8;
 
 /// Палитра по умолчанию — TEAMS из unitArt.ts: свои синие, чужие красные, союзники зелёные; ничьи — серые.
 const TEAMS_DEFAULT: [[u32; 3]; TEAMS] = [[0x1f63d8, 0x5aa9ff, 0xe4f4ff], [0xb3261e, 0xff6b5a, 0xffe9e4], [0x1f7a3c, 0x4ec973, 0xe8fff0], [0x1f63d8, 0x5aa9ff, 0xe4f4ff]];
-
-/// Звуки атмосферы: вид, имя голоса в его `voices` и ручки.
-struct Ambience {
-  proto: Table,
-  update: Option<Function>,
-  knobs: Table,
-  voices: Vec<(String, String)>,
-}
 
 pub struct Game {
   pub host: Host,
@@ -43,15 +33,14 @@ pub struct Game {
   camera: Option<(Table, Function)>,
   panels: Vec<(String, Function)>,
   controls: Vec<(String, Function)>,
-  ambience: Vec<Ambience>,
+  atmosphere: Vec<(String, Function)>,
+  /// Скрипты звука (раздел `audio`): моторы, фон, интерфейс — раз в кадр.
+  sounds: Vec<(String, Function)>,
   music: Option<Table>,
   signals: HashMap<String, Vec<(String, Function)>>,
   pub looks: Vec<Look>,
   look_of: HashMap<u32, usize>,
-  pub audio: Option<Audio>,
-  held: HashMap<String, Sound>,
-  /// Сглаженная нагрузка звучащих: сущность → 0..1.
-  loads: HashMap<Entity, f32>,
+  pub audio: Option<Rc<Audio>>,
   /// Музыка: номер следующего такта и когда он начнётся по часам звука.
   bar: u64,
   next_bar: f64,
@@ -122,7 +111,7 @@ impl Game {
     }
     let atlas = atlas::pack(&mut looks);
 
-    let state = Rc::new(RefCell::new(ClientState { world: host.state.clone(), prev: HashMap::new(), alpha: 0.0, view: View { x: 0.0, y: 0.0, zoom: 32.0, screen: [1280.0, 800.0], scale: 1.0 }, input: Input::default(), time: 0.0, dt: 0.0, player, outbox: Vec::new(), sounds: Vec::new(), particles: Vec::new(), draw: Default::default(), gui: Gui::new(fonts), looks: looks.iter().map(|look| (look.proto, look_info(look))).collect(), protos: client.list.iter().map(|proto| client.by_id(proto.id).expect("вид")).collect() }));
+    let state = Rc::new(RefCell::new(ClientState { world: host.state.clone(), prev: HashMap::new(), alpha: 0.0, view: View { x: 0.0, y: 0.0, zoom: 32.0, screen: [1280.0, 800.0], scale: 1.0 }, input: Input::default(), time: 0.0, dt: 0.0, player, outbox: Vec::new(), sounds: Vec::new(), particles: Vec::new(), draw: Default::default(), gui: Gui::new(fonts), looks: looks.iter().map(|look| (look.proto, look_info(look))).collect(), audio: None, land: None, protos: client.list.iter().map(|proto| client.by_id(proto.id).expect("вид")).collect() }));
     let table = || lua.create_table().map_err(error("таблица"));
     let ctx = Ctx { state: state.clone(), input: table()?, camera: table()?, shared: table()?, atmosphere: table()?, music: table()?, protos: client.protos.clone(), game: game_table.clone() };
     ctx.camera.set("x", 0.0).map_err(error("камера"))?;
@@ -163,32 +152,15 @@ impl Game {
       eprintln!("звука нет: некуда выводить");
     }
     if let Some(audio) = &mut audio {
-      let voices: Vec<(String, Table)> = client.section("sounds").map(|proto| (proto.name.clone(), client.by_id(proto.id).expect("вид"))).collect();
-      audio.load(lua, voices).map_err(error("голоса sounds/"))?;
+      let kinds: Vec<(String, Table)> = client.section("sounds").map(|proto| (proto.name.clone(), client.by_id(proto.id).expect("вид"))).collect();
+      let started = std::time::Instant::now();
+      audio.load(kinds).map_err(error("звуки sounds/"))?;
+      eprintln!("звуки посчитаны за {:.0} мс", started.elapsed().as_secs_f64() * 1000.0);
     }
-
-    let mut ambience = Vec::new();
-    let mut held = HashMap::new();
-    for name in config.get::<Option<Vec<String>>>("atmosphere").map_err(error("client.atmosphere"))?.unwrap_or_default() {
-      let proto = named(&client, "atmosphere", &name)?;
-      let update = function(&proto, "update").map_err(error(format!("atmosphere/{name}")))?;
-      let knobs = table()?;
-      let mut voices = Vec::new();
-      if let Some(list) = proto.get::<Option<Table>>("voices").map_err(error(format!("atmosphere/{name}.voices")))? {
-        for pair in list.pairs::<String, String>() {
-          let (key, voice) = pair.map_err(error(format!("atmosphere/{name}.voices")))?;
-          knobs.set(key.as_str(), table()?).map_err(error("ручки"))?;
-          if let Some(audio) = &audio {
-            if let Some(sound) = audio.start(lua, &voice, "ambience", None, None, 440.0, 1.0).map_err(error(format!("голос {voice}")))? {
-              sound.place(0.0, 0.0);
-              held.insert(format!("atmosphere/{name}/{key}"), sound);
-            }
-          }
-          voices.push((key, voice));
-        }
-      }
-      ambience.push(Ambience { proto, update, knobs, voices });
-    }
+    let audio = audio.map(Rc::new);
+    state.borrow_mut().audio = audio.clone();
+    let atmosphere = list("atmosphere", "atmosphere", "update")?;
+    let sounds = list("audio", "audio", "update")?;
     let music = match config.get::<Option<String>>("music").map_err(error("client.music"))? {
       Some(name) => Some(named(&client, "music", &name)?),
       None => None,
@@ -244,12 +216,14 @@ impl Game {
           }
         }
         minimap = Some((pixels, [side, side]));
+        // Своя копия генератора — для скриптов (c:terrain): что под камерой, где пройти.
+        state.borrow_mut().land = Some(RefCell::new(Land::new(land.config.clone(), land.area)));
         Some(land)
       }
       None => None,
     };
 
-    Ok(Self { host, client, state, ctx, ctx_data, camera, panels, controls, ambience, music, signals, looks, look_of, atlas: Some(atlas), land, minimap, audio, held, loads: HashMap::new(), walked: HashMap::new(), drift: [0.0; 2], bar: 0, next_bar: 0.0, accumulator: 0.0, last: None, pending: Vec::new(), palette })
+    Ok(Self { host, client, state, ctx, ctx_data, camera, panels, controls, atmosphere, sounds, music, signals, looks, look_of, atlas: Some(atlas), land, minimap, audio, walked: HashMap::new(), drift: [0.0; 2], bar: 0, next_bar: 0.0, accumulator: 0.0, last: None, pending: Vec::new(), palette })
   }
 
   /// Кадр: тики, подача, звук. Возвращает, что рисовать.
@@ -318,12 +292,13 @@ impl Game {
     }
 
     // Атмосфера.
-    for ambience in &self.ambience {
-      if let Some(update) = &ambience.update {
-        update.call::<()>((&self.ctx.atmosphere, &self.ctx_data, &ambience.knobs)).map_err(error(format!("atmosphere/{}", ambience.proto.get::<String>("name").unwrap_or_default())))?;
-      }
+    for (label, update) in &self.atmosphere {
+      update.call::<()>((&self.ctx.atmosphere, &self.ctx_data)).map_err(error(label))?;
     }
-    self.sound(&view)?;
+    for (label, update) in &self.sounds {
+      update.call::<()>(&self.ctx_data).map_err(error(label))?;
+    }
+    self.sound()?;
     self.particles(dt as f32);
     self.state.borrow_mut().gui.finish();
 
@@ -337,103 +312,23 @@ impl Game {
     Ok((self.build(&view, input.time)?, view))
   }
 
-  /// Звук кадра: заказанные скриптами, юниты рядом с камерой, атмосфера, музыка.
-  fn sound(&mut self, view: &View) -> Result<(), String> {
+  /// Звук кадра: заказанные скриптами разовые звуки и музыка по тактам, если её задала партия.
+  fn sound(&mut self) -> Result<(), String> {
     let lua = self.client.lua.clone();
     let orders = std::mem::take(&mut self.state.borrow_mut().sounds);
-    let Some(audio) = &self.audio else { return Ok(()) };
-    let hearing = (view.screen[0].max(view.screen[1]) / view.zoom * 0.75).max(8.0);
-    let place = |x: f32, y: f32| {
-      let (dx, dy) = (x - view.x, y - view.y);
-      let distance = (dx * dx + dy * dy).sqrt() / hearing;
-      let gain = (1.0 - distance).clamp(0.0, 1.0).powf(1.5) * (view.zoom / 32.0).clamp(0.35, 1.0);
-      (gain, dx / (view.screen[0] / view.zoom / 2.0))
-    };
-    for order in orders {
-      let (gain, pan) = order.at.map_or((1.0, 0.0), |[x, y]| place(x, y));
-      if gain > 0.01 {
-        audio.play(&lua, &order.voice, &order.bus, gain * order.gain, pan, order.pitch).map_err(error(format!("звук {}", order.voice)))?;
+    let Some(audio) = self.audio.clone() else { return Ok(()) };
+    for order in &orders {
+      audio.play(&order.voice, order.gain, order.pan, order.rate);
+    }
+    if let Some(level) = audio.level() {
+      let tick = self.state.borrow().world.borrow().tick;
+      if tick % 20 == 0 || !orders.is_empty() {
+        let names: Vec<&str> = orders.iter().map(|order| order.voice.as_str()).collect();
+        eprintln!("звук: тик {tick}, уровень {level:.4} {names:?}");
       }
     }
-
-    // Звуки юнитов: ближайшие к камере, у кого в облике есть sound.
-    let mut candidates: Vec<(f32, Entity, usize)> = Vec::new();
-    {
-      let state = self.state.borrow();
-      let world = state.world.borrow();
-      let schema = &world.world.schema;
-      let (Some(position), Some(proto)) = (schema.id("Position"), schema.id("Proto")) else { return Ok(()) };
-      let store = &world.world.stores[position];
-      for &entity in &store.entities {
-        let Some(id) = world.world.num(entity, proto, "id") else { continue };
-        let Some(&look) = self.look_of.get(&(id as u32)) else { continue };
-        if !matches!(self.looks[look].table.get::<Value>("sound"), Ok(Value::Table(_))) {
-          continue;
-        }
-        let Some([x, y, _]) = state.pose(entity) else { continue };
-        let distance = ((x as f32 - view.x).powi(2) + (y as f32 - view.y).powi(2)).sqrt();
-        if distance < hearing {
-          candidates.push((distance, entity, look));
-        }
-      }
-    }
-    candidates.sort_by(|a, b| a.0.total_cmp(&b.0));
-    candidates.truncate(UNIT_VOICES);
-    let drive = self.state.borrow().world.borrow().world.schema.id("Drive");
-    let mut alive = std::collections::HashSet::new();
-    for &(_, entity, look) in &candidates {
-      let key = format!("unit/{entity}");
-      alive.insert(key.clone());
-      let spec: Table = self.looks[look].table.get("sound").map_err(error("look.sound"))?;
-      let voice: String = spec.get("voice").map_err(error("look.sound.voice"))?;
-      if !self.held.contains_key(&key) {
-        if let Some(sound) = audio.start(&lua, &voice, "units", None, None, 440.0, 1.0).map_err(error(format!("голос {voice}")))? {
-          sound.place(0.0, 0.0);
-          self.held.insert(key.clone(), sound);
-        }
-      }
-      let moving = drive.and_then(|id| self.state.borrow().world.borrow().world.num(entity, id, "moving")).unwrap_or(0.0) > 0.0;
-      let load = self.loads.entry(entity).or_insert(0.0);
-      *load += ((if moving { 1.0 } else { 0.0 }) - *load) * (self.state.borrow().dt as f32 * 3.0).min(1.0);
-      let unit = lua.create_table().map_err(error("звук"))?;
-      unit.set("entity", entity).map_err(error("звук"))?;
-      unit.set("load", *load).map_err(error("звук"))?;
-      unit.set("moving", moving).map_err(error("звук"))?;
-      let knobs = lua.create_table().map_err(error("звук"))?;
-      knobs.set("load", *load).map_err(error("звук"))?;
-      if let Some(control) = function(&spec, "control").map_err(error("look.sound.control"))? {
-        control.call::<()>((&knobs, &unit, &self.ctx_data)).map_err(error(format!("{voice}: control")))?;
-      }
-      if let Some(sound) = self.held.get(&key) {
-        sound.knobs(&lua, &knobs).map_err(error(format!("голос {voice}: update")))?;
-        let [x, y, _] = self.state.borrow().pose(entity).unwrap_or([0.0; 3]);
-        let (gain, pan) = place(x as f32, y as f32);
-        let base = spec.get::<Option<f32>>("gain").ok().flatten().unwrap_or(1.0) * knobs.get::<Option<f32>>("gain").ok().flatten().unwrap_or(1.0);
-        sound.place(gain * base, pan);
-      }
-    }
-    let gone: Vec<String> = self.held.keys().filter(|key| key.starts_with("unit/") && !alive.contains(*key)).cloned().collect();
-    for key in gone {
-      if let Some(sound) = self.held.remove(&key) {
-        sound.release(0.3);
-      }
-    }
-    self.loads.retain(|entity, _| alive.contains(&format!("unit/{entity}")));
-
-    // Атмосфера: ручки её голосов.
-    for ambience in &self.ambience {
-      let name: String = ambience.proto.get("name").unwrap_or_default();
-      for (key, voice) in &ambience.voices {
-        let Some(sound) = self.held.get(&format!("atmosphere/{name}/{key}")) else { continue };
-        let knobs: Table = ambience.knobs.get(key.as_str()).map_err(error("ручки"))?;
-        sound.knobs(&lua, &knobs).map_err(error(format!("голос {voice}: update")))?;
-        sound.place(knobs.get::<Option<f32>>("gain").ok().flatten().unwrap_or(1.0), knobs.get::<Option<f32>>("pan").ok().flatten().unwrap_or(0.0));
-      }
-    }
-
     // Музыка: сочинитель — раз в такт, ноты расписываются наперёд по часам звука.
     if let Some(music) = &self.music {
-      audio.set_volume("music", self.ctx.music.get::<Option<f32>>("volume").ok().flatten().unwrap_or(0.6));
       let now = audio.now();
       if self.next_bar < now {
         self.next_bar = now + 0.2;
@@ -450,7 +345,8 @@ impl Game {
             let at = self.next_bar + get("beat", 0.0) * beat;
             let length = get("length", 1.0) * beat;
             let pitch = 440.0 * 2f64.powf((get("note", 69.0) - 69.0) / 12.0);
-            if let Some(sound) = audio.start(&lua, &voice, "music", Some(at), Some(length), pitch, get("velocity", 0.7)).map_err(error(format!("нота {voice}")))? {
+            let name = mlua::Value::String(lua.create_string(&voice).map_err(error("нота"))?);
+            if let Some(sound) = audio.start(&lua, &name, "music", None, Some(at), Some(length), pitch, get("velocity", 0.7), mlua::Value::Nil).map_err(error(format!("нота {voice}")))? {
               sound.place(get("gain", 1.0) as f32, get("pan", 0.0) as f32);
             }
           }

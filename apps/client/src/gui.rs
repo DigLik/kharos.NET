@@ -468,15 +468,15 @@ pub struct Gui {
   tips: Vec<String>,
   /// Указатель над интерфейсом по прошлому кадру.
   pub covered: bool,
-  /// Кнопки, нажатые и наведённые за кадр, — для звука интерфейса.
-  pub pressed_button: bool,
+  /// Кнопку нажали за кадр (Some(недоступна ли она)) и навели на доступную — для звука интерфейса (GUI_PRESS).
+  pub pressed_button: Option<bool>,
   pub hovered_button: bool,
   buttons: HashMap<String, bool>,
 }
 
 impl Gui {
   pub fn new(fonts: Fonts) -> Self {
-    Self { fonts, batch: Batch::default(), width: 0.0, height: 0.0, pointer: None, press: None, clicks: HashMap::new(), frame_clicks: HashMap::new(), hits: Vec::new(), roots: Vec::new(), scrolls: HashMap::new(), over: None, since: 0.0, now: 0.0, top: Vec::new(), stack: Vec::new(), tips: Vec::new(), covered: false, pressed_button: false, hovered_button: false, buttons: HashMap::new() }
+    Self { fonts, batch: Batch::default(), width: 0.0, height: 0.0, pointer: None, press: None, clicks: HashMap::new(), frame_clicks: HashMap::new(), hits: Vec::new(), roots: Vec::new(), scrolls: HashMap::new(), over: None, since: 0.0, now: 0.0, top: Vec::new(), stack: Vec::new(), tips: Vec::new(), covered: false, pressed_button: None, hovered_button: false, buttons: HashMap::new() }
   }
 
   fn topmost(&self, x: f32, y: f32) -> Option<&(String, Rect, Vec<String>)> {
@@ -499,7 +499,7 @@ impl Gui {
     self.top.clear();
     self.stack.clear();
     self.tips.clear();
-    self.pressed_button = false;
+    self.pressed_button = None;
     self.hovered_button = false;
     let modifiers = |button: u8, long: bool| Click { button, shift: input.keys.contains("shift"), ctrl: input.keys.contains("ctrl") || input.keys.contains("meta"), alt: input.keys.contains("alt"), long };
     let [px, py] = input.pointer.unwrap_or([-1.0, -1.0]);
@@ -508,8 +508,10 @@ impl Gui {
     for (index, button) in [(0usize, 0u8), (1, 2), (2, 1)] {
       if input.pressed[index] {
         let id = self.topmost(px, py).map(|hit| hit.0.clone());
-        if id.as_ref().is_some_and(|id| self.buttons.contains_key(id)) && button == 0 {
-          self.pressed_button = true;
+        if let Some(disabled) = id.as_ref().and_then(|id| self.buttons.get(id)) {
+          if button == 0 {
+            self.pressed_button = Some(*disabled);
+          }
         }
         self.press = Some(Press { id, button, x: px, y: py, time: input.time, long: false });
       }

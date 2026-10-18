@@ -1,7 +1,7 @@
 --!strict
 -- Погода мира — перенос packages/sim-ts/src/weather.ts: смена дня и ночи и медленно бродящие ветер и осадки. Состояния
 -- у неё нет — это функция параметров мира и времени игры, поэтому все игроки видят одну и ту же погоду. На игру не
--- влияет: свет сцены, осадки по биомам, ветер — и его голос.
+-- влияет: свет сцены, осадки по биомам и ветер (его слышно в фоне, audio/ambience).
 
 local weather = {}
 
@@ -24,8 +24,6 @@ local WIND_MAX = 3
 local CALM_WIND = { x = 1.5, y = 0.4 }
 -- Сколько времени идут осадки: шум выше этого порога — дождь или снег, ниже — ясно.
 local RAIN_THRESHOLD = 0.55
-
-weather.voices = { air = "wind" }
 
 local function smooth(t: number): number
 	return t * t * (3 - 2 * t)
@@ -55,7 +53,7 @@ local function seedOf(c): number
 	return if kind then kind.data.seed else 0
 end
 
-function weather.update(a, c, knobs)
+function weather.update(a, c)
 	local d = weather.data
 	local seconds = c.clock
 	local hour = ((d.startHour + (if d.dayLength > 0 then seconds / d.dayLength * 24 else 0)) % 24 + 24) % 24
@@ -79,10 +77,6 @@ function weather.update(a, c, knobs)
 	a.wind = { x = wx, y = wy }
 	a.precipitation = precipitation
 	c.music.mood = if light < 0.5 then "night" else "calm"
-	-- Голос ветра: сильнее ветер — громче и выше.
-	local share = math.clamp(math.sqrt(wx * wx + wy * wy) / WIND_MAX, 0, 1)
-	knobs.air.strength = share
-	knobs.air.gain = 0.1 + share * 0.5 + precipitation * 0.2
 end
 
 return weather

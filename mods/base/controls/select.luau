@@ -172,9 +172,6 @@ function select.update(c)
 			else
 				selection = picked
 			end
-			if #picked > 0 then
-				c:sound("click", { gain = 0.5 })
-			end
 			start = nil
 		end
 	end
