@@ -22,7 +22,17 @@ public sealed class SurfaceTests
         }
         try
         {
-            using var gpu = GpuContext.CreateForWindow(window, vsync: false);
+            GpuContext gpu;
+            try
+            {
+                gpu = GpuContext.CreateForWindow(window, vsync: false);
+            }
+            catch (GpuException error)
+            {
+                Assert.Skip($"нет адаптера WebGPU: {error.Message}");
+                return;
+            }
+            using var _ = gpu;
             Assert.True(gpu.HasSurface);
             using var renderer = new Renderer(gpu);
             Assert.True(renderer.HasPass("present"));

@@ -99,13 +99,15 @@ public sealed unsafe class GpuContext : IDisposable
         var descriptor = new InstanceDescriptor { NextInChain = (ChainedStruct*)&extras };
         Instance = Api.CreateInstance(&descriptor);
         if (Instance == null) throw new GpuException("WebGPU: экземпляр не создан");
-        if (window != null) Surface = window.CreateWebGPUSurface(Api, Instance);
-
-        var options = new RequestAdapterOptions { CompatibleSurface = Surface, PowerPreference = PowerPreference.HighPerformance };
+        if (window != null)
+        {
+            // Без единого бэкенда wgpuInstanceCreateSurface паникует внутри wgpu и роняет процесс — сначала проверяем,
+            // что адаптер вообще есть, и отвечаем исключением.
+            Api.AdapterRelease(RequestAdapter(null));
+            Surface = window.CreateWebGPUSurface(Api, Instance);
+        }
+        Adapter = RequestAdapter(Surface);
         var request = new Request();
-        Api.InstanceRequestAdapter(Instance, &options, new PfnRequestAdapterCallback(&OnAdapter), &request);
-        if (request.Result == null) throw new GpuException("WebGPU: нет адаптера — " + Marshal.PtrToStringUTF8(request.Message));
-        Adapter = (Adapter*)request.Result;
         AdapterProperties properties = default;
         Api.AdapterGetProperties(Adapter, &properties);
         AdapterName = Marshal.PtrToStringUTF8((nint)properties.Name) ?? "";
@@ -124,6 +126,16 @@ public sealed unsafe class GpuContext : IDisposable
         Queue = Api.DeviceGetQueue(Device);
 
         if (Surface != null) ChooseSurfaceFormat(vsync);
+    }
+
+    /// <summary>Адаптер, совместимый с поверхностью (или любой, если её нет); нет адаптера — <see cref="GpuException"/>.</summary>
+    private Adapter* RequestAdapter(Surface* surface)
+    {
+        var options = new RequestAdapterOptions { CompatibleSurface = surface, PowerPreference = PowerPreference.HighPerformance };
+        var request = new Request();
+        Api.InstanceRequestAdapter(Instance, &options, new PfnRequestAdapterCallback(&OnAdapter), &request);
+        if (request.Result == null) throw new GpuException("WebGPU: нет адаптера — " + Marshal.PtrToStringUTF8(request.Message));
+        return (Adapter*)request.Result;
     }
 
     private static InstanceBackend BackendsFromEnvironment() => Environment.GetEnvironmentVariable("KHAROS_GPU_BACKEND")?.ToLowerInvariant() switch
