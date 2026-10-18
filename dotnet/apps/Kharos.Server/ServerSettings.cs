@@ -278,8 +278,6 @@ public sealed class ServerSettings
         Differs("fog", "туман войны задаёт партия мода (games.json), настройка не действует");
         Differs("weather", "погоду ведёт мод, настройка не действует");
         Differs("rules", "правила задают данные модов, настройка не действует");
-        Differs("sendRate", "бюджет отправки появится вместе с интересом в хосте, настройка не действует");
-        Differs("admin", "режим администратора появится вместе с командами чата, настройка не действует");
         Differs("lang", "тексты сервера пока только русские, настройка не действует");
         if (tree["generator"] is JsonObject generator && defaults["generator"] is JsonObject generatorDefaults)
             foreach (var (key, value) in generator)

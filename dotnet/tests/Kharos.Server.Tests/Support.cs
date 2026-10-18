@@ -83,8 +83,8 @@ public static class TestServer
             Loop = builder.Loop ?? new HostLoopOptions { ReportEvery = TimeSpan.Zero },
             Transport = builder.Transport ?? new TransportLimits(),
             CertificateCheck = Timeout.InfiniteTimeSpan,
-            Store = builder.Store,
-            Registry = builder.Registry,
+            Filter = builder.Filter,
+            Session = builder.Session,
         });
     }
 }
@@ -95,8 +95,8 @@ public sealed class ServerOptionsBuilder
     public Action<string>? Log { get; set; }
     public HostLoopOptions? Loop { get; set; }
     public TransportLimits? Transport { get; set; }
-    public ISaveStore? Store { get; set; }
-    public IPlayerRegistry? Registry { get; set; }
+    public Func<uint, Kharos.Protocol.IViewFilter>? Filter { get; set; }
+    public Func<Kharos.Host.HostSessionOptions, Kharos.Host.HostSessionOptions>? Session { get; set; }
 }
 
 /// <summary>Клиент протокола поверх ClientWebSocket: сообщения собираются в фоне, реплика применяется в потоке теста.</summary>
@@ -125,8 +125,9 @@ public sealed class TestClient : IAsyncDisposable
         string? forwarded = null, Func<X509Certificate2?, bool>? certificate = null)
     {
         var query = new List<string>();
+        // Жетон игрока - от 8 до 64 знаков [0-9A-Za-z_-]: короткие имена тестов дополняются.
         if (id is not null)
-            query.Add("id=" + Uri.EscapeDataString(id));
+            query.Add("id=" + Uri.EscapeDataString(id.PadRight(8, '_')));
         if (name is not null)
             query.Add("name=" + Uri.EscapeDataString(name));
         if (password is not null)
@@ -160,7 +161,7 @@ public sealed class TestClient : IAsyncDisposable
                     {
                         await _socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
                     }
-                    catch (WebSocketException)
+                    catch (Exception error) when (error is WebSocketException or ObjectDisposedException)
                     {
                     }
                     return;
@@ -173,7 +174,7 @@ public sealed class TestClient : IAsyncDisposable
                 }
             }
         }
-        catch (Exception error) when (error is WebSocketException or OperationCanceledException or IOException)
+        catch (Exception error) when (error is WebSocketException or OperationCanceledException or IOException or ObjectDisposedException)
         {
             CloseStatus ??= WebSocketCloseStatus.ProtocolError;
             CloseReason ??= "обрыв";
@@ -212,6 +213,13 @@ public sealed class TestClient : IAsyncDisposable
     {
         await _reader.WaitAsync(TimeSpan.FromMilliseconds(milliseconds));
         return (CloseStatus ?? WebSocketCloseStatus.Empty, CloseReason ?? "");
+    }
+
+    /// <summary>Тексты отказа, пришедшие сообщением Refused.</summary>
+    public List<string> Refusals()
+    {
+        Pump();
+        return [.. Replica.Inbox.Where(m => m[0] == (byte)MessageType.Refused).Select(m => Messages.ReadRefused(m).Reason)];
     }
 
     public Task SendAsync(byte[] message) => _socket.SendAsync(message, WebSocketMessageType.Binary, true, CancellationToken.None);

@@ -2,7 +2,7 @@ using System.Net.WebSockets;
 
 namespace Kharos.Server.Tests;
 
-/// <summary>Серверный конец WebSocket: очередь отправки, предел частоты, размер сообщения, закрытие (на поддельном сокете).</summary>
+/// <summary>Серверный конец WebSocket: очередь отправки, размер сообщения, закрытие (на поддельном сокете).</summary>
 public class TransportTests
 {
     private static async Task WaitTrue(Func<bool> probe, string what)
@@ -50,61 +50,6 @@ public class TransportTests
         socket.Feed([1, 2], end: false);
         socket.Feed([3], end: true);
         Assert.Equal([1, 2, 3], await transport.ReceiveAsync());
-        socket.ClientClose();
-        await run;
-    }
-
-    [Fact]
-    public async Task DropsMessagesOverRateThenDisconnectsFlooder()
-    {
-        long now = 0;
-        var socket = new FakeWebSocket();
-        var transport = new WebSocketTransport(socket, new TransportLimits { Rate = 10, Burst = 5, FloodBurst = 3, FloodRate = 1, Now = () => now, CloseWait = TimeSpan.FromMilliseconds(100) });
-        var run = transport.RunAsync(CancellationToken.None);
-        for (var i = 0; i < 5; i++)
-            socket.Feed([(byte)i]);
-        // Пять прошли, следующие три теряются без последствий.
-        for (var i = 0; i < 3; i++)
-            socket.Feed([100]);
-        await WaitTrue(() => transport.Dropped == 3, "сброс");
-        var received = new List<byte>();
-        while (transport.TryReceive(out var message))
-            received.Add(message[0]);
-        Assert.Equal([0, 1, 2, 3, 4], received);
-        Assert.Null(transport.CloseReason);
-        // Не унимается — отключается с причиной flood.
-        socket.Feed([100]);
-        await run;
-        Assert.Equal("flood", transport.CloseReason);
-        Assert.Equal(WebSocketCloseStatus.PolicyViolation, socket.ClosedWith);
-        Assert.Equal("flood", socket.ClosedReason);
-        Assert.True(transport.Closed);
-    }
-
-    [Fact]
-    public async Task RateRefillsOverTime()
-    {
-        long now = 0;
-        var socket = new FakeWebSocket();
-        var transport = new WebSocketTransport(socket, new TransportLimits { Rate = 10, Burst = 2, FloodBurst = 100, Now = () => now });
-        var run = transport.RunAsync(CancellationToken.None);
-        var got = new List<byte>();
-        bool Drain(int count)
-        {
-            while (transport.TryReceive(out var message))
-                got.Add(message[0]);
-            return got.Count == count;
-        }
-        for (byte i = 1; i <= 4; i++)
-            socket.Feed([i]);
-        await WaitTrue(() => transport.Dropped == 2 && Drain(2), "сброс");
-        Assert.Equal([1, 2], got);
-        now += 1000;
-        socket.Feed([5]);
-        socket.Feed([6]);
-        await WaitTrue(() => Drain(4), "пополнение");
-        Assert.Equal([1, 2, 5, 6], got);
-        Assert.Equal(2, transport.Dropped);
         socket.ClientClose();
         await run;
     }

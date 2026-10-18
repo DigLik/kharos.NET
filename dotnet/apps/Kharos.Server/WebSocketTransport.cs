@@ -11,14 +11,6 @@ public sealed record TransportLimits
     /// <summary>Длиннее сообщение от клиента не принимается (как maxPayloadLength сервера на TS).</summary>
     public int MaxMessage { get; init; } = 256 * 1024;
 
-    /// <summary>Сообщений в секунду в среднем и разом: что сверх — отбрасывается (packages/host: MESSAGE_RATE, MESSAGE_BURST).</summary>
-    public double Rate { get; init; } = 30;
-    public double Burst { get; init; } = 120;
-
-    /// <summary>Сколько отброшенных сообщений прощается разом и в секунду: дальше подключение отключается.</summary>
-    public double FloodBurst { get; init; } = 300;
-    public double FloodRate { get; init; } = 1;
-
     /// <summary>Сколько сообщений и байт может ждать отправки; больше — клиент не успевает, его отключают.</summary>
     public int MaxQueued { get; init; } = 512;
     public long MaxQueuedBytes { get; init; } = 48L * 1024 * 1024;
@@ -29,14 +21,12 @@ public sealed record TransportLimits
     /// <summary>Сколько ждать ответа клиента на закрытие, прежде чем оборвать сокет.</summary>
     public TimeSpan CloseWait { get; init; } = TimeSpan.FromSeconds(2);
 
-    /// <summary>Часы, мс (для тестов).</summary>
-    public Func<long> Now { get; init; } = () => Environment.TickCount64;
 }
 
 /// <summary>
 /// Серверный конец <see cref="ITransport"/> поверх WebSocket. Хост (свой поток) шлёт и читает без ожидания; ввод-вывод
 /// сокета идёт в <see cref="RunAsync"/>. Очередь отправки ограничена: клиент, который не успевает, отключается (1013).
-/// Входящие двоичные сообщения идут через предел частоты; текстовые не принимаются.
+/// Текстовые сообщения не принимаются; частоту входящих считает сессия хоста.
 /// </summary>
 public sealed class WebSocketTransport : ITransport
 {
@@ -47,7 +37,6 @@ public sealed class WebSocketTransport : ITransport
     private readonly TransportLimits _limits;
     private readonly Channel<byte[]> _inbox = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
     private readonly Channel<byte[]> _outbox = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
-    private readonly TokenBucket _rate, _flood;
     private readonly CancellationTokenSource _abort = new();
     private long _queuedBytes;
     private int _queued, _sent;
@@ -58,13 +47,7 @@ public sealed class WebSocketTransport : ITransport
     {
         _socket = socket;
         _limits = limits ?? new TransportLimits();
-        _rate = new TokenBucket(_limits.Rate, _limits.Burst, _limits.Now);
-        _flood = new TokenBucket(_limits.FloodRate, _limits.FloodBurst, _limits.Now);
     }
-
-    /// <summary>Отброшено входящих по пределу частоты.</summary>
-    public int Dropped => Volatile.Read(ref _dropped);
-    private int _dropped;
 
     /// <summary>Причина, с которой сервер закрыл подключение; null — закрыл клиент или хост без причины.</summary>
     public string? CloseReason => Volatile.Read(ref _closeReason);
@@ -163,17 +146,9 @@ public sealed class WebSocketTransport : ITransport
                 message.Write(buffer, 0, result.Count);
                 if (!result.EndOfMessage)
                     continue;
-                var bytes = message.ToArray();
+                // Частоту сообщений считает сессия хоста (HostSession: MessageRate, FloodBurst), здесь — только размер и очередь.
+                _inbox.Writer.TryWrite(message.ToArray());
                 message.SetLength(0);
-                if (_rate.Take())
-                {
-                    _inbox.Writer.TryWrite(bytes);
-                    continue;
-                }
-                // Сообщений больше предела: лишние теряются; кто не унимается — отключается.
-                Interlocked.Increment(ref _dropped);
-                if (!_flood.Take())
-                    Close(WebSocketCloseStatus.PolicyViolation, "flood");
             }
         }
         catch (Exception error) when (error is OperationCanceledException or WebSocketException or ObjectDisposedException or IOException)

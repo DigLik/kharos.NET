@@ -1,9 +1,10 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using Kharos.Engine.World;
+using Kharos.Content;
 using Kharos.Host;
 using Kharos.Protocol;
 using KHost = Kharos.Host.Host;
+using KHostOptions = Kharos.Host.HostOptions;
 
 namespace Kharos.Server;
 
@@ -20,9 +21,6 @@ public sealed record HostLoopOptions
     public TimeSpan ReportEvery { get; init; } = TimeSpan.FromSeconds(5);
 }
 
-/// <summary>Сохранение не подошло миру хоста.</summary>
-internal sealed class RestoreException(string message) : Exception(message);
-
 /// <summary>
 /// Поток хоста: создаёт <see cref="KHost"/> у себя (моды Wasmtime вызываются только оттуда), входит в мир из
 /// сохранения, гоняет <see cref="HostSession.Step"/> на 20 Гц, сохраняет раз в 30 с и при остановке. Всё остальное
@@ -30,9 +28,11 @@ internal sealed class RestoreException(string message) : Exception(message);
 /// </summary>
 public sealed class HostLoop : IDisposable
 {
-    private readonly Func<KHost> _create;
-    private readonly ISaveStore _store;
-    private readonly IPlayerRegistry _registry;
+    private readonly GameContent _content;
+    private readonly KHostOptions _hostOptions;
+    private readonly HostSessionOptions _sessionOptions;
+    private readonly string _savePath;
+    private readonly Action<HostSession>? _setup;
     private readonly HostLoopOptions _options;
     private readonly Action<string> _log;
     private readonly ConcurrentQueue<Action<HostSession>> _queue = new();
@@ -44,20 +44,22 @@ public sealed class HostLoop : IDisposable
     private Task _writing = Task.CompletedTask;
     private long _ticks;
 
-    private HostLoop(Func<KHost> create, ISaveStore store, IPlayerRegistry registry, HostLoopOptions options, Action<string> log)
+    private HostLoop(GameContent content, KHostOptions hostOptions, HostSessionOptions sessionOptions, string savePath, Action<HostSession>? setup, HostLoopOptions options, Action<string> log)
     {
-        _create = create;
-        _store = store;
-        _registry = registry;
+        _content = content;
+        _hostOptions = hostOptions;
+        _sessionOptions = sessionOptions;
+        _savePath = savePath;
+        _setup = setup;
         _options = options;
         _log = log;
         _thread = new Thread(Run) { Name = "Kharos host", IsBackground = true };
     }
 
     /// <summary>Запускает поток и ждёт, пока хост создан и вошёл в мир; ошибка — исключение здесь же.</summary>
-    public static HostLoop Start(Func<KHost> create, ISaveStore store, IPlayerRegistry registry, HostLoopOptions? options, Action<string> log)
+    public static HostLoop Start(GameContent content, KHostOptions hostOptions, HostSessionOptions sessionOptions, string savePath, Action<HostSession>? setup, HostLoopOptions? options, Action<string> log)
     {
-        var loop = new HostLoop(create, store, registry, options ?? new HostLoopOptions(), log);
+        var loop = new HostLoop(content, hostOptions, sessionOptions, savePath, setup, options ?? new HostLoopOptions(), log);
         loop._thread.Start();
         loop._ready.Wait();
         if (loop.Failure is { } failure)
@@ -135,21 +137,9 @@ public sealed class HostLoop : IDisposable
         HostSession? session = null;
         try
         {
-            host = _create();
-            session = new HostSession(host);
-            try
-            {
-                Enter(host, session);
-            }
-            catch (RestoreException error)
-            {
-                // Хост уже тронут сохранением, которое ему не подошло: откладываем файл и поднимаем хост заново с чистого мира.
-                _store.Reject(error.Message, _log);
-                host.Dispose();
-                host = _create();
-                session = new HostSession(host);
-                Enter(host, session);
-            }
+            host = Open();
+            session = new HostSession(host, _sessionOptions);
+            _setup?.Invoke(session);
         }
         catch (Exception error)
         {
@@ -174,7 +164,7 @@ public sealed class HostLoop : IDisposable
             try
             {
                 Save(session).GetAwaiter().GetResult();
-                _log($"мир сохранён в {_store.Description}");
+                _log($"мир сохранён в {_savePath}");
             }
             catch (Exception error)
             {
@@ -188,31 +178,33 @@ public sealed class HostLoop : IDisposable
     }
 
     /// <summary>
-    /// Начало: партия и мир. Игроки из сохранения входят до подмены мира: событие входа ставит их стартовые юниты, а
-    /// мир из сохранения затем заменяет всё. ШОВ: загрузка сохранения нового хоста вместо <see cref="WorldRestore"/>.
+    /// Хост из сохранения (тик, случайность, игроки, обзор, память модов — всё у хоста) или новый с началом партии.
+    /// Сохранение другой версии откладывается в <c>&lt;имя&gt;.v&lt;версия&gt;</c>, нечитаемое — в <c>.old</c>: мир начинается заново.
     /// </summary>
-    private void Enter(KHost host, HostSession session)
+    private KHost Open()
     {
-        var saved = _store.Load(_log);
+        var bytes = SaveFiles.Read(_savePath);
+        if (bytes is not null)
+        {
+            try
+            {
+                var loaded = KHost.Load(_content, bytes, _hostOptions);
+                _log($"мир загружен из {_savePath}: тик {loaded.Tick}, сущностей {loaded.World.Count}, игроков {loaded.Roster.Count}");
+                return loaded;
+            }
+            catch (SaveVersionException error)
+            {
+                SaveFiles.AsideVersion(_savePath, error.Found, _log);
+            }
+            catch (HostException error)
+            {
+                SaveFiles.AsideBroken(_savePath, error.Message, _log);
+            }
+        }
+        var host = new KHost(_content, _hostOptions);
         host.Start();
-        if (saved is null)
-        {
-            _log($"новый мир, партия {host.Game.Name}, моды: {string.Join(", ", host.Content.Mods.Select(mod => mod.Name))}");
-            return;
-        }
-        try
-        {
-            foreach (var record in saved.Players)
-                host.Join(record.Player);
-            WorldRestore.Apply(host.World, saved.World);
-        }
-        catch (FormatException error)
-        {
-            throw new RestoreException(error.Message);
-        }
-        _registry.Restore(saved.Players);
-        session.Broadcast();
-        _log($"мир загружен из {_store.Description}: сущностей {host.World.Count}, игроков {saved.Players.Count}");
+        _log($"новый мир, партия {host.Game.Name}, моды: {string.Join(", ", host.Content.Mods.Select(mod => mod.Name))}");
+        return host;
     }
 
     private void Loop(HostSession session)
@@ -282,17 +274,19 @@ public sealed class HostLoop : IDisposable
         }
     }
 
-    /// <summary>Снимок мира — в потоке хоста, запись файла — следом в фоне, по очереди.</summary>
-    private Task Save(HostSession session)
+    /// <summary>Снимок мира — в потоке хоста (копии), сжатие и запись файла — следом в фоне, по очереди.</summary>
+    private Task Save(HostSession session) => SaveFromHost(session);
+
+    /// <summary>Сохранение из потока хоста (команда консоли); завершается, когда файл записан.</summary>
+    public Task SaveFromHost(HostSession session)
     {
-        var host = session.Host;
-        var snapshot = new SaveSnapshot(Welcome.ProtocolVersion, host.Tick, _registry.Players, WorldSave.Save(host.World));
+        var captured = HostSave.Capture(session.Host);
         var previous = _writing;
         var write = Task.Run(async () =>
         {
             // Упавшая запись не должна оставаться в цепочке навсегда: следующая всё равно пойдёт.
             try { await previous.ConfigureAwait(false); } catch (Exception) { }
-            _store.Write(snapshot);
+            SaveFiles.Write(_savePath, captured.Encode());
         });
         _writing = write.ContinueWith(task =>
         {

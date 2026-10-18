@@ -49,8 +49,11 @@ public sealed class ServerOptions
     /// <summary>Как часто перечитывается сертификат tls.files; по умолчанию раз в 12 часов.</summary>
     public TimeSpan? CertificateCheck { get; init; }
 
-    public ISaveStore? Store { get; init; }
-    public IPlayerRegistry? Registry { get; init; }
+    /// <summary>Свой фильтр обзора (в тестах - полный); по умолчанию хост даёт обзор игрока.</summary>
+    public Func<uint, IViewFilter>? Filter { get; init; }
+
+    /// <summary>Правка настроек сессии хоста (чат, поток сообщений) поверх собранных из settings.json.</summary>
+    public Func<HostSessionOptions, HostSessionOptions>? Session { get; init; }
 }
 
 /// <summary>
@@ -66,9 +69,8 @@ public sealed class GameServer : IAsyncDisposable
     private readonly ServerSettings _settings;
     private readonly Action<string> _log;
     private readonly ConnectGate _gate;
-    private readonly IPlayerRegistry _registry;
-    private readonly ISaveStore _store;
     private readonly byte[] _passwordDigest;
+    private readonly TaskCompletionSource _stopRequested = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly ConcurrentDictionary<WebSocketTransport, string> _links = new();
     private readonly CancellationTokenSource _stopping = new();
     private readonly FileCertificate? _certificate;
@@ -82,16 +84,18 @@ public sealed class GameServer : IAsyncDisposable
         _settings = options.Settings;
         _log = options.Log ?? (text => Console.WriteLine(text));
         _gate = new ConnectGate(_settings.Limits);
-        _registry = options.Registry ?? new PlayerRegistry();
-        _store = options.Store ?? new FileSaveStore(_settings.Save);
         _passwordDigest = SHA256.HashData(Encoding.UTF8.GetBytes(_settings.Password));
         if (_settings.Tls.Mode == "files")
             _certificate = new FileCertificate(_settings.Tls.Cert, _settings.Tls.Key, _log, options.CertificateCheck);
     }
 
-    public ISaveStore Store => _store;
-    public IPlayerRegistry Registry => _registry;
+    /// <summary>Файл сохранения мира.</summary>
+    public string SavePath => _settings.Save;
+
     public HostLoop Loop => _loop;
+
+    /// <summary>Оператор попросил остановиться (консольная команда stop).</summary>
+    public Task StopRequested => _stopRequested.Task;
 
     /// <summary>Порт, на котором слушает сервер.</summary>
     public int Port { get; private set; }
@@ -134,7 +138,16 @@ public sealed class GameServer : IAsyncDisposable
         var seed = _settings.Seed == 0 ? 1 : _settings.Seed;
         var modules = _options.Modules ?? new Kharos.Plugins.Game.GameModuleOptions();
         // Хост создаётся в своём потоке (Wasmtime): сюда уходит только то, что нужно для создания.
-        _loop = HostLoop.Start(() => new KHost(content, new KHostOptions { Game = _options.Game, Seed = seed, Modules = modules, Log = _log }), _store, _registry, _options.Loop, _log);
+        var session = new HostSessionOptions
+        {
+            // sendRate в настройках - КБ/с на игрока, 0 снимает предел.
+            SendRate = _settings.SendRate * 1024,
+            AdminPassword = _settings.Admin.Length > 0 ? _settings.Admin : null,
+            Log = _log,
+        };
+        if (_options.Session is { } tweak)
+            session = tweak(session);
+        _loop = HostLoop.Start(content, new KHostOptions { Game = _options.Game, Seed = seed, Modules = modules, Log = _log }, session, _settings.Save, Setup, _options.Loop, _log);
 
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
@@ -160,6 +173,36 @@ public sealed class GameServer : IAsyncDisposable
         await _app.StartAsync().ConfigureAwait(false);
         Port = new Uri(_app.Urls.First().Replace("[::]", "localhost").Replace("0.0.0.0", "localhost")).Port;
         _log($"Kharos слушает {(Secure ? "wss" : "ws")}://localhost:{Port}");
+    }
+
+    /// <summary>Настройка сессии в потоке хоста: фильтр обзора и команды консоли сервера.</summary>
+    private void Setup(HostSession session)
+    {
+        if (_options.Filter is { } filter)
+            session.Filter = filter;
+        session.AddCommand(new HostCommand
+        {
+            Name = "save", Help = "сохранить мир", Console = true,
+            Run = call =>
+            {
+                call.Caller.Reply("сохраняю...");
+                _ = _loop.SaveFromHost(session).ContinueWith(task => call.Caller.Reply(task.IsCompletedSuccessfully ? $"мир сохранён в {SavePath}" : "мир не сохранён"), TaskScheduler.Default);
+            },
+        });
+        session.AddCommand(new HostCommand
+        {
+            Name = "stop", Help = "сохранить мир и выйти", Console = true,
+            Run = call =>
+            {
+                call.Caller.Reply("останавливаюсь...");
+                _stopRequested.TrySetResult();
+            },
+        });
+        session.AddCommand(new HostCommand
+        {
+            Name = "status", Help = "состояние сервера", Console = true,
+            Run = call => call.Caller.Reply($"тик {session.Host.Tick}, сущностей {session.Host.World.Count}, клиентов {session.Connections.Count}, тик хоста {_loop.LastTickMs:0.00} мс, ошибок мода {session.Host.Errors.Count}"),
+        });
     }
 
     /// <summary>Базовые моды рядом с программой и моды из настроек.</summary>
@@ -223,18 +266,22 @@ public sealed class GameServer : IAsyncDisposable
             if (version != Welcome.ProtocolVersion)
             {
                 _log($"× клиент версии {version}");
-                await RefuseAsync(socket, $"version: server {Welcome.ProtocolVersion}, client {version}").ConfigureAwait(false);
+                var text = version < Welcome.ProtocolVersion
+                    ? $"Игра устарела: сервер версии {Welcome.ProtocolVersion}, у вас {version}. Обновите игру."
+                    : $"Сервер устарел: у него версия {Welcome.ProtocolVersion}, у вас {version}.";
+                await RefuseAsync(socket, $"version: server {Welcome.ProtocolVersion}, client {version}", text, false).ConfigureAwait(false);
             }
             else if (!PasswordOk(password))
             {
                 _log(password.Length == 0 ? "× нужен пароль" : "× неверный пароль");
-                await RefuseAsync(socket, password.Length == 0 ? "password-needed" : "wrong-password").ConfigureAwait(false);
+                await RefuseAsync(socket, password.Length == 0 ? "password-needed" : "wrong-password",
+                    password.Length == 0 ? "Нужен пароль" : "Неверный пароль", true).ConfigureAwait(false);
             }
             // Новый игрок занимает место на карте: с одного адреса их заводится немного.
-            else if (!_registry.Known(id) && !_gate.Newcomer(address))
+            else if (!await KnowsAsync(id).ConfigureAwait(false) && !_gate.Newcomer(address))
             {
                 _log($"× слишком много новых игроков с {address}");
-                await RefuseAsync(socket, "newcomers").ConfigureAwait(false);
+                await RefuseAsync(socket, "newcomers", "Слишком много новых игроков с вашего адреса, попробуйте позже", false).ConfigureAwait(false);
             }
             else
             {
@@ -247,12 +294,17 @@ public sealed class GameServer : IAsyncDisposable
         }
     }
 
-    private static async Task RefuseAsync(WebSocket socket, string reason)
+    /// <summary>Знает ли хост игрока с таким жетоном (спрашивается в потоке хоста: список игроков не для других потоков).</summary>
+    private Task<bool> KnowsAsync(string? token) => string.IsNullOrEmpty(token) ? Task.FromResult(false) : _loop.Invoke(session => session.Knows(token));
+
+    /// <summary>Отказ: сообщение протокола с причиной для игрока, затем закрытие 1008 с кодом причины (для старых клиентов и логов).</summary>
+    private static async Task RefuseAsync(WebSocket socket, string code, string text, bool password)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         try
         {
-            await socket.CloseAsync(WebSocketCloseStatus.PolicyViolation, reason, timeout.Token).ConfigureAwait(false);
+            await socket.SendAsync(Messages.Refused(text, password), WebSocketMessageType.Binary, true, timeout.Token).ConfigureAwait(false);
+            await socket.CloseAsync(WebSocketCloseStatus.PolicyViolation, code, timeout.Token).ConfigureAwait(false);
         }
         catch (Exception error) when (error is OperationCanceledException or WebSocketException or IOException)
         {
@@ -286,62 +338,37 @@ public sealed class GameServer : IAsyncDisposable
     /// <summary>Вход игрока в потоке хоста. Тот же игрок с другого подключения вытесняет прежнее.</summary>
     private uint Connect(HostSession session, WebSocketTransport transport, string? id, string? name, string address)
     {
-        var player = _registry.Join(id, name);
-        foreach (var old in session.Connections.Where(c => c.Player == player).ToList())
-        {
-            if (old.Transport is WebSocketTransport previous)
-                previous.Close(WebSocketCloseStatus.NormalClosure, "replaced");
-            session.Disconnect(old);
-        }
+        if (session.Host.Roster.Find(id) is { } known)
+            foreach (var old in session.Connections.Where(c => c.Player == known).ToList())
+            {
+                if (old.Transport is WebSocketTransport previous)
+                    previous.Close(WebSocketCloseStatus.NormalClosure, "replaced");
+                session.Disconnect(old);
+            }
         if (transport.Closed)
-            return player;
-        session.Connect(transport, player);
-        _log($"+ игрок {player}{(string.IsNullOrEmpty(name) ? "" : $" «{name}»")} ({address})");
-        return player;
+            return 0;
+        var connection = session.Join(transport, id, name);
+        _log($"+ игрок {connection.Player}{(string.IsNullOrEmpty(name) ? "" : $" «{name}»")} ({address})");
+        return connection.Player;
     }
 
-    /// <summary>Выполняет команду консоли (help, players, status, save, kick, stop обрабатывает вызывающий); ответ — строки.</summary>
+    /// <summary>Выполняет строку консоли как команду администратора (help, list, players, say, kick, status, save, stop...); ответ - строки.</summary>
     public async Task<string[]> CommandAsync(string line)
     {
-        var parts = line.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length == 0)
+        line = line.Trim();
+        if (line.Length == 0)
             return [];
-        switch (parts[0].TrimStart('/').ToLowerInvariant())
+        if (line.TrimStart('/').Equals("save", StringComparison.OrdinalIgnoreCase))
         {
-            case "help":
-                return ["help — команды", "players — игроки в сети", "status — состояние сервера", "kick <игрок> — отключить игрока", "save — сохранить мир", "stop — сохранить и выйти"];
-            case "players":
-                return await _loop.Invoke(session =>
-                {
-                    if (session.Connections.Count == 0)
-                        return new[] { "никого нет" };
-                    return session.Connections.Select(c => $"{c.Player} {_registry.NameOf(c.Player)}: отправлено {c.BytesSent / 1024} КБ, сообщений {c.Messages}, плохих приказов {c.BadOrders}").ToArray();
-                }).ConfigureAwait(false);
-            case "status":
-                return await _loop.Invoke(session => new[]
-                {
-                    $"тик {session.Host.Tick}, сущностей {session.Host.World.Count}, клиентов {session.Connections.Count}, тик хоста {_loop.LastTickMs:0.00} мс, ошибок мода {session.Host.Errors.Count}",
-                }).ConfigureAwait(false);
-            case "save":
-                await _loop.SaveAsync().ConfigureAwait(false);
-                return [$"мир сохранён в {_store.Description}"];
-            case "kick":
-                if (parts.Length < 2 || !uint.TryParse(parts[1], out var target))
-                    return ["kick <номер игрока>"];
-                return await _loop.Invoke(session =>
-                {
-                    var kicked = 0;
-                    foreach (var c in session.Connections.Where(c => c.Player == target).ToList())
-                    {
-                        (c.Transport as WebSocketTransport)?.Close(WebSocketCloseStatus.PolicyViolation, "kick");
-                        session.Disconnect(c);
-                        kicked++;
-                    }
-                    return new[] { kicked == 0 ? $"игрока {target} нет в сети" : $"игрок {target} отключён" };
-                }).ConfigureAwait(false);
-            default:
-                return [$"{parts[0]}? команды: help"];
+            await _loop.SaveAsync().ConfigureAwait(false);
+            return [$"мир сохранён в {SavePath}"];
         }
+        return await _loop.Invoke(session =>
+        {
+            var replies = new List<string>();
+            session.Command(line, new Caller(null, true, replies.Add));
+            return replies.ToArray();
+        }).ConfigureAwait(false);
     }
 
     /// <summary>Остановка: подключения закрываются, мир сохраняется, порт закрывается. Повторный вызов ничего не делает.</summary>

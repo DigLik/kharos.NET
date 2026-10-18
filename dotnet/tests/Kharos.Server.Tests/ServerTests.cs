@@ -59,7 +59,8 @@ public class ServerTests
     {
         Assert.SkipUnless(Env.HelloBuilt, Env.NotBuilt);
         using var temp = new Env.Temp();
-        await using var server = await TestServer.StartAsync(temp);
+        // Дома игроков в hello далеко друг от друга, а обзор по умолчанию показывает только своё: здесь - полный фильтр.
+        await using var server = await TestServer.StartAsync(temp, options: o => o.Filter = player => new FullView(player));
         await using var first = await TestClient.ConnectAsync(server, "a");
         await first.WaitAsync(() => first.Replica.Ready, "первый вошёл");
         await using var second = await TestClient.ConnectAsync(server, "b");
@@ -76,7 +77,10 @@ public class ServerTests
         using var temp = new Env.Temp();
         await using var server = await TestServer.StartAsync(temp, modDir: Env.BaseDir);
         await using var client = await TestClient.ConnectAsync(server, "a");
-        await client.WaitAsync(() => client.Replica.Ready && client.Replica.World!.Count > 10, "мир base в реплике");
+        await client.WaitAsync(() => client.Replica.Ready, "мир base в реплике");
+        await Task.Delay(500);
+        client.Pump();
+        Assert.True(client.Replica.World!.Count > 3, $"сущностей в реплике: {client.Replica.World.Count}");
         Assert.Equal(1u, client.Replica.Player);
         Assert.NotEqual("hello", client.Replica.Welcome!.Game);
     }
@@ -120,7 +124,7 @@ public class ServerTests
         Assert.StartsWith("version", reason);
         Assert.Contains($"client {version}", reason);
         Assert.False(client.Replica.Ready);
-        Assert.Empty(server.Registry.Players);
+        Assert.Contains(version.ToString(), Assert.Single(client.Refusals()));
     }
 
     [Fact]
@@ -251,8 +255,10 @@ public class ServerTests
         catch (WebSocketException)
         {
         }
-        var (status, reason) = await client.ClosedAsync();
-        Assert.Equal((WebSocketCloseStatus.PolicyViolation, "flood"), (status, reason));
+        // Поток сообщений считает сессия хоста: отказ сообщением и штатное закрытие.
+        var (status, _) = await client.ClosedAsync();
+        Assert.Equal(WebSocketCloseStatus.NormalClosure, status);
+        Assert.Contains("Слишком много сообщений", client.Refusals());
     }
 
     [Fact]
@@ -290,8 +296,6 @@ public class ServerTests
 
             Assert.True(File.Exists(saved));
             Assert.False(File.Exists(saved + ".tmp"));
-            var snapshot = server.Store.Load(_ => { })!;
-            Assert.Equal([new PlayerRecord("alpha", 1, "Альфа")], snapshot.Players);
             await client.WaitAsync(() => true, "тик");
             positions = client.Units(1).Select(client.Position).ToList();
         }
@@ -333,9 +337,9 @@ public class ServerTests
     {
         Assert.SkipUnless(Env.HelloBuilt, Env.NotBuilt);
         using var temp = new Env.Temp();
-        new FileSaveStore(temp.File("save.kharos")).Write(new SaveSnapshot(Welcome.ProtocolVersion + 1, 5, [], [1, 2, 3]));
+        File.WriteAllBytes(temp.File("save.kharos"), SaveFile.Pack([("META", [1, 2, 3])], SaveFile.Version + 1));
         await using var server = await TestServer.StartAsync(temp);
-        Assert.True(File.Exists(temp.File($"save.kharos.v{Welcome.ProtocolVersion + 1}")));
+        Assert.True(File.Exists(temp.File($"save.kharos.v{SaveFile.Version + 1}")));
         await using var client = await TestClient.ConnectAsync(server, "a");
         await client.WaitAsync(() => client.Replica.Ready && client.Units(1).Count == 3, "новый мир");
     }
@@ -360,20 +364,25 @@ public class ServerTests
         Assert.SkipUnless(Env.HelloBuilt, Env.NotBuilt);
         using var temp = new Env.Temp();
         await using var server = await TestServer.StartAsync(temp);
-        Assert.Contains("никого нет", await server.CommandAsync("players"));
+        Assert.Contains("В игре никого", await server.CommandAsync("list"));
         await using var client = await TestClient.ConnectAsync(server, "a", "Альфа");
         await client.WaitAsync(() => client.Replica.Ready, "вошёл");
 
-        Assert.Contains(await server.CommandAsync("players"), line => line.StartsWith("1 Альфа"));
+        Assert.Contains(await server.CommandAsync("list"), line => line.Contains("Альфа"));
+        Assert.Contains(await server.CommandAsync("players"), line => line.StartsWith("#1 Альфа: в сети"));
         Assert.Contains(await server.CommandAsync("status"), line => line.Contains("клиентов 1"));
-        Assert.Contains(await server.CommandAsync("help"), line => line.StartsWith("save"));
+        Assert.Contains(await server.CommandAsync("help"), line => line.Contains("save"));
         Assert.Contains(await server.CommandAsync("/save"), line => line.StartsWith("мир сохранён"));
         Assert.True(File.Exists(temp.File("save.kharos")));
-        Assert.Contains(await server.CommandAsync("kick 9"), line => line.Contains("нет в сети"));
-        Assert.Contains(await server.CommandAsync("kick 1"), line => line.Contains("отключён"));
-        var (status, reason) = await client.ClosedAsync();
-        Assert.Equal((WebSocketCloseStatus.PolicyViolation, "kick"), (status, reason));
-        Assert.StartsWith("fly?", Assert.Single(await server.CommandAsync("fly")));
+        // say от имени сервера доходит до игроков чатом.
+        Assert.Empty(await server.CommandAsync("say Привет всем"));
+        await client.WaitAsync(() => client.Replica.Inbox.Any(m => m[0] == (byte)MessageType.Chat && Messages.ReadChat(m).Any(line => line.Text.Contains("Привет всем"))), "say дошёл");
+        Assert.Contains(await server.CommandAsync("kick Никто"), line => line.Contains("Нет игрока"));
+        Assert.Empty(await server.CommandAsync("kick Альфа"));
+        var (status, _) = await client.ClosedAsync();
+        Assert.Equal(WebSocketCloseStatus.NormalClosure, status);
+        Assert.Contains("Вас отключили", client.Refusals());
+        Assert.Contains("Нет команды /fly", Assert.Single(await server.CommandAsync("fly")));
     }
 
     [Fact]

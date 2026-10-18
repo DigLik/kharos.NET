@@ -58,9 +58,35 @@ internal sealed class TestServer : IAsyncDisposable
         await app.StartAsync();
         var address = app.Urls.First().Replace("http://", "ws://", StringComparison.Ordinal);
         server = new TestServer(app, new Uri(address + "/play"));
+        await WaitListeningAsync(server.Url);
         if (handler is not null)
             server.Handler = handler;
         return server;
+    }
+
+    /// <summary>
+    /// Ждёт, пока порт принимает соединения: на загруженной машине первое подключение сразу после запуска Kestrel
+    /// иногда не проходило («Unable to connect»), и тест падал не по своей вине.
+    /// </summary>
+    private static async Task WaitListeningAsync(Uri url)
+    {
+        var limit = DateTime.UtcNow.AddSeconds(15);
+        while (true)
+        {
+            try
+            {
+                using var probe = new System.Net.Sockets.TcpClient();
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                await probe.ConnectAsync(url.Host, url.Port, timeout.Token);
+                return;
+            }
+            catch (Exception error) when (error is System.Net.Sockets.SocketException or OperationCanceledException)
+            {
+                if (DateTime.UtcNow > limit)
+                    throw;
+                await Task.Delay(20);
+            }
+        }
     }
 
     /// <summary>Эхо: каждое сообщение — обратно, Close — ответным Close; о закрытии клиентом сообщается в <see cref="ClientClosed"/>.</summary>

@@ -7,10 +7,12 @@ namespace Kharos.Host.Tests;
 /// <summary>
 /// Замер тика целиком: 10 тыс. юнитов hello через хост — приказы, ходовая и теснота в wasm (с инструментом Separate),
 /// обзор, дельта для клиента и её применение репликой. Пишет время в вывод теста; падает, только если тик за бюджетом.
+/// Явный: под общим прогоном всех сборок тестов машина занята, и медиана тика ничего не говорит. Запуск:
+/// <c>tests/Kharos.Host.Tests/bin/Release/net11.0/Kharos.Host.Tests -class Kharos.Host.Tests.TickBenchTests -explicit only</c>.
 /// </summary>
 public class TickBenchTests
 {
-    [Fact]
+    [Fact(Explicit = true)]
     public void TenThousandUnitsFitTickBudget()
     {
         using var host = HelloGame.Create();

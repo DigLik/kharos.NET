@@ -3,7 +3,7 @@ using Kharos.Server;
 
 // Выделенный сервер Kharos. Использование: kharos-server [--settings путь] [--mods папка]... [--game партия]
 // Настройки — settings.json рядом (создаётся со всеми умолчаниями); PORT, SAVE, SETTINGS сильнее файла.
-// Моды: папка mods рядом с программой, затем --mods и settings.mods. Консоль: строки stdin (help, players, status, save, kick, stop).
+// Моды: папка mods рядом с программой, затем --mods и settings.mods. Консоль: строки stdin (help, list, players, say, kick, status, save, stop).
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
@@ -74,7 +74,7 @@ _ = Task.Run(async () =>
     }
 });
 
-await Task.WhenAny(stop.Task, server.HostFinished);
+await Task.WhenAny(stop.Task, server.StopRequested, server.HostFinished);
 var failed = server.Loop.Failure is not null;
 await server.DisposeAsync();
 return failed ? 1 : 0;
