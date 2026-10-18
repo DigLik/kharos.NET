@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Хост-часть мода base: правила Kharos из Luau-пилота (docs/dotnet.md, Н3). host.wasm — tools/build-mods.ps1. -->
+  <PropertyGroup>
+    <KharosModClass>Base.Host.BaseMod</KharosModClass>
+    <RootNamespace>Base.Host</RootNamespace>
+  </PropertyGroup>
+</Project>

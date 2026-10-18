@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Без теневого стека CET: ловушки Wasmtime на Windows (см. Kharos.Plugins.Tests). -->
+    <CetCompat>false</CetCompat>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Kharos.Host\Kharos.Host.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Content\Kharos.Content.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Protocol\Kharos.Protocol.csproj" />
+    <PackageReference Include="MemoryPack" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Payload приказов и сигналов base и его геометрия — те же файлы, что в host.wasm. -->
+    <Compile Include="..\..\mods\base\Base.Host\Payloads.cs" Link="Base\Payloads.cs" />
+    <Compile Include="..\..\mods\base\Base.Host\Geom.cs" Link="Base\Geom.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,19 @@
+{
+  "name": "base",
+  "title": "Kharos",
+  "version": "0.1.0",
+  "abi": 1,
+  "requires": [],
+  "game": "skirmish",
+  "host": "host.wasm",
+  "components": {
+    "Drive": { "move": "", "speed": 0, "turn": 0, "tx": 0, "ty": 0, "moving": false },
+    "Attached": { "parent": 0, "along": 0, "across": 0 },
+    "Turret": { "angle": 0 },
+    "Player": { "id": 0, "credits": 0 },
+    "Producer": { "unit": "", "progress": 0, "queue": null, "rally": false, "rallyX": 0, "rallyY": 0 },
+    "Unit": { "radius": 0.5 },
+    "Building": { "width": 1, "height": 1 },
+    "Deposit": { "reserve": 0, "total": 0 }
+  }
+}

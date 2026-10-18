@@ -1,0 +1,11 @@
+{
+  "skirmish": {
+    "title": "Схватка",
+    "credits": 1000,
+    "start": { "buggy": 3 },
+    "radius": 24,
+    "size": 128,
+    "fog": true,
+    "land": "desert"
+  }
+}

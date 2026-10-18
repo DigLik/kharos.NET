@@ -14,10 +14,12 @@
     <Project Path="apps/Kharos.Desktop/Kharos.Desktop.csproj" />
   </Folder>
   <Folder Name="/mods/">
+    <Project Path="mods/base/Base.Host/Base.Host.csproj" />
     <Project Path="mods/hello/Hello.Host/Hello.Host.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Kharos.Audio.Tests/Kharos.Audio.Tests.csproj" />
+    <Project Path="tests/Kharos.Base.Tests/Kharos.Base.Tests.csproj" />
     <Project Path="tests/Kharos.Client.Tests/Kharos.Client.Tests.csproj" />
     <Project Path="tests/Kharos.Engine.Tests/Kharos.Engine.Tests.csproj" />
     <Project Path="tests/Kharos.Gpu.Tests/Kharos.Gpu.Tests.csproj" />

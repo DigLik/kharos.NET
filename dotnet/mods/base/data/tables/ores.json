@@ -1,0 +1,20 @@
+{
+  "metalOre": {
+    "resource": "metal"
+  },
+  "siliconOre": {
+    "resource": "silicon"
+  },
+  "fuelOre": {
+    "resource": "fuel"
+  },
+  "khariteOre": {
+    "resource": "kharite"
+  },
+  "lithiumOre": {
+    "resource": "lithium"
+  },
+  "uraniumOre": {
+    "resource": "uranium"
+  }
+}
