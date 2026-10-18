@@ -12,3 +12,10 @@ opt-level = 1
 [profile.release]
 strip = "symbols"
 codegen-units = 1
+
+# Выпуск со всеми оптимизациями: release плюс полный LTO по всем крейтам и обрыв при панике без раскрутки стека.
+# Собирается в разы дольше — только к выпуску: `cargo build --profile dist -p kharos-client`.
+[profile.dist]
+inherits = "release"
+lto = "fat"
+panic = "abort"
