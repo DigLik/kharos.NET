@@ -13,6 +13,8 @@
     <!-- Клиент партии: сквозные тесты подачи base (host.wasm + client.wasm) и сверка обликов. -->
     <ProjectReference Include="..\..\src\Kharos.Client\Kharos.Client.csproj" />
     <ProjectReference Include="..\..\src\Kharos.Mod.Sdk\Kharos.Mod.Sdk.csproj" />
+    <!-- Обвязка сценариев: Sim.Create, Advance, Send, правки edit.* и сохранение (docs/dotnet-n5.md, Н5.6). -->
+    <ProjectReference Include="..\Kharos.Base.Scenario\Kharos.Base.Scenario.csproj" />
     <!-- Общее base: данные, имена, приказы — то же, что в host.wasm и client.wasm. -->
     <ProjectReference Include="..\..\mods\base\Base.Shared\Base.Shared.csproj" />
     <!-- Звук base: движок звука (офлайн, без устройства). -->
@@ -35,7 +37,10 @@
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="Kharos.Base.Scenario" />
     <!-- Эталоны графики из TS (dump.ts) — рядом с тестами. -->
     <None Include="Looks\golden\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Эталоны баланса из TS (KHAROS_HARNESS_JSON=1 bun tools/balance.ts all) — для tools/Kharos.Balance. -->
+    <None Include="Balance\golden\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

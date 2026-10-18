@@ -24,6 +24,7 @@ import { runRaids } from './harness/raid'
 import { runResearch } from './harness/research'
 import { runNuke } from './harness/nuke'
 import { printBuilders, printCrossing, printFormation, printLoad, printSurround, runMovement } from './harness/movement'
+import { flushHarness, section } from './harness/lib'
 
 const modes: Record<string, () => void> = {
   table: () => printStats(),
@@ -41,14 +42,14 @@ const modes: Record<string, () => void> = {
   load: () => printLoad(),
   crossing: () => printCrossing(),
   all: () => {
-    runCombat()
-    runEconomy()
-    runSiege()
-    runRaids()
-    runResearch()
-    runNuke()
-    runMovement()
-    printCrossing()
+    section('combat', runCombat)
+    section('economy', runEconomy)
+    section('siege', runSiege)
+    section('raid', runRaids)
+    section('research', runResearch)
+    section('nuke', runNuke)
+    section('movement', runMovement)
+    section('crossing', printCrossing)
   },
 }
 
@@ -58,4 +59,5 @@ if (!run) {
   console.error(`Неизвестный раздел «${mode}». Есть: ${Object.keys(modes).join(', ')}`)
   process.exit(1)
 }
-run()
+section(mode, run)
+flushHarness()

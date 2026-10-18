@@ -23,6 +23,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Kharos.Audio.Tests/Kharos.Audio.Tests.csproj" />
+    <Project Path="tests/Kharos.Base.Scenario/Kharos.Base.Scenario.csproj" />
     <Project Path="tests/Kharos.Base.Tests/Kharos.Base.Tests.csproj" />
     <Project Path="tests/Kharos.Client.Tests/Kharos.Client.Tests.csproj" />
     <Project Path="tests/Kharos.Engine.Tests/Kharos.Engine.Tests.csproj" />

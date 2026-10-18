@@ -11,7 +11,7 @@ import {
   type TurretSpec, type UnitType, type WeaponSpec, type WeaponType,
 } from '@kharos/sim-ts'
 import { turretSpec } from '@kharos/sim-ts/turrets'
-import { arena, options, pad, printTable, round } from './lib'
+import { arena, options, printTable, round, startGrid } from './lib'
 
 /** Сколько реального времени отводится одному бою, в секундах. */
 const BATTLE_LIMIT = 240
@@ -157,14 +157,14 @@ function duel(a: UnitType, b: UnitType) {
 export function printDuels() {
   const types = rows().map((row) => row.type)
   console.log(`\nПарные бои: цена отряда ~${DUEL_BUDGET}; по ${ROUNDS} боёв; в клетке — доля побед строки`)
-  console.log([''.padStart(10), ...types.map((type) => pad(type, 10))].join(''))
+  const print = startGrid(['', ...types])
   for (const a of types) {
     const cells = types.map((b) => {
-      if (a === b) return pad('—', 10)
+      if (a === b) return '—'
       const result = duel(a, b)
-      return pad(`${result.winsA}/${ROUNDS}`, 10)
+      return `${result.winsA}/${ROUNDS}`
     })
-    console.log([pad(a, 10), ...cells].join(''))
+    print([a, ...cells])
   }
 }
 

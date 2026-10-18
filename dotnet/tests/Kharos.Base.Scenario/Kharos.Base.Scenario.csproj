@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Обвязка сценариев base (docs/dotnet-n5.md, Н5.6): партия на хосте, приказы, чтение и правка мира по именам, сохранение.
+    Для тестов (Kharos.Base.Tests) и баланса (tools/Kharos.Balance). Без xunit: пропуск теста решает вызывающий (Sim.Unavailable).
+  -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Kharos.Host\Kharos.Host.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Content\Kharos.Content.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Protocol\Kharos.Protocol.csproj" />
+    <ProjectReference Include="..\..\mods\base\Base.Shared\Base.Shared.csproj" />
+    <!-- Сборка Base.Host.dll нужна режиму CLR: собирается вместе, но в процесс не подключается (мод грузится в свою ALC). -->
+    <ProjectReference Include="..\..\mods\base\Base.Host\Base.Host.csproj" ReferenceOutputAssembly="false" />
+    <PackageReference Include="MemoryPack" />
+  </ItemGroup>
+</Project>

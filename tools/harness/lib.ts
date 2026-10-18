@@ -6,6 +6,57 @@ import type { Entity } from '@kharos/ecs'
 import { DEFAULT_SETTINGS } from '@kharos/shared/settings'
 import { BUILDINGS, Building, Position, Site, canPlace, createSim, isWalkable, type BuildingType, type Sim } from '@kharos/sim-ts'
 import { placeBuilding } from '@kharos/sim-ts/buildings'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { format } from 'node:util'
+
+// ===== Машинный вывод (KHAROS_HARNESS_JSON=1) =====
+// Поведение харнесса не меняется: те же сцены, те же числа. Вместо печати строки и таблицы копятся по разделам и в
+// конце уходят JSON-ом: { "<раздел>": { "items": [ { "text": "…" } | { "table": { "head": […], "rows": […] } } ] } }.
+// Текст — строки console.log как есть; таблица — ячейки как были (числа остаются числами). По умолчанию JSON идёт в
+// stdout; KHAROS_HARNESS_OUT=<папка> — по файлу <раздел>.json на раздел (эталоны .NET: dotnet/tests/Kharos.Base.Tests/Balance/golden).
+
+/** Ячейка таблицы. */
+export type Cell = string | number
+/** Что напечатал раздел: строка текста или таблица. */
+export type HarnessItem = { text: string } | { table: { head: Cell[]; rows: Cell[][] } }
+
+/** Включён ли машинный вывод. */
+export const JSON_MODE = process.env.KHAROS_HARNESS_JSON === '1'
+
+const collected: Record<string, HarnessItem[]> = {}
+let current: HarnessItem[] | undefined
+
+if (JSON_MODE) {
+  // Строки раздела копятся, а не печатаются; stdout остаётся чистым для JSON.
+  console.log = (...args: unknown[]) => {
+    for (const line of format(...args).split('\n')) (current ??= collected.main ??= []).push({ text: line })
+  }
+}
+
+/** Запускает раздел под своим именем: в машинном выводе его строки и таблицы лягут в одноимённый раздел. */
+export function section(name: string, run: () => void) {
+  if (!JSON_MODE) return run()
+  current = collected[name] ??= []
+  try {
+    run()
+  } finally {
+    current = undefined
+  }
+}
+
+/** Выводит накопленное (после всех разделов); без машинного вывода — ничего не делает. */
+export function flushHarness() {
+  if (!JSON_MODE) return
+  for (const name of Object.keys(collected)) if (collected[name].length === 0) delete collected[name]
+  const out = process.env.KHAROS_HARNESS_OUT
+  if (out) {
+    mkdirSync(out, { recursive: true })
+    for (const [name, items] of Object.entries(collected)) writeFileSync(join(out, `${name}.json`), JSON.stringify({ items }, null, 1) + '\n')
+  } else {
+    process.stdout.write(JSON.stringify(Object.fromEntries(Object.entries(collected).map(([name, items]) => [name, { items }]))) + '\n')
+  }
+}
 
 /** Шаг симуляции в секундах: 20 тиков в секунду, как в игре. */
 export const TICK = 1 / 20
@@ -33,8 +84,27 @@ export const pad = (value: string | number, width: number) => String(value).padS
 /** Время в секундах как «м:сс». */
 export const clock = (time: number) => `${Math.floor(time / 60)}:${pad(Math.floor(time % 60), 2)}`
 
+/**
+ * Таблица без разделителей: клетки шириной width подряд. Возвращает печать строки — строки идут сразу (долгие расчёты видно
+ * по ходу), а в машинном выводе складываются в таблицу.
+ */
+export function startGrid(head: string[], width = 10) {
+  const line = (cells: string[]) => cells.map((cell) => pad(cell, width)).join('')
+  const rows: string[][] = []
+  if (JSON_MODE) (current ??= collected.main ??= []).push({ table: { head, rows } })
+  else console.log(line(head))
+  return (cells: string[]) => {
+    if (JSON_MODE) rows.push(cells)
+    else console.log(line(cells))
+  }
+}
+
 /** Печатает таблицу: первый столбец шире остальных. */
 export function printTable(head: (string | number)[], rows: (string | number)[][], first = 14, rest = 9) {
+  if (JSON_MODE) {
+    ;(current ??= collected.main ??= []).push({ table: { head, rows } })
+    return
+  }
   const line = (cells: (string | number)[]) => [pad(cells[0], first), ...cells.slice(1).map((cell) => pad(cell, rest))].join(' ')
   console.log(line(head))
   for (const row of rows) console.log(line(row))

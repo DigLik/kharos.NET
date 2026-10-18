@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Аудит безопасности, нагрузка и микро-бенчмарки песочницы (из UserPluginSystem); замер границы wasm (ключ boundary). -->
+  <!-- Аудит безопасности, нагрузка и микро-бенчмарки песочницы (из UserPluginSystem); замер границы wasm (ключ boundary) и тика через хост (ключ tick). -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -11,6 +11,14 @@
     <ProjectReference Include="..\..\src\Kharos.Plugins\Kharos.Plugins.csproj" />
     <!-- DetMath для ходовой hello (Wheels.cs) — та же, что в моде. -->
     <ProjectReference Include="..\..\src\Kharos.Mod.Sdk\Kharos.Mod.Sdk.csproj" />
+    <!-- Тик целиком: хост, содержимое, дельта и моды base и hello. Сборки *.Host.dll нужны режиму CLR: собираются вместе, в процесс не подключаются. -->
+    <ProjectReference Include="..\..\src\Kharos.Host\Kharos.Host.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Content\Kharos.Content.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Protocol\Kharos.Protocol.csproj" />
+    <ProjectReference Include="..\..\mods\base\Base.Shared\Base.Shared.csproj" />
+    <ProjectReference Include="..\..\mods\base\Base.Host\Base.Host.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\mods\hello\Hello.Host\Hello.Host.csproj" ReferenceOutputAssembly="false" />
+    <PackageReference Include="MemoryPack" />
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>
@@ -18,5 +26,7 @@
     <!-- Мод hello: ходовая на C# для сверки и схема мира для его загрузки. -->
     <Compile Include="..\..\mods\hello\Hello.Host\Wheels.cs" Link="Boundary\Wheels.cs" />
     <Compile Include="..\..\tests\Kharos.Plugins.Tests\HelloModule.cs" Link="Boundary\HelloModule.cs" />
+    <!-- Приказы hello (hello.spawn) для замера тика. -->
+    <Compile Include="..\..\mods\hello\Hello.Host\Orders.cs" Link="Tick\HelloOrders.cs" />
   </ItemGroup>
 </Project>

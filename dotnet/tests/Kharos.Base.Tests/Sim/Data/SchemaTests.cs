@@ -4,7 +4,7 @@ using Base.Shared.Data;
 using Kharos.Content;
 using Kharos.Engine.World;
 
-namespace Kharos.Base.Tests.Sim.Data;
+namespace Kharos.Base.Tests.Data;
 
 /// <summary>Схема base (schema/*.json), имена Base.Shared, партии и ходовые из данных.</summary>
 public sealed class SchemaTests

@@ -5,6 +5,7 @@ using BenchmarkDotNet.Running;
 using Kharos.Plugins.Bench.Boundary;
 using Kharos.Plugins.Bench.Benchmarks;
 using Kharos.Plugins.Bench.Security;
+using Kharos.Plugins.Bench.Tick;
 
 namespace Kharos.Plugins.Bench;
 
@@ -44,6 +45,12 @@ public static class Program
             if (at >= 0 && at + 1 < args.Length)
                 sizes = [.. args[at + 1].Split(',').Select(int.Parse)];
             BoundaryRunner.Run(sizes);
+            return;
+        }
+
+        if (args.Contains("--tick"))
+        {
+            TickRunner.Run(TickRunner.Parse(args));
             return;
         }
 
@@ -113,6 +120,12 @@ public static class Program
         Console.WriteLine("  --benchmark                   Запуск микро-бенчмарков BenchmarkDotNet.");
         Console.WriteLine("  --boundary                    Замер границы wasm: ходовая мода hello (Release, нужен mods/hello/host.wasm).");
         Console.WriteLine("    --entities <числа>          Сущностей через запятую (по умолчанию: 10000,100000).");
+        Console.WriteLine("  --tick                        Тик через хост: пустой skirmish base и 10 тыс. юнитов hello, CLR и wasm, время по системам.");
+        Console.WriteLine("    --ticks <число>             Тиков замера (по умолчанию: 200, после разогрева 20).");
+        Console.WriteLine("    --mode <clr|wasm>           Только один режим мода (по умолчанию оба).");
+        Console.WriteLine("    --scenario <base|hello>     Только один сценарий (по умолчанию оба).");
+        Console.WriteLine("    --units <число>             Юнитов в партии base (правки edit.unit; пока у base нет обработчиков — пусто).");
+        Console.WriteLine("    --top <число>               Строк таблицы систем (по умолчанию: 12).");
         Console.WriteLine("  --help, -h                    Отображение данной справки.");
     }
 }

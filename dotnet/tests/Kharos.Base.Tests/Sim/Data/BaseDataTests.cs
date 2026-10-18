@@ -3,7 +3,7 @@ using System.Text.Json;
 using Base.Shared.Data;
 using Kharos.Content;
 
-namespace Kharos.Base.Tests.Sim.Data;
+namespace Kharos.Base.Tests.Data;
 
 /// <summary>
 /// Перенос packages/tests/base.test.ts: данные мода base (mods/base/data) без проверки типов — у каждой записи только
