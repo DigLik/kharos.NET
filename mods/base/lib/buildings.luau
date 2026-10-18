@@ -100,6 +100,14 @@ function buildings.look(width: number, height: number, draw: (any, number, boole
 		draw = function(canvas, _angle: number, phase: number)
 			draw(canvas, (phase % frames) / frames, phase >= frames)
 		end,
+		-- Портрет: первый кадр работы с полем в 2 пикселя (buildingCanvas в portraits.ts).
+		portrait = {
+			size = { width * tile + 4, height * tile + 4 },
+			origin = { 2, 2 },
+			draw = function(canvas)
+				draw(canvas, 0, true)
+			end,
+		},
 	}
 end
 

@@ -1,8 +1,5 @@
-//! Немедленный интерфейс (по rwgpu): прямоугольники, текст fontdue, кнопки, значки видов. Всё — в один `Batch`
-//! треугольников; отрезки батча помнят, чем их красить: шрифтовым атласом (альфа) или атласом вида (значок с палитрой
-//! стороны). Тот же батч в координатах мира — слой поверх земли (рамка выделения, круги, частицы).
-
-use std::collections::HashMap;
+//! Батч треугольников интерфейса и слоя поверх мира: отрезки помнят, чем их красить — шрифтовым атласом (альфа),
+//! атласом обликов (значок с палитрой стороны) или скином (рамки, монета) — и по какому прямоугольнику обрезать.
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -12,19 +9,21 @@ pub struct Vertex {
   pub color: [u8; 4],
 }
 
-/// Чем красить отрезок батча: шрифтовой атлас или атлас обликов с палитрой стороны team.
+/// Чем красить отрезок батча: шрифтовой атлас, атлас обликов с палитрой стороны team или скин интерфейса.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Paint {
   Font,
   Sprite { team: usize },
+  Skin,
 }
 
 #[derive(Default)]
 pub struct Batch {
   pub vertices: Vec<Vertex>,
   pub indices: Vec<u32>,
-  /// Отрезки индексов: с какого начинается и чем красить.
-  pub segments: Vec<(usize, Paint)>,
+  /// Отрезки индексов: с какого начинается, чем красить и по какому прямоугольнику [x, y, w, h] обрезать.
+  pub segments: Vec<(usize, Paint, Option<[f32; 4]>)>,
+  clip: Option<[f32; 4]>,
 }
 
 /// Белый угол шрифтового атласа — для сплошной заливки.
@@ -36,12 +35,21 @@ impl Batch {
     self.vertices.clear();
     self.indices.clear();
     self.segments.clear();
+    self.clip = None;
   }
 
   fn paint(&mut self, paint: Paint) {
-    if self.segments.last().map(|segment| segment.1) != Some(paint) {
-      self.segments.push((self.indices.len(), paint));
+    let clip = self.clip;
+    if self.segments.last().map(|segment| (segment.1, segment.2)) != Some((paint, clip)) {
+      self.segments.push((self.indices.len(), paint, clip));
     }
+  }
+
+  /// Четырёхугольник с обрезкой.
+  pub fn quad_clipped(&mut self, min: [f32; 2], max: [f32; 2], uv: [f32; 4], color: [u8; 4], paint: Paint, clip: Option<[f32; 4]>) {
+    self.clip = clip;
+    self.quad(min, max, uv, color, paint);
+    self.clip = None;
   }
 
   /// Четырёхугольник по углам по часовой: a, b, c, d.
@@ -114,13 +122,13 @@ pub struct FontAtlas {
 }
 
 impl FontAtlas {
-  fn new() -> Self {
+  pub fn new() -> Self {
     let mut atlas = Self { pixels: vec![0; (ATLAS_SIZE * ATLAS_SIZE) as usize], generation: 1 };
     atlas.clear();
     atlas
   }
 
-  fn clear(&mut self) {
+  pub fn clear(&mut self) {
     self.pixels.fill(0);
     for y in 0..4 {
       for x in 0..4 {
@@ -131,190 +139,8 @@ impl FontAtlas {
   }
 }
 
-#[derive(Clone, Copy)]
-struct Glyph {
-  uv: [f32; 4],
-  size: [f32; 2],
-  offset: [f32; 2],
-  advance: f32,
-}
-
-/// Текст fontdue: глифы растеризуются по требованию в физических пикселях.
-pub struct Font {
-  font: fontdue::Font,
-  pub atlas: FontAtlas,
-  glyphs: HashMap<(char, u16), Glyph>,
-  cursor: [u32; 2],
-  row: u32,
-  scale: f32,
-}
-
-impl Font {
-  pub fn new(bytes: &[u8]) -> Result<Self, String> {
-    let font = fontdue::Font::from_bytes(bytes, fontdue::FontSettings::default()).map_err(|error| format!("шрифт: {error}"))?;
-    Ok(Self { font, atlas: FontAtlas::new(), glyphs: HashMap::new(), cursor: [6, 0], row: 4, scale: 1.0 })
-  }
-
-  pub fn set_scale(&mut self, scale: f32) {
-    if (scale - self.scale).abs() > 0.001 {
-      self.scale = scale;
-      self.reset();
-    }
-  }
-
-  fn reset(&mut self) {
-    self.glyphs.clear();
-    self.atlas.clear();
-    self.cursor = [6, 0];
-    self.row = 4;
-  }
-
-  fn px(&self, size: f32) -> u16 {
-    (size * self.scale).round().max(1.0) as u16
-  }
-
-  fn glyph(&mut self, char: char, px: u16) -> Glyph {
-    if let Some(glyph) = self.glyphs.get(&(char, px)) {
-      return *glyph;
-    }
-    let (metrics, bitmap) = self.font.rasterize(char, px as f32);
-    let (w, h) = (metrics.width as u32, metrics.height as u32);
-    if self.cursor[0] + w + 1 > ATLAS_SIZE {
-      self.cursor = [0, self.cursor[1] + self.row + 1];
-      self.row = 0;
-    }
-    if self.cursor[1] + h + 1 > ATLAS_SIZE {
-      self.reset();
-      self.cursor = [0, 5];
-    }
-    let [x, y] = self.cursor;
-    for row in 0..h {
-      let to = ((y + row) * ATLAS_SIZE + x) as usize;
-      let from = (row * w) as usize;
-      self.atlas.pixels[to..to + w as usize].copy_from_slice(&bitmap[from..from + w as usize]);
-    }
-    self.atlas.generation += 1;
-    self.cursor[0] += w + 1;
-    self.row = self.row.max(h);
-    let size = ATLAS_SIZE as f32;
-    let glyph = Glyph { uv: [x as f32 / size, y as f32 / size, (x + w) as f32 / size, (y + h) as f32 / size], size: [w as f32, h as f32], offset: [metrics.xmin as f32, -(metrics.ymin as f32 + h as f32)], advance: metrics.advance_width };
-    self.glyphs.insert((char, px), glyph);
-    glyph
-  }
-
-  pub fn line_height(&self, size: f32) -> f32 {
-    let px = self.px(size);
-    self.font.horizontal_line_metrics(px as f32).map_or(size * 1.2, |metrics| metrics.new_line_size / self.scale)
-  }
-
-  pub fn width(&mut self, text: &str, size: f32) -> f32 {
-    let px = self.px(size);
-    text.chars().map(|char| self.glyph(char, px).advance).sum::<f32>() / self.scale
-  }
-
-  /// Строка с левым верхним углом в pos; возвращает ширину.
-  pub fn draw(&mut self, batch: &mut Batch, pos: [f32; 2], size: f32, color: [u8; 4], text: &str) -> f32 {
-    let px = self.px(size);
-    let scale = self.scale;
-    let ascent = self.font.horizontal_line_metrics(px as f32).map_or(px as f32 * 0.8, |metrics| metrics.ascent);
-    let origin = (pos[0] * scale).round();
-    let baseline = (pos[1] * scale + ascent).round();
-    let mut pen = 0.0f32;
-    for char in text.chars() {
-      let glyph = self.glyph(char, px);
-      if glyph.size[0] > 0.0 {
-        let x = origin + pen.round() + glyph.offset[0];
-        let y = baseline + glyph.offset[1];
-        batch.quad([x / scale, y / scale], [(x + glyph.size[0]) / scale, (y + glyph.size[1]) / scale], glyph.uv, color, Paint::Font);
-      }
-      pen += glyph.advance;
-    }
-    pen / scale
-  }
-}
-
-/// Ответ элемента на указатель.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct Response {
-  pub hovered: bool,
-  pub down: bool,
-  pub clicked: bool,
-}
-
-/// Состояние немедленного интерфейса между кадрами.
-pub struct Ui {
-  pub batch: Batch,
-  pub font: Font,
-  pointer: Option<[f32; 2]>,
-  down: bool,
-  pressed: bool,
-  released: bool,
-  active: Option<u64>,
-  /// Указатель над панелью или элементом в этом кадре — миру он не достаётся.
-  pub captured: bool,
-  /// То же в прошлом кадре: управление идёт после панелей и смотрит на него.
-  pub was_captured: bool,
-}
-
-pub fn id(name: &str) -> u64 {
-  name.bytes().fold(0xcbf29ce484222325, |hash, byte| (hash ^ byte as u64).wrapping_mul(0x100000001b3))
-}
-
-impl Ui {
-  pub fn new(font: Font) -> Self {
-    Self { batch: Batch::default(), font, pointer: None, down: false, pressed: false, released: false, active: None, captured: false, was_captured: false }
-  }
-
-  pub fn begin(&mut self, input: &crate::input::Input) {
-    self.batch.clear();
-    self.font.set_scale(input.scale);
-    self.pointer = input.pointer;
-    self.down = input.down[0];
-    self.pressed = input.pressed[0];
-    self.released = input.released[0];
-    self.was_captured = self.captured;
-    self.captured = false;
-  }
-
-  pub fn end(&mut self) {
-    if !self.down {
-      self.active = None;
-    }
-  }
-
-  fn inside(&self, rect: [f32; 4]) -> bool {
-    self.pointer.is_some_and(|[x, y]| x >= rect[0] && x < rect[0] + rect[2] && y >= rect[1] && y < rect[1] + rect[3])
-  }
-
-  pub fn interact(&mut self, id: u64, rect: [f32; 4]) -> Response {
-    let hovered = self.inside(rect);
-    self.captured |= hovered;
-    let mut pressed = false;
-    if hovered && self.pressed && self.active.is_none() {
-      self.active = Some(id);
-      pressed = true;
-    }
-    let active = self.active == Some(id);
-    Response { hovered, down: active && (self.down || pressed), clicked: active && self.released && hovered }
-  }
-
-  /// Панель: заливка, и указатель над ней миру не достаётся.
-  pub fn panel(&mut self, rect: [f32; 4], color: [u8; 4]) {
-    self.batch.rect([rect[0], rect[1]], [rect[0] + rect[2], rect[1] + rect[3]], color);
-    if self.inside(rect) {
-      self.captured = true;
-    }
-  }
-
-  pub fn outline(&mut self, rect: [f32; 4], width: f32, color: [u8; 4]) {
-    let [x, y, w, h] = rect;
-    self.batch.rect([x, y], [x + w, y + width], color);
-    self.batch.rect([x, y + h - width], [x + w, y + h], color);
-    self.batch.rect([x, y + width], [x + width, y + h - width], color);
-    self.batch.rect([x + w - width, y + width], [x + w, y + h - width], color);
-  }
-
-  pub fn text(&mut self, pos: [f32; 2], size: f32, color: [u8; 4], text: &str) -> f32 {
-    self.font.draw(&mut self.batch, pos, size, color, text)
+impl Default for FontAtlas {
+  fn default() -> Self {
+    Self::new()
   }
 }

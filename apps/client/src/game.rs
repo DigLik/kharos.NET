@@ -3,10 +3,10 @@
 
 use crate::atlas::{self, Look};
 use crate::audio::{Audio, Sound};
+use crate::gui::{Fonts, Gui};
 use crate::input::Input;
 use crate::render::{Frame, View, LAYERS, SPRITE, TEAMS, TEXELS};
 use crate::script::{fill_input, look_info, ClientState, Ctx, Particle};
-use crate::ui::{Font, Ui};
 use kharos_content::vm::function;
 use kharos_content::{Content, Mod, Side};
 use kharos_engine::terrain::{GeneratorConfig, Land, LandArea};
@@ -90,7 +90,7 @@ fn named(content: &Content, section: &str, name: &str) -> Result<Table, String> 
 }
 
 impl Game {
-  pub fn new(mods: Vec<Mod>, game: Option<&str>, player: u32, font: Font) -> Result<Self, String> {
+  pub fn new(mods: Vec<Mod>, game: Option<&str>, player: u32, fonts: Fonts) -> Result<Self, String> {
     let mut host = Host::new(mods.clone(), game, 1)?;
     let game = host.game.clone();
     let game = game.as_str();
@@ -120,7 +120,7 @@ impl Game {
     }
     let atlas = atlas::pack(&mut looks);
 
-    let state = Rc::new(RefCell::new(ClientState { world: host.state.clone(), prev: HashMap::new(), alpha: 0.0, view: View { x: 0.0, y: 0.0, zoom: 32.0, screen: [1280.0, 800.0], scale: 1.0 }, input: Input::default(), time: 0.0, dt: 0.0, player, outbox: Vec::new(), sounds: Vec::new(), particles: Vec::new(), draw: Default::default(), ui: Ui::new(font), looks: looks.iter().map(|look| (look.proto, look_info(look))).collect(), protos: client.list.iter().map(|proto| client.by_id(proto.id).expect("вид")).collect() }));
+    let state = Rc::new(RefCell::new(ClientState { world: host.state.clone(), prev: HashMap::new(), alpha: 0.0, view: View { x: 0.0, y: 0.0, zoom: 32.0, screen: [1280.0, 800.0], scale: 1.0 }, input: Input::default(), time: 0.0, dt: 0.0, player, outbox: Vec::new(), sounds: Vec::new(), particles: Vec::new(), draw: Default::default(), gui: Gui::new(fonts), looks: looks.iter().map(|look| (look.proto, look_info(look))).collect(), protos: client.list.iter().map(|proto| client.by_id(proto.id).expect("вид")).collect() }));
     let table = || lua.create_table().map_err(error("таблица"));
     let ctx = Ctx { state: state.clone(), input: table()?, camera: table()?, shared: table()?, atmosphere: table()?, music: table()?, protos: client.protos.clone(), game: game_table.clone() };
     ctx.camera.set("x", 0.0).map_err(error("камера"))?;
@@ -261,10 +261,10 @@ impl Game {
       state.view.screen = input.screen;
       state.view.scale = input.scale;
       state.draw.clear();
-      state.ui.begin(input);
+      state.gui.begin(input);
     }
     let lua = self.client.lua.clone();
-    let over_ui = self.state.borrow().ui.was_captured;
+    let over_ui = self.state.borrow().gui.covered;
     fill_input(&lua, &self.ctx.input, input, &self.state.borrow().view, over_ui).map_err(error("ввод"))?;
 
     // Сигналы хоста.
@@ -294,7 +294,7 @@ impl Game {
     for (label, draw) in &self.panels {
       draw.call::<()>(&self.ctx_data).map_err(error(label))?;
     }
-    let captured = self.state.borrow().ui.captured || over_ui;
+    let captured = over_ui;
     self.ctx.input.set("over_ui", captured).map_err(error("ввод"))?;
     for (label, update) in &self.controls {
       update.call::<()>(&self.ctx_data).map_err(error(label))?;
@@ -308,7 +308,7 @@ impl Game {
     }
     self.sound(&view)?;
     self.particles(dt as f32);
-    self.state.borrow_mut().ui.end();
+    self.state.borrow_mut().gui.finish();
 
     let (player, outbox) = {
       let mut state = self.state.borrow_mut();

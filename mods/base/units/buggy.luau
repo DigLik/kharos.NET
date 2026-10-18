@@ -33,7 +33,7 @@ buggy.entity = function(kind)
 end
 
 -- Облик — чертёж из lib/units (перенос unitArt.ts), звук — мотор.
-buggy.look = units.look("buggy")
+buggy.look = units.look("buggy", buggy.data.mounts)
 buggy.look.sound = {
 	voice = "motor",
 	gain = 0.5,

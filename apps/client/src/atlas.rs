@@ -107,6 +107,12 @@ impl UserData for Canvas {
       canvas.fill(color, [x.floor(), y.floor(), x.floor() + 1.0, y.floor() + 1.0], |_, _| true);
       Ok(())
     });
+    // Сдвиг начала координат: так на портрете рисуют турели на их местах (originX += … в portraits.ts).
+    methods.add_method_mut("translate", |_, canvas, (dx, dy): (f64, f64)| {
+      canvas.origin[0] += dx;
+      canvas.origin[1] += dy;
+      Ok(())
+    });
     // Огонь кадра в точке (x, y) холста: size — радиус лампы в пикселях, level — яркость 0..1 (EmitLight в TS).
     methods.add_method_mut("light", |_, canvas, (x, y, size, level): (f64, f64, f64, f64)| {
       canvas.lights.push([x, y, size, level]);
@@ -158,6 +164,10 @@ pub struct Look {
   pub table: Table,
   /// Направление кадра значка.
   pub icon: usize,
+  /// Портрет для панелей: обрезанная по краям картинка (RGBA, размер) — до упаковки, потом её место в атласе.
+  pub portrait: Option<(Vec<u8>, [usize; 2])>,
+  pub portrait_uv: Option<[f32; 4]>,
+  pub portrait_size: [f32; 2],
 }
 
 impl Look {
@@ -247,7 +257,47 @@ pub fn build(lua: &Lua, proto: u32, look: Table) -> mlua::Result<Look> {
     _ => 0,
   };
   let offset = [(-(origin[0] + anchor[0]) / 16.0) as f32, (-(origin[1] + anchor[1]) / 16.0) as f32];
-  Ok(Look { proto, size: [width, height], offset, directions, phases, images, cells: Vec::new(), frame_lights, fps: look.get::<Option<f32>>("fps")?.unwrap_or(8.0), step: look.get::<Option<f32>>("step")?, layer, shadow, lights, table: look, icon })
+  let portrait = match look.get::<Option<Table>>("portrait")? {
+    Some(spec) => Some(portrait(lua, &spec)?),
+    None => None,
+  };
+  let portrait_size = portrait.as_ref().map_or([width as f32, height as f32], |(_, [w, h])| [*w as f32, *h as f32]);
+  Ok(Look { proto, size: [width, height], offset, directions, phases, images, cells: Vec::new(), frame_lights, fps: look.get::<Option<f32>>("fps")?.unwrap_or(8.0), step: look.get::<Option<f32>>("step")?, layer, shadow, lights, table: look, icon, portrait, portrait_uv: None, portrait_size })
+}
+
+/// Портрет: `{ size, origin, draw = function(canvas) }` — рисуется один раз и обрезается по закрашенному (toCanvas).
+fn portrait(lua: &Lua, spec: &Table) -> mlua::Result<(Vec<u8>, [usize; 2])> {
+  let [width, height] = pair(spec, "size", [32.0, 32.0])?.map(|value| value as usize);
+  let origin = pair(spec, "origin", [width as f64 / 2.0, height as f64 / 2.0])?;
+  let canvas = lua.create_userdata(Canvas { width, height, origin, data: vec![0; width * height], lights: Vec::new() })?;
+  spec.get::<Function>("draw")?.call::<()>(&canvas)?;
+  let canvas = canvas.borrow::<Canvas>()?;
+  let (mut left, mut top, mut right, mut bottom) = (width, height, 0, 0);
+  for y in 0..height {
+    for x in 0..width {
+      if canvas.data[y * width + x] != 0 {
+        left = left.min(x);
+        top = top.min(y);
+        right = right.max(x + 1);
+        bottom = bottom.max(y + 1);
+      }
+    }
+  }
+  if right <= left {
+    return Ok((vec![0; 4], [1, 1]));
+  }
+  let (w, h) = (right - left, bottom - top);
+  let mut pixels = vec![0u8; w * h * 4];
+  for y in 0..h {
+    for x in 0..w {
+      let color = canvas.data[(top + y) * width + left + x];
+      if color != 0 {
+        let at = (y * w + x) * 4;
+        pixels[at..at + 4].copy_from_slice(&[(color >> 16) as u8, (color >> 8) as u8, color as u8, 255 - (color >> 24) as u8]);
+      }
+    }
+  }
+  Ok((pixels, [w, h]))
 }
 
 /// Общий атлас: кадры всех обликов полками по строкам. Возвращает пиксели RGBA и размер; места кадров — в `cells`.
@@ -270,6 +320,22 @@ pub fn pack(looks: &mut [Look]) -> (Vec<u8>, [usize; 2]) {
       row = row.max(h);
     }
   }
+  // Портреты — отдельной полкой снизу.
+  y += row;
+  x = 0;
+  row = 0;
+  let mut portraits: Vec<Option<[usize; 2]>> = vec![None; looks.len()];
+  for (index, look) in looks.iter().enumerate() {
+    let Some((_, [w, h])) = &look.portrait else { continue };
+    if x + w > WIDTH {
+      x = 0;
+      y += row;
+      row = 0;
+    }
+    portraits[index] = Some([x, y]);
+    x += w;
+    row = row.max(*h);
+  }
   let height = (y + row).max(1);
   let mut pixels = vec![0u8; WIDTH * height * 4];
   for (index, look) in looks.iter_mut().enumerate() {
@@ -282,6 +348,13 @@ pub fn pack(looks: &mut [Look]) -> (Vec<u8>, [usize; 2]) {
       }
     }
     look.images.clear();
+    if let (Some((image, [w, h])), Some([px, py])) = (look.portrait.take(), portraits[index]) {
+      for row in 0..h {
+        let to = ((py + row) * WIDTH + px) * 4;
+        pixels[to..to + w * 4].copy_from_slice(&image[row * w * 4..(row + 1) * w * 4]);
+      }
+      look.portrait_uv = Some([px as f32 / WIDTH as f32, py as f32 / height as f32, (px + w) as f32 / WIDTH as f32, (py + h) as f32 / height as f32]);
+    }
   }
   (pixels, [WIDTH, height])
 }

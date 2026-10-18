@@ -7,6 +7,7 @@ pub mod atlas;
 mod audio;
 mod game;
 mod gl;
+mod gui;
 mod input;
 mod render;
 mod script;
@@ -20,8 +21,8 @@ use kharos_content::{discover, Mod};
 use render::Renderer;
 use std::path::PathBuf;
 
-/// Шрифт интерфейса — Ark Pixel 12 px (OFL), латиница и кириллица.
-const FONT: &[u8] = include_bytes!("../../native/fonts/ark-pixel-12px.otf");
+/// Шрифты интерфейса — Ark Pixel 12 и 10 px (OFL), как у TS-клиента.
+const FONTS: [&[u8]; 2] = [include_bytes!("../../native/fonts/ark-pixel-12px.otf"), include_bytes!("../../native/fonts/ark-pixel-10px.otf")];
 
 pub struct App {
   renderer: Renderer,
@@ -54,9 +55,10 @@ fn mods() -> Result<Vec<Mod>, String> {
 impl App {
   pub fn new(gl: glow::Context) -> Result<Self, String> {
     let mut renderer = Renderer::new(gl)?;
-    let font = ui::Font::new(FONT)?;
+    let fonts = gui::Fonts::new(&FONTS)?;
+    renderer.load_skin(&gui::skin_pixels(), gui::SKIN_SIZE);
     let game = std::env::var("KHAROS_GAME").ok();
-    let mut game = Game::new(mods()?, game.as_deref(), 1, font)?;
+    let mut game = Game::new(mods()?, game.as_deref(), 1, fonts)?;
     if let Some((pixels, size)) = game.atlas.take() {
       renderer.load_atlas(&pixels, size);
     }
@@ -71,8 +73,8 @@ impl App {
     let size = [size[0] as i32, size[1] as i32];
     self.renderer.draw_world(&view, &frame, size);
     let state = self.game.state.borrow();
-    self.renderer.draw_batch(&state.draw, &state.ui.font.atlas, &view, true, self.game.palette());
-    self.renderer.draw_batch(&state.ui.batch, &state.ui.font.atlas, &view, false, self.game.palette());
+    self.renderer.draw_batch(&state.draw, &state.gui.fonts.atlas, &view, true, self.game.palette());
+    self.renderer.draw_batch(&state.gui.batch, &state.gui.fonts.atlas, &view, false, self.game.palette());
     Ok(())
   }
 

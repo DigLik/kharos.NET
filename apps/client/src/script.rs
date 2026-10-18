@@ -12,7 +12,7 @@
 use crate::atlas::Look;
 use crate::input::{Input, BUTTONS};
 use crate::render::View;
-use crate::ui::{id, Paint, Ui};
+
 use kharos_world::host::State;
 use kharos_world::Entity;
 use mlua::{Lua, LuaSerdeExt, Table, UserData, UserDataFields, UserDataMethods, Value};
@@ -45,9 +45,10 @@ pub struct SoundOrder {
   pub bus: String,
 }
 
-/// Значок вида для скриптов: кадр его облика в атласе.
+/// Значок вида для скриптов: портрет (или кадр значка) в атласе и его размер в пикселях.
 pub struct LookInfo {
   pub uv: [f32; 4],
+  pub size: [f32; 2],
 }
 
 /// Состояние клиента, общее у Rust и `c`.
@@ -66,7 +67,7 @@ pub struct ClientState {
   pub particles: Vec<Particle>,
   /// Слой поверх мира — в тайлах.
   pub draw: crate::ui::Batch,
-  pub ui: Ui,
+  pub gui: crate::gui::Gui,
   pub looks: HashMap<u32, LookInfo>,
   /// Таблицы видов клиентской машины по номерам.
   pub protos: Vec<Table>,
@@ -327,93 +328,110 @@ impl UserData for Draw {
   }
 }
 
-/// `c.ui` — интерфейс в логических пикселях экрана.
+/// `c.ui` — интерфейс, как `Ui` в gui/ui.ts: узлы описываются каждый кадр, раскладывает и рисует движок.
 pub struct UiApi(Rc<RefCell<ClientState>>);
 
+fn click_table(lua: &Lua, click: crate::gui::Click) -> mlua::Result<Table> {
+  let table = lua.create_table()?;
+  table.set("button", click.button)?;
+  table.set("shift", click.shift)?;
+  table.set("ctrl", click.ctrl)?;
+  table.set("alt", click.alt)?;
+  table.set("long", click.long)?;
+  Ok(table)
+}
+
+impl UiApi {
+  /// Узел с детьми: открыть, выполнить children (без займа состояния — скрипт сам зовёт ui), закрыть.
+  fn node(&self, style: crate::gui::Style, children: Option<mlua::Function>) -> mlua::Result<()> {
+    self.0.borrow_mut().gui.open(style, None);
+    let result = children.map_or(Ok(()), |children| children.call::<()>(()));
+    self.0.borrow_mut().gui.close();
+    result
+  }
+}
+
 impl UserData for UiApi {
+  fn add_fields<F: UserDataFields<Self>>(fields: &mut F) {
+    fields.add_field_method_get("width", |_, ui| Ok(ui.0.borrow().gui.width));
+    fields.add_field_method_get("height", |_, ui| Ok(ui.0.borrow().gui.height));
+    fields.add_field_method_get("now", |_, ui| Ok(ui.0.borrow().gui.now()));
+  }
+
   fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
-    methods.add_method("panel", |_, ui, (x, y, w, h, value, alpha): (f32, f32, f32, f32, Option<u32>, Option<f32>)| {
-      ui.0.borrow_mut().ui.panel([x, y, w, h], color(value.unwrap_or(0x16161c), Some(alpha.unwrap_or(0.92))));
+    // Узел с детьми; на верхнем уровне — корневая панель (anchor — где она на экране).
+    methods.add_method("box", |_, ui, (style, children): (Option<Table>, Option<mlua::Function>)| ui.node(crate::gui::style(style.as_ref())?, children));
+    // Строка текста: font ("body", "small", "title"), color, shadow, lift, wrap, ellipsis.
+    methods.add_method("text", |_, ui, (text, style): (String, Option<Table>)| {
+      let leaf = crate::gui::text_leaf(text, style.as_ref())?;
+      ui.0.borrow_mut().gui.leaf(Default::default(), leaf);
       Ok(())
     });
-    methods.add_method("rect", |_, ui, (x, y, w, h, value, alpha): (f32, f32, f32, f32, u32, Option<f32>)| {
-      ui.0.borrow_mut().ui.batch.rect([x, y], [x + w, y + h], color(value, alpha));
-      Ok(())
-    });
-    methods.add_method("outline", |_, ui, (x, y, w, h, width, value, alpha): (f32, f32, f32, f32, f32, u32, Option<f32>)| {
-      ui.0.borrow_mut().ui.outline([x, y, w, h], width, color(value, alpha));
-      Ok(())
-    });
-    methods.add_method("line", |_, ui, (x1, y1, x2, y2, value, width, alpha): (f32, f32, f32, f32, u32, Option<f32>, Option<f32>)| {
-      ui.0.borrow_mut().ui.batch.line([x1, y1], [x2, y2], width.unwrap_or(1.0), color(value, alpha));
-      Ok(())
-    });
-    methods.add_method("circle", |_, ui, (x, y, radius, value, width, alpha): (f32, f32, f32, u32, Option<f32>, Option<f32>)| {
-      ui.0.borrow_mut().ui.batch.circle([x, y], radius, width, color(value, alpha), 32);
-      Ok(())
-    });
-    // Текст с левым верхним углом в (x, y); возвращает ширину.
-    methods.add_method("text", |_, ui, (x, y, text, size, value, alpha): (f32, f32, String, Option<f32>, Option<u32>, Option<f32>)| Ok(ui.0.borrow_mut().ui.text([x, y], size.unwrap_or(12.0), color(value.unwrap_or(0xdedee4), alpha), &text)));
-    methods.add_method("measure", |_, ui, (text, size): (String, Option<f32>)| {
+    // Картинка: портрет вида, вписанный в width × height, как toCanvas в portraits.ts (вдвое и больше — целым
+    // увеличением), стороной team (0 — своя); или "coin" — монета кредитов.
+    methods.add_method("image", |_, ui, (kind, width, height, team): (Value, f32, f32, Option<usize>)| {
       let mut state = ui.0.borrow_mut();
-      let size = size.unwrap_or(12.0);
-      let width = state.ui.font.width(&text, size);
-      let height = state.ui.font.line_height(size);
-      Ok((width, height))
-    });
-    // Кнопка: рамка, фон по наведению и нажатию, подпись по центру. Возвращает clicked, hovered.
-    methods.add_method("button", |_, ui, (key, x, y, w, h, label, options): (String, f32, f32, f32, f32, Option<String>, Option<Table>)| {
-      let get = |name: &str| options.as_ref().and_then(|table| table.get::<Option<Value>>(name).ok().flatten());
-      let enabled = !matches!(get("enabled"), Some(Value::Boolean(false)));
-      let selected = matches!(get("selected"), Some(Value::Boolean(true)));
-      let size = match get("size") {
-        Some(Value::Number(size)) => size as f32,
-        Some(Value::Integer(size)) => size as f32,
-        _ => 12.0,
-      };
-      let mut state = ui.0.borrow_mut();
-      let response = if enabled { state.ui.interact(id(&key), [x, y, w, h]) } else { Default::default() };
-      let background = match (enabled, selected, response.down, response.hovered) {
-        (false, ..) => 0x24242c,
-        (_, true, ..) => 0x1f5f8f,
-        (_, _, true, _) => 0x60607a,
-        (_, _, _, true) => 0x48485a,
-        _ => 0x34343e,
-      };
-      state.ui.batch.rect([x, y], [x + w, y + h], color(background, None));
-      state.ui.outline([x, y, w, h], 1.0, color(if response.hovered && enabled { 0x8a8aa8 } else { 0x46465a }, None));
-      if let Some(label) = label {
-        let width = state.ui.font.width(&label, size);
-        let height = state.ui.font.line_height(size);
-        let fg = if enabled { 0xdedee4 } else { 0x7a7a86 };
-        state.ui.text([(x + (w - width) / 2.0).round(), (y + (h - height) / 2.0).round()], size, color(fg, None), &label);
+      match kind {
+        Value::Table(proto) => {
+          let id: u32 = proto.get("id")?;
+          let Some(info) = state.looks.get(&id) else { return Ok(()) };
+          let [w, h] = info.size;
+          let fit = (width / w).min(height / h);
+          let scale = if fit >= 2.0 { fit.floor() } else { fit };
+          let (dw, dh) = ((w * scale).round(), (h * scale).round());
+          let image = crate::gui::Image::Sprite { uv: info.uv, team: team.unwrap_or(0) % crate::render::TEAMS };
+          let pad = [((height - dh) / 2.0).floor(), 0.0, 0.0, ((width - dw) / 2.0).floor()];
+          state.gui.open(crate::gui::Style { width: Some(width), height: Some(height), padding: pad, ..Default::default() }, None);
+          state.gui.leaf(Default::default(), crate::gui::Leaf::Image { image, width: dw, height: dh });
+          state.gui.close();
+        }
+        _ => state.gui.leaf(Default::default(), crate::gui::Leaf::Image { image: crate::gui::Image::Coin, width, height }),
       }
-      Ok((response.clicked, response.hovered))
-    });
-    // Невидимая область: clicked, hovered, down.
-    methods.add_method("area", |_, ui, (key, x, y, w, h): (String, f32, f32, f32, f32)| {
-      let response = ui.0.borrow_mut().ui.interact(id(&key), [x, y, w, h]);
-      Ok((response.clicked, response.hovered, response.down))
-    });
-    // Значок вида: кадр его облика (направление icon) размером size, стороной team (0 — своя, 1 — чужая, 2 — союзная).
-    methods.add_method("icon", |_, ui, (proto, x, y, size, team): (Table, f32, f32, f32, Option<u32>)| {
-      let id: u32 = proto.get("id")?;
-      let mut state = ui.0.borrow_mut();
-      let Some(info) = state.looks.get(&id) else { return Ok(()) };
-      let uv = info.uv;
-      let team = team.unwrap_or(0) as usize % crate::render::TEAMS;
-      state.ui.batch.quad([x, y], [x + size, y + size], uv, [255; 4], Paint::Sprite { team });
       Ok(())
     });
-    // Полоса: доля fraction заполнена цветом.
-    methods.add_method("bar", |_, ui, (x, y, w, h, fraction, value, back): (f32, f32, f32, f32, f32, u32, Option<u32>)| {
-      let mut state = ui.0.borrow_mut();
-      state.ui.batch.rect([x, y], [x + w, y + h], color(back.unwrap_or(0x101014), None));
-      state.ui.batch.rect([x, y], [x + w * fraction.clamp(0.0, 1.0), y + h], color(value, None));
+    methods.add_method("space", |_, ui, (width, height, grow): (Option<f32>, Option<f32>, Option<f32>)| {
+      let style = crate::gui::Style { width: Some(width.unwrap_or(0.0)), height: Some(height.unwrap_or(0.0)), grow: grow.unwrap_or(0.0), ..Default::default() };
+      ui.0.borrow_mut().gui.leaf(style, crate::gui::Leaf::Space);
       Ok(())
     });
-    // Указатель над интерфейсом в этом кадре.
-    methods.add_method("captured", |_, ui, ()| Ok(ui.0.borrow().ui.captured));
+    // Кнопка: рамка по наведению и нажатию; active — нажатое состояние, disabled — не нажимается. Возвращает щелчок
+    // (таблица { button, shift, ctrl, alt, long }) в кадре после него или nil.
+    methods.add_method("button", |lua, ui, (id, style, children): (String, Option<Table>, Option<mlua::Function>)| {
+      let get = |key: &str| style.as_ref().map_or(Ok(false), |table| table.get::<Option<bool>>(key).map(|value| value.unwrap_or(false)));
+      let (active, disabled) = (get("active")?, get("disabled")?);
+      let mut parsed = crate::gui::Style { direction: crate::gui::Direction::Row, align: crate::gui::Align::Center, justify: crate::gui::Align::Center, padding: [4.0, 10.0, 4.0, 10.0], gap: 6.0, ..Default::default() };
+      if let Some(table) = &style {
+        let given = crate::gui::style(Some(table))?;
+        let has = |key: &str| table.contains_key(key).unwrap_or(false);
+        parsed = crate::gui::Style { direction: if has("direction") { given.direction } else { parsed.direction }, align: if has("align") { given.align } else { parsed.align }, justify: if has("justify") { given.justify } else { parsed.justify }, padding: if has("padding") { given.padding } else { parsed.padding }, gap: if has("gap") { given.gap } else { parsed.gap }, ..given };
+      }
+      let skin = ui.0.borrow_mut().gui.button_skin(&id, parsed.skin, active, disabled);
+      parsed.skin = Some(skin);
+      parsed.id = Some(id.clone());
+      ui.node(parsed, children)?;
+      let click = if disabled { None } else { ui.0.borrow().gui.frame_clicks.get(&id).copied() };
+      click.map(|click| click_table(lua, click)).transpose()
+    });
+    methods.add_method("clicked", |lua, ui, id: String| ui.0.borrow().gui.frame_clicks.get(&id).copied().map(|click| click_table(lua, click)).transpose());
+    methods.add_method("hovered", |_, ui, id: String| Ok(ui.0.borrow().gui.hovered(&id)));
+    methods.add_method("within", |_, ui, id: String| Ok(ui.0.borrow().gui.within(&id)));
+    // Левая кнопка зажата на узле: где указатель в нём (доли ширины и высоты), иначе nil.
+    methods.add_method("held", |_, ui, id: String| Ok(ui.0.borrow().gui.held(&id).map(|(u, v)| vec![u, v])));
+    methods.add_method("tip", |_, ui, (id, text): (String, String)| {
+      ui.0.borrow_mut().gui.tip(&id, text);
+      Ok(())
+    });
+    methods.add_method("rect", |lua, ui, id: String| {
+      let Some(rect) = ui.0.borrow().gui.rect(&id) else { return Ok(None) };
+      let table = lua.create_table()?;
+      table.set("x", rect.x)?;
+      table.set("y", rect.y)?;
+      table.set("width", rect.w)?;
+      table.set("height", rect.h)?;
+      Ok(Some(table))
+    });
+    // Ширина строки шрифтом font.
+    methods.add_method("measure", |_, ui, (text, font): (String, Option<String>)| Ok(ui.0.borrow_mut().gui.fonts.width(crate::gui::FontName::parse(font.as_deref().unwrap_or("body")), &text)));
   }
 }
 
@@ -452,7 +470,10 @@ pub fn fill_input(lua: &Lua, table: &Table, input: &Input, view: &View, over_ui:
   Ok(())
 }
 
-/// Значок облика для `c.ui:icon` (после упаковки атласа).
+/// Значок облика для `c.ui:image` (после упаковки атласа): портрет, если он есть, иначе кадр значка.
 pub fn look_info(look: &Look) -> LookInfo {
-  LookInfo { uv: look.cells[look.cell(look.icon as f64 / look.directions.max(1) as f64 * crate::atlas::TURN, 0)] }
+  match look.portrait_uv {
+    Some(uv) => LookInfo { uv, size: look.portrait_size },
+    None => LookInfo { uv: look.cells[look.cell(look.icon as f64 / look.directions.max(1) as f64 * crate::atlas::TURN, 0)], size: [look.size[0] as f32, look.size[1] as f32] },
+  }
 }

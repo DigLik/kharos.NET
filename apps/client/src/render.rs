@@ -345,8 +345,9 @@ pub struct Renderer {
   batch_indices: glow::Buffer,
   font: glow::Texture,
   font_generation: u64,
-  /// Общий атлас обликов.
+  /// Общий атлас обликов и скин интерфейса.
   atlas: Option<glow::Texture>,
+  skin: Option<glow::Texture>,
   land: Option<LandWindow>,
   occluders: Option<Target>,
   lightmap: Option<Target>,
@@ -395,7 +396,7 @@ impl Renderer {
       let font = gl.texture([ATLAS_SIZE as i32; 2], glow::R8, glow::RED, None);
       raw.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::LINEAR as i32);
       raw.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::LINEAR as i32);
-      Ok(Self { gl, programs, sprite_vao, sprite_data, spot_vao, spot_data, beam_vao, beam_data, empty_vao, batch_vao, batch_vertices, batch_indices, font, font_generation: 0, atlas: None, land: None, occluders: None, lightmap: None, size: [0, 0] })
+      Ok(Self { gl, programs, sprite_vao, sprite_data, spot_vao, spot_data, beam_vao, beam_data, empty_vao, batch_vao, batch_vertices, batch_indices, font, font_generation: 0, atlas: None, skin: None, land: None, occluders: None, lightmap: None, size: [0, 0] })
     }
   }
 
@@ -645,9 +646,24 @@ impl Renderer {
       gl.buffer_data_u8_slice(glow::ARRAY_BUFFER, bytemuck::cast_slice(&batch.vertices), glow::STREAM_DRAW);
       gl.bind_buffer(glow::ELEMENT_ARRAY_BUFFER, Some(self.batch_indices));
       gl.buffer_data_u8_slice(glow::ELEMENT_ARRAY_BUFFER, bytemuck::cast_slice(&batch.indices), glow::STREAM_DRAW);
-      for (index, &(start, paint)) in batch.segments.iter().enumerate() {
+      for (index, &(start, paint, clip)) in batch.segments.iter().enumerate() {
         let end = batch.segments.get(index + 1).map_or(batch.indices.len(), |next| next.0);
+        // Обрезка — ножницами в физических пикселях, снизу вверх.
+        match clip {
+          Some([x, y, w, h]) => {
+            let scale = view.scale;
+            gl.enable(glow::SCISSOR_TEST);
+            gl.scissor((x * scale).round() as i32, (self.size[1] as f32 - ((y + h) * scale).round()) as i32, (w * scale).round().max(0.0) as i32, (h * scale).round().max(0.0) as i32);
+          }
+          None => gl.disable(glow::SCISSOR_TEST),
+        }
         match paint {
+          Paint::Skin => {
+            let Some(skin) = self.skin else { continue };
+            gl.uniform_1_i32(uniform("uKind").as_ref(), 1);
+            gl.uniform_1_i32(uniform("uTeam").as_ref(), 0);
+            gl.bind_texture(glow::TEXTURE_2D, Some(skin));
+          }
           Paint::Font => {
             gl.uniform_1_i32(uniform("uKind").as_ref(), 0);
             gl.bind_texture(glow::TEXTURE_2D, Some(self.font));
@@ -661,9 +677,15 @@ impl Renderer {
         }
         gl.draw_elements(glow::TRIANGLES, (end - start) as i32, glow::UNSIGNED_INT, (start * 4) as i32);
       }
+      gl.disable(glow::SCISSOR_TEST);
       gl.bind_vertex_array(None);
       gl.disable(glow::BLEND);
     }
+  }
+
+  /// Скин интерфейса (`gui::skin_pixels`).
+  pub fn load_skin(&mut self, pixels: &[u8], size: [usize; 2]) {
+    self.skin = Some(self.gl.texture([size[0] as i32, size[1] as i32], glow::RGBA8, glow::RGBA, Some(pixels)));
   }
 
   /// Кадр в PNG.

@@ -1,20 +1,26 @@
 --!strict
--- Панель игрока: кредиты и время суток сверху, внизу — что выделено, а у выделенного завода — производство.
+-- Панель игрока — перенос packages/client/src/gui/hud.ts (верхняя полоса) и gui/bar.ts (нижняя: мини-карта,
+-- сведения о выбранном, сетка команд 4 × 3). Те же размеры, рамки скина, шрифты и цвета.
+
+local widgets = require("lib/widgets")
+local COLORS, shadow = widgets.COLORS, widgets.shadow
 
 local hud = {}
 
-hud.data = {
-	panel = 0x14161c,
-	line = 0x3a4250,
-	text = 0xdedee4,
-	dim = 0x8a8a98,
-	gold = 0xffd060,
-	accent = 0x5aa9ff,
-}
+-- Верхняя полоса и нижняя панель: высоты, ячейки, портреты — как в hud.ts и bar.ts.
+local TOP_HEIGHT = 38
+local INNER = 140
+local CELL_WIDTH = 132
+local GRID_WIDTH = 4 * CELL_WIDTH + 3 * 4
+local BAR_SPACING = 16 + 8 + 8
+local PORTRAIT = 96
+local TILE = 32
+local QUEUED = 24
+local MINIMAP = 140
+local GRID_KEYS = { "T", "Y", "U", "I", "G", "H", "J", "K", "B", "N", "M", "," }
+local KEY_NAMES = { "t", "y", "u", "i", "g", "h", "j", "k", "b", "n", "m", "," }
 
-local colors = hud.data
-
--- Кредиты своего игрока.
+-- Свой игрок: кредиты.
 local function credits(c): number
 	for _, e in c:each({ "Player" }) do
 		local player = c:get(e, "Player")
@@ -25,96 +31,239 @@ local function credits(c): number
 	return 0
 end
 
-local function frame(c, x: number, y: number, w: number, h: number)
-	c.ui:panel(x, y, w, h, colors.panel, 0.94)
-	c.ui:outline(x, y, w, h, 1, colors.line)
+local function topBar(c)
+	local ui = c.ui
+	ui:box({ id = "top", anchor = { left = 0, right = 0, top = 0 }, height = TOP_HEIGHT, skin = "panel", padding = { 4, 12 }, direction = "row", align = "center", gap = 12 }, function()
+		ui:box({ id = "credits", direction = "row", align = "center", gap = 6 }, function()
+			widgets.coin(ui)
+			ui:text(tostring(math.floor(credits(c))), { font = "title", color = COLORS.gold, shadow = COLORS.ink, lift = 2 })
+			local income = c.protos.mechanics.players.data.income
+			if income > 0 then
+				ui:text("+" .. income .. "/с", { color = COLORS.good })
+			end
+		end)
+		ui:tip("credits", "Кредиты")
+		ui:space(0, 0, 1)
+		local hour = c.atmosphere.hour or 0
+		ui:box({ id = "clock", direction = "row", gap = 4 }, function()
+			ui:text(string.format("%02d:%02d", math.floor(hour), math.floor(hour * 60) % 60), { color = COLORS.dim })
+		end)
+		ui:tip("clock", "Время суток")
+		ui:button("menu", { padding = { 2, 10 }, height = 30 }, function()
+			ui:text("Меню", shadow())
+		end)
+		ui:tip("menu", "Меню игры")
+	end)
 end
 
--- Производство завода e.
-local function factory(c, e: number, kind, x: number, y: number)
-	local producer = c:get(e, "Producer")
-	local money = credits(c)
-	local units = c.protos.units
-	c.ui:text(x + 10, y + 8, kind.data.title or kind.name, 12, colors.text)
-	-- Заказ: значок, имя, цена.
-	local bx = x + 10
-	for _, name in kind.data.produces or {} do
-		local unit = units[name]
-		if unit then
-			local cost = unit.data.cost or 0
-			local clicked, hovered = c.ui:button("produce/" .. name, bx, y + 28, 64, 64, nil, { enabled = money >= cost })
-			c.ui:icon(unit, bx + 8, y + 30, 48)
-			c.ui:text(bx + 4, y + 78, tostring(cost), 10, if money >= cost then colors.gold else colors.dim)
-			if clicked then
-				c:send("produce", { building = e, unit = name })
-				c:sound("click", { pitch = 1.3, gain = 0.4 })
+-- Ячейки сетки команд для выбранного: у своего завода — заказ юнитов.
+local function slots(c, selection)
+	local list = {}
+	if #selection == 1 and c:has(selection[1], "Producer") and c:mine(selection[1]) then
+		local building = selection[1]
+		local kind = c:proto(building)
+		local money = credits(c)
+		for _, name in kind.data.produces or {} do
+			local unit = c.protos.units[name]
+			if unit then
+				table.insert(list, {
+					label = unit.data.title or name,
+					picture = unit,
+					cost = unit.data.cost,
+					short = money < unit.data.cost,
+					about = unit.data.about,
+					run = function()
+						c:send("produce", { building = building, unit = name })
+					end,
+				})
 			end
-			if hovered then
-				c.ui:text(bx, y + 98, (unit.data.title or name) .. " — " .. cost .. " кр., " .. (unit.data.time or 0) .. " с", 10, colors.dim)
+		end
+	end
+	return list
+end
+
+-- Карточка ячейки: название с клавишей, пояснение, цена.
+local function card(ui, slot, hotkey: string)
+	local WIDTH = 264
+	ui:box({ direction = "column", gap = 4, width = WIDTH, align = "stretch" }, function()
+		ui:box({ direction = "row", justify = "between", align = "end", gap = 12 }, function()
+			ui:text(slot.label, { font = "title", color = COLORS.bright })
+			ui:text(hotkey, { font = "title", color = COLORS.gold })
+		end)
+		if slot.about then
+			ui:text(slot.about, { color = COLORS.dim, wrap = WIDTH })
+		end
+		if slot.cost then
+			ui:box({ direction = "row", align = "center", gap = 4 }, function()
+				widgets.coin(ui)
+				ui:text(tostring(slot.cost), { color = COLORS.gold })
+			end)
+		end
+	end)
+end
+
+local function commandGrid(c, list, width: number, height: number)
+	local ui = c.ui
+	local cellWidth = (width - 3 * 4) / 4
+	local cellHeight = (height - 2 * 4) / 3
+	ui:box({ id = "commands", direction = "column", gap = 4, width = width, height = height }, function()
+		for row = 0, 2 do
+			ui:box({ direction = "row", gap = 4 }, function()
+				for column = 0, 3 do
+					local i = row * 4 + column + 1
+					local slot = list[i]
+					local hotkey = GRID_KEYS[i]
+					if not slot then
+						ui:box({ width = cellWidth, height = cellHeight, skin = "well", alpha = 0.35 })
+						continue
+					end
+					local id = "cell:" .. i
+					local click = ui:button(id, { width = cellWidth, height = cellHeight, padding = { 0, 6, 0, if slot.picture then 4 else 8 }, gap = 6, justify = "start", disabled = slot.disabled }, function()
+						if slot.picture then
+							ui:box({ direction = "stack" }, function()
+								ui:box({ width = TILE, height = TILE }, function()
+									ui:image(slot.picture, TILE, TILE)
+								end)
+								ui:box({ self = { "start", "start" }, background = COLORS.ink, padding = { 0, 2 } }, function()
+									widgets.key(ui, hotkey, if slot.disabled then COLORS.muted else COLORS.gold)
+								end)
+							end)
+						end
+						ui:box({ direction = "column", grow = 1, gap = 0, clip = true }, function()
+							ui:box({ direction = "row", gap = 6 }, function()
+								ui:box({ grow = 1 }, function()
+									ui:text(slot.label, shadow({ color = COLORS.bright, ellipsis = true }))
+								end)
+							end)
+							ui:box({ direction = "row", align = "center", gap = 4 }, function()
+								if slot.cost then
+									widgets.coin(ui)
+									ui:text(tostring(slot.cost), shadow({ color = if slot.short then COLORS.warn else COLORS.gold }))
+								end
+							end)
+						end)
+					end)
+					ui:tip(id, slot.label .. (if slot.cost then " — " .. slot.cost .. " кр." else ""))
+					if click or (c.input.hits[KEY_NAMES[i]] and not c.input.keys.ctrl) then
+						slot.run()
+						c:sound("click", { pitch = 1.3, gain = 0.4 })
+					end
+				end
+			end)
+		end
+	end)
+end
+
+-- Сведения о выбранном: портрет (или плитки отряда), название и что оно делает.
+local function info(c, selection, width: number, height: number)
+	local ui = c.ui
+	local many = #selection > 1
+	local first = selection[1]
+	local kind = c:proto(first)
+	local title = if kind and kind.data then kind.data.title or kind.name else "?"
+	if many then
+		local counts, order = {}, {}
+		for _, e in selection do
+			local k = c:proto(e)
+			local name = k and k.data.title or "?"
+			if not counts[name] then
+				counts[name] = 0
+				table.insert(order, name)
 			end
-			bx += 70
+			counts[name] += 1
 		end
-	end
-	-- Очередь: что делается — с полосой, следом — значки поменьше.
-	local qx = x + 230
-	if producer.unit ~= "" then
-		local unit = units[producer.unit]
-		c.ui:icon(unit, qx, y + 30, 40)
-		c.ui:bar(qx, y + 74, 40, 4, producer.progress / (unit.data.time or 1), colors.accent)
-		for i, name in producer.queue do
-			c.ui:icon(units[name], qx + 18 + i * 30, y + 40, 26)
+		local parts = {}
+		for _, name in order do
+			table.insert(parts, if counts[name] > 1 then name .. " ×" .. counts[name] else name)
 		end
-		local clicked = c.ui:button("cancel", qx + 200, y + 28, 24, 24, "×", { size = 12 })
-		if clicked then
-			c:send("cancel", { building = e })
+		title = table.concat(parts, ", ")
+	end
+	local columns = math.max(1, math.min(4, math.floor((width - 24 - 10 - 150 + 4) / 44)))
+	local left = if many then columns * 40 + (columns - 1) * 4 else 104
+	local text = math.max(40, width - 24 - left - 10)
+	ui:box({ width = width, height = height, skin = "well", padding = { 10, 12 }, direction = "row", gap = 10 }, function()
+		if many then
+			ui:box({ direction = "column", gap = 4, width = left, maxHeight = height - 20, scroll = true, id = "info:units" }, function()
+				for start = 1, #selection, columns do
+					ui:box({ direction = "row", gap = 4 }, function()
+						for index = start, math.min(#selection, start + columns - 1) do
+							local e = selection[index]
+							ui:button("unit:" .. index, { width = 40, height = 40, padding = 0, skin = "well", direction = "stack" }, function()
+								ui:box({ self = { "center", "center" } }, function()
+									ui:image(c:proto(e), TILE, TILE)
+								end)
+							end)
+						end
+					end)
+				end
+			end)
+		else
+			ui:button("portrait", { width = 104, height = 104, padding = 0, skin = "well", direction = "stack" }, function()
+				ui:box({ self = { "center", "center" } }, function()
+					ui:image(kind, PORTRAIT, PORTRAIT)
+				end)
+				ui:box({ self = { "start", "end" }, width = 104, height = 6, background = "#4fd07a" })
+			end)
+			ui:tip("portrait", "Показать на карте")
 		end
-	else
-		c.ui:text(qx, y + 44, "Цех свободен", 10, colors.dim)
-	end
-	if producer.rally then
-		c.ui:text(qx, y + 82, "Точка сбора задана", 10, colors.dim)
-	else
-		c.ui:text(qx, y + 82, "ПКМ по земле — точка сбора", 10, colors.dim)
-	end
+		ui:box({ id = "info:details", direction = "column", gap = 4, grow = 1, maxHeight = height - 20, scroll = true }, function()
+			ui:box({ id = "info:title", width = text }, function()
+				ui:text(title, { font = "title", color = COLORS.bright, shadow = COLORS.ink, lift = 2, ellipsis = true })
+			end)
+			local producer = not many and c:get(first, "Producer")
+			if producer then
+				if producer.unit ~= "" then
+					local unit = c.protos.units[producer.unit]
+					widgets.bar(ui, producer.progress / (unit.data.time or 1), unit.data.title or producer.unit, text)
+					ui:box({ direction = "row", gap = 4 }, function()
+						for i, name in { producer.unit, table.unpack(producer.queue) } do
+							ui:box({ id = "queue:" .. i, width = 32, height = 32, skin = "well", padding = 4 }, function()
+								ui:image(c.protos.units[name], QUEUED, QUEUED)
+							end)
+						end
+					end)
+				end
+				ui:text(if producer.rally then "Готовые едут к флажку; правый щелчок по карте — перенести" else "Правый щелчок по карте — точка сбора готовых", { color = COLORS.soft, wrap = text })
+			end
+		end)
+	end)
+end
+
+-- Ничего не выбрано: подсказка по управлению.
+local function nothing(ui, width: number, height: number)
+	ui:box({ width = width, height = height, skin = "well", padding = { 10, 12 }, direction = "column", justify = "center", gap = 4, clip = true }, function()
+		for _, line in { "Ничего не выбрано.", "Левая кнопка — выбрать, рамка — несколько юнитов, правая — приказ." } do
+			ui:text(line, { color = COLORS.muted, wrap = true })
+		end
+	end)
+end
+
+local function bottomBar(c)
+	local ui = c.ui
+	local selection = c.shared.selection or {}
+	local selected = #selection > 0
+	local side = MINIMAP
+	local infoWidth = ui.width - BAR_SPACING - side - GRID_WIDTH
+	ui:box({ id = "bar", anchor = { left = 0, right = 0, bottom = 0 }, height = INNER + 16, skin = "panel", padding = { 4, 8 }, direction = "row", align = "end", gap = 8 }, function()
+		ui:box({ height = INNER, direction = "column", justify = "end" }, function()
+			ui:box({ id = "minimap", width = side, height = side, skin = "well", padding = 4 }, function()
+				ui:box({ grow = 1, background = COLORS.well })
+			end)
+		end)
+		ui:box({ direction = "row", gap = 8, height = INNER, align = "center" }, function()
+			if selected then
+				info(c, selection, infoWidth, INNER)
+			else
+				nothing(ui, infoWidth, INNER)
+			end
+			commandGrid(c, if selected then slots(c, selection) else {}, GRID_WIDTH, INNER)
+		end)
+	end)
 end
 
 function hud.draw(c)
-	local screen = c.screen
-	-- Кредиты.
-	local money = math.floor(credits(c))
-	frame(c, 10, 10, 170, 30)
-	c.ui:text(20, 18, "Кредиты", 12, colors.dim)
-	c.ui:text(90, 18, tostring(money), 12, colors.gold)
-	-- Время суток.
-	local hour = c.atmosphere.hour
-	if hour then
-		local text = string.format("%02d:%02d", math.floor(hour), math.floor(hour * 60) % 60)
-		frame(c, screen.w - 80, 10, 70, 30)
-		c.ui:text(screen.w - 62, 18, text, 12, colors.text)
-	end
-	-- Выделенное.
-	local selection = c.shared.selection or {}
-	if #selection == 0 then
-		return
-	end
-	local w, h = 480, 120
-	local x, y = math.floor((screen.w - w) / 2), screen.h - h - 10
-	frame(c, x, y, w, h)
-	if #selection == 1 and c:has(selection[1], "Producer") then
-		factory(c, selection[1], c:proto(selection[1]), x, y)
-		return
-	end
-	c.ui:text(x + 10, y + 8, "Выделено: " .. #selection, 12, colors.text)
-	for i, e in selection do
-		if i > 24 then
-			break
-		end
-		local column, row = (i - 1) % 12, (i - 1) // 12
-		local kind = c:proto(e)
-		if kind then
-			c.ui:icon(kind, x + 10 + column * 38, y + 30 + row * 40, 36)
-		end
-	end
+	topBar(c)
+	bottomBar(c)
 end
 
 return hud

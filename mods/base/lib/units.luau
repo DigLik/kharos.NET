@@ -659,11 +659,30 @@ units.lights = {
 	},
 }
 
--- Облик юнита вида name: кадр, направления, фазы хода, огни — для поля look вида.
-function units.look(name: string)
+-- Угол портрета: юнит смотрит вправо вверх.
+local PORTRAIT_ANGLE = -math.pi / 4
+
+-- Облик юнита вида name: кадр, направления, фазы хода, огни — для поля look вида. mounts — турели на корпусе
+-- (data.mounts): на портрете они рисуются на своих местах, как drawMounts в portraits.ts.
+function units.look(name: string, mounts: { any }?)
 	local gait = units.gaits[name]
 	local air = gait == "air"
+	local art = draw[name]
 	return {
+		portrait = {
+			size = units.FRAME,
+			draw = function(canvas)
+				art(canvas, PORTRAIT_ANGLE, MASK_TEAM, 0)
+				for _, mount in mounts or {} do
+					local c, s = math.cos(PORTRAIT_ANGLE), math.sin(PORTRAIT_ANGLE)
+					local x = (c * mount.along - s * mount.across) * 16
+					local y = (s * mount.along + c * mount.across) * 16
+					canvas:translate(x, y)
+					units.turrets[mount.turret](canvas, PORTRAIT_ANGLE)
+					canvas:translate(-x, -y)
+				end
+			end,
+		},
 		size = units.FRAME,
 		directions = units.DIRECTIONS,
 		phases = if air then 1 else units.PHASES,
