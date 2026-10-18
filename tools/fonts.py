@@ -6,7 +6,9 @@
 - режет шрифты для страницы на куски woff2 по диапазонам Юникода (apps/web/public/fonts) и пишет к ним packages/client/src/fonts.css с
   `unicode-range`: браузер качает только куски, чьи буквы встретились, — латиница с кириллицей это 26 КБ, а иероглифы
   и Unifont приходят, лишь когда они понадобились;
-- кладёт полные OTF для нативной оболочки (apps/native/fonts): её холст пишет текст сам (`fontdue`), с диска.
+- кладёт полные OTF для нативной оболочки (apps/native/fonts): её холст пишет текст сам (`fontdue`), с диска;
+- режет Ark Pixel для клиента на Rust (apps/client/fonts) до алфавитов — того же куска, что у страницы идёт всегда:
+  клиент вшивает шрифты в бинарник, и полные 3,9 МБ ради иероглифов, которых в игре нет, ему ни к чему.
 
 Unifont рисует глифы в 16 точек — ровно высота строки Ark Pixel 12 (13 сверху, 3 снизу). Чтобы он оставался
 пиксельным в стеке шрифтов с Ark Pixel 12px, его семейства увеличены через `size-adjust`: у «Kharos Unifont 12» кегль
@@ -30,6 +32,7 @@ CACHE = ROOT / '.cache' / 'fonts'
 PUBLIC = ROOT / 'apps' / 'web' / 'public' / 'fonts'
 NATIVE = ROOT / 'apps' / 'native' / 'fonts'
 CSS = ROOT / 'packages' / 'client' / 'src' / 'fonts.css'
+CLIENT = ROOT / 'apps' / 'client' / 'fonts'
 
 ARK = '2026.09.25'
 UNIFONT = '18.0.01'
@@ -84,10 +87,10 @@ def ranges(codes: list[int], blocked: set[int]) -> str:
     return ', '.join(parts)
 
 
-def cut(source: Path, codes: list[int], out: Path) -> None:
-    """Кусок шрифта с нужными кодами — в woff2."""
+def cut(source: Path, codes: list[int], out: Path, flavor: str | None = 'woff2') -> None:
+    """Кусок шрифта с нужными кодами — в woff2 (или как есть, OTF, при flavor=None)."""
     options = subset.Options()
-    options.flavor = 'woff2'
+    options.flavor = flavor
     options.layout_features = ['*']
     options.name_IDs = ['*']
     options.notdef_outline = True
@@ -95,7 +98,7 @@ def cut(source: Path, codes: list[int], out: Path) -> None:
     subsetter = subset.Subsetter(options)
     subsetter.populate(unicodes=codes)
     subsetter.subset(font)
-    font.flavor = 'woff2'
+    font.flavor = flavor
     font.save(out)
 
 
@@ -158,7 +161,13 @@ def main() -> None:
     NATIVE.mkdir(parents=True, exist_ok=True)
     for source, name in ((ark12, 'ark-pixel-12px.otf'), (ark10, 'ark-pixel-10px.otf'), (unifont, 'unifont.otf')):
         shutil.copy(source, NATIVE / name)
-    print(f'записано: {CSS.relative_to(ROOT)}, apps/web/public/fonts, apps/native/fonts')
+    CLIENT.mkdir(parents=True, exist_ok=True)
+    shutil.copy(fetch('ark-license'), CLIENT / 'OFL.txt')
+    for source, name in ((ark12, 'ark-pixel-12px.otf'), (ark10, 'ark-pixel-10px.otf')):
+        codes = [code for code in TTFont(source).getBestCmap() if code < SCRIPTS_END]
+        cut(source, codes, CLIENT / name, None)
+        print(f'клиент: {name} — {len(codes)} глифов, {(CLIENT / name).stat().st_size // 1024} КБ')
+    print(f'записано: {CSS.relative_to(ROOT)}, apps/web/public/fonts, apps/native/fonts, apps/client/fonts')
 
 
 if __name__ == '__main__':

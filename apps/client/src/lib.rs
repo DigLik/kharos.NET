@@ -21,8 +21,8 @@ use kharos_content::{discover, Mod};
 use render::Renderer;
 use std::path::PathBuf;
 
-/// Шрифты интерфейса — Ark Pixel 12 и 10 px (OFL), как у TS-клиента.
-const FONTS: [&[u8]; 2] = [include_bytes!("../../native/fonts/ark-pixel-12px.otf"), include_bytes!("../../native/fonts/ark-pixel-10px.otf")];
+/// Шрифты интерфейса — Ark Pixel 12 и 10 px (OFL), как у TS-клиента, обрезанные до алфавитов (tools/fonts.py).
+const FONTS: [&[u8]; 2] = [include_bytes!("../fonts/ark-pixel-12px.otf"), include_bytes!("../fonts/ark-pixel-10px.otf")];
 
 pub struct App {
   renderer: Renderer,
