@@ -64,6 +64,8 @@ pub struct Game {
   pub land: Option<Land>,
   /// Пройденный путь сущностей на экране: от него — кадр хода (колёса, гусеницы, ноги), как в unitsPass.ts.
   walked: HashMap<Entity, Walk>,
+  /// Путь, пройденный ветром, — для осадков.
+  drift: [f32; 2],
 }
 
 /// Путь сущности: где её нарисовали в прошлый раз, сколько прошла и когда видели.
@@ -230,7 +232,7 @@ impl Game {
       None => None,
     };
 
-    Ok(Self { host, client, state, ctx, ctx_data, camera, panels, controls, ambience, music, signals, looks, look_of, atlas: Some(atlas), land, audio, held, loads: HashMap::new(), walked: HashMap::new(), bar: 0, next_bar: 0.0, accumulator: 0.0, last: None, pending: Vec::new(), palette })
+    Ok(Self { host, client, state, ctx, ctx_data, camera, panels, controls, ambience, music, signals, looks, look_of, atlas: Some(atlas), land, audio, held, loads: HashMap::new(), walked: HashMap::new(), drift: [0.0; 2], bar: 0, next_bar: 0.0, accumulator: 0.0, last: None, pending: Vec::new(), palette })
   }
 
   /// Кадр: тики, подача, звук. Возвращает, что рисовать.
@@ -470,9 +472,18 @@ impl Game {
   /// Кадр для рендера: спрайты видимых сущностей по слоям, огни, свет атмосферы.
   fn build(&mut self, view: &View, time: f64) -> Result<Frame, String> {
     let mut frame = Frame { layers: vec![Vec::new(); LAYERS], palette: self.palette.clone(), time: time as f32, ..Default::default() };
-    let light = self.ctx.atmosphere.get::<Option<Table>>("light").ok().flatten();
-    frame.ambient = light.map_or([1.0; 3], |light| [light.get::<f32>("r").unwrap_or(1.0), light.get::<f32>("g").unwrap_or(1.0), light.get::<f32>("b").unwrap_or(1.0)]);
-    frame.lamps = self.ctx.atmosphere.get::<Option<f32>>("lamps").ok().flatten().unwrap_or(0.0).clamp(0.0, 1.0);
+    let atmosphere = &self.ctx.atmosphere;
+    frame.light = atmosphere.get::<Option<f32>>("light").ok().flatten().unwrap_or(1.0).clamp(0.0, 1.0);
+    frame.precipitation = atmosphere.get::<Option<f32>>("precipitation").ok().flatten().unwrap_or(0.0).clamp(0.0, 1.0);
+    if let Some(wind) = atmosphere.get::<Option<Table>>("wind").ok().flatten() {
+      frame.wind = [wind.get::<f32>("x").unwrap_or(0.0), wind.get::<f32>("y").unwrap_or(0.0)];
+    }
+    // Снос копится, а не считается как ветер × время: иначе смена ветра дёргала бы всю пелену (precipitationPass.ts).
+    let dt = self.state.borrow().dt as f32;
+    for axis in 0..2 {
+      self.drift[axis] = (self.drift[axis] + frame.wind[axis] * dt).rem_euclid(512.0);
+    }
+    frame.drift = self.drift;
     let state = self.state.borrow();
     let world = state.world.borrow();
     let schema = &world.world.schema;
@@ -480,7 +491,7 @@ impl Game {
     let attached = schema.id("Attached");
     let bounds = view.bounds(7.0);
     let snap = |value: f32| (value * TEXELS).round() / TEXELS;
-    let lights = frame.lamps > 0.0;
+    let lights = true;
     // Слой и порядок внутри слоя (здания — по нижнему краю: нижние перекрывают верхние).
     let mut sorted: Vec<(usize, f32, [f32; SPRITE])> = Vec::new();
     let layer_of = |entity: Entity| -> Option<usize> {
@@ -547,7 +558,7 @@ impl Game {
       }
       // Огни кадра (здания): как lights.add в buildingsPass.ts — пятно в 16 радиусов лампы, ореол в 3 + 2.
       for &[lx, ly, size, level] in &look.frame_lights[cell] {
-        if level <= 0.0 {
+        if level <= crate::render::MIN_LEVEL {
           continue;
         }
         frame.spots.extend_from_slice(&[x + lx, y + ly, size * 16.0, level]);

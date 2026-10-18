@@ -86,9 +86,9 @@ function hud.draw(c)
 	c.ui:text(20, 18, "Кредиты", 12, colors.dim)
 	c.ui:text(90, 18, tostring(money), 12, colors.gold)
 	-- Время суток.
-	local clock = c.atmosphere.clock
-	if clock then
-		local text = string.format("%02d:%02d", math.floor(clock * 24), math.floor(clock * 24 * 60) % 60)
+	local hour = c.atmosphere.hour
+	if hour then
+		local text = string.format("%02d:%02d", math.floor(hour), math.floor(hour * 60) % 60)
 		frame(c, screen.w - 80, 10, 70, 30)
 		c.ui:text(screen.w - 62, 18, text, 12, colors.text)
 	end

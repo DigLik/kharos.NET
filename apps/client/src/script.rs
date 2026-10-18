@@ -176,6 +176,12 @@ impl UserData for Ctx {
     fields.add_field_method_get("dt", |_, c| Ok(c.state.borrow().dt));
     fields.add_field_method_get("player", |_, c| Ok(c.state.borrow().player));
     fields.add_field_method_get("tick", |_, c| Ok(c.state.borrow().world.borrow().tick));
+    // Секунды игры, сглаженные между тиками: по ним идут сутки и погода — у всех игроков одинаково.
+    fields.add_field_method_get("clock", |_, c| {
+      let state = c.state.borrow();
+      let tick = state.world.borrow().tick as f64;
+      Ok((tick + state.alpha) * crate::game::STEP)
+    });
     fields.add_field_method_get("draw", |_, c| Ok(Draw(c.state.clone())));
     fields.add_field_method_get("ui", |_, c| Ok(UiApi(c.state.clone())));
     fields.add_field_method_get("screen", |lua, c| {
@@ -261,6 +267,8 @@ impl UserData for Ctx {
       Ok(owner == Some(state.player as f64))
     });
     methods.add_method("pick", |_, c, (x, y): (f64, f64)| Ok(c.state.borrow().pick(x, y)));
+    // Случайное число 0..1 от координат и сида — тот же hash, что у генератора местности и погоды в TS.
+    methods.add_function("hash", |_, (x, y, seed): (f64, f64, f64)| Ok(kharos_engine::terrain::hash(x, y, seed)));
     // Сущности с Position в прямоугольнике мира и со всеми компонентами списка.
     methods.add_method("within", |_, c, (x1, y1, x2, y2, components): (f64, f64, f64, f64, Option<Vec<String>>)| {
       let state = c.state.borrow();

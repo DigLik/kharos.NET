@@ -3,9 +3,10 @@
 //! 1. земля — `terrain.frag` из TS как есть, по окну тайлов вокруг камеры (`map/landWindow.ts`);
 //! 2. тени и спрайты по слоям (наземные, их турели, здания, турели зданий, летающие, их турели) — инстансами из
 //!    общего атласа, цвет стороны — палитрой, ничьё — серым;
-//! 3. когда атмосфера темнее дня — карта силуэтов, карта освещённости (цвет атмосферы, фары, лучи с тенями,
-//!    свечения), умножение на неё и ореолы;
-//! 4. слой поверх мира (выделение, частицы) и интерфейс — батчами треугольников.
+//! 3. осадки по биомам — `weather.frag` из TS как есть: пыль в пустынях, снег на солончаках, дождь в топях;
+//! 4. свет, как `lightingPass.ts`: когда темнее полудня — карта силуэтов, карта освещённости (оттенок `lightTint`,
+//!    фары, лучи с тенями, огни зданий), умножение на неё; ореолы огней — всегда, днём слабее;
+//! 5. слой поверх мира (выделение, частицы) и интерфейс — батчами треугольников.
 
 use crate::gl::{Gl, Target};
 use crate::ui::{Batch, FontAtlas, Paint, ATLAS_SIZE};
@@ -61,9 +62,12 @@ pub struct Frame {
   pub blooms: Vec<f32>,
   /// Лучи: x, y, длина, яркость, cos, sin, ближняя полуширина, расширение.
   pub beams: Vec<f32>,
-  /// Цвет света сцены (1, 1, 1 — день) и сила огней 0..1.
-  pub ambient: [f32; 3],
-  pub lamps: f32,
+  /// Освещение: 0 — ночь, 1 — полдень (`Weather.light` в TS).
+  pub light: f32,
+  /// Ветер в тайлах в секунду, путь, пройденный ветром (по модулю WINDOW), и осадки 0..1.
+  pub wind: [f32; 2],
+  pub drift: [f32; 2],
+  pub precipitation: f32,
   /// Палитры сторон: TEAMS × 3 цвета.
   pub palette: Vec<f32>,
   /// Секунды — анимация болот.
@@ -93,6 +97,21 @@ void main() {
 
 /// Шейдер земли из TS — тот же файл, без строки версии: её подставляет `Gl::program`.
 const TERRAIN_FS: &str = include_str!("../../../packages/client/src/map/terrain.frag");
+/// Шейдер осадок из TS, так же.
+const WEATHER_FS: &str = include_str!("../../../packages/client/src/weather/weather.frag");
+
+/// Оттенки освещения, как в lightingPass.ts: ночь, сумерки (добавка в середине шкалы) и полдень — белый.
+const NIGHT: [f32; 3] = [0.16, 0.2, 0.42];
+const DUSK: [f32; 3] = [0.1, 0.0, -0.1];
+/// Яркость ореолов огней днём; к ночи растёт до 1. Огни слабее MIN_LEVEL не рисуются.
+const DAY_BLOOM: f32 = 0.35;
+pub const MIN_LEVEL: f32 = 0.02;
+
+/// Цвет, на который умножается картинка при уровне освещения light (`lightTint`).
+fn light_tint(light: f32) -> [f32; 3] {
+  let dusk = 1.0 - (light * 2.0 - 1.0).abs();
+  std::array::from_fn(|i| (NIGHT[i] + (1.0 - NIGHT[i]) * light + DUSK[i] * dusk).clamp(0.0, 1.0))
+}
 
 /// Окно земли вокруг камеры, как `map/landWindow.ts`: текстура WINDOW × WINDOW тайлов, тайл (x, y) — в текселе
 /// (x mod WINDOW, y mod WINDOW), чанки дописываются по мере движения камеры.
@@ -296,6 +315,7 @@ void main() {
 
 struct Programs {
   terrain: glow::Program,
+  weather: glow::Program,
   sprite: glow::Program,
   spot: glow::Program,
   beam: glow::Program,
@@ -346,7 +366,8 @@ impl Renderer {
     let gl = Gl::new(gl);
     let with = |source: &str| format!("{COMMON}{source}");
     let terrain = TERRAIN_FS.split_once('\n').map_or(TERRAIN_FS, |(_, rest)| rest);
-    let programs = Programs { terrain: gl.program(TERRAIN_VS, terrain)?, sprite: gl.program(&with(SPRITE_VS), &with(SPRITE_FS))?, spot: gl.program(&with(SPOT_VS), &with(SPOT_FS))?, beam: gl.program(&with(BEAM_VS), &with(BEAM_FS))?, blit: gl.program(BLIT_VS, BLIT_FS)?, batch: gl.program(&with(BATCH_VS), &with(BATCH_FS))? };
+    let weather = WEATHER_FS.split_once('\n').map_or(WEATHER_FS, |(_, rest)| rest);
+    let programs = Programs { terrain: gl.program(TERRAIN_VS, terrain)?, weather: gl.program(TERRAIN_VS, weather)?, sprite: gl.program(&with(SPRITE_VS), &with(SPRITE_FS))?, spot: gl.program(&with(SPOT_VS), &with(SPOT_FS))?, beam: gl.program(&with(BEAM_VS), &with(BEAM_FS))?, blit: gl.program(BLIT_VS, BLIT_FS)?, batch: gl.program(&with(BATCH_VS), &with(BATCH_FS))? };
     unsafe {
       let raw = &gl.gl;
       let corners = raw.create_buffer()?;
@@ -496,10 +517,39 @@ impl Renderer {
     gl.draw_arrays(glow::TRIANGLE_STRIP, 0, 4);
   }
 
+  /// Осадки: тот же полноэкранный ход, что у земли, и альфа-смешение.
+  unsafe fn weather(&self, view: &View, frame: &Frame, size: [i32; 2]) {
+    let Some(window) = &self.land else { return };
+    if frame.precipitation <= 0.0 {
+      return;
+    }
+    let gl = &self.gl.gl;
+    let program = self.programs.weather;
+    gl.use_program(Some(program));
+    let uniform = |name: &str| gl.get_uniform_location(program, name);
+    let zoom = view.zoom * view.scale;
+    gl.uniform_1_i32(uniform("uMap").as_ref(), 0);
+    gl.uniform_2_f32(uniform("uScreenSize").as_ref(), size[0] as f32, size[1] as f32);
+    gl.uniform_2_f32(uniform("uCamera").as_ref(), view.x.rem_euclid(WINDOW as f32), view.y.rem_euclid(WINDOW as f32));
+    gl.uniform_1_f32(uniform("uZoom").as_ref(), zoom);
+    gl.uniform_1_f32(uniform("uPixel").as_ref(), 1.0 / zoom);
+    gl.uniform_1_f32(uniform("uTime").as_ref(), frame.time);
+    gl.uniform_2_f32(uniform("uWind").as_ref(), frame.wind[0], frame.wind[1]);
+    gl.uniform_2_f32(uniform("uDrift").as_ref(), frame.drift[0], frame.drift[1]);
+    gl.uniform_1_f32(uniform("uPrecipitation").as_ref(), frame.precipitation);
+    gl.uniform_1_i32(uniform("uDetail").as_ref(), 2);
+    gl.bind_texture(glow::TEXTURE_2D, Some(window.texture));
+    gl.enable(glow::BLEND);
+    gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
+    gl.bind_vertex_array(Some(self.empty_vao));
+    gl.draw_arrays(glow::TRIANGLE_STRIP, 0, 4);
+    gl.disable(glow::BLEND);
+  }
+
   /// Кадр мира: земля, тени и спрайты по слоям, свет.
   pub fn draw_world(&mut self, view: &View, frame: &Frame, size: [i32; 2]) {
     self.size = size;
-    let night = frame.ambient.iter().any(|&channel| channel < 0.97);
+    let night = frame.light < 1.0;
     if night {
       self.targets(size);
     }
@@ -520,7 +570,13 @@ impl Renderer {
         self.sprites(view, frame, layer..layer + 1, 0);
       }
       gl.disable(glow::BLEND);
+      self.weather(view, frame, size);
+      let bloom = DAY_BLOOM + (1.0 - DAY_BLOOM) * (1.0 - frame.light);
       if !night {
+        gl.enable(glow::BLEND);
+        gl.blend_func(glow::ONE, glow::ONE);
+        self.spots(view, &frame.blooms, BLOOM_COLOR, bloom);
+        gl.disable(glow::BLEND);
         return;
       }
       let (occluders, lightmap) = (self.occluders.as_ref().expect("силуэты"), self.lightmap.as_ref().expect("свет"));
@@ -533,16 +589,17 @@ impl Renderer {
       gl.enable(glow::BLEND);
       gl.blend_func(glow::ONE, glow::ONE);
       gl.bind_framebuffer(glow::FRAMEBUFFER, Some(lightmap.framebuffer));
-      gl.clear_color(frame.ambient[0], frame.ambient[1], frame.ambient[2], 1.0);
+      let tint = light_tint(frame.light);
+      gl.clear_color(tint[0], tint[1], tint[2], 1.0);
       gl.clear(glow::COLOR_BUFFER_BIT);
-      if frame.lamps > 0.0 {
-        self.spots(view, &frame.spots, LIGHT_COLOR, frame.lamps);
+      {
+        self.spots(view, &frame.spots, LIGHT_COLOR, 1.0);
         if !frame.beams.is_empty() {
           self.gl.upload(self.beam_data, &frame.beams);
           let beam = self.programs.beam;
           self.camera(beam, view);
           gl.uniform_3_f32(gl.get_uniform_location(beam, "uColor").as_ref(), LIGHT_COLOR[0], LIGHT_COLOR[1], LIGHT_COLOR[2]);
-          gl.uniform_1_f32(gl.get_uniform_location(beam, "uStrength").as_ref(), frame.lamps);
+          gl.uniform_1_f32(gl.get_uniform_location(beam, "uStrength").as_ref(), 1.0);
           gl.bind_texture(glow::TEXTURE_2D, Some(occluders.texture));
           gl.bind_vertex_array(Some(self.beam_vao));
           gl.draw_arrays_instanced(glow::TRIANGLE_STRIP, 0, 4, (frame.beams.len() / 8) as i32);
@@ -555,7 +612,7 @@ impl Renderer {
       gl.bind_vertex_array(Some(self.empty_vao));
       gl.draw_arrays(glow::TRIANGLE_STRIP, 0, 4);
       gl.blend_func(glow::ONE, glow::ONE);
-      self.spots(view, &frame.blooms, BLOOM_COLOR, frame.lamps * 0.6);
+      self.spots(view, &frame.blooms, BLOOM_COLOR, bloom);
       gl.disable(glow::BLEND);
     }
   }
