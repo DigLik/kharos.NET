@@ -6,7 +6,22 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Ловушка wasm роняет процесс с теневым стеком Windows (docs/dotnet.md, Н2). -->
     <CetCompat>false</CetCompat>
+    <!-- dotnet publish apps/Kharos.Desktop -c Release -r win-x64: самодостаточная сборка NativeAOT. -->
+    <PublishAot>true</PublishAot>
+    <SelfContained>true</SelfContained>
+    <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+    <PublishDocumentationFile>false</PublishDocumentationFile>
+    <DebugType>none</DebugType>
+    <!-- Предупреждения отсечения и AOT дают зависимости (Silk.NET, Wasmtime, MemoryPack), не наш код: на публикации не ошибки. -->
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+    <IlcTreatWarningsAsErrors>false</IlcTreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);IL2104;IL3053;IL3000;IL3002</NoWarn>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- Моды рядом с программой: mod.json, data/*.json и wasm (после tools/build-mods.ps1); исходники и сборки не берутся. -->
+    <ModFile Include="..\..\mods\*\mod.json;..\..\mods\*\*.wasm;..\..\mods\*\data\*.json" />
+    <None Include="@(ModFile)" Link="mods\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Kharos.Client\Kharos.Client.csproj" />
     <ProjectReference Include="..\..\src\Kharos.Host\Kharos.Host.csproj" />

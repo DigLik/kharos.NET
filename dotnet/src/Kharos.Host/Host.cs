@@ -111,7 +111,7 @@ public sealed class Host : IDisposable
                     if (!layers.Any(layer => layer.Name == spec.Name))
                         layers.Add(spec);
             if (Game.Land is { } config)
-                Land = new Land(config, LandArea.Of(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom));
+                Land = Generate(new Land(config, LandArea.Of(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom)));
         }
         Layers = new LayerSet(layers);
         if (Map is { } map && Game.Fog)
@@ -269,6 +269,19 @@ public sealed class Host : IDisposable
         _stringsSent = World.Strings.Count;
         _signals.Clear();
         return delta;
+    }
+
+    /// <summary>
+    /// Собирает все чанки карты заранее: пределы вызовов мода идут по часам, и холодная генерация внутри инструмента
+    /// (поиск пути, проходимость) засчиталась бы моду.
+    /// </summary>
+    private static Land Generate(Land land)
+    {
+        if (land.Area is { } area)
+            for (var y = 0; y < area.Height; y++)
+                for (var x = 0; x < area.Width; x++)
+                    land.GetChunk(area.Left + x, area.Top + y);
+        return land;
     }
 
     /// <summary>Приветствие игроку.</summary>
