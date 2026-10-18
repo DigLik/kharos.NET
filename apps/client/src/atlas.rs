@@ -123,12 +123,14 @@ impl UserData for Canvas {
   }
 }
 
-/// Слой рисования: наземные юниты под зданиями, летающие — над всеми. Турель — слоем выше своего носителя.
+/// Слой рисования: что лежит на земле (руда), наземные юниты под зданиями, летающие — над всеми. Турель — слоем выше
+/// своего носителя.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Layer {
-  Ground = 0,
-  Building = 2,
-  Air = 4,
+  Floor = 0,
+  Ground = 1,
+  Building = 3,
+  Air = 5,
 }
 
 /// Огни юнита: фары (вдоль, поперёк, радиус — в пикселях спрайта) и луч.
@@ -159,6 +161,8 @@ pub struct Look {
   pub layer: Layer,
   /// Тень: сдвиг в тайлах и непрозрачность.
   pub shadow: [f32; 2],
+  /// Видно, где разведано, а не только в обзоре (руда: она не уходит, и её помнят).
+  pub memory: bool,
   pub lights: Lights,
   /// Таблица `look` — звук и прочее берутся из неё по ходу.
   pub table: Table,
@@ -244,14 +248,17 @@ pub fn build(lua: &Lua, proto: u32, look: Table) -> mlua::Result<Look> {
     }
   }
   let layer = match look.get::<Option<String>>("layer")?.as_deref() {
+    Some("floor") => Layer::Floor,
     Some("building") => Layer::Building,
     Some("air") => Layer::Air,
     _ => Layer::Ground,
   };
-  let shadow = match look.get::<Option<Table>>("shadow")? {
-    Some(table) => [table.get::<f32>(1)? / TILE, table.get::<f32>(2)?],
-    None => [2.0 / TILE, 0.4],
+  let shadow = match look.get::<Value>("shadow")? {
+    Value::Table(table) => [table.get::<f32>(1)? / TILE, table.get::<f32>(2)?],
+    Value::Boolean(false) => [0.0, 0.0],
+    _ => [2.0 / TILE, 0.4],
   };
+  let memory = look.get::<Option<bool>>("memory")?.unwrap_or(false);
   let icon = match look.get::<Value>("icon")? {
     Value::Table(table) => table.get::<Option<usize>>("direction")?.unwrap_or(0),
     _ => 0,
@@ -262,7 +269,7 @@ pub fn build(lua: &Lua, proto: u32, look: Table) -> mlua::Result<Look> {
     None => None,
   };
   let portrait_size = portrait.as_ref().map_or([width as f32, height as f32], |(_, [w, h])| [*w as f32, *h as f32]);
-  Ok(Look { proto, size: [width, height], offset, directions, phases, images, cells: Vec::new(), frame_lights, fps: look.get::<Option<f32>>("fps")?.unwrap_or(8.0), step: look.get::<Option<f32>>("step")?, layer, shadow, lights, table: look, icon, portrait, portrait_uv: None, portrait_size })
+  Ok(Look { proto, size: [width, height], offset, directions, phases, images, cells: Vec::new(), frame_lights, fps: look.get::<Option<f32>>("fps")?.unwrap_or(8.0), step: look.get::<Option<f32>>("step")?, layer, shadow, memory, lights, table: look, icon, portrait, portrait_uv: None, portrait_size })
 }
 
 /// Портрет: `{ size, origin, draw = function(canvas) }` — рисуется один раз и обрезается по закрашенному (toCanvas).

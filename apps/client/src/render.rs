@@ -46,8 +46,8 @@ impl View {
   }
 }
 
-/// Слоёв спрайтов: наземные, их турели, здания, турели зданий, летающие, их турели.
-pub const LAYERS: usize = 6;
+/// Слоёв спрайтов: на земле, наземные, их турели, здания, турели зданий, летающие, их турели.
+pub const LAYERS: usize = 7;
 /// Чисел на спрайт: левый верхний угол и размер в тайлах (от камеры), uv кадра, сторона, сдвиг и сила тени, серость.
 pub const SPRITE: usize = 12;
 
@@ -637,7 +637,9 @@ impl Renderer {
       gl.enable(glow::BLEND);
       gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
       for layer in 0..LAYERS {
-        self.sprites(view, frame, layer..layer + 1, 1);
+        if layer > 0 {
+          self.sprites(view, frame, layer..layer + 1, 1);
+        }
         self.sprites(view, frame, layer..layer + 1, 0);
       }
       gl.disable(glow::BLEND);
@@ -655,8 +657,8 @@ impl Renderer {
       gl.bind_framebuffer(glow::FRAMEBUFFER, Some(occluders.framebuffer));
       gl.clear_color(0.0, 0.0, 0.0, 0.0);
       gl.clear(glow::COLOR_BUFFER_BIT);
-      // Летающие лучам фар не мешают: они выше.
-      self.sprites(view, frame, 0..4, 2);
+      // Лучам фар мешают наземные и здания; лежащее на земле и летающие — нет.
+      self.sprites(view, frame, 1..5, 2);
 
       gl.enable(glow::BLEND);
       gl.blend_func(glow::ONE, glow::ONE);

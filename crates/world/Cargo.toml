@@ -8,5 +8,6 @@ description = "Мир Kharos столбцами по схеме из модов 
 
 [dependencies]
 kharos-content = { path = "../content" }
+kharos-engine = { path = "../engine" }
 mlua = { version = "0.12", features = ["luau", "luau-jit", "serde"] }
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }

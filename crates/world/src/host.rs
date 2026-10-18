@@ -63,6 +63,8 @@ pub struct State {
   grid: Option<Grid>,
   /// Обзор игроков; None — у партии нет карты (data.size).
   pub vision: Option<crate::vision::Vision>,
+  /// Местность партии (data.land — вид из lands/): тот же генератор, что рисует клиент.
+  pub land: Option<kharos_engine::terrain::Land>,
 }
 
 /// Клетки 4 × 4 тайла: сущности с Position.
@@ -120,7 +122,7 @@ impl Host {
       return Err(format!("нет партии games/{game}"));
     }
     let schema = Rc::new(schema_of(&content)?);
-    let state = Rc::new(RefCell::new(State { world: World::new(schema.clone()), ops: Vec::new(), events: Vec::new(), signals: Vec::new(), tick: 0, dt: 0.05, rng: seed.max(1), grid: None, vision: None }));
+    let state = Rc::new(RefCell::new(State { world: World::new(schema.clone()), ops: Vec::new(), events: Vec::new(), signals: Vec::new(), tick: 0, dt: 0.05, rng: seed.max(1), grid: None, vision: None, land: None }));
     let lua = &content.lua;
     let storage = lua.create_table().map_err(lua_error("storage"))?;
     let game_table = content.get("games", game).expect("партия");
@@ -159,6 +161,12 @@ impl Host {
     if let Some(size) = data.as_ref().and_then(|data| data.get::<Option<i32>>("size").ok().flatten()) {
       let fog = data.as_ref().and_then(|data| data.get::<Option<bool>>("fog").ok().flatten()).unwrap_or(true);
       state.borrow_mut().vision = Some(crate::vision::Vision::new(crate::vision::Bounds { left: -size, top: -size, right: size, bottom: size }, fog));
+      if let Some(name) = data.as_ref().and_then(|data| data.get::<Option<String>>("land").ok().flatten()) {
+        let kind = content.get("lands", &name).ok_or_else(|| format!("нет местности lands/{name}"))?;
+        let generator: Json = content.lua.from_value(kind.get::<Value>("data").map_err(lua_error(format!("lands/{name}.data")))?).map_err(lua_error(format!("lands/{name}.data")))?;
+        let config: kharos_engine::terrain::GeneratorConfig = serde_json::from_value(generator).map_err(|problem| format!("lands/{name}.data: {problem}"))?;
+        state.borrow_mut().land = Some(kharos_engine::terrain::Land::new(config, kharos_engine::terrain::LandArea::of(-size, -size, size, size)));
+      }
     }
     Ok(Self { content, game: game.to_string(), state, systems, handlers, commands, orders: Vec::new(), ctx, storage })
   }
@@ -783,6 +791,19 @@ impl UserData for Ctx {
       write(&ys, &y);
       Ok(())
     });
+    // Местность в тайле: вид (0 — болото, 1 — песок, 2 — скала, 3 — гора), биом (0 — эрг, 1 — солончаки, 2 — красные
+    // пустоши, 3 — топи) и подножие ли обрыва; nil — у партии нет местности.
+    methods.add_method("terrain", |_, this, (x, y): (f64, f64)| {
+      let mut state = this.state.borrow_mut();
+      let Some(land) = &mut state.land else { return Ok((None, None, None)) };
+      let tile = land.tile(x.floor() as i32, y.floor() as i32);
+      let foot = tile[0] != kharos_engine::terrain::MOUNTAIN && tile[3] & kharos_engine::terrain::FOOT_BIT != 0;
+      Ok((Some(tile[0] & 3), Some(tile[1] >> 6), Some(foot)))
+    });
+    // Сид местности партии.
+    methods.add_method("seed", |_, this, ()| Ok(this.state.borrow().land.as_ref().map(|land| land.config.seed)));
+    // Случайное 0..1 от координат и сида — тот же hash, что у генератора местности TS.
+    methods.add_function("hash", |_, (x, y, seed): (f64, f64, f64)| Ok(kharos_engine::terrain::hash(x, y, seed)));
     methods.add_method("count", |_, this, component: String| {
       let id = this.component(&component)?;
       Ok(this.state.borrow().world.stores[id].len())

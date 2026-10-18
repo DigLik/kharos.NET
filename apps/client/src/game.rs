@@ -445,7 +445,8 @@ impl Game {
       let look = &self.looks[index];
       // Чужое вне обзора не видно: хост TS его и не прислал бы.
       let player_of = world.world.num(entity, owner, "player").unwrap_or(0.0) as u32;
-      if player_of != state.player && world.vision.as_ref().is_some_and(|vision| !vision.sees(state.player, x as f64, y as f64)) {
+      let hidden = |vision: &kharos_world::vision::Vision| if look.memory { !vision.explored(state.player, x as f64, y as f64) } else { !vision.sees(state.player, x as f64, y as f64) };
+      if player_of != state.player && world.vision.as_ref().is_some_and(hidden) {
         continue;
       }
       // Турель — слоем выше своего носителя.
@@ -505,7 +506,8 @@ impl Game {
         frame.blooms.extend_from_slice(&[x + lx, y + ly, size * 3.0 + 2.0, level]);
       }
     }
-    sorted.sort_by(|a, b| a.0.cmp(&b.0).then(if a.0 == 2 { a.1.total_cmp(&b.1) } else { std::cmp::Ordering::Equal }));
+    let buildings = crate::atlas::Layer::Building as usize;
+    sorted.sort_by(|a, b| a.0.cmp(&b.0).then(if a.0 == buildings { a.1.total_cmp(&b.1) } else { std::cmp::Ordering::Equal }));
     for (layer, _, sprite) in sorted {
       frame.layers[layer.min(LAYERS - 1)].extend_from_slice(&sprite);
     }

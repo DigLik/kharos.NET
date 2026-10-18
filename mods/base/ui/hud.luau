@@ -257,6 +257,17 @@ local function minimapView(c, side: number)
 	ui:box({ id = "minimap", width = side, height = side, skin = "well", padding = 4, clip = true }, function()
 		ui:box({ direction = "stack", width = inner, height = inner, background = "#05090f" }, function()
 			ui:image("minimap", inner, inner)
+			-- Разведанные месторождения — цветом своего ресурса.
+			for _, e in c:each({ "Deposit", "Position" }) do
+				local p = c:get(e, "Position")
+				local kind = c:proto(e)
+				if c:explored(p.x, p.y) and kind and kind.data.color then
+					local x, y = at(p.x, p.y)
+					ui:box({ self = { "start", "start" }, padding = { math.floor(y - dot / 2), 0, 0, math.floor(x - dot / 2) } }, function()
+						ui:box({ width = dot, height = dot, background = kind.data.color })
+					end)
+				end
+			end
 			for _, e in c:each({ "Owner", "Position" }) do
 				local building = c:get(e, "Building")
 				local p0 = c:get(e, "Position")

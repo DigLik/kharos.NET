@@ -1,0 +1,19 @@
+--!strict
+-- Месторождение: харит. Данные — из packages/base/data/deposits.json: запас от min до max, сколько в секунду
+-- добывает шахта и доли вида среди месторождений каждого биома.
+
+local deposits = require("lib/deposits")
+
+return {
+	data = {
+		title = "Харит",
+		min = 200,
+		max = 400,
+		-- Цвет ресурса: значок, груз на луче, точка на мини-карте (resourceColors.ts).
+		color = 0xc06bff,
+		rate = 0.3,
+		biomes = { erg = 0.34, saltFlats = 0.08, redWastes = 0.08, marsh = 0.08 },
+	},
+	entity = { Position = {}, Deposit = {} },
+	look = deposits.look("kharite"),
+}
