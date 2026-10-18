@@ -92,6 +92,7 @@ public sealed class Welcome
         for (var id = 0; id < Components.Count; id++)
         {
             var component = Components[id];
+            schema.DeclareTag(component.Name);
             foreach (var field in component.Fields)
                 schema.Declare(component.Name, field.Name, field.Kind, field.Default);
             if (schema.Find(component.Name) != id)

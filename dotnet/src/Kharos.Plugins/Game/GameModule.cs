@@ -12,13 +12,22 @@ namespace Kharos.Plugins.Game;
 /// <param name="Info">Объявление системы из манифеста.</param>
 /// <param name="Width">Столбцов f64 в кадре.</param>
 /// <param name="Write">Столбцы, которые вернуть в мир: (первый столбец, сколько) — по компоненту из Write.</param>
-public sealed record ModSystemLayout(ModSystemInfo Info, int Width, IReadOnlyList<(int First, int Count)> Write);
+public sealed record ModSystemLayout(ModSystemInfo Info, int Width, IReadOnlyList<(int First, int Count)> Write)
+{
+    /// <summary>Побочные таблицы: ширина и вернуть ли столбцы в мир (все).</summary>
+    public IReadOnlyList<ModTableLayout> Tables { get; init; } = [];
+}
+
+/// <summary>Раскладка побочной таблицы системы мода.</summary>
+/// <param name="Width">Столбцов f64.</param>
+/// <param name="Write">Вернуть ли её столбцы в мир.</param>
+public readonly record struct ModTableLayout(int Width, bool Write);
 
 /// <summary>
 /// Скомпилированный модуль мода с его ModLoadInfo. Экземпляры без состояния: их можно держать пулом и выбрасывать
 /// после ловушки. Перерасходы времени считаются на мод: после <see cref="GameModuleOptions.MaxStrikes"/> он выключен.
 /// </summary>
-public sealed class GameModule : IDisposable
+public sealed class GameModule : IModModule
 {
     private readonly ConcurrentQueue<GameModuleInstance> _pool = new();
     private int _strikes;
@@ -63,6 +72,8 @@ public sealed class GameModule : IDisposable
         return new GameModuleInstance(this);
     }
 
+    IModInstance IModModule.CreateInstance() => CreateInstance();
+
     /// <summary>Экземпляр из пула или новый.</summary>
     public GameModuleInstance Rent()
     {
@@ -91,10 +102,13 @@ public sealed class GameModule : IDisposable
     public void Strike() => Interlocked.Increment(ref _strikes);
 
     /// <summary>Раскладки систем по манифесту и схеме из ModLoadInfo.</summary>
-    internal ModSystemLayout[] Layouts(ModManifest manifest)
+    internal ModSystemLayout[] Layouts(ModManifest manifest) => Layout(ModId, LoadInfo, manifest);
+
+    /// <summary>Раскладки систем: ширина кадра и таблиц, столбцы на возврат. Общие у wasm и CLR.</summary>
+    internal static ModSystemLayout[] Layout(string modId, ModLoadInfo load, ModManifest manifest)
     {
         var columns = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var component in LoadInfo.Components)
+        foreach (var component in load.Components)
             columns[component.Name] = component.Fields.Count(f => f.Kind != ModAbi.KindBytes);
         var layouts = new ModSystemLayout[manifest.Systems.Length];
         for (var id = 0; id < layouts.Length; id++)
@@ -105,19 +119,27 @@ public sealed class GameModule : IDisposable
             foreach (var component in info.Query)
             {
                 if (!columns.TryGetValue(component, out var count))
-                    throw new ModAbiException(ModId, $"система {info.Name}: нет компонента {component}");
+                    throw new ModAbiException(modId, $"система {info.Name}: нет компонента {component}");
                 if (!offsets.TryAdd(component, width))
-                    throw new ModAbiException(ModId, $"система {info.Name}: {component} в запросе дважды");
+                    throw new ModAbiException(modId, $"система {info.Name}: {component} в запросе дважды");
                 width += count;
             }
             var write = new List<(int, int)>();
             foreach (var component in info.Write)
             {
                 if (!offsets.TryGetValue(component, out var first))
-                    throw new ModAbiException(ModId, $"система {info.Name}: Write {component} — не из запроса");
+                    throw new ModAbiException(modId, $"система {info.Name}: Write {component} — не из запроса");
                 write.Add((first, columns[component]));
             }
-            layouts[id] = new ModSystemLayout(info, width, write);
+            var tables = new ModTableLayout[info.Tables.Length];
+            for (var t = 0; t < tables.Length; t++)
+            {
+                var tableWidth = 0;
+                foreach (var component in info.Tables[t].Query)
+                    tableWidth += columns.TryGetValue(component, out var count) ? count : throw new ModAbiException(modId, $"система {info.Name}, таблица {t}: нет компонента {component}");
+                tables[t] = new ModTableLayout(tableWidth, info.Tables[t].Write);
+            }
+            layouts[id] = new ModSystemLayout(info, width, write) { Tables = tables };
         }
         return layouts;
     }

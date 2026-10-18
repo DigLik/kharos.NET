@@ -11,10 +11,16 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- Документация открытого API — по существу, не на каждый член. -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- DetMath движка собирается и сюда: пространство имён Kharos.Mod.Sdk (см. Math/DetMath*.cs движка). -->
+    <DefineConstants>$(DefineConstants);KHAROS_MOD_SDK</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="build/**" />
     <None Include="build/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Детерминированная математика — тот же исходник, что у движка: биты модов и движка совпадают. -->
+    <Compile Include="..\Kharos.Engine\Math\DetMath*.cs" Link="Math\%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MemoryPack" />

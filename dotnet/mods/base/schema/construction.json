@@ -1,0 +1,15 @@
+// Стройка (Construction): стройки, строители, ремонт, покрытие, землеройные работы, ворота.
+{
+  // Стройка: вид будущего здания — Proto; demolish — разбор, undo — разбор отменяют.
+  "Site": { "progress": 0, "demolish": false, "undo": false },
+  // Строитель на стройке: site — сущность, ordered — послан игроком.
+  "Builds": { "site": 0, "ordered": true, "misses": 0, "@net": "owner" },
+  // Ремонтник: radius — досягаемость, rate — работы за тик, target — над чем работает (0 — ни над чем).
+  "Repair": { "radius": 5, "rate": 1, "target": 0, "@net": "owner" },
+  // Покрытие в работе: kind — road или foundation; готовое — слой paving.
+  "Pave": { "kind": "road", "work": 0, "done": false, "remove": false },
+  // Землеройная работа: kind — peak или cliff; peakX, peakY — вершина горы.
+  "Dig": { "kind": "peak", "cost": 0, "work": 0, "peakX": 0, "peakY": 0 },
+  // Ворота: open дублируется в Footprint.open — по нему ходят пути.
+  "Gate": { "open": false }
+}

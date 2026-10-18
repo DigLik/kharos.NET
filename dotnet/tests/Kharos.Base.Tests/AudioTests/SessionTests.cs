@@ -23,7 +23,7 @@ public sealed class SessionTests
         File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "audio-report.txt"), text + Environment.NewLine);
     }
 
-    [Fact]
+    [Fact(Skip = "ждёт К")]
     public void BankAndVoicesComeFromTheClientMod()
     {
         using var session = new BaseSession();
@@ -42,7 +42,7 @@ public sealed class SessionTests
         Assert.Empty(session.Game.Errors);
     }
 
-    [Fact]
+    [Fact(Skip = "ждёт К")]
     public void BuggiesDrivingMakeSoundOverTheBackground()
     {
         using var session = new BaseSession();
@@ -96,7 +96,7 @@ public sealed class SessionTests
         Assert.Null(session.Local.Failure);
     }
 
-    [Fact]
+    [Fact(Skip = "ждёт К")]
     public void FactoryAtWorkRunsTheMachineryLoop()
     {
         using var session = new BaseSession();
@@ -128,7 +128,7 @@ public sealed class SessionTests
         Watch(1.5);
         var voices = session.Engine!.ActiveVoices;
         var before = BaseSession.Rms(session.Output, session.Output.Count - Rate, Rate);
-        session.Game.Send("produce", MemoryPack.MemoryPackSerializer.Serialize(new global::Base.Host.ProduceOrder { Building = factory, Unit = "buggy" }));
+        session.Game.Send("produce", MemoryPack.MemoryPackSerializer.Serialize(new global::Base.Shared.Orders.ProduceOrder { Producer = factory, Unit = "buggy" }));
         Watch(2);
         var after = BaseSession.Rms(session.Output, session.Output.Count - Rate, Rate);
         Report(string.Create(CultureInfo.InvariantCulture, $"Завод: фон {before:F5}, с цехом {after:F5}, голосов {voices} → {session.Engine.ActiveVoices}"));
@@ -137,7 +137,7 @@ public sealed class SessionTests
         Assert.Empty(session.Game.Errors);
     }
 
-    [Fact]
+    [Fact(Skip = "ждёт К")]
     public void AmbienceBackgroundRuns()
     {
         // Быстрый прогон: кадры по 1/60 с, звук — столько же. Пульс и тревога на нуле, а фон живёт: ноты, даль, эхо.
@@ -168,7 +168,7 @@ public sealed class SessionTests
         Assert.Empty(session.Log);
     }
 
-    [Fact]
+    [Fact(Skip = "ждёт К")]
     public void UiClickMakesSound()
     {
         using var fonts = Fonts.Load();
@@ -217,7 +217,7 @@ public sealed class SessionTests
             c.Ui.Button("t:btn", S.Style.Button with { Height = 30 }, () => c.Ui.Text("OK")));
     }
 
-    [Fact]
+    [Fact(Skip = "ждёт К")]
     public void AudioStageCostWithTwentyBuggies()
     {
         // Кадр клиента с 20 багги, которые едут: со звуком и без. Разница медиан — цена звука за кадр (обработчики

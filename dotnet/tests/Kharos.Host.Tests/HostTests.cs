@@ -16,7 +16,11 @@ public class HostTests
     {
         using var host = HelloGame.Create();
         var mod = Assert.Single(host.Mods);
-        Assert.Equal(["hello.drive", "hello.crowd", Host.VisionSystem], host.Scheduler.Names);
+        // Системы мода по After/Before, затем системы движка в порядке sim.ts (на них ссылаются полными именами).
+        Assert.Equal(
+            ["hello.follow", "hello.drive", "hello.crowd", "hello.wrap", "engine.paths", "engine.move", "engine.mounts", "engine.traces", Host.VisionSystem,
+                "engine.recallLand", "engine.recallPaving", "engine.memory"],
+            host.Scheduler.Names);
         Assert.True(host.World.Schema.Find("Drive") is not null && host.World.Schema.Find("Unit") is not null);
 
         host.Start();

@@ -10,6 +10,8 @@
     <ProjectReference Include="..\..\src\Kharos.Host\Kharos.Host.csproj" />
     <ProjectReference Include="..\..\src\Kharos.Content\Kharos.Content.csproj" />
     <ProjectReference Include="..\..\src\Kharos.Protocol\Kharos.Protocol.csproj" />
+    <!-- DetMath для ходовой hello (Wheels.cs) — та же, что в моде. -->
+    <ProjectReference Include="..\..\src\Kharos.Mod.Sdk\Kharos.Mod.Sdk.csproj" />
     <PackageReference Include="MemoryPack" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />

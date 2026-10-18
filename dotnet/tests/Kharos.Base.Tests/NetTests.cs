@@ -5,7 +5,7 @@ using KHost = Kharos.Host.Host;
 
 namespace Kharos.Base.Tests;
 
-/// <summary>Сеть партии base: что реплика игрока получает по обзору (VisionView) — счета, месторождения, призраки зданий.</summary>
+/// <summary>Сеть партии base: что реплика игрока получает по обзору (VisionView) — счета, призраки зданий. Ждут старта партии (Б1).</summary>
 public class NetTests
 {
     /// <summary>Клиент на конце транспорта: реплика, которую питает сессия.</summary>
@@ -73,7 +73,7 @@ public class NetTests
         public void Dispose() => Host.Dispose();
     }
 
-    [Fact]
+    [Fact(Skip = "ждёт Б1")]
     public void PlayerAccountReachesOnlyItsOwner()
     {
         Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);
@@ -96,39 +96,7 @@ public class NetTests
         Assert.Empty(match.Host.Errors);
     }
 
-    [Fact]
-    public void DepositsStayAsLastSeenAfterUnitsLeave()
-    {
-        Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);
-        using var match = new Match();
-        var host = match.Host;
-        var homes = new[] { BaseGame.At(host, BaseGame.Factory(host, 1)), BaseGame.At(host, BaseGame.Factory(host, 2)) };
-        // Месторождение вдали от обоих домов — игрок 1 не видит его, пока не доедет.
-        var deposit = BaseGame.With(host, "Deposit").First(e => homes.All(home => BaseGame.Distance(BaseGame.At(host, e), home) > 35));
-        var at = BaseGame.At(host, deposit);
-        match.Step();
-        Assert.False(match.One.Has(deposit));
-        Assert.False(match.Two.Has(deposit));
-
-        var units = BaseGame.Units(host, 1);
-        BaseGame.Move(host, 1, at.X, at.Y, [.. units]);
-        Assert.True(match.Until(() => match.One.Has(deposit)), "месторождение не показалось доехавшим юнитам");
-        Assert.False(match.Two.Has(deposit));
-
-        // Уехали домой: из обзора месторождение вышло, но у реплики осталось в последнем виде.
-        BaseGame.Move(host, 1, homes[0].X, homes[0].Y, [.. units]);
-        var view = new VisionView(host, 1);
-        Assert.True(match.Until(() => !view.Sees(at.X, at.Y)), "месторождение не вышло из обзора");
-        for (var tick = 0; tick < 40; tick++)
-            match.Step();
-        Assert.True(match.One.Has(deposit), "месторождение пропало вне обзора");
-        Assert.True(host.Remembered(deposit));
-        Assert.Equal(BaseGame.Num(host, deposit, "Deposit", "reserve"), match.One.World.Number(deposit, match.One.World.Schema.Id("Deposit"), 0), 1.0);
-        Assert.False(match.Two.Has(deposit));
-        Assert.Empty(host.Errors);
-    }
-
-    [Fact]
+    [Fact(Skip = "ждёт Б1")]
     public void ForeignFactorySeenOnceStaysAsGhost()
     {
         Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);

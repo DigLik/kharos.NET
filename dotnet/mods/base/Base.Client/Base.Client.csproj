@@ -5,7 +5,7 @@
     <RootNamespace>Base.Client</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Payload приказов и сигналов — те же файлы, что у хоста. -->
-    <Compile Include="..\Base.Host\Payloads.cs" Link="Payloads.cs" />
+    <!-- Payload приказов и сигналов, данные и имена — общие с хостом. -->
+    <ProjectReference Include="..\Base.Shared\Base.Shared.csproj" />
   </ItemGroup>
 </Project>

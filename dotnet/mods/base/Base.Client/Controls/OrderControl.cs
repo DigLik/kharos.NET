@@ -1,4 +1,4 @@
-using Base.Host;
+using Base.Shared.Orders;
 using Kharos.Mod.Sdk;
 using Kharos.Mod.Sdk.Client;
 using MemoryPack;
@@ -31,12 +31,12 @@ internal sealed class OrderControl(BaseState state)
         }
         if (units.Count > 0)
         {
-            c.Send("move", MemoryPackSerializer.Serialize(new MoveOrder { Units = [.. units], X = x, Y = y }));
+            c.Send("move", MemoryPackSerializer.Serialize(new MoveOrder { Units = [.. units], X = (int)Math.Floor(x), Y = (int)Math.Floor(y) }));
             c.Sound("order", 0.35f);
         }
         else if (building != 0)
         {
-            c.Send("rally", MemoryPackSerializer.Serialize(new RallyOrder { Building = building, X = x, Y = y }));
+            c.Send("rally", MemoryPackSerializer.Serialize(new RallyOrder { Building = building, X = (int)Math.Floor(x), Y = (int)Math.Floor(y) }));
             c.Sound("place", 0.35f);
         }
     }

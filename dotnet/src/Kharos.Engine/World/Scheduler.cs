@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using Kharos.Engine.Layers;
+using Kharos.Engine.Terrain;
 
 namespace Kharos.Engine.World;
 
@@ -7,8 +9,9 @@ namespace Kharos.Engine.World;
 /// <list type="number">
 /// <item>приказы игроков — обработчики <see cref="OnOrder"/>;</item>
 /// <item>системы по порядку, если тик кратен их Every: движок собирает сущности по запросу и отдаёт их столбцы
-///   (<see cref="QueryColumns"/>), после системы проверяет её команды, возвращает столбцы из Write, применяет команды
-///   и раздаёт события (<see cref="On"/>) — их команды тоже, пока события есть;</item>
+///   (<see cref="QueryColumns"/>) и побочные таблицы, после системы проверяет её команды, возвращает столбцы из Write
+///   и пишущих таблиц, применяет команды (к миру, слоям <see cref="Layers"/> и земле <see cref="Land"/>) и раздаёт
+///   события (<see cref="On"/>) — их команды тоже, пока события есть;</item>
 /// <item>сигналы копятся для клиентов (<see cref="Signals"/>).</item>
 /// </list>
 /// Ошибка системы (исключение или неверный буфер команд) не роняет тик: её столбцы и команды отброшены, запись — в
@@ -22,7 +25,7 @@ public sealed class Scheduler
     private readonly Entry[] _order;
     private readonly Dictionary<string, List<(string Label, Action<EventContext> Handler)>> _handlers = [];
     private readonly Dictionary<string, (string Label, Action<OrderContext> Handler)> _orders = [];
-    private readonly List<(uint Player, string Name, byte[] Payload)> _queue = [];
+    private readonly List<(uint Player, string Name, byte[] Payload, OrderRights Rights)> _queue = [];
     private readonly List<WorldEvent> _events = [];
     private readonly List<Signal> _signals = [];
     private readonly CommandBuffer _commands;
@@ -36,6 +39,14 @@ public sealed class Scheduler
     }
 
     public GameWorld World { get; }
+
+    /// <summary>Слои партии: их меняют команды Layer и Item; null — нет (команды о слоях — ошибка буфера).</summary>
+    public LayerSet? Layers { get; set; }
+
+    /// <summary>Земля партии: её меняет команда Land; null — нет.</summary>
+    public Land? Land { get; set; }
+
+    private CommandScope Scope => new(Layers, Land);
 
     /// <summary>Номер тика: первый тик — 1. Хранится в сохранении хоста.</summary>
     public ulong Tick { get; set; }
@@ -66,8 +77,8 @@ public sealed class Scheduler
     /// <summary>Обработчик приказа игроков; один на имя — поздний заменяет ранний.</summary>
     public void OnOrder(string name, Action<OrderContext> handler, string label = "") => _orders[name] = (label.Length > 0 ? label : name, handler);
 
-    /// <summary>Приказ игрока: выполнится в начале следующего тика.</summary>
-    public void Send(uint player, string name, byte[] payload) => _queue.Add((player, name, payload));
+    /// <summary>Приказ игрока: выполнится в начале следующего тика; rights — кто его отдал.</summary>
+    public void Send(uint player, string name, byte[] payload, OrderRights rights = OrderRights.None) => _queue.Add((player, name, payload, rights));
 
     /// <summary>Событие от движка (начало партии, вход игрока): обработчики и их команды — сразу.</summary>
     public void Emit(string name, byte[] payload)
@@ -84,7 +95,7 @@ public sealed class Scheduler
         _signals.Clear();
         var orders = _queue.ToArray();
         _queue.Clear();
-        foreach (var (player, name, payload) in orders)
+        foreach (var (player, name, payload, rights) in orders)
         {
             if (!_orders.TryGetValue(name, out var order))
                 continue;
@@ -92,7 +103,7 @@ public sealed class Scheduler
             var source = $"{order.Label}: приказ {name}";
             try
             {
-                order.Handler(new OrderContext(this, _commands, player, name, payload));
+                order.Handler(new OrderContext(this, _commands, player, name, payload, rights));
             }
             catch (Exception error) when (error is not OutOfMemoryException)
             {
@@ -131,10 +142,12 @@ public sealed class Scheduler
         _commands.Clear();
         if (entry.Query is { } query)
             query.Gather(entry.Columns);
+        foreach (var table in entry.Tables)
+            table.Query.Gather(table.Columns);
         var gathered = Stopwatch.GetTimestamp();
         try
         {
-            entry.Spec.System.Run(new SystemContext(this, _commands, entry.Spec, entry.Columns));
+            entry.Spec.System.Run(new SystemContext(this, _commands, entry.Spec, entry.Columns, entry.TableColumns));
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
@@ -144,7 +157,7 @@ public sealed class Scheduler
         var ran = Stopwatch.GetTimestamp();
         try
         {
-            Commands.Validate(World, _commands.Written);
+            Commands.Validate(World, _commands.Written, Scope);
         }
         catch (CommandException error)
         {
@@ -153,8 +166,11 @@ public sealed class Scheduler
         }
         if (entry.Query is { } written && entry.Write.Length > 0 && entry.Columns.Count > 0)
             written.Scatter(entry.Columns, entry.Write);
+        foreach (var table in entry.Tables)
+            if (table.Write && table.Columns.Count > 0)
+                table.Query.Scatter(table.Columns, table.Query.Components);
         var scattered = Stopwatch.GetTimestamp();
-        Commands.ApplyValidated(World, _commands.Written, _events, _signals);
+        Commands.ApplyValidated(World, _commands.Written, _events, _signals, Scope);
         Settle(entry.Spec.Name);
         var settled = Stopwatch.GetTimestamp();
         entry.Spent[0] += gathered - started;
@@ -168,7 +184,7 @@ public sealed class Scheduler
     {
         try
         {
-            Commands.Apply(World, _commands.Written, _events, _signals);
+            Commands.Apply(World, _commands.Written, _events, _signals, Scope);
         }
         catch (CommandException error)
         {
@@ -213,12 +229,17 @@ public sealed class Scheduler
         }
     }
 
-    /// <summary>Система в порядке тика: запрос собран заранее, буферы столбцов — свои.</summary>
-    private sealed class Entry(SystemSpec spec, Query? query, int[] write)
+    /// <summary>Побочная таблица системы: свой запрос и свой блок столбцов.</summary>
+    private sealed record Table(Query Query, QueryColumns Columns, bool Write);
+
+    /// <summary>Система в порядке тика: запрос и таблицы собраны заранее, буферы столбцов — свои.</summary>
+    private sealed class Entry(SystemSpec spec, Query? query, int[] write, Table[] tables)
     {
         public SystemSpec Spec { get; } = spec;
         public Query? Query { get; } = query;
         public int[] Write { get; } = write;
+        public Table[] Tables { get; } = tables;
+        public QueryColumns[] TableColumns { get; } = [.. tables.Select(table => table.Columns)];
         public QueryColumns Columns { get; } = new();
         public long[] Spent { get; } = new long[4];
 
@@ -240,23 +261,42 @@ public sealed class Scheduler
             if (spec.Every < 1)
                 throw new ScheduleException($"{spec.Name}: every — не меньше 1");
             var schema = world.Schema;
-            foreach (var name in spec.Query.Concat(spec.Write).Concat(spec.Where.Select(where => where.Component)))
+            var names = spec.Query.Concat(spec.Write).Concat(spec.Where.Select(where => where.Component)).Concat(spec.Without)
+                .Concat(spec.Tables.SelectMany(table => table.Query.Concat(table.Without)));
+            foreach (var name in names)
                 if (schema.Find(name) is null)
                     throw new ScheduleException($"{spec.Name}: нет компонента {name}");
             if (spec.Write.FirstOrDefault(name => !spec.Query.Contains(name)) is { } missing)
                 throw new ScheduleException($"{spec.Name}: write.{missing} нет в query");
             Query? query;
+            var tables = new Table[spec.Tables.Count];
             try
             {
-                query = spec.Query.Count > 0 ? new Query(world, spec.Query, spec.Where) : null;
+                query = spec.Query.Count > 0 ? new Query(world, spec.Query, spec.Where, spec.Without) : null;
+                for (var at = 0; at < tables.Length; at++)
+                {
+                    var table = spec.Tables[at];
+                    if (table.Query.Count == 0)
+                        throw new ArgumentException($"таблица {at} без query");
+                    tables[at] = new Table(new Query(world, table.Query, null, table.Without), new QueryColumns(), table.Write);
+                }
             }
             catch (ArgumentException error)
             {
                 throw new ScheduleException($"{spec.Name}: {error.Message}");
             }
-            if (query is null && spec.Where.Count > 0)
-                throw new ScheduleException($"{spec.Name}: where без query");
-            var entry = new Entry(spec, query, [.. spec.Write.Select(schema.Id)]);
+            if (query is null && (spec.Where.Count > 0 || spec.Without.Count > 0))
+                throw new ScheduleException($"{spec.Name}: where или without без query");
+            // Компонент пишет одна часть системы — кадр или одна таблица: иначе исход решал бы порядок возврата.
+            var writers = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var name in spec.Write)
+                writers[name] = "кадр";
+            for (var at = 0; at < tables.Length; at++)
+                if (spec.Tables[at].Write)
+                    foreach (var name in spec.Tables[at].Query)
+                        if (!writers.TryAdd(name, $"таблица {at}"))
+                            throw new ScheduleException($"{spec.Name}: {name} пишут и {writers[name]}, и таблица {at}");
+            var entry = new Entry(spec, query, [.. spec.Write.Select(schema.Id)], tables);
             if (spec.Instead is { } target)
             {
                 var found = entries.FindAll(other => other.Matches(target));

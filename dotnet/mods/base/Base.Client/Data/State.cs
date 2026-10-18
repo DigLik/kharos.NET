@@ -9,7 +9,8 @@ internal sealed class Parts(LoadContext ctx)
     public ComponentRef Position { get; } = ctx.Component("Position");
     public ComponentRef Owner { get; } = ctx.Component("Owner");
     public ComponentRef Proto { get; } = ctx.Component("Proto");
-    public ComponentRef Drive { get; } = ctx.Component("Drive");
+    // Ходовая пилота (Drive) ушла в Mover движка; поля пилота (tx, ty, moving) и раскладку Producer подача берёт до К.
+    public ComponentRef Drive { get; } = ctx.Component("Mover");
     public ComponentRef Unit { get; } = ctx.Component("Unit");
     public ComponentRef Building { get; } = ctx.Component("Building");
     public ComponentRef Producer { get; } = ctx.Component("Producer");

@@ -9,6 +9,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Kharos.Plugins\Kharos.Plugins.csproj" />
+    <!-- DetMath для ходовой hello (Wheels.cs) — та же, что в моде. -->
+    <ProjectReference Include="..\..\src\Kharos.Mod.Sdk\Kharos.Mod.Sdk.csproj" />
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>

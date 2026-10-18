@@ -35,10 +35,26 @@ public static class HelloGame
     /// Хост партии hello (пропуск теста, если мод не собран). Предел вызова мода — секунда, а не 50 мс игры: на медленных машинах
     /// CI холодный первый вызов обработчика не успевает; пределы проверяют свои тесты.
     /// </summary>
-    public static Host Create(ulong seed = 1, Action<string>? log = null)
+    public static Host Create(ulong seed = 1, Action<string>? log = null) => Create(Kharos.Plugins.Game.ModMode.Wasm, seed, log);
+
+    /// <summary>
+    /// Хост партии hello в нужном режиме: wasm (пропуск, если host.wasm не собран) или CLR (Hello.Host.dll из обычной
+    /// сборки решения); settings — настройки поверх записи games.json.
+    /// </summary>
+    public static Host Create(Kharos.Plugins.Game.ModMode mode, ulong seed = 1, Action<string>? log = null, System.Text.Json.JsonElement? settings = null)
     {
-        Assert.SkipUnless(Built, NotBuilt);
-        return new Host(Content(), new HostOptions { Modules = new Kharos.Plugins.Game.GameModuleOptions { CallTimeoutMs = 1000 }, Seed = seed, Log = log });
+        if (mode == Kharos.Plugins.Game.ModMode.Wasm)
+            Assert.SkipUnless(Built, NotBuilt);
+        else
+            Assert.SkipWhen(Kharos.Plugins.Game.ClrModule.Find(ModDir) is null, "Hello.Host.dll не собран: dotnet build dotnet/Kharos.slnx");
+        return new Host(Content(), new HostOptions
+        {
+            Modules = new Kharos.Plugins.Game.GameModuleOptions { CallTimeoutMs = 1000 },
+            Seed = seed,
+            Log = log,
+            ModMode = mode,
+            Settings = settings,
+        });
     }
 
     public static byte[] Spawn(int count, double x, double y, double spread = 1) =>

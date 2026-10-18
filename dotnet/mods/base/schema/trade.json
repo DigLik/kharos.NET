@@ -1,0 +1,7 @@
+// Торговля (Trade): заявки космопорта и корабли с грузом.
+{
+  // Заявка космопорта: resource — номер Proto ресурса, buy — закупка, иначе продажа.
+  "Trade": { "resource": -1, "wanted": 0, "left": 0, "total": 0, "buy": false, "@net": "owner" },
+  // Корабль: to — игрок-получатель, x, y — куда; груз — в Stock корабля.
+  "Transfer": { "to": 0, "x": 0, "y": 0, "credits": 0, "left": 0, "total": 0, "done": false }
+}

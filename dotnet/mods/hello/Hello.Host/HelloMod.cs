@@ -8,9 +8,12 @@ namespace Hello;
 /// <summary>
 /// Пробный мод (docs/dotnet.md, Н2–Н3): ходовая над Position, Facing, Drive и теснота инструментом движка Separate;
 /// юниты — вида units/rover (data/units.json);
-/// компоненты Drive и Unit объявлены в mod.json. События: start, player_joined (три юнита у дома игрока),
-/// hello.arrived (сигнал клиентам). Приказы: hello.spawn, hello.move, hello.probe (ответ инструментов сигналом);
-/// hello.spin, hello.hog, hello.fail, hello.bad — для тестов пределов и сбоев.
+/// компоненты Drive, Unit, Follow и Anchor объявлены в mod.json. События: start, player_joined (три юнита у дома
+/// игрока), hello.arrived (сигнал клиентам). Приказы: hello.spawn, hello.move, hello.probe (ответ инструментов
+/// сигналом); hello.spin, hello.hog, hello.fail, hello.bad — для тестов пределов и сбоев. Проверки Н5 (кадр с
+/// побочными таблицами, Without, RowOf, Stage, права, адресные сигналы, запросы): система hello.follow (за ведущим —
+/// таблица Position+Unit), hello.wrap (только пишущая таблица), приказы hello.follow, hello.anchor, hello.rights,
+/// запрос hello.count.
 /// </summary>
 public sealed class HelloMod : Mod
 {
@@ -36,6 +39,8 @@ public sealed class HelloMod : Mod
     private ComponentRef _unit = null!;
     private ComponentRef _sight = null!;
     private ComponentRef _proto = null!;
+    private ComponentRef _follow = null!;
+    private ComponentRef _anchor = null!;
     private int? _rover;
 
     public override void Setup(ModBuilder mod)
@@ -47,6 +52,17 @@ public sealed class HelloMod : Mod
             .Query("Position", "Unit")
             .Write("Position")
             .After("drive");
+        // Н5: за ведущим — его место из побочной таблицы; закреплённые (Anchor) не идут.
+        mod.System("hello.follow", new FollowSystem(this))
+            .Query("Drive", "Follow")
+            .Without("Anchor")
+            .Write("Drive")
+            .Table("Position", "Unit")
+            .Before("drive");
+        // Н5: система без кадра — одна пишущая таблица: юниты не уходят за край карты.
+        mod.System("hello.wrap", new WrapSystem())
+            .WriteTable("Position", "Unit")
+            .After("crowd");
         mod.On("hello.arrived", OnArrived);
         mod.On("player_joined", OnJoined);
         mod.Order("hello.spawn", OnSpawn);
@@ -57,6 +73,16 @@ public sealed class HelloMod : Mod
         mod.Order("hello.fail", _ => throw new InvalidOperationException("приказ отказан"));
         // Неверный буфер команд: сущности 0 не бывает — движок отвергнет буфер и засчитает сбой.
         mod.Order("hello.bad", ctx => ctx.Commands.Destroy(0));
+        mod.Order("hello.follow", OnFollow);
+        mod.Order("hello.anchor", OnAnchor);
+        // Права приказа — сигналом только отдавшему.
+        mod.Order("hello.rights", ctx =>
+        {
+            Span<byte> payload = stackalloc byte[4];
+            BinaryPrimitives.WriteUInt32LittleEndian(payload, (uint)ctx.Rights);
+            ctx.Commands.SignalTo("hello.rights", payload, [ctx.Player]);
+        });
+        mod.Query("hello.count", OnCount);
     }
 
     public override void Load(LoadContext ctx)
@@ -89,6 +115,8 @@ public sealed class HelloMod : Mod
         _unit = ctx.Component("Unit");
         _sight = ctx.Component("Sight");
         _proto = ctx.Component("Proto");
+        _follow = ctx.Component("Follow");
+        _anchor = ctx.Component("Anchor");
     }
 
     /// <summary>Доехал: сигнал клиентам с тем же payload (entity:u32, x:f64, y:f64).</summary>
@@ -98,7 +126,7 @@ public sealed class HelloMod : Mod
     private void OnJoined(EventContext ctx)
     {
         var player = BinaryPrimitives.ReadUInt32LittleEndian(ctx.Payload);
-        var (x, y) = player <= 1 ? (0.0, 0.0) : (Math.Cos((player - 2) * Math.PI / 3) * 24, Math.Sin((player - 2) * Math.PI / 3) * 24);
+        var (x, y) = player <= 1 ? (0.0, 0.0) : (DetMath.Cos((player - 2) * Math.PI / 3) * 24, DetMath.Sin((player - 2) * Math.PI / 3) * 24);
         for (var k = 0; k < Start; k++)
             SpawnUnit(ctx.Commands, player, x - 2 + (k + 1) * 1.4, y + 4);
         Count(ctx.Commands, Start);
@@ -193,6 +221,59 @@ public sealed class HelloMod : Mod
         Tools.WriteStorage(commands, next);
     }
 
+    /// <summary>
+    /// Своим юнитам — держаться за ведущим (Leader 0 — новый ведущий в (Dx, Dy)). Сигнал hello.staged хозяину: сколько
+    /// ведомых сцена видит с Follow сразу после записи (u32) и видит ли она нового ведущего с местом (u8).
+    /// </summary>
+    private void OnFollow(OrderContext ctx)
+    {
+        var order = ctx.Read<FollowOrder>() ?? throw new ArgumentException("hello.follow без payload");
+        var stage = ctx.Stage();
+        var leader = order.Leader;
+        var (dx, dy) = (order.Dx, order.Dy);
+        if (leader == 0)
+        {
+            SpawnUnit(ctx.Commands, ctx.Player, order.Dx, order.Dy);
+            leader = stage.Spawned[^1];
+            (dx, dy) = (0, 0);
+        }
+        var seen = 0u;
+        foreach (var entity in order.Followers)
+        {
+            if (entity == leader || !Tools.Has(entity, _drive) || Tools.Get(entity, _owner) is not { } owner || owner.Number(_owner["player"]) != ctx.Player)
+                continue;
+            ctx.Commands.Add(entity, _follow).Number(_follow["leader"], leader).Number(_follow["dx"], dx).Number(_follow["dy"], dy);
+            if (stage.Has(entity, _follow) && stage.Number(entity, _follow, _follow["leader"]) == leader && stage.Number(entity, _drive, _drive["speed"]) > 0)
+                seen++;
+        }
+        Span<byte> payload = stackalloc byte[5];
+        BinaryPrimitives.WriteUInt32LittleEndian(payload, seen);
+        payload[4] = order.Leader == 0 && stage.Alive(leader) && stage.Number(leader, _position, _position["x"]) == order.Dx ? (byte)1 : (byte)0;
+        ctx.Commands.SignalTo("hello.staged", payload, [ctx.Player]);
+    }
+
+    /// <summary>Своим юнитам из списка — Anchor (тик): hello.follow их больше не ведёт.</summary>
+    private void OnAnchor(OrderContext ctx)
+    {
+        var order = ctx.Read<MoveOrder>() ?? throw new ArgumentException("hello.anchor без payload");
+        foreach (var entity in order.Entities)
+            if (Tools.Get(entity, _owner) is { } owner && owner.Number(_owner["player"]) == ctx.Player)
+                ctx.Commands.Add(entity, _anchor).Number(_anchor["since"], ctx.Tick);
+    }
+
+    /// <summary>Запрос hello.count: payload — игрок u32 (нет — все); ответ — юнитов u32 и ревизия мира u64.</summary>
+    private void OnCount(QueryContext ctx)
+    {
+        var player = ctx.Payload.Length >= 4 ? BinaryPrimitives.ReadUInt32LittleEndian(ctx.Payload) : 0;
+        var units = Tools.Near(0, 0, 400, _drive);
+        var owners = Tools.Column(units, _owner, _owner["player"]);
+        var count = player == 0 ? units.Length : owners.Count(owner => owner == player);
+        Span<byte> reply = stackalloc byte[12];
+        BinaryPrimitives.WriteUInt32LittleEndian(reply, (uint)count);
+        BinaryPrimitives.WriteUInt64LittleEndian(reply[4..], Tools.Revision().World);
+        ctx.Reply(reply);
+    }
+
     /// <summary>Бесконечный цикл: сторож эпох должен прервать.</summary>
     private static void OnSpin(OrderContext ctx)
     {
@@ -259,6 +340,75 @@ public sealed class HelloMod : Mod
         {
             if (ctx.Count > 1)
                 Tools.Separate(ctx.Column(_x), ctx.Column(_y), ctx.Column(_radius), default, mod.Crowd);
+        }
+    }
+
+    /// <summary>
+    /// За ведущим: цель — его место (побочная таблица Position+Unit) со сдвигом; ведущий сам ведомый (есть в кадре) —
+    /// его цель. Ведущего нет — Follow снимается.
+    /// </summary>
+    private sealed class FollowSystem(HelloMod mod) : ISystem
+    {
+        private Column _tx, _ty, _leader, _dx, _dy, _x, _y;
+
+        public void Bind(SystemBinding binding)
+        {
+            _tx = binding.Column("Drive", "tx");
+            _ty = binding.Column("Drive", "ty");
+            _leader = binding.Column("Follow", "leader");
+            _dx = binding.Column("Follow", "dx");
+            _dy = binding.Column("Follow", "dy");
+            _x = binding.Table(0).Column("Position", "x");
+            _y = binding.Table(0).Column("Position", "y");
+        }
+
+        public void Run(SystemContext ctx)
+        {
+            var leaders = ctx.Table(0);
+            var x = leaders.Column(_x);
+            var y = leaders.Column(_y);
+            var tx = ctx.Column(_tx);
+            var ty = ctx.Column(_ty);
+            var lead = ctx.Column(_leader);
+            var dx = ctx.Column(_dx);
+            var dy = ctx.Column(_dy);
+            for (var i = 0; i < ctx.Count; i++)
+            {
+                var leader = (uint)lead[i];
+                if (ctx.RowOf(leader) is >= 0 and var chain)
+                {
+                    (tx[i], ty[i]) = (tx[chain] + dx[i], ty[chain] + dy[i]);
+                    continue;
+                }
+                if (leaders.RowOf(leader) is >= 0 and var row)
+                    (tx[i], ty[i]) = (x[row] + dx[i], y[row] + dy[i]);
+                else
+                    ctx.Commands.Remove(ctx.Entities[i], mod._follow);
+            }
+        }
+    }
+
+    /// <summary>Край карты (±255,5): пишущая таблица Position+Unit — что не двигалось, в мир не отмечается.</summary>
+    private sealed class WrapSystem : ISystem
+    {
+        private const double Edge = 255.5;
+        private Column _x, _y;
+
+        public void Bind(SystemBinding binding)
+        {
+            _x = binding.Table(0).Column("Position", "x");
+            _y = binding.Table(0).Column("Position", "y");
+        }
+
+        public void Run(SystemContext ctx)
+        {
+            var units = ctx.Table(0);
+            foreach (var column in new[] { _x, _y })
+            {
+                var values = units.Column(column);
+                for (var i = 0; i < values.Length; i++)
+                    values[i] = Math.Clamp(values[i], -Edge, Edge);
+            }
         }
     }
 

@@ -1,12 +1,55 @@
 {
   "skirmish": {
+    "about": "Схватка, как в TS: карта 1024², игрок появляется со стартовым набором и кредитами в случайном месте на скале.",
     "title": "Схватка",
-    "credits": 1000,
-    "start": { "buggy": 3 },
-    "radius": 24,
+    "size": 512,
+    "fog": true,
+    "land": "default",
+    "start": true,
+    "credits": 1500,
+    "units": [
+      "mcv",
+      "buggy",
+      "buggy",
+      "infantry",
+      "infantry",
+      "infantry"
+    ],
+    "spawn": {
+      "apart": 96,
+      "tries": 400,
+      "area": 6,
+      "rock": 100,
+      "margin": 16,
+      "radius": 24,
+      "slots": 8
+    },
+    "remember": [
+      "Building"
+    ]
+  },
+  "sandbox": {
+    "about": "Тестовая карта (sandbox.ts): готовая база у месторождения, кредиты и груз в хранилищах.",
+    "title": "Песочница",
+    "size": 512,
+    "fog": true,
+    "land": "default",
+    "start": true,
+    "sandbox": true,
+    "remember": [
+      "Building"
+    ]
+  },
+  "test": {
+    "about": "Для сценарных тестов: карта 256², без стартового набора — всё ставит тест.",
+    "title": "Тест",
     "size": 128,
     "fog": true,
-    "land": "desert",
-    "remember": ["Building", "Deposit"]
+    "land": "default",
+    "start": false,
+    "credits": 0,
+    "remember": [
+      "Building"
+    ]
   }
 }

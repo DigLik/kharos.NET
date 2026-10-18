@@ -68,10 +68,40 @@ public class CommandBufferTests
     [Fact]
     public void DecoderRejectsBrokenBuffers()
     {
-        Assert.Throws<ModCommandFormatException>(() => ModCommands.Decode([0x09]));
+        Assert.Throws<ModCommandFormatException>(() => ModCommands.Decode([0x0D]));
+        Assert.Throws<ModCommandFormatException>(() => ModCommands.Decode([0x09, 0x00]));
         Assert.Throws<ModCommandFormatException>(() => ModCommands.Decode([0x03, 0x01, 0x05, 0x01, 0x00, 0x00, 0x00]));
         Assert.Throws<ModCommandFormatException>(() => ModCommands.Decode([0x06, 0x05, (byte)'a']));
         Assert.Throws<ModCommandFormatException>(() => ModCommands.Decode([0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F]));
+    }
+
+    [Fact]
+    public void N5RecordsRoundTrip()
+    {
+        var grid = new LayerRef("paving", 3, false, 0, 2, []);
+        var items = new LayerRef("deposits", 4, false, 8, 0, ["kind", "amount"]);
+        var writer = new CommandWriter();
+        writer.Layer(grid, 0, 1, -5, 7, 2, 3, 0.5);
+        writer.PushItem(items, 2, 1.5, -2.5, [3, 40]);
+        writer.DeleteItems(items, 2, 1.5, -2.5);
+        writer.LandTile(-1, 2, new LandEdit(1, 2, 3, Cliff: true, Dunes: 2));
+        writer.LandPeak(4, -4, 1, 4.5, -3.5, 2.25);
+        writer.SignalTo("note", [9], [1, 300]);
+        writer.SignalAt("boom", [], 10.25, -0.5);
+
+        var commands = ModCommands.Decode(writer.Written);
+        Assert.Equal([ModCommandOp.Layer, ModCommandOp.Item, ModCommandOp.Item, ModCommandOp.Land, ModCommandOp.Land, ModCommandOp.SignalTo, ModCommandOp.SignalAt], commands.Select(c => c.Op));
+        var layer = commands[0];
+        Assert.Equal((3, 0u, (byte)1, -5.0, 7.0, 2u, 3u, 0.5), (layer.Layer, layer.Owner, layer.Mode, layer.X, layer.Y, layer.W, layer.H, Assert.Single(layer.Values)));
+        Assert.Equal((4, 2u, (byte)0, 1.5, -2.5), (commands[1].Layer, commands[1].Owner, commands[1].Mode, commands[1].X, commands[1].Y));
+        Assert.Equal([3.0, 40], commands[1].Values);
+        Assert.Equal(((byte)1, 1.5), (commands[2].Mode, commands[2].X));
+        Assert.Equal([1, 2, 3, 1, 2], commands[3].Tile);
+        Assert.Equal((-1.0, 2.0), (commands[3].X, commands[3].Y));
+        Assert.Equal([4.5, -3.5, 2.25], commands[4].Values);
+        Assert.Equal("note", commands[5].Name);
+        Assert.Equal([1u, 300u], commands[5].Players!);
+        Assert.Equal(("boom", 10.25, -0.5), (commands[6].Name, commands[6].X, commands[6].Y));
     }
 
     [Fact]

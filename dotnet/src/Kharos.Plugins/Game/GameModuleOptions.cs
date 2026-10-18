@@ -73,4 +73,5 @@ public sealed class ModRandom(ulong seed)
 /// <param name="Tick">Номер тика.</param>
 /// <param name="Dt">Длина тика, секунды.</param>
 /// <param name="NextEntity">Номер следующей сущности мира: с него мод раздаёт номера Spawn подряд.</param>
-public readonly record struct ModCall(ulong Tick, double Dt, uint NextEntity);
+/// <param name="Rights">Права приказа или запроса (ModAbi.Rights*): клиент по сети, администратор, редактор.</param>
+public readonly record struct ModCall(ulong Tick, double Dt, uint NextEntity, uint Rights = 0);

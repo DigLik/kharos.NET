@@ -13,6 +13,8 @@
     <!-- Клиент партии: сквозные тесты подачи base (host.wasm + client.wasm) и сверка обликов. -->
     <ProjectReference Include="..\..\src\Kharos.Client\Kharos.Client.csproj" />
     <ProjectReference Include="..\..\src\Kharos.Mod.Sdk\Kharos.Mod.Sdk.csproj" />
+    <!-- Общее base: данные, имена, приказы — то же, что в host.wasm и client.wasm. -->
+    <ProjectReference Include="..\..\mods\base\Base.Shared\Base.Shared.csproj" />
     <!-- Звук base: движок звука (офлайн, без устройства). -->
     <ProjectReference Include="..\..\src\Kharos.Audio\Kharos.Audio.csproj" />
     <PackageReference Include="MemoryPack" />
@@ -25,9 +27,6 @@
     <PackageReference Include="StbImageWriteSharp" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Payload приказов и сигналов base и его геометрия — те же файлы, что в host.wasm. -->
-    <Compile Include="..\..\mods\base\Base.Host\Payloads.cs" Link="Base\Payloads.cs" />
-    <Compile Include="..\..\mods\base\Base.Host\Geom.cs" Link="Base\Geom.cs" />
     <!-- Чертежи облика base (юниты, турели, здания, месторождения) — те же файлы, что в client.wasm: сверка со всеми видами TS. -->
     <Compile Include="..\..\mods\base\Base.Client\Art\*.cs" Link="Base\Art\%(Filename)%(Extension)" />
     <!-- Звук клиентской части base (банк, голоса, обработчики) — те же файлы, что в client.wasm. -->

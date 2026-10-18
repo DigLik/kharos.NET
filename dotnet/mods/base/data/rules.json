@@ -1,0 +1,19 @@
+{
+  "default": {
+    "about": "Правила мира по умолчанию (DEFAULT_RULES): числа, которые можно менять на ходу. Местность — в moves.json.",
+    "repairSpeed": 2,
+    "repairCost": 0.5,
+    "repairPause": 3,
+    "techTree": true,
+    "offlineIncome": 0.2,
+    "offlineMinutes": 30,
+    "protection": 10,
+    "researchScale": 1,
+    "researchGrowth": 1.6,
+    "researchSlow": 1,
+    "upgradeScale": 1,
+    "depositRenewal": 15,
+    "armyLimit": 600,
+    "unitAmmo": true
+  }
+}

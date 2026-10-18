@@ -67,6 +67,12 @@ public sealed class Connection
     /// <summary>В режиме администратора.</summary>
     public bool Admin { get; internal set; }
 
+    /// <summary>В редакторе карты (/editor; только администратору): его приказы идут с правом Editor.</summary>
+    public bool Editor { get; internal set; }
+
+    /// <summary>Права приказов этого подключения: всегда Remote, плюс Admin и Editor по режимам.</summary>
+    public OrderRights Rights => OrderRights.Remote | (Admin ? OrderRights.Admin : 0) | (Editor ? OrderRights.Editor : 0);
+
     /// <summary>Байт отправлено всего и последней дельтой.</summary>
     public long BytesSent { get; internal set; }
     public int LastDeltaBytes { get; internal set; }
@@ -354,7 +360,8 @@ public sealed class HostSession
             if (Host.HasOrder(order))
             {
                 var rest = Encoding.UTF8.GetBytes(parsed.Rest(0));
-                Host.Send(caller.Player ?? 0, order, [caller.Admin ? (byte)1 : (byte)0, .. rest]);
+                var rights = caller.Connection?.Rights ?? (caller.Admin ? OrderRights.Admin : OrderRights.None);
+                Host.Send(caller.Player ?? 0, order, [caller.Admin ? (byte)1 : (byte)0, .. rest], rights);
                 return;
             }
             caller.Reply($"Нет команды /{parsed.Name}. Список — /help");
@@ -459,7 +466,7 @@ public sealed class HostSession
                 var (name, payload) = DeltaCodec.ReadOrder(message);
                 if (name.Length == 0 || name.Length > MaxOrderName || payload.Length > MaxOrderPayload)
                     throw new FormatException($"приказ {name}: не по пределам");
-                Host.Send(connection.Player, name, payload);
+                Host.Send(connection.Player, name, payload, connection.Rights);
                 break;
             }
             case MessageType.View:
@@ -689,8 +696,20 @@ public sealed class HostSession
             {
                 var connection = call.Caller.Connection!;
                 connection.Admin = false;
+                connection.Editor = false;
                 SendCommands(connection);
                 call.Caller.Reply("Режим администратора выключен");
+            },
+        });
+        Add(new HostCommand
+        {
+            Name = "editor", Help = "редактор карты: приказы edit.* (повтор — выйти)", Admin = true, Game = true,
+            Run = call =>
+            {
+                var connection = call.Caller.Connection!;
+                connection.Editor = !connection.Editor;
+                Options.Log?.Invoke($"! {Name(connection.Player)} {(connection.Editor ? "открыл" : "закрыл")} редактор");
+                call.Caller.Reply(connection.Editor ? "Редактор открыт" : "Редактор закрыт");
             },
         });
         Add(new HostCommand

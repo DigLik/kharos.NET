@@ -1,94 +1,57 @@
+using Base.Host.Sections.Combat;
+using Base.Host.Sections.Construction;
+using Base.Host.Sections.Defense;
+using Base.Host.Sections.Energy;
+using Base.Host.Sections.Kernel;
+using Base.Host.Sections.Logistics;
+using Base.Host.Sections.Mining;
+using Base.Host.Sections.Missiles;
+using Base.Host.Sections.Pipes;
+using Base.Host.Sections.Players;
+using Base.Host.Sections.Production;
+using Base.Host.Sections.Research;
+using Base.Host.Sections.Tactics;
+using Base.Host.Sections.Trade;
+using Base.Shared.Data;
 using Kharos.Mod.Sdk;
 
 namespace Base.Host;
 
 /// <summary>
-/// Мод base — хост-часть игры Kharos (docs/dotnet.md, Н3): перенос правил Luau-пилота (mods/base) на C# в wasm.
-/// Системы, события и приказы объявлены в порядке видов пилота (по разделам и именам) и под его именами —
-/// «раздел/вид.система», ключ — после точки (<c>drive</c>, <c>separate</c>), чтобы чужие моды ставились до/после
-/// и заменяли по имени. Числа правил — в data/*.json, компоненты — в mod.json.
-/// <list type="table">
-/// <item><term>games/skirmish</term><description><see cref="Skirmish"/>: player_joined</description></item>
-/// <item><term>mechanics/crowd</term><description><see cref="Crowd"/>: система separate</description></item>
-/// <item><term>mechanics/deposits</term><description><see cref="Deposits"/>: start, deposits.cell</description></item>
-/// <item><term>mechanics/mounts</term><description><see cref="Mounts"/>: spawned, система follow</description></item>
-/// <item><term>mechanics/orders</term><description><see cref="Orders"/>: приказы move, stop</description></item>
-/// <item><term>mechanics/players</term><description><see cref="Players"/>: player_joined, система income</description></item>
-/// <item><term>mechanics/production</term><description><see cref="Production"/>: система produce, приказы produce, cancel, rally</description></item>
-/// <item><term>moves/wheels</term><description><see cref="Wheels"/>: система drive</description></item>
-/// </list>
+/// Мод base — хост-часть игры Kharos (docs/dotnet-n5.md): механики sim-ts по разделам на модели компонентов TS
+/// (schema/*.json), данные — data/*.json (<see cref="BaseTables"/>), приказы — Base.Shared/Orders. Разделы объявляют
+/// системы, события и приказы; порядок тика — <see cref="Order"/>.
 /// </summary>
 public sealed class BaseMod : Mod
 {
-    private readonly Skirmish _skirmish;
-    private readonly Crowd _crowd;
-    private readonly Deposits _deposits;
-    private readonly Mounts _mounts;
-    private readonly Orders _orders;
-    private readonly Players _players;
-    private readonly Production _production;
-    private readonly Wheels _wheels;
+    /// <summary>Таблицы data/*.json после патчей модов.</summary>
+    internal BaseTables Tables { get; private set; } = new();
 
-    public BaseMod()
-    {
-        _skirmish = new Skirmish(this);
-        _crowd = new Crowd(this);
-        _deposits = new Deposits(this);
-        _mounts = new Mounts(this);
-        _orders = new Orders(this);
-        _players = new Players(this);
-        _production = new Production(this);
-        _wheels = new Wheels();
-    }
-
-    /// <summary>Компоненты схемы.</summary>
-    internal Parts P { get; private set; } = null!;
-
-    /// <summary>Данные мода (data/*.json после патчей).</summary>
-    internal BaseData D { get; private set; } = null!;
-
-    /// <summary>Идущая партия (запись data/games.json): правила берутся только у неё.</summary>
-    internal string Game { get; private set; } = "";
+    /// <summary>Идущая партия (запись games.json); у чужой партии — null.</summary>
+    internal GameSpec? Game { get; private set; }
 
     public override void Setup(ModBuilder mod)
     {
-        mod.System("mechanics/crowd.separate", _crowd)
-            .Query("Position", "Unit", "Drive")
-            .Write("Position")
-            .After("drive");
-        mod.System("mechanics/mounts.follow", _mounts)
-            .Query("Attached", "Position", "Facing", "Turret")
-            .Write("Position", "Facing")
-            .After("drive", "separate");
-        mod.System("mechanics/players.income", _players)
-            .Query("Player")
-            .Write("Player")
-            .Every(20);
-        mod.System("mechanics/production.produce", _production)
-            .Query("Producer", "Position", "Owner")
-            .Write("Producer");
-        mod.System("moves/wheels.drive", _wheels)
-            .Query("Position", "Facing", "Drive")
-            .Where("Drive", "move", "wheels")
-            .Write("Position", "Facing", "Drive");
-
-        mod.On("start", _deposits.OnStart);
-        mod.On(Deposits.CellEvent, _deposits.OnCell);
-        mod.On("player_joined", _skirmish.OnJoined);
-        mod.On("player_joined", _players.OnJoined);
-        mod.On("spawned", _mounts.OnSpawned);
-
-        mod.Order("move", _orders.Move);
-        mod.Order("stop", _orders.Stop);
-        mod.Order("produce", _production.Produce);
-        mod.Order("cancel", _production.Cancel);
-        mod.Order("rally", _production.Rally);
+        KernelSection.Setup(mod);
+        ConstructionSection.Setup(mod);
+        MiningSection.Setup(mod);
+        LogisticsSection.Setup(mod);
+        PipesSection.Setup(mod);
+        TradeSection.Setup(mod);
+        EnergySection.Setup(mod);
+        ProductionSection.Setup(mod);
+        CombatSection.Setup(mod);
+        DefenseSection.Setup(mod);
+        ResearchSection.Setup(mod);
+        MissilesSection.Setup(mod);
+        TacticsSection.Setup(mod);
+        PlayersSection.Setup(mod);
+        Order.Apply(mod);
     }
 
     public override void Load(LoadContext ctx)
     {
-        P = new Parts(ctx);
-        D = BaseData.Load(ctx);
-        Game = ctx.Game;
+        Tables = BaseTables.Load(name => ctx.TryData(name, out var bytes) ? bytes.ToArray() : null);
+        Game = Tables.Games.GetValueOrDefault(ctx.Game);
     }
 }

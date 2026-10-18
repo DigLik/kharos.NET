@@ -1,4 +1,8 @@
+#if KHAROS_MOD_SDK
+namespace Kharos.Mod.Sdk;
+#else
 namespace Kharos.Engine.Numerics;
+#endif
 
 // Приведение аргумента к [−π/4, π/4]: musl __rem_pio2 и __rem_pio2_large (Payne–Hanek) для огромных |x|.
 public static partial class DetMath

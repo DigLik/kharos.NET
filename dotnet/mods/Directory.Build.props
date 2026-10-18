@@ -1,5 +1,11 @@
 <Project>
-  <!-- Моды: общие настройки решения, затем сборка мода из Kharos.Mod.Sdk (net10.0, wasm по KharosWasm=true). -->
+  <!--
+    Моды: общие настройки решения, затем сборка мода из Kharos.Mod.Sdk (net10.0, wasm по KharosWasm=true).
+    *.Shared — общий код частей мода (данные, приказы): обычная библиотека, входит в host.wasm и client.wasm ссылкой.
+  -->
+  <PropertyGroup>
+    <KharosModLibrary Condition="$(MSBuildProjectName.EndsWith('.Shared'))">true</KharosModLibrary>
+  </PropertyGroup>
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)..'))" />
-  <Import Project="..\src\Kharos.Mod.Sdk\build\Kharos.Mod.props" />
+  <Import Project="..\src\Kharos.Mod.Sdk\build\Kharos.Mod.props" Condition="'$(KharosModLibrary)' != 'true'" />
 </Project>

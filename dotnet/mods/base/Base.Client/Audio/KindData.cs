@@ -3,7 +3,7 @@ using Kharos.Mod.Sdk.Client;
 
 namespace Base.Client.Audio;
 
-/// <summary>Что звуку нужно знать о виде юнита (data.motor, pitch, speed, turn пилота).</summary>
+/// <summary>Что звуку нужно знать о виде юнита (look.motor, look.pitch, speed, turn).</summary>
 internal sealed record UnitSound(string Motor, double Pitch, double Speed, double Turn);
 
 /// <summary>
@@ -21,8 +21,12 @@ internal sealed class KindData
     {
         var data = new KindData();
         foreach (var (name, record) in Records(c, "units"))
-            if (record.TryGetProperty("motor", out var motor) && motor.ValueKind == JsonValueKind.String)
-                data.Units["units/" + name] = new UnitSound(motor.GetString()!, Num(record, "pitch", 1), Num(record, "speed", 1), Num(record, "turn", 1));
+        {
+            // Мотор и тон — облик пилота, подобъект look.
+            var look = record.TryGetProperty("look", out var value) && value.ValueKind == JsonValueKind.Object ? value : record;
+            if (look.TryGetProperty("motor", out var motor) && motor.ValueKind == JsonValueKind.String)
+                data.Units["units/" + name] = new UnitSound(motor.GetString()!, Num(look, "pitch", 1), Num(record, "speed", 1), Num(record, "turn", 1));
+        }
         foreach (var (name, record) in Records(c, "buildings"))
             data.Power["buildings/" + name] = Num(record, "power", 0);
         return data;

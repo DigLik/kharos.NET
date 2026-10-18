@@ -37,11 +37,12 @@ public sealed class ToolException(int tool, int code) : Exception($"инстру
 }
 
 /// <summary>
-/// Инструменты движка (kh.tool, docs/dotnet.md §4.1): только чтение мира и пакетные расчёты. Мир — каким он был до
-/// идущей системы (её столбцы ещё не вернулись). Ответы — в общем буфере: верны до следующего вызова инструмента.
-/// Форматы — ModAbi.Tool*.
+/// Инструменты движка (kh.tool, docs/dotnet.md §4.1, docs/dotnet-n5.md Н5.3): только чтение мира и пакетные расчёты.
+/// Мир — каким он был до идущей системы (её столбцы ещё не вернулись; свои записи читает <see cref="Stage"/>). Форматы —
+/// ModAbi.Tool*; инструменты Н5 (11–29) — каждый в своём файле Tools.&lt;Имя&gt;.cs. Ещё не сделанный движком
+/// инструмент — <see cref="ToolException"/> с кодом -1.
 /// </summary>
-public static class Tools
+public static partial class Tools
 {
     private static byte[] _input = new byte[256];
     private static int _length;
@@ -230,6 +231,14 @@ public static class Tools
         return Call(ModAbi.ToolHas)[0] != 0;
     }
 
+    /// <summary>Список номеров во вход: count:u32 entity:u32×count.</summary>
+    private static Writer Entities(ReadOnlySpan<uint> entities)
+    {
+        U32((uint)entities.Length);
+        MemoryMarshal.AsBytes(entities).CopyTo(Room(entities.Length * 4));
+        return default;
+    }
+
     /// <summary>Вызов с проверкой кода: ошибка — исключение.</summary>
     private static ReadOnlySpan<byte> Call(int tool)
     {
@@ -278,6 +287,12 @@ public static class Tools
         return default;
     }
 
+    private static Writer I32(int value)
+    {
+        BinaryPrimitives.WriteInt32LittleEndian(Room(4), value);
+        return default;
+    }
+
     private static Writer F64(double value)
     {
         BinaryPrimitives.WriteDoubleLittleEndian(Room(8), value);
@@ -300,6 +315,7 @@ public static class Tools
         }
 
         public Writer U32(uint value) => Tools.U32(value);
+        public Writer I32(int value) => Tools.I32(value);
         public Writer F64(double value) => Tools.F64(value);
         public Writer Doubles(ReadOnlySpan<double> values) => Tools.Doubles(values);
 

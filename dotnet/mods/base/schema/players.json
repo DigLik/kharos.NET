@@ -1,0 +1,12 @@
+// Игроки (Players): счета, дипломатия, поражение. Сущность счёта: Player, Owner, Team, Science, Diplomacy.
+{
+  // Счёт игрока: rewards — полученные награды (номера Proto i32 подряд), camera — x, y, zoom f64.
+  "Player": {
+    "id": 0, "credits": 0, "earned": 0, "away": 0, "safe": 0, "online": false, "rewards": null, "camera": null,
+    "@net": "owner"
+  },
+  // Предложения союза: кому предложил и кто просится, игроки u32 подряд. Сам союз — Team движка.
+  "Diplomacy": { "offered": null, "asked": null, "@net": "owner" },
+  // Обречённый: сколько тиков до гибели, затоплен ли хозяином.
+  "Doomed": { "left": 0, "scuttled": false }
+}

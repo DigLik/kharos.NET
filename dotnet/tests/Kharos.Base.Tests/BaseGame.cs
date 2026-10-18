@@ -1,4 +1,4 @@
-using Base.Host;
+using Base.Shared.Orders;
 using Kharos.Content;
 using Kharos.Engine.World;
 using MemoryPack;
@@ -115,19 +115,19 @@ public static class BaseGame
     // ===== Приказы =====
 
     public static void Move(KHost host, uint player, double x, double y, params uint[] units) =>
-        host.Send(player, "move", MemoryPackSerializer.Serialize(new MoveOrder { Units = units, X = x, Y = y }));
+        host.Send(player, MoveOrder.Name, MemoryPackSerializer.Serialize(new MoveOrder { Units = units, X = (int)Math.Floor(x), Y = (int)Math.Floor(y) }));
 
     public static void Stop(KHost host, uint player, params uint[] units) =>
-        host.Send(player, "stop", MemoryPackSerializer.Serialize(new StopOrder { Units = units }));
+        host.Send(player, StopOrder.Name, MemoryPackSerializer.Serialize(new StopOrder { Units = units }));
 
     public static void Produce(KHost host, uint player, uint building, string unit = "buggy") =>
-        host.Send(player, "produce", MemoryPackSerializer.Serialize(new ProduceOrder { Building = building, Unit = unit }));
+        host.Send(player, ProduceOrder.Name, MemoryPackSerializer.Serialize(new ProduceOrder { Producer = building, Unit = unit }));
 
     public static void Cancel(KHost host, uint player, uint building) =>
-        host.Send(player, "cancel", MemoryPackSerializer.Serialize(new CancelOrder { Building = building }));
+        host.Send(player, CancelProductionOrder.Name, MemoryPackSerializer.Serialize(new CancelProductionOrder { Producer = building }));
 
     public static void Rally(KHost host, uint player, uint building, double x, double y) =>
-        host.Send(player, "rally", MemoryPackSerializer.Serialize(new RallyOrder { Building = building, X = x, Y = y }));
+        host.Send(player, RallyOrder.Name, MemoryPackSerializer.Serialize(new RallyOrder { Building = building, X = (int)Math.Floor(x), Y = (int)Math.Floor(y) }));
 
     // ===== Ход =====
 

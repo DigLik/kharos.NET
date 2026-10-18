@@ -41,7 +41,7 @@ public readonly ref struct SystemFrame
 /// (<see cref="Look"/>, <see cref="Bank"/>, <see cref="Frame(ReadOnlySpan{byte})"/>). Вызовы — из одного потока. Состояния между вызовами у мода нет, поэтому после ловушки (<see cref="Faulted"/>)
 /// экземпляр выбрасывается и создаётся новый.
 /// </summary>
-public sealed class GameModuleInstance : IDisposable
+public sealed class GameModuleInstance : IModInstance
 {
     private readonly GameModule _module;
     private readonly Store _store;
@@ -50,6 +50,8 @@ public sealed class GameModuleInstance : IDisposable
     private readonly Func<int, int, int>? _system;
     private readonly Func<int, int, int, int>? _event;
     private readonly Func<int, int, int, int, int>? _command;
+    private readonly Func<int, int, int, int>? _query;
+    private readonly Func<int, int, int, int>? _prepareTable;
     private readonly Func<int, int>? _look;
     private readonly Func<int, int, int, int>? _bank;
     private readonly Func<int, int, int>? _frame;
@@ -60,6 +62,8 @@ public sealed class GameModuleInstance : IDisposable
     private readonly int[] _capacity;
     private readonly int[] _data;
     private readonly int[] _entities;
+    private readonly int[] _header;
+    private readonly int[][] _tables;
     private readonly ulong _callTicks;
     private int _scratch;
     private int _scratchCapacity;
@@ -109,6 +113,9 @@ public sealed class GameModuleInstance : IDisposable
                 _system = Export(instance.GetFunction("kh_system")?.WrapFunc<int, int, int>(), "kh_system");
                 _event = Export(instance.GetFunction("kh_event")?.WrapFunc<int, int, int, int>(), "kh_event");
                 _command = Export(instance.GetFunction("kh_command")?.WrapFunc<int, int, int, int, int>(), "kh_command");
+                // Необязательные: запросы и побочные таблицы (Н5) — у мода, собранного прежним SDK, их нет.
+                _query = instance.GetFunction("kh_query")?.WrapFunc<int, int, int, int>();
+                _prepareTable = instance.GetFunction("kh_prepare_table")?.WrapFunc<int, int, int, int>();
             }
             data.Owner = this;
 
@@ -146,6 +153,9 @@ public sealed class GameModuleInstance : IDisposable
             _capacity = new int[Systems.Count];
             _data = new int[Systems.Count];
             _entities = new int[Systems.Count];
+            _header = new int[Systems.Count];
+            // По таблице: ёмкость, адрес столбцов, адрес номеров.
+            _tables = [.. Systems.Select(layout => new int[layout.Tables.Count * 3])];
         }
         catch
         {
@@ -196,6 +206,9 @@ public sealed class GameModuleInstance : IDisposable
     /// <summary>Номер приказа; нет — -1.</summary>
     public int OrderId(string name) => Array.IndexOf(Manifest.Orders, name);
 
+    /// <summary>Номер запроса; нет — -1.</summary>
+    public int QueryId(string name) => Array.IndexOf(Manifest.Queries, name);
+
     internal double NextRandom() => RandomSource?.Invoke() ?? Random.Next();
 
     /// <summary>
@@ -210,7 +223,7 @@ public sealed class GameModuleInstance : IDisposable
         if ((uint)system >= (uint)Systems.Count)
             throw new ArgumentOutOfRangeException(nameof(system));
         var width = Systems[system].Width;
-        if (n > _capacity[system])
+        if (n > _capacity[system] || _header[system] == 0)
         {
             int frame;
             _store.SetEpochDeadline(_callTicks);
@@ -236,6 +249,7 @@ public sealed class GameModuleInstance : IDisposable
             _capacity[system] = capacity;
             _data[system] = data;
             _entities[system] = entities;
+            _header[system] = frame;
         }
         return new SystemFrame(
             _memory.GetSpan<double>(_data[system], width * n),
@@ -250,6 +264,85 @@ public sealed class GameModuleInstance : IDisposable
             throw new ArgumentOutOfRangeException(nameof(n), "кадр не подготовлен");
         var width = Systems[system].Width;
         return new SystemFrame(_memory.GetSpan<double>(_data[system], width * n), _memory.GetSpan<uint>(_entities[system], n), width);
+    }
+
+    /// <summary>
+    /// Побочная таблица table системы на n сущностей в памяти мода (kh_prepare_table — только если прежняя мала); счёт
+    /// n пишется в заголовок кадра. Кадр системы (<see cref="PrepareSystem"/>) — раньше.
+    /// </summary>
+    public SystemFrame PrepareTable(int system, int table, int n)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ThrowIfUnusable();
+        var layout = Systems[system];
+        if ((uint)table >= (uint)layout.Tables.Count || _header[system] == 0)
+            throw new ArgumentOutOfRangeException(nameof(table), "нет таблицы или кадр не подготовлен");
+        var width = layout.Tables[table].Width;
+        var slots = _tables[system];
+        if (n > slots[table * 3] || slots[table * 3 + 1] == 0)
+        {
+            int frame;
+            _store.SetEpochDeadline(_callTicks);
+            try
+            {
+                frame = Need(_prepareTable, "kh_prepare_table")(system, table, n);
+            }
+            catch (Exception ex) when (ex is not ModException)
+            {
+                throw Trap(ex, "kh_prepare_table");
+            }
+            if (frame == 0)
+                throw new ModCallException(ModId, ModAbi.ErrorOutOfMemory, Error() ?? "kh_prepare_table вернул 0");
+            _header[system] = frame;
+            var entry = _memory.GetSpan(frame + ModAbi.FrameSize + table * ModAbi.TableSize, ModAbi.TableSize);
+            var capacity = BinaryPrimitives.ReadInt32LittleEndian(entry[ModAbi.TableCapacity..]);
+            var tableWidth = BinaryPrimitives.ReadInt32LittleEndian(entry[ModAbi.TableWidth..]);
+            var data = BinaryPrimitives.ReadInt32LittleEndian(entry[ModAbi.TableData..]);
+            var entities = BinaryPrimitives.ReadInt32LittleEndian(entry[ModAbi.TableEntities..]);
+            if (tableWidth != width || capacity < n)
+                throw new ModAbiException(ModId, $"таблица {table} {layout.Info.Name}: ширина {tableWidth} (ждали {width}), ёмкость {capacity} < {n}");
+            CheckRange(data, (long)Math.Max(1, width) * capacity * sizeof(double), "таблица: столбцы");
+            CheckRange(entities, (long)capacity * sizeof(uint), "таблица: номера");
+            (slots[table * 3], slots[table * 3 + 1], slots[table * 3 + 2]) = (capacity, data, entities);
+        }
+        BinaryPrimitives.WriteInt32LittleEndian(_memory.GetSpan(_header[system] + ModAbi.FrameSize + table * ModAbi.TableSize + ModAbi.TableCount, 4), n);
+        return new SystemFrame(_memory.GetSpan<double>(slots[table * 3 + 1], width * n), _memory.GetSpan<uint>(slots[table * 3 + 2], n), width);
+    }
+
+    /// <summary>Свежие спаны таблицы (после вызова мода прежние могли устареть).</summary>
+    private SystemFrame TableFrame(int system, int table, int n)
+    {
+        var width = Systems[system].Tables[table].Width;
+        var slots = _tables[system];
+        return new SystemFrame(_memory.GetSpan<double>(slots[table * 3 + 1], width * n), _memory.GetSpan<uint>(slots[table * 3 + 2], n), width);
+    }
+
+    /// <summary>
+    /// Система с кадром хоста: главная часть и таблицы — в память мода, kh_system, столбцы из Write и пишущих таблиц —
+    /// обратно в frame. Возвращает буфер команд.
+    /// </summary>
+    public ReadOnlySpan<byte> RunSystem(int system, IModFrame frame, in ModCall call)
+    {
+        var layout = Systems[system];
+        var n = frame.Count(0);
+        var main = PrepareSystem(system, n);
+        frame.Data(0).CopyTo(main.Data);
+        frame.Entities(0).CopyTo(main.Entities);
+        for (var t = 0; t < layout.Tables.Count; t++)
+        {
+            var part = PrepareTable(system, t, frame.Count(t + 1));
+            frame.Data(t + 1).CopyTo(part.Data);
+            frame.Entities(t + 1).CopyTo(part.Entities);
+        }
+        InvokeSystem(system, n, call);
+        var back = Frame(system, n).Data;
+        var data = frame.Data(0);
+        foreach (var (first, count) in layout.Write)
+            back.Slice(first * n, count * n).CopyTo(data.Slice(first * n, count * n));
+        for (var t = 0; t < layout.Tables.Count; t++)
+            if (layout.Tables[t].Write)
+                TableFrame(system, t, frame.Count(t + 1)).Data.CopyTo(frame.Data(t + 1));
+        return Output();
     }
 
     /// <summary>kh_system над n сущностями подготовленного кадра. Возвращает буфер команд (формат движка) в памяти мода.</summary>
@@ -328,6 +421,26 @@ public sealed class GameModuleInstance : IDisposable
             throw Trap(ex, $"приказ {Name(Manifest.Orders, order)}");
         }
         Check(code, $"приказ {Name(Manifest.Orders, order)}");
+        return Output();
+    }
+
+    /// <summary>kh_query: запрос query (только чтение мира; права — call.Rights). Возвращает ответ (до следующего вызова).</summary>
+    public ReadOnlySpan<byte> RunQuery(int query, ReadOnlySpan<byte> payload, in ModCall call)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ThrowIfUnusable();
+        var ptr = Scratch(payload);
+        WriteCall(call);
+        int code;
+        try
+        {
+            code = Need(_query, "kh_query")(query, ptr, payload.Length);
+        }
+        catch (Exception ex) when (ex is not ModException)
+        {
+            throw Trap(ex, $"запрос {Name(Manifest.Queries, query)}");
+        }
+        Check(code, $"запрос {Name(Manifest.Queries, query)}");
         return Output();
     }
 
@@ -423,6 +536,7 @@ public sealed class GameModuleInstance : IDisposable
         BinaryPrimitives.WriteUInt64LittleEndian(shared[ModAbi.SharedTick..], call.Tick);
         BinaryPrimitives.WriteDoubleLittleEndian(shared[ModAbi.SharedDt..], call.Dt);
         BinaryPrimitives.WriteUInt32LittleEndian(shared[ModAbi.SharedNextEntity..], call.NextEntity);
+        BinaryPrimitives.WriteUInt32LittleEndian(shared[ModAbi.SharedRights..], call.Rights);
         _store.SetEpochDeadline(_callTicks);
     }
 

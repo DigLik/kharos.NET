@@ -1,33 +1,39 @@
 using Kharos.Mod.Abi;
+using Kharos.Mod.Sdk.Runtime;
 
 namespace Kharos.Mod.Sdk;
 
 /// <summary>
 /// Система мода — чистая функция: столбцы запроса на вход, изменённые столбцы и команды на выход. Состояния между
 /// вызовами у неё нет (экземпляр мода могут выбросить в любой момент): всё, что надо помнить, — в компонентах мира.
+/// Кэш, производный от мира, можно держать с ключом <see cref="Tools.Revision"/>.
 /// </summary>
 public interface ISystem
 {
-    /// <summary>Раз при загрузке: взять столбцы по именам (<see cref="SystemBinding.Column"/>) и компоненты для команд.</summary>
+    /// <summary>Раз при загрузке: взять столбцы по именам (<see cref="PartBinding.Column"/>) и компоненты для команд.</summary>
     void Bind(SystemBinding binding);
 
     /// <summary>Тик: столбцы — в <paramref name="ctx"/>, команды — в <see cref="SystemContext.Commands"/>.</summary>
     void Run(SystemContext ctx);
 }
 
-/// <summary>Столбец запроса: место в блоке столбцов кадра. Берётся при загрузке, в тике — <see cref="SystemContext.Column"/>.</summary>
+/// <summary>
+/// Столбец кадра или побочной таблицы: место в блоке столбцов. Берётся при загрузке, в тике —
+/// <see cref="SystemContext.Column"/> или <see cref="TableView.Column"/>.
+/// </summary>
 public readonly record struct Column(int Offset, FieldRef Field);
 
-/// <summary>Привязка системы к схеме мира при загрузке.</summary>
-public sealed class SystemBinding
+/// <summary>Раскладка части кадра (главный блок или таблица): компоненты запроса и их первые столбцы.</summary>
+public class PartBinding
 {
     private readonly string[] _query;
     private readonly int[] _offsets;
     private readonly WorldSchema _schema;
+    private readonly string _owner;
 
-    internal SystemBinding(string name, string[] query, WorldSchema schema)
+    internal PartBinding(string owner, string[] query, WorldSchema schema)
     {
-        Name = name;
+        _owner = owner;
         _query = query;
         _schema = schema;
         _offsets = new int[query.Length];
@@ -40,53 +46,89 @@ public sealed class SystemBinding
         Width = width;
     }
 
-    /// <summary>Имя системы.</summary>
-    public string Name { get; }
-
-    /// <summary>Столбцов f64 в кадре.</summary>
+    /// <summary>Столбцов f64.</summary>
     public int Width { get; }
+
+    /// <summary>Компоненты запроса части.</summary>
+    public IReadOnlyList<string> Query => _query;
 
     /// <summary>Столбец поля компонента запроса.</summary>
     public Column Column(string component, string field)
     {
         var at = Array.IndexOf(_query, component);
         if (at < 0)
-            throw new ArgumentException($"{Name}: {component} нет в запросе");
+            throw new ArgumentException($"{_owner}: {component} нет в запросе");
         var def = _schema.Get(component)[field];
         if (!def.Columnar)
-            throw new ArgumentException($"{Name}: {component}.{field} — не столбец");
+            throw new ArgumentException($"{_owner}: {component}.{field} — не столбец");
         return new Column(_offsets[at] + def.Slot, def);
     }
 
-    /// <summary>Компонент схемы — для команд (Add, Set, Remove).</summary>
-    public ComponentRef Component(string name) => _schema.Get(name);
+    /// <summary>Первый столбец компонента в блоке; нет в запросе — -1.</summary>
+    internal int OffsetOf(int component)
+    {
+        for (var at = 0; at < _query.Length; at++)
+            if (_schema.Get(_query[at]).Id == component)
+                return _offsets[at];
+        return -1;
+    }
 }
 
-/// <summary>Что видит система в тике: n сущностей, их столбцы и номера, тик, буфер команд.</summary>
+/// <summary>Привязка системы к схеме мира при загрузке: столбцы кадра и побочных таблиц.</summary>
+public sealed class SystemBinding : PartBinding
+{
+    private readonly WorldSchema _schema;
+    private readonly PartBinding[] _tables;
+
+    internal SystemBinding(string name, string[] query, IReadOnlyList<ModTableInfo> tables, WorldSchema schema) : base(name, query, schema)
+    {
+        Name = name;
+        _schema = schema;
+        _tables = [.. tables.Select((table, at) => new PartBinding($"{name}, таблица {at}", table.Query, schema))];
+    }
+
+    /// <summary>Имя системы.</summary>
+    public string Name { get; }
+
+    /// <summary>Побочная таблица i (по порядку объявления): её столбцы.</summary>
+    public PartBinding Table(int i) => _tables[i];
+
+    /// <summary>Сколько побочных таблиц.</summary>
+    public int Tables => _tables.Length;
+
+    /// <summary>Компонент схемы — для команд (Add, Set, Remove).</summary>
+    public ComponentRef Component(string name) => _schema.Get(name);
+
+    /// <summary>Слой мира по имени; нет — null.</summary>
+    public LayerRef? Layer(string name) => _schema.Layer(name);
+}
+
+/// <summary>Что видит система в тике: n сущностей, их столбцы и номера, побочные таблицы, тик, буфер команд.</summary>
 public readonly unsafe ref struct SystemContext
 {
-    private readonly double* _data;
-    private readonly uint* _entities;
+    private readonly FramePart _main;
+    private readonly FramePart[] _tables;
+    private readonly SystemBinding? _binding;
 
-    internal SystemContext(double* data, uint* entities, int count, ulong tick, double dt, CommandWriter commands)
+    internal SystemContext(FramePart main, FramePart[] tables, SystemBinding? binding, ulong tick, double dt, CommandWriter commands)
     {
-        _data = data;
-        _entities = entities;
-        Count = count;
+        _main = main;
+        _tables = tables;
+        _binding = binding;
         Tick = tick;
         Dt = dt;
         Commands = commands;
     }
 
     /// <summary>
-    /// Контекст над готовым блоком столбцов (для запуска системы вне wasm: тесты, сверка). Блок и номера должны
-    /// быть закреплены на время вызова.
+    /// Контекст над готовым блоком столбцов (для запуска системы вне мода: тесты, сверка). Блок и номера должны
+    /// быть закреплены на время вызова. Побочных таблиц нет.
     /// </summary>
     public static SystemContext Over(double* data, uint* entities, int count, ulong tick, double dt, CommandWriter commands) =>
-        new(data, entities, count, tick, dt, commands);
+        new(FramePart.Over(0, data, entities, count), [], null, tick, dt, commands);
 
     /// <summary>Сколько сущностей.</summary>
-    public int Count { get; }
+    public int Count => _main.Count;
 
     public ulong Tick { get; }
 
@@ -97,23 +139,58 @@ public readonly unsafe ref struct SystemContext
     public CommandWriter Commands { get; }
 
     /// <summary>Номера сущностей по порядку строк.</summary>
-    public ReadOnlySpan<uint> Entities => new(_entities, Count);
+    public ReadOnlySpan<uint> Entities => _main.EntitySpan;
 
     /// <summary>Столбец: читать и писать (в мир вернутся компоненты из Write).</summary>
-    public Span<double> Column(Column column) => new(_data + (long)column.Offset * Count, Count);
+    public Span<double> Column(Column column) => _main.Column(column.Offset);
+
+    /// <summary>Строка сущности в кадре; нет — -1.</summary>
+    public int RowOf(uint entity) => _main.RowOf(entity);
+
+    /// <summary>Побочная таблица i (<see cref="SystemDeclaration.Table(string[])"/>).</summary>
+    public TableView Table(int i) => new(_tables[i]);
+
+    /// <summary>Сколько побочных таблиц.</summary>
+    public int Tables => _tables.Length;
+
+    /// <summary>
+    /// Сцена вызова (docs/dotnet-n5.md, Н5-4): чтение мира с записями этого вызова поверх — команды, кадр, новые
+    /// сущности. Одна на вызов: повторный вызов вернёт ту же.
+    /// </summary>
+    public Stage Stage() => Commands.Stage ??= new Stage(Commands, _main, _binding);
 
     /// <summary>Случайное в [0, 1) из зерна мира — одинаковое у всех, кто считает тот же мир.</summary>
     public double Random() => Host.Random();
 }
 
-/// <summary>Объявление системы: запрос, условия, запись, порядок. Пишется цепочкой из <see cref="ModBuilder.System"/>.</summary>
+/// <summary>Побочная таблица в тике: сущности, столбцы (писать — если она объявлена WriteTable), строка по номеру.</summary>
+public readonly ref struct TableView
+{
+    private readonly FramePart _part;
+
+    internal TableView(FramePart part) => _part = part;
+
+    public int Count => _part.Count;
+
+    public ReadOnlySpan<uint> Entities => _part.EntitySpan;
+
+    /// <summary>Столбец таблицы (<see cref="SystemBinding.Table"/>).</summary>
+    public Span<double> Column(Column column) => _part.Column(column.Offset);
+
+    /// <summary>Строка сущности в таблице; нет — -1.</summary>
+    public int RowOf(uint entity) => _part.RowOf(entity);
+}
+
+/// <summary>Объявление системы: запрос, условия, таблицы, запись, порядок. Пишется цепочкой из <see cref="ModBuilder.System"/>.</summary>
 public sealed class SystemDeclaration
 {
     private readonly List<string> _query = [];
     private readonly List<string> _write = [];
+    private readonly List<string> _without = [];
     private readonly List<string> _after = [];
     private readonly List<string> _before = [];
     private readonly List<ModWhereInfo> _where = [];
+    private readonly List<ModTableInfo> _tables = [];
     private string? _key;
     private string? _instead;
     private int _every = 1;
@@ -127,6 +204,7 @@ public sealed class SystemDeclaration
     public string Name { get; }
     internal ISystem System { get; }
     internal string[] QueryNames => [.. _query];
+    internal IReadOnlyList<ModTableInfo> TableInfos => _tables;
 
     /// <summary>Сущности со всеми этими компонентами; их столбцы — в кадре, в этом порядке.</summary>
     public SystemDeclaration Query(params string[] components)
@@ -142,6 +220,31 @@ public sealed class SystemDeclaration
         return this;
     }
 
+    /// <summary>Только сущности без этих компонентов.</summary>
+    public SystemDeclaration Without(params string[] components)
+    {
+        _without.AddRange(components);
+        return this;
+    }
+
+    /// <summary>
+    /// Побочная таблица на чтение: все сущности с этими компонентами — своим блоком столбцов (номер — по порядку
+    /// объявления; столбцы — <see cref="SystemBinding.Table"/>, в тике — <see cref="SystemContext.Table"/>).
+    /// </summary>
+    public SystemDeclaration Table(params string[] components) => AddTable(components, [], false);
+
+    /// <summary>Побочная таблица на чтение без сущностей с компонентами without.</summary>
+    public SystemDeclaration Table(string[] components, string[] without) => AddTable(components, without, false);
+
+    /// <summary>
+    /// Побочная таблица, чьи столбцы вернутся в мир (по битам: что не менялось, не отмечается). Компонент пишет одна
+    /// часть системы: кадр (Write) или одна таблица — иначе ошибка при загрузке.
+    /// </summary>
+    public SystemDeclaration WriteTable(params string[] components) => AddTable(components, [], true);
+
+    /// <summary>Пишущая побочная таблица без сущностей с компонентами without.</summary>
+    public SystemDeclaration WriteTable(string[] components, string[] without) => AddTable(components, without, true);
+
     /// <summary>Условие: число в поле равно value.</summary>
     public SystemDeclaration Where(string component, string field, double value) =>
         AddWhere(new ModWhereInfo { Component = component, Field = field, Kind = ModAbi.KindNumber, Number = value });
@@ -154,7 +257,7 @@ public sealed class SystemDeclaration
     public SystemDeclaration Where(string component, string field, string value) =>
         AddWhere(new ModWhereInfo { Component = component, Field = field, Kind = ModAbi.KindString, Text = value });
 
-    /// <summary>Идти после этих систем (ключ или полное имя).</summary>
+    /// <summary>Идти после этих систем (ключ или полное имя; системы движка — engine.*).</summary>
     public SystemDeclaration After(params string[] systems)
     {
         _after.AddRange(systems);
@@ -196,17 +299,33 @@ public sealed class SystemDeclaration
         return this;
     }
 
+    private SystemDeclaration AddTable(string[] components, string[] without, bool write)
+    {
+        if (components.Length == 0)
+            throw new ArgumentException($"{Name}: таблица без компонентов");
+        _tables.Add(new ModTableInfo { Query = [.. components], Without = [.. without], Write = write });
+        return this;
+    }
+
     internal ModSystemInfo ToInfo()
     {
         foreach (var component in _write)
             if (!_query.Contains(component))
                 throw new InvalidOperationException($"{Name}: Write {component} — не из запроса");
+        var writers = new HashSet<string>(_write, StringComparer.Ordinal);
+        foreach (var table in _tables)
+            if (table.Write)
+                foreach (var component in table.Query)
+                    if (!writers.Add(component))
+                        throw new InvalidOperationException($"{Name}: {component} пишут две части системы");
         return new ModSystemInfo
         {
             Name = Name,
             Key = _key,
             Query = [.. _query],
             Where = [.. _where],
+            Without = [.. _without],
+            Tables = [.. _tables],
             Write = [.. _write],
             Every = _every,
             After = [.. _after],

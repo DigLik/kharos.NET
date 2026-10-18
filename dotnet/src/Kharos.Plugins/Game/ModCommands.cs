@@ -21,13 +21,54 @@ public enum ModCommandOp : byte
     Emit = ModAbi.OpEmit,
     /// <summary>Сигнал клиентам.</summary>
     Signal = ModAbi.OpSignal,
+    /// <summary>Канал слоя-сетки в прямоугольнике.</summary>
+    Layer = ModAbi.OpLayer,
+    /// <summary>Предмет слоя: положить или убрать.</summary>
+    Item = ModAbi.OpItem,
+    /// <summary>Правка земли.</summary>
+    Land = ModAbi.OpLand,
+    /// <summary>Сигнал списку игроков.</summary>
+    SignalTo = ModAbi.OpSignalTo,
+    /// <summary>Сигнал тем, кто видит точку.</summary>
+    SignalAt = ModAbi.OpSignalAt,
 }
 
 /// <summary>Значение поля в Add/Set: метка (ValueTag движка) и само значение.</summary>
 public readonly record struct ModFieldValue(byte Field, byte Tag, double Number, uint Id, string? Text, byte[]? Bytes);
 
 /// <summary>Разобранная запись буфера команд — для тестов, журнала и проверки; движок применяет байты сам.</summary>
-public sealed record ModCommand(ModCommandOp Op, uint Entity, int Component, IReadOnlyList<ModFieldValue> Fields, string? Name, byte[]? Payload);
+public sealed record ModCommand(ModCommandOp Op, uint Entity, int Component, IReadOnlyList<ModFieldValue> Fields, string? Name, byte[]? Payload)
+{
+    /// <summary>SignalTo: игроки.</summary>
+    public uint[]? Players { get; init; }
+
+    /// <summary>Layer и Item: номер слоя и владелец (0 — мир).</summary>
+    public int Layer { get; init; } = -1;
+
+    /// <summary>Layer и Item: владелец слоя (0 — мир).</summary>
+    public uint Owner { get; init; }
+
+    /// <summary>Layer — канал, Item — режим (ModAbi.Item*), Land — вид (ModAbi.Land*).</summary>
+    public byte Mode { get; init; }
+
+    /// <summary>Место: тайл (Layer, Land) или точка (Item, SignalAt).</summary>
+    public double X { get; init; }
+
+    /// <summary>Место по y.</summary>
+    public double Y { get; init; }
+
+    /// <summary>Layer: прямоугольник.</summary>
+    public uint W { get; init; }
+
+    /// <summary>Layer: прямоугольник.</summary>
+    public uint H { get; init; }
+
+    /// <summary>Числа: значение Layer, поля Item, вершина Land (px, py, radius).</summary>
+    public double[] Values { get; init; } = [];
+
+    /// <summary>Land: байты тайла (terrain, biome, tier, flags, dunes) или биом вершины.</summary>
+    public byte[] Tile { get; init; } = [];
+}
 
 /// <summary>Буфер команд не разобран: обрыв, незнакомая запись или метка.</summary>
 public sealed class ModCommandFormatException(string message, int offset) : FormatException($"команда @{offset}: {message}")
@@ -99,6 +140,56 @@ public static class ModCommands
                 var payload = Blob(buffer, ref at, start).ToArray();
                 return new ModCommand(op, 0, -1, [], name, payload);
             }
+            case ModCommandOp.SignalTo:
+            {
+                var name = Encoding.UTF8.GetString(Blob(buffer, ref at, start));
+                var payload = Blob(buffer, ref at, start).ToArray();
+                var count = Varint(buffer, ref at, start);
+                if (count > buffer.Length - at)
+                    throw new ModCommandFormatException($"{count} игроков", start);
+                var players = new uint[count];
+                for (var i = 0; i < players.Length; i++)
+                    players[i] = Varint(buffer, ref at, start);
+                return new ModCommand(op, 0, -1, [], name, payload) { Players = players };
+            }
+            case ModCommandOp.SignalAt:
+            {
+                var name = Encoding.UTF8.GetString(Blob(buffer, ref at, start));
+                var payload = Blob(buffer, ref at, start).ToArray();
+                return new ModCommand(op, 0, -1, [], name, payload) { X = F64(buffer, ref at, start), Y = F64(buffer, ref at, start) };
+            }
+            case ModCommandOp.Layer:
+            {
+                var layer = (int)Varint(buffer, ref at, start);
+                var owner = Varint(buffer, ref at, start);
+                var channel = Byte(buffer, ref at, start);
+                var (x, y) = (SVarint(buffer, ref at, start), SVarint(buffer, ref at, start));
+                var (w, h) = (Varint(buffer, ref at, start), Varint(buffer, ref at, start));
+                return new ModCommand(op, 0, -1, [], null, null) { Layer = layer, Owner = owner, Mode = channel, X = x, Y = y, W = w, H = h, Values = [F64(buffer, ref at, start)] };
+            }
+            case ModCommandOp.Item:
+            {
+                var layer = (int)Varint(buffer, ref at, start);
+                var owner = Varint(buffer, ref at, start);
+                var mode = Byte(buffer, ref at, start);
+                var (x, y) = (F64(buffer, ref at, start), F64(buffer, ref at, start));
+                var values = new double[mode == ModAbi.ItemPush ? Byte(buffer, ref at, start) : 0];
+                for (var i = 0; i < values.Length; i++)
+                    values[i] = F64(buffer, ref at, start);
+                return new ModCommand(op, 0, -1, [], null, null) { Layer = layer, Owner = owner, Mode = mode, X = x, Y = y, Values = values };
+            }
+            case ModCommandOp.Land:
+            {
+                var kind = Byte(buffer, ref at, start);
+                var (x, y) = (SVarint(buffer, ref at, start), SVarint(buffer, ref at, start));
+                if (kind == ModAbi.LandTile)
+                    return new ModCommand(op, 0, -1, [], null, null) { Mode = kind, X = x, Y = y, Tile = Take(buffer, ref at, 5, start).ToArray() };
+                var biome = Byte(buffer, ref at, start);
+                return new ModCommand(op, 0, -1, [], null, null)
+                {
+                    Mode = kind, X = x, Y = y, Tile = [biome], Values = [F64(buffer, ref at, start), F64(buffer, ref at, start), F64(buffer, ref at, start)],
+                };
+            }
             default:
                 throw new ModCommandFormatException($"незнакомая запись 0x{(byte)op:x2}", start);
         }
@@ -127,6 +218,14 @@ public static class ModCommands
     }
 
     private static byte Byte(ReadOnlySpan<byte> buffer, ref int at, int start) => Take(buffer, ref at, 1, start)[0];
+
+    private static double F64(ReadOnlySpan<byte> buffer, ref int at, int start) => BinaryPrimitives.ReadDoubleLittleEndian(Take(buffer, ref at, 8, start));
+
+    private static int SVarint(ReadOnlySpan<byte> buffer, ref int at, int start)
+    {
+        var raw = Varint(buffer, ref at, start);
+        return (int)(raw >> 1) ^ -(int)(raw & 1);
+    }
 
     private static uint Varint(ReadOnlySpan<byte> buffer, ref int at, int start)
     {

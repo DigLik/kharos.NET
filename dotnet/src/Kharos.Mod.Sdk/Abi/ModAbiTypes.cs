@@ -31,6 +31,40 @@ sealed partial class ModLoadInfo
 
     /// <summary>Идущая партия — запись из data/games.json; пусто — партии нет (тесты).</summary>
     public string Game { get; set; } = "";
+
+    /// <summary>Запись партии (UTF-8 JSON) с настройками хоста поверх (HostOptions.Settings); пусто — нет.</summary>
+    public byte[] GameData { get; set; } = [];
+
+    /// <summary>Слои мира: номер — для команд Layer и Item и инструментов.</summary>
+    public ModLayerInfo[] Layers { get; set; } = [];
+}
+
+/// <summary>Слой мира (LayerSpec движка).</summary>
+[MemoryPackable]
+#if KHAROS_PLUGINS
+public
+#else
+internal
+#endif
+sealed partial class ModLayerInfo
+{
+    /// <summary>Имя слоя.</summary>
+    public string Name { get; set; } = "";
+
+    /// <summary>Номер слоя.</summary>
+    public int Id { get; set; }
+
+    /// <summary>У каждого игрока свой (иначе — один на мир).</summary>
+    public bool PerPlayer { get; set; }
+
+    /// <summary>Ячейка предметов в тайлах; 0 — сетка.</summary>
+    public int Cell { get; set; }
+
+    /// <summary>Каналов тайла у сетки.</summary>
+    public int Channels { get; set; }
+
+    /// <summary>Поля предмета по порядку (у сетки — пусто).</summary>
+    public string[] Fields { get; set; } = [];
 }
 
 /// <summary>Компонент схемы.</summary>
@@ -48,8 +82,14 @@ sealed partial class ModComponentInfo
     /// <summary>Номер компонента в схеме: им компонент назван в буфере команд.</summary>
     public int Id { get; set; }
 
-    /// <summary>Поля по порядку объявления.</summary>
+    /// <summary>Поля по порядку объявления; пусто — метка.</summary>
     public ModFieldInfo[] Fields { get; set; } = [];
+
+    /// <summary>Кому уходит по сети (<c>@net</c>): 0 — всем, кто видит сущность, 1 — хозяину и союзникам, 2 — никому.</summary>
+    public byte Net { get; set; }
+
+    /// <summary>Идёт ли в сохранение (<c>@save</c>).</summary>
+    public bool Save { get; set; } = true;
 }
 
 /// <summary>Поле компонента.</summary>
@@ -72,6 +112,15 @@ sealed partial class ModFieldInfo
 
     /// <summary>Номер столбца f64 среди столбцов компонента (у байтовых — среди байтовых полей).</summary>
     public int Slot { get; set; }
+
+    /// <summary>Значение по умолчанию у числа и флага (0/1); у строки — 0, текст — в <see cref="DefaultText"/>.</summary>
+    public double Default { get; set; }
+
+    /// <summary>Строка по умолчанию у поля-строки.</summary>
+    public string? DefaultText { get; set; }
+
+    /// <summary>Скрытое (<c>@private</c>): видят хозяин и союзники.</summary>
+    public bool Private { get; set; }
 }
 
 /// <summary>Файл данных мода.</summary>
@@ -110,6 +159,9 @@ sealed partial class ModManifest
 
     /// <summary>Приказы игроков; номер — id для kh_command.</summary>
     public string[] Orders { get; set; } = [];
+
+    /// <summary>Запросы (только чтение); номер — id для kh_query.</summary>
+    public string[] Queries { get; set; } = [];
 
     /// <summary>Клиент: виды «раздел/имя», у которых мод рисует облик; номер — id для kh_look.</summary>
     public string[] Looks { get; set; } = [];
@@ -180,6 +232,12 @@ sealed partial class ModSystemInfo
     /// <summary>Условия на поля-столбцы.</summary>
     public ModWhereInfo[] Where { get; set; } = [];
 
+    /// <summary>Сущности без этих компонентов.</summary>
+    public string[] Without { get; set; } = [];
+
+    /// <summary>Побочные таблицы: номер — для kh_prepare_table.</summary>
+    public ModTableInfo[] Tables { get; set; } = [];
+
     /// <summary>Чьи столбцы вернуть в мир после системы — подмножество Query.</summary>
     public string[] Write { get; set; } = [];
 
@@ -194,6 +252,28 @@ sealed partial class ModSystemInfo
 
     /// <summary>Встать на место системы с этим именем.</summary>
     public string? Instead { get; set; }
+}
+
+/// <summary>
+/// Побочная таблица системы: все сущности со всеми компонентами Query и без Without — своим блоком столбцов, как кадр.
+/// Write — вернуть её столбцы в мир (компонент не пишут две части одной системы).
+/// </summary>
+[MemoryPackable]
+#if KHAROS_PLUGINS
+public
+#else
+internal
+#endif
+sealed partial class ModTableInfo
+{
+    /// <summary>Компоненты таблицы; их столбцы — в блоке, в этом порядке.</summary>
+    public string[] Query { get; set; } = [];
+
+    /// <summary>Без сущностей с этими компонентами.</summary>
+    public string[] Without { get; set; } = [];
+
+    /// <summary>Вернуть столбцы таблицы в мир.</summary>
+    public bool Write { get; set; }
 }
 
 /// <summary>Условие запроса: поле компонента равно значению.</summary>

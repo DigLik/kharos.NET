@@ -1,0 +1,5 @@
+// Трубы (Pipes): партии груза в сети труб. Видят хозяин и союзники (Sighting.allies).
+{
+  // Партия: resource — номер Proto груза; path — тайлы пути, i32 x, y подряд.
+  "Batch": { "from": 0, "to": 0, "resource": -1, "amount": 0, "sent": 0, "arrive": 0, "push": false, "path": null }
+}

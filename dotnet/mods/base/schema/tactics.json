@@ -1,0 +1,8 @@
+// Тактика (Tactics): стойки, патруль, возвращение на место.
+{
+  // stance — aggressive, defensive, hold или passive; patrol — точки, f64 x, y подряд.
+  "Tactics": {
+    "stance": "defensive", "leg": 0, "away": false, "homeX": 0, "homeY": 0, "resupply": false, "patrol": null,
+    "@net": "owner"
+  }
+}

@@ -1,0 +1,22 @@
+// Ракеты (Missiles): шахты, ядерные ракеты, перехватчики, радары, метки. Вспышки обзора — Reveal движка.
+{
+  // Шахта: чужим виден только пуск (start).
+  "Silo": {
+    "progress": 0, "ticks": 0, "cost": 0, "ready": false, "start": -1, "toX": 0, "toY": 0,
+    "@private": ["progress", "ticks", "cost", "ready", "toX", "toY"]
+  },
+  // Ракета: чужим — курс (courseX, courseY — единичный вектор), но не точка удара.
+  "Missile": {
+    "fromX": 0, "fromY": 0, "toX": 0, "toY": 0, "born": 0, "x": 0, "y": 0, "player": 0, "mark": 0, "hunted": 0,
+    "blind": false, "courseX": 0, "courseY": 0,
+    "@private": ["toX", "toY", "hunted", "mark"]
+  },
+  // Ракета-перехватчик.
+  "Chaser": { "fromX": 0, "fromY": 0, "toX": 0, "toY": 0, "lift": 0, "born": 0, "arrive": 0, "player": 0, "missile": 0 },
+  // Перехватчик: сборка ракет и их запас.
+  "Interceptor": { "progress": 0, "ticks": 0, "missiles": 0, "@net": "owner" },
+  // Радар: куда смотрит, тик вспышки (−1 — не было), wait — до следующей.
+  "Scan": { "x": 0, "y": 0, "tick": -1, "wait": 0, "dark": false, "@net": "owner" },
+  // Метка пуска, удара или сигнала союзникам: kind — launch, strike или ping; зрители — Sighting.listed.
+  "Mark": { "kind": "launch", "until": 0, "player": 0 }
+}

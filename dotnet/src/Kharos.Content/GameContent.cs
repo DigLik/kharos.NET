@@ -15,9 +15,6 @@ public sealed record Proto(int Id, string Section, string Name)
     public string Path => $"{Section}/{Name}";
 }
 
-/// <summary>Объявление поля компонента модом: значение по умолчанию задаёт вид.</summary>
-public sealed record ComponentDeclaration(string Mod, string Component, string Field, JsonElement Default);
-
 /// <summary>
 /// Партия — запись data/games.json: <c>size</c> — поле от −size до size по обеим осям (без него карты и обзора нет),
 /// <c>fog</c> — туман войны (по умолчанию есть), <c>land</c> — местность, запись data/lands.json с параметрами генератора
@@ -78,13 +75,7 @@ public sealed class GameContent
         }
         Protos = protos;
 
-        var components = new List<ComponentDeclaration>();
-        foreach (var mod in mods)
-            if (mod.Components is { } declared)
-                foreach (var component in declared.EnumerateObject())
-                    foreach (var field in component.Value.EnumerateObject())
-                        components.Add(new ComponentDeclaration(mod.Name, component.Name, field.Name, field.Value.Clone()));
-        Components = components;
+        Components = [.. mods.SelectMany(mod => mod.Declarations)];
 
         try
         {
@@ -104,7 +95,7 @@ public sealed class GameContent
     /// <summary>Виды по номерам.</summary>
     public IReadOnlyList<Proto> Protos { get; }
 
-    /// <summary>Объявления компонентов в порядке модов, компонентов и полей.</summary>
+    /// <summary>Объявления компонентов в порядке модов (у мода — schema/*.json по именам, затем mod.json).</summary>
     public IReadOnlyList<ComponentDeclaration> Components { get; }
 
     /// <summary>Слои из data/layers.json (после патчей).</summary>
@@ -113,7 +104,7 @@ public sealed class GameContent
     /// <summary>Партия по умолчанию: game последнего мода, где он задан.</summary>
     public string? DefaultGame { get; }
 
-    /// <summary>SHA-256 того, что должно совпасть у хоста и клиента: моды и версии, данные, компоненты, client.wasm.</summary>
+    /// <summary>SHA-256 того, что должно совпасть у хоста и клиента: моды и версии, данные, компоненты из mod.json, client.wasm.</summary>
     public byte[] Checksum { get; }
 
     /// <summary>Имена файлов данных по порядку.</summary>
@@ -142,18 +133,37 @@ public sealed class GameContent
         return new GameContent([.. order.Select(name => byName[name])]);
     }
 
-    /// <summary>Объявляет в схеме компоненты модов (по порядку). Одно поле с разными видами — <see cref="ContentException"/>.</summary>
+    /// <summary>
+    /// Объявляет в схеме компоненты модов (по порядку), метки и атрибуты. Атрибуты — после всех полей: скрытым может
+    /// быть поле, которое добавил другой мод; одно и то же у двух модов — у позднего. Одно поле с разными видами или
+    /// скрытое поле, которого нет, — <see cref="ContentException"/> с модом и файлом.
+    /// </summary>
     public void DeclareComponents(Schema schema)
     {
         foreach (var declaration in Components)
         {
             try
             {
-                schema.Declare(declaration.Component, declaration.Field, declaration.Default);
+                schema.DeclareTag(declaration.Component);
+                foreach (var (field, @default) in declaration.Fields)
+                    schema.Declare(declaration.Component, field, @default);
             }
             catch (ArgumentException error)
             {
-                throw new ContentException($"{declaration.Mod}/mod.json: {error.Message}", error);
+                throw new ContentException($"{declaration.Mod}/{declaration.File}: {error.Message}", error);
+            }
+        }
+        foreach (var declaration in Components)
+        {
+            if (declaration.Net is null && declaration.Save is null && declaration.Private.Count == 0)
+                continue;
+            try
+            {
+                schema.Attributes(declaration.Component, declaration.Net, declaration.Private, declaration.Save);
+            }
+            catch (ArgumentException error)
+            {
+                throw new ContentException($"{declaration.Mod}/{declaration.File}: {error.Message}", error);
             }
         }
     }
@@ -259,12 +269,14 @@ public sealed class GameContent
             Text(name);
             Blob(bytes);
         }
-        foreach (var declaration in Components)
-        {
-            Text(declaration.Component);
-            Text(declaration.Field);
-            Text(declaration.Default.GetRawText());
-        }
+        // Только mod.json: schema/*.json клиенту не шлются, схему он получает в приветствии.
+        foreach (var declaration in Components.Where(declaration => declaration.FromManifest))
+            foreach (var (field, @default) in declaration.Fields)
+            {
+                Text(declaration.Component);
+                Text(field);
+                Text(@default.GetRawText());
+            }
         return hash.GetHashAndReset();
     }
 }

@@ -120,7 +120,7 @@ internal sealed class BaseSession : IDisposable
     public void Look(double x, double y, double zoom = 32) => Game.Scene.Camera = new CameraState(x, y, zoom);
 
     public void Move(IReadOnlyList<uint> units, double x, double y) =>
-        Game.Send("move", MemoryPackSerializer.Serialize(new global::Base.Host.MoveOrder { Units = [.. units], X = x, Y = y }));
+        Game.Send("move", MemoryPackSerializer.Serialize(new global::Base.Shared.Orders.MoveOrder { Units = [.. units], X = (int)Math.Floor(x), Y = (int)Math.Floor(y) }));
 
     public void Dispose()
     {

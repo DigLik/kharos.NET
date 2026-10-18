@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Kharos.Content;
 using Kharos.Engine.Layers;
 using Kharos.Engine.Terrain;
@@ -16,6 +17,22 @@ public sealed class HostOptions
 {
     /// <summary>Партия (запись data/games.json); null — по умолчанию из mod.json.</summary>
     public string? Game { get; init; }
+
+    /// <summary>
+    /// Настройки партии — объект JSON поверх записи games.json (size, fog, land — имя из lands.json или параметры
+    /// генератора объектом; height, rules, weather, dev и прочее — модам в LoadContext.GameData). Хранятся в сохранении;
+    /// при загрузке эти, если заданы, сильнее сохранённых.
+    /// </summary>
+    public JsonElement? Settings { get; init; }
+
+    /// <summary>Как исполняется код модов: host.wasm (игра) или сборка .NET в процессе (тесты, <see cref="ModMode.Clr"/>).</summary>
+    public ModMode ModMode { get; init; } = ModMode.Wasm;
+
+    /// <summary>
+    /// Режим CLR: сборка мода по имени мода; кого нет — ищется рядом с mod.json (проект *.Host, bin/&lt;конфигурация&gt;/net10.0,
+    /// <see cref="ClrModule.Find"/>).
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? ClrAssemblies { get; init; }
 
     /// <summary>Зерно мира: случайный ряд систем и модов.</summary>
     public ulong Seed { get; init; } = 1;
@@ -76,7 +93,7 @@ public sealed class Host : IDisposable
     /// <summary>Игрок просит начать заново: payload — u32 игрок и u8 (1 — велел администратор).</summary>
     public const string RespawnEvent = "player_respawn";
 
-    /// <summary>Система обзора в порядке тика: на неё можно ссылаться в after/before.</summary>
+    /// <summary>Система обзора в порядке тика: на неё можно ссылаться в after/before (все системы движка — EngineSystems).</summary>
     public const string VisionSystem = "engine.vision";
 
     private const int MaxErrors = 1000;
@@ -92,7 +109,7 @@ public sealed class Host : IDisposable
     private bool _landLoaded;
     private readonly List<Signal> _signals = [];
     private readonly WorldChanges _changes = new();
-    private readonly GameModuleHost _moduleHost;
+    private GameModuleHost? _moduleHost;
     private readonly bool _ownsModuleHost;
     private readonly Action<string>? _log;
     private int _signalsTaken;
@@ -133,11 +150,18 @@ public sealed class Host : IDisposable
         try
         {
             Game = content.Game(save?.Game ?? options.Game);
+            var settings = options.Settings ?? (save?.Settings is { Length: > 0 } saved ? JsonDocument.Parse(saved).RootElement.Clone() : null);
+            if (settings is { } overrides)
+            {
+                Game = WithSettings(content, Game, overrides);
+                Settings = System.Text.Encoding.UTF8.GetBytes(overrides.GetRawText());
+            }
         }
-        catch (ContentException error)
+        catch (Exception error) when (error is ContentException or JsonException)
         {
             throw new HostException(error.Message, error);
         }
+        ModMode = options.ModMode;
 
         var schema = new Schema();
         try
@@ -216,7 +240,7 @@ public sealed class Host : IDisposable
         }
         Tools = new EngineTools(this);
 
-        _moduleHost = options.ModuleHost ?? new GameModuleHost(options.Modules);
+        _moduleHost = options.ModuleHost;
         _ownsModuleHost = options.ModuleHost is null;
         var specs = new List<SystemSpec>();
         try
@@ -224,9 +248,8 @@ public sealed class Host : IDisposable
             var load = LoadInfo();
             foreach (var package in content.Mods)
             {
-                if (package.HostWasm is not { } wasm)
+                if (Module(package, options, load) is not { } module)
                     continue;
-                var module = _moduleHost.Load(package.Name, wasm, load);
                 HostMod mod;
                 try
                 {
@@ -241,9 +264,8 @@ public sealed class Host : IDisposable
                 _byName[mod.Name] = mod;
                 specs.AddRange(Systems(mod));
             }
-            if (Vision is { } vision)
-                specs.Add(new SystemSpec { Name = VisionSystem, Key = "vision", System = new DelegateSystem(ctx => { if (ctx.Tick % Kharos.Host.Vision.Ticks == 1) vision.Update(ctx.World); }) });
-            Scheduler = new Scheduler(World, specs, Seed);
+            specs.AddRange(EngineSystems.Create(this));
+            Scheduler = new Scheduler(World, specs, Seed) { Layers = Layers, Land = Land };
             if (save is not null)
             {
                 Scheduler.Tick = save.Tick;
@@ -297,7 +319,15 @@ public sealed class Host : IDisposable
     }
 
     public GameContent Content { get; }
+
+    /// <summary>Партия: запись games.json с настройками поверх (<see cref="HostOptions.Settings"/>).</summary>
     public GameInfo Game { get; }
+
+    /// <summary>Настройки партии (UTF-8 JSON) — как их задали; null — нет. Идут в сохранение.</summary>
+    public byte[]? Settings { get; }
+
+    /// <summary>Как исполняется код модов.</summary>
+    public ModMode ModMode { get; }
     public ulong Seed { get; }
     public double Dt { get; }
     public GameWorld World { get; }
@@ -421,8 +451,29 @@ public sealed class Host : IDisposable
     /// <summary>Пакеты модов для клиентов (без кода хоста) — в порядке загрузки; собираются при первом обращении.</summary>
     public IReadOnlyList<HostPack> Packs => _packs ??= [.. Content.Mods.Select(HostPack.Of)];
 
-    /// <summary>Приказ игрока: выполнится в начале следующего тика.</summary>
-    public void Send(uint player, string order, byte[] payload) => Scheduler.Send(player, order, payload);
+    /// <summary>Приказ игрока: выполнится в начале следующего тика; rights — кто отдал (клиент по сети, админ, редактор).</summary>
+    public void Send(uint player, string order, byte[] payload, OrderRights rights = OrderRights.None) => Scheduler.Send(player, order, payload, rights);
+
+    /// <summary>
+    /// Запрос мода (Mod.Query: тесты, администратор, редактор) — сразу, между тиками: только чтение мира, ответ байтами.
+    /// Нет мода, запроса или мод выключен — null; ошибка мода — <see cref="ModException"/> (и запись в <see cref="Errors"/>).
+    /// </summary>
+    public byte[]? Query(string mod, string name, ReadOnlySpan<byte> payload, OrderRights rights = OrderRights.Admin)
+    {
+        if (Mod(mod) is not { } owner || Array.IndexOf(owner.Manifest.Queries, name) is var id && id < 0 || owner.Acquire() is not { } instance)
+            return null;
+        try
+        {
+            return instance.RunQuery(id, payload, new ModCall(Tick, Dt, World.NextEntity, (uint)rights)).ToArray();
+        }
+        catch (ModException error)
+        {
+            if (error is ModTrapException { Timeout: false })
+                owner.Module.Strike();
+            Report(owner, $"запрос {name}", error.Message, error);
+            throw;
+        }
+    }
 
     /// <summary>Один тик.</summary>
     public void Step()
@@ -564,6 +615,9 @@ public sealed class Host : IDisposable
             var width = info.Query.Sum(name => schema.Find(name) is { } component ? schema[component].Columns : throw new HostException($"{mod.Name}, {info.Name}: нет компонента {name}"));
             if (width != mod.Layouts[id].Width)
                 throw new HostException($"{mod.Name}, {info.Name}: ширина кадра мода не совпала со схемой");
+            for (var t = 0; t < info.Tables.Length; t++)
+                if (info.Tables[t].Query.Sum(name => schema.Find(name) is { } component ? schema[component].Columns : throw new HostException($"{mod.Name}, {info.Name}: нет компонента {name}")) != mod.Layouts[id].Tables[t].Width)
+                    throw new HostException($"{mod.Name}, {info.Name}: ширина таблицы {t} не совпала со схемой");
             if (!_systemOwners.TryAdd(info.Name, mod))
                 throw new HostException($"{mod.Name}: система {info.Name} уже есть у {_systemOwners[info.Name].Name}");
             yield return new SystemSpec
@@ -577,6 +631,8 @@ public sealed class Host : IDisposable
                     ModAbi.KindString => FieldValue.Of(where.Text ?? ""),
                     _ => FieldValue.Of(where.Number),
                 }))],
+                Without = info.Without,
+                Tables = [.. info.Tables.Select(table => new TableSpec { Query = table.Query, Without = table.Without, Write = table.Write })],
                 Write = info.Write,
                 Every = info.Every,
                 After = info.After,
@@ -587,21 +643,96 @@ public sealed class Host : IDisposable
         }
     }
 
-    /// <summary>Что моды получают в kh_load: схема мира, все данные после патчей, партия.</summary>
+    /// <summary>Что моды получают в kh_load: схема мира, слои, все данные после патчей, партия с настройками.</summary>
     private ModLoadInfo LoadInfo() => new()
     {
         Abi = ModAbi.Version,
         Side = "host",
         Seed = Seed,
         Game = Game.Name,
+        GameData = System.Text.Encoding.UTF8.GetBytes(Game.Data.ValueKind == JsonValueKind.Undefined ? "{}" : Game.Data.GetRawText()),
         Components = [.. World.Schema.Components.Select(c => new ModComponentInfo
         {
             Name = c.Name,
             Id = c.Id,
-            Fields = [.. c.Fields.Select(f => new ModFieldInfo { Name = f.Name, Kind = (byte)f.Kind, Index = f.Index, Slot = f.Slot })],
+            Fields = [.. c.Fields.Select(f => new ModFieldInfo
+            {
+                Name = f.Name,
+                Kind = (byte)f.Kind,
+                Index = f.Index,
+                Slot = f.Slot,
+                Default = f.Kind is FieldKind.Number or FieldKind.Flag ? f.Default.Number : 0,
+                DefaultText = f.Kind == FieldKind.String ? f.Default.Text : null,
+                Private = f.Private,
+            })],
+            Net = (byte)c.Net,
+            Save = c.Save,
+        })],
+        Layers = [.. Layers.Specs.Select((spec, id) => new ModLayerInfo
+        {
+            Name = spec.Name,
+            Id = id,
+            PerPlayer = spec.Scope == LayerScope.Player,
+            Cell = spec.Cell,
+            Channels = spec.Channels.Count,
+            Fields = [.. spec.Fields.Select(field => field.Name)],
         })],
         Data = [.. Content.DataNames.Select(name => new ModDataFile { Name = name, Bytes = Content.DataBytes(name)! })],
     };
+
+    /// <summary>
+    /// Модуль мода в нужном режиме; у мода нет кода хоста — null. CLR: сборка из настроек или рядом с mod.json; нет её у
+    /// мода с host.wasm — ошибка (мод потерялся бы молча).
+    /// </summary>
+    private IModModule? Module(ModPackage package, HostOptions options, ModLoadInfo load)
+    {
+        if (options.ModMode == ModMode.Clr)
+        {
+            var assembly = options.ClrAssemblies?.GetValueOrDefault(package.Name) ?? ClrModule.Find(package.Directory);
+            if (assembly is null)
+                return package.HostWasm is null ? null : throw new HostException($"{package.Name}: режим CLR, а сборки мода нет — dotnet build {package.Directory}");
+            return new ClrModule(package.Name, assembly, load, options.Modules);
+        }
+        if (package.HostWasm is not { } wasm)
+            return null;
+        _moduleHost ??= new GameModuleHost(options.Modules);
+        return _moduleHost.Load(package.Name, wasm, load);
+    }
+
+    /// <summary>
+    /// Запись партии с настройками поверх (JsonPatch): size, fog и land пересчитываются, остальное идёт модам как есть.
+    /// land — имя из lands.json или параметры генератора объектом.
+    /// </summary>
+    private static GameInfo WithSettings(GameContent content, GameInfo game, JsonElement settings)
+    {
+        if (settings.ValueKind != JsonValueKind.Object)
+            throw new HostException("настройки партии — объект JSON");
+        var record = game.Data.ValueKind == JsonValueKind.Object ? JsonNode.Parse(game.Data.GetRawText())! : new JsonObject();
+        var merged = JsonPatch.Merge(record, JsonNode.Parse(settings.GetRawText()))!;
+        var data = JsonDocument.Parse(JsonPatch.Write(merged)).RootElement.Clone();
+        var size = game.Size;
+        var fog = game.Fog;
+        var (landName, land) = (game.LandName, game.Land);
+        if (settings.TryGetProperty("size", out var sizeValue))
+            size = sizeValue.TryGetInt32(out var number) && number > 0 ? number : throw new HostException("настройки: size — целое больше нуля");
+        if (settings.TryGetProperty("fog", out var fogValue))
+            fog = fogValue.ValueKind is JsonValueKind.True or JsonValueKind.False ? fogValue.GetBoolean() : throw new HostException("настройки: fog — true или false");
+        if (settings.TryGetProperty("land", out var landValue))
+        {
+            if (landValue.ValueKind == JsonValueKind.String)
+            {
+                landName = landValue.GetString()!;
+                land = content.Data(GameContent.LandsFile) is { ValueKind: JsonValueKind.Object } lands && lands.TryGetProperty(landName, out var config)
+                    ? GameContent.Generator(config, $"lands.{landName}")
+                    : throw new HostException($"настройки: нет местности {landName} в data/{GameContent.LandsFile}.json");
+            }
+            else
+            {
+                (landName, land) = (null, GameContent.Generator(landValue, "настройки.land"));
+            }
+        }
+        return new GameInfo(game.Name, size, fog, landName, land, data);
+    }
 
     public void Dispose()
     {
@@ -612,6 +743,6 @@ public sealed class Host : IDisposable
             mod.Dispose();
         _mods.Clear();
         if (_ownsModuleHost)
-            _moduleHost.Dispose();
+            _moduleHost?.Dispose();
     }
 }

@@ -40,9 +40,28 @@ public sealed class FieldDef
 
     /// <summary>Лежит ли поле в столбце f64.</summary>
     public bool Columnar => Kind != FieldKind.Bytes;
+
+    /// <summary>Скрытое поле (<c>@private</c>): видят хозяин и союзники, чужим оно не уходит.</summary>
+    public bool Private { get; internal set; }
 }
 
-/// <summary>Компонент в схеме: имя и поля по порядку объявления.</summary>
+/// <summary>Кому компонент уходит по сети (<c>@net</c>).</summary>
+public enum NetMode : byte
+{
+    /// <summary>Всем, кто видит сущность.</summary>
+    All,
+
+    /// <summary>Хозяину и союзникам (как PRIVATE в wire.ts).</summary>
+    Owner,
+
+    /// <summary>Никому: только хосту.</summary>
+    None,
+}
+
+/// <summary>
+/// Компонент в схеме: имя и поля по порядку объявления. Без полей — метка: важно только, есть ли он у сущности.
+/// Атрибуты (<see cref="Net"/>, <see cref="Private"/>, <see cref="Save"/>) читают сеть и сохранение.
+/// </summary>
 public sealed class ComponentDef
 {
     private readonly List<FieldDef> _fields = [];
@@ -61,6 +80,21 @@ public sealed class ComponentDef
     public int Columns { get; private set; }
     public int BytesFields { get; private set; }
 
+    /// <summary>Метка: компонент без полей.</summary>
+    public bool Tag => _fields.Count == 0;
+
+    /// <summary>Кому уходит по сети; по умолчанию — всем, кто видит сущность.</summary>
+    public NetMode Net { get; internal set; } = NetMode.All;
+
+    /// <summary>Идёт ли в сохранение; по умолчанию — да.</summary>
+    public bool Save { get; internal set; } = true;
+
+    /// <summary>Маска скрытых полей (<c>@private</c>) по <see cref="FieldDef.Index"/>.</summary>
+    public ulong PrivateMask { get; private set; }
+
+    /// <summary>Имена скрытых полей по порядку объявления.</summary>
+    public IEnumerable<string> Private => _fields.Where(def => def.Private).Select(def => def.Name);
+
     public FieldDef? Field(string name)
     {
         foreach (var field in _fields)
@@ -71,6 +105,12 @@ public sealed class ComponentDef
 
     /// <summary>Номер поля по имени; нет — исключение (опечатка не пройдёт молча).</summary>
     public int FieldIndex(string name) => Field(name)?.Index ?? throw new KeyNotFoundException($"у {Name} нет поля {name}");
+
+    internal void MarkPrivate(FieldDef field)
+    {
+        field.Private = true;
+        PrivateMask |= 1UL << field.Index;
+    }
 
     internal FieldDef Add(string name, FieldKind kind, FieldValue @default)
     {
@@ -83,7 +123,10 @@ public sealed class ComponentDef
     }
 }
 
-/// <summary>Компоненты движка: номера постоянные, объявлены всегда (по ним клиент рисует, обзор считает).</summary>
+/// <summary>
+/// Компоненты движка: номера постоянные, объявлены всегда (по ним клиент рисует, обзор считает, идут ход и пути).
+/// Поля — docs/dotnet-n5.md, Н5.1; здание стоит по левому верхнему тайлу, как в TS.
+/// </summary>
 public static class Builtin
 {
     public const int Position = 0;
@@ -91,12 +134,59 @@ public static class Builtin
     public const int Owner = 2;
     public const int Proto = 3;
     public const int Sight = 4;
+
+    /// <summary>Основание: <c>w, h</c> в тайлах, <c>solid</c> — занимает тайлы (готовое здание), <c>open</c> — открытые ворота.</summary>
+    public const int Footprint = 5;
+
+    /// <summary>Тело: <c>radius</c>, <c>mass</c> (0 — radius²), <c>rooted</c> — не сдвигается (TS Converting).</summary>
+    public const int Body = 6;
+
+    /// <summary>Ход: <c>chassis</c> — запись moves.json, <c>speed, turn</c>.</summary>
+    public const int Mover = 7;
+
+    /// <summary>Путь: цель и состояние поиска; <c>points</c> — байты, f64 x, y подряд. Уходит только хозяину.</summary>
+    public const int Path = 8;
+
+    /// <summary>Место на носителе (TS Attached и Turret.angle): <c>parent</c> — сущность (0 — нет), <c>along, across, angle</c>.</summary>
+    public const int Mount = 9;
+
+    /// <summary>Союз: <c>player</c>, <c>head</c> — глава (союзны одинаковые head ≥ 0, −1 — вне союза).</summary>
+    public const int Team = 10;
+
+    /// <summary>Кому видна сущность (sightingOf в TS): <c>rule</c> — <see cref="Sightings"/>, точки a, b, c; <c>viewers</c> — байты, u32 подряд. Не уходит в сеть.</summary>
+    public const int Sighting = 11;
+
+    /// <summary>Вспышка обзора: <c>radius</c>, <c>until</c> — тик конца, <c>all</c> — всем (Glare), иначе хозяину (радар Scan).</summary>
+    public const int Reveal = 12;
+
+    /// <summary>Сколько компонентов движка: компоненты модов получают номера с этого.</summary>
+    public const int Count = 13;
+}
+
+/// <summary>Правила <c>Sighting.rule</c> (sightingOf в vision.ts): кто видит сущность.</summary>
+public static class Sightings
+{
+    /// <summary>Те, кто видит её место.</summary>
+    public const int Seen = 0;
+
+    /// <summary>Хозяин и союзники.</summary>
+    public const int Allies = 1;
+
+    /// <summary>Все, мимо тумана.</summary>
+    public const int Everyone = 2;
+
+    /// <summary>Игроки из <c>viewers</c>.</summary>
+    public const int Listed = 3;
+
+    /// <summary>Те, кто видит хотя бы одну из точек a, b, c.</summary>
+    public const int Points = 4;
 }
 
 /// <summary>
-/// Схема компонентов. Компоненты объявляют моды (данными, не типами C#): имя, поля, вид поля и значение по умолчанию.
-/// Один компонент могут объявлять несколько модов — поля складываются; одно поле с разными видами — ошибка. После
-/// того как по схеме создан мир, она закрыта.
+/// Схема компонентов. Компоненты объявляют моды (данными, не типами C#): имя, поля, вид поля и значение по умолчанию;
+/// компонент без полей — метка. Один компонент могут объявлять несколько модов — поля складываются; одно поле с
+/// разными видами — ошибка. Атрибуты (<see cref="Attributes"/>) — у последнего, кто их задал. После того как по схеме
+/// создан мир, она закрыта.
 /// </summary>
 public sealed class Schema
 {
@@ -114,6 +204,50 @@ public sealed class Schema
         DeclareNumber("Owner", "player", 0);
         DeclareNumber("Proto", "id", 0);
         DeclareNumber("Sight", "radius", 0);
+
+        DeclareNumber("Footprint", "w", 1);
+        DeclareNumber("Footprint", "h", 1);
+        DeclareFlag("Footprint", "solid", false);
+        DeclareFlag("Footprint", "open", false);
+
+        DeclareNumber("Body", "radius", 0.5);
+        DeclareNumber("Body", "mass", 0);
+        DeclareFlag("Body", "rooted", false);
+
+        DeclareString("Mover", "chassis", "");
+        DeclareNumber("Mover", "speed", 0);
+        DeclareNumber("Mover", "turn", 0);
+
+        DeclareNumber("Path", "goalX", 0);
+        DeclareNumber("Path", "goalY", 0);
+        DeclareNumber("Path", "wait", 0);
+        DeclareNumber("Path", "tries", 0);
+        DeclareNumber("Path", "near", 0);
+        DeclareFlag("Path", "roads", false);
+        DeclareFlag("Path", "direct", false);
+        DeclareFlag("Path", "stuck", false);
+        DeclareNumber("Path", "best", -1);
+        DeclareFlag("Path", "slot", false);
+        DeclareBytes("Path", "points");
+        Attributes("Path", NetMode.Owner);
+
+        DeclareNumber("Mount", "parent", 0);
+        DeclareNumber("Mount", "along", 0);
+        DeclareNumber("Mount", "across", 0);
+        DeclareNumber("Mount", "angle", 0);
+
+        DeclareNumber("Team", "player", 0);
+        DeclareNumber("Team", "head", -1);
+
+        DeclareNumber("Sighting", "rule", Sightings.Seen);
+        foreach (var point in (string[])["ax", "ay", "bx", "by", "cx", "cy"])
+            DeclareNumber("Sighting", point, 0);
+        DeclareBytes("Sighting", "viewers");
+        Attributes("Sighting", NetMode.None);
+
+        DeclareNumber("Reveal", "radius", 0);
+        DeclareNumber("Reveal", "until", 0);
+        DeclareFlag("Reveal", "all", false);
     }
 
     public IReadOnlyList<ComponentDef> Components => _components;
@@ -130,6 +264,32 @@ public sealed class Schema
     public int Id(string name) => Find(name) ?? throw new KeyNotFoundException($"нет компонента {name}");
 
     public ComponentDef Get(string name) => _components[Id(name)];
+
+    /// <summary>Объявляет компонент без полей (метку), если его ещё нет; поля ему можно добавить и потом.</summary>
+    public ComponentDef DeclareTag(string component)
+    {
+        if (Sealed)
+            throw new InvalidOperationException($"{component}: схема закрыта, мир уже создан");
+        return _components[Ensure(component)];
+    }
+
+    /// <summary>
+    /// Атрибуты компонента: кому уходит по сети, скрытые поля (добавляются к прежним), идёт ли в сохранение; null — не
+    /// менять. Компонент и скрытые поля должны быть объявлены, иначе <see cref="ArgumentException"/>.
+    /// </summary>
+    public ComponentDef Attributes(string component, NetMode? net = null, IEnumerable<string>? @private = null, bool? save = null)
+    {
+        if (Sealed)
+            throw new InvalidOperationException($"{component}: схема закрыта, мир уже создан");
+        var def = Find(component) is { } id ? _components[id] : throw new ArgumentException($"{component}: атрибуты у необъявленного компонента");
+        if (net is { } mode)
+            def.Net = mode;
+        if (save is { } saved)
+            def.Save = saved;
+        foreach (var name in @private ?? [])
+            def.MarkPrivate(def.Field(name) ?? throw new ArgumentException($"{component}: в @private нет поля {name}"));
+        return def;
+    }
 
     public FieldDef DeclareNumber(string component, string field, double @default) => Declare(component, field, FieldKind.Number, @default);
     public FieldDef DeclareFlag(string component, string field, bool @default) => Declare(component, field, FieldKind.Flag, @default);
@@ -156,16 +316,21 @@ public sealed class Schema
             throw new InvalidOperationException($"{component}.{field}: схема закрыта, мир уже создан");
         if (@default.Kind != kind)
             throw new ArgumentException($"{component}.{field}: значение по умолчанию — {Word(@default.Kind)}, а поле — {Word(kind)}");
+        var def = _components[Ensure(component)];
+        if (def.Field(field) is { } existing)
+            return existing.Kind == kind ? existing : throw new ArgumentException($"{component}.{field}: объявлено и как {Word(existing.Kind)}, и как {Word(kind)}");
+        return def.Add(field, kind, @default);
+    }
+
+    private int Ensure(string component)
+    {
         if (!_byName.TryGetValue(component, out var id))
         {
             id = _components.Count;
             _components.Add(new ComponentDef(component, id));
             _byName.Add(component, id);
         }
-        var def = _components[id];
-        if (def.Field(field) is { } existing)
-            return existing.Kind == kind ? existing : throw new ArgumentException($"{component}.{field}: объявлено и как {Word(existing.Kind)}, и как {Word(kind)}");
-        return def.Add(field, kind, @default);
+        return id;
     }
 
     internal void Seal() => Sealed = true;

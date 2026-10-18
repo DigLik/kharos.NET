@@ -14,16 +14,22 @@ public enum LogLevel
 
 /// <summary>
 /// Импорты хоста (модуль wasm <c>kh</c>) — всё, что мод может попросить у движка. Часов нет: у мода нет
-/// недетерминизма. Вне wasm (тесты на хосте) вызывать нельзя.
+/// недетерминизма. В режиме CLR (тесты: мод — сборка .NET в процессе хоста) те же вызовы идут к делегатам, которые
+/// поставил загрузчик хоста (<see cref="Runtime.ClrBridge"/>); вне мода (без хоста) вызывать нельзя.
 /// </summary>
 public static unsafe class Host
 {
     /// <summary>Случайное в [0, 1) из зерна мира.</summary>
-    public static double Random() => ImportRandom();
+    public static double Random() => Runtime.ClrBridge.Random is { } random ? random() : ImportRandom();
 
     /// <summary>Запись в журнал хоста.</summary>
     public static void Log(string message, LogLevel level = LogLevel.Info)
     {
+        if (Runtime.ClrBridge.Log is { } log)
+        {
+            log((int)level, message);
+            return;
+        }
         var count = Encoding.UTF8.GetByteCount(message);
         Span<byte> bytes = count <= 512 ? stackalloc byte[count] : new byte[count];
         Encoding.UTF8.GetBytes(message, bytes);
@@ -39,7 +45,9 @@ public static unsafe class Host
     {
         fixed (byte* i = input)
         fixed (byte* o = output)
-            return ImportTool(id, i, input.Length, o, output.Length);
+            return Runtime.ClrBridge.Tool is { } tool
+                ? tool(id, (nint)i, input.Length, (nint)o, output.Length)
+                : ImportTool(id, i, input.Length, o, output.Length);
     }
 
     [DllImport("kh", EntryPoint = "random")]

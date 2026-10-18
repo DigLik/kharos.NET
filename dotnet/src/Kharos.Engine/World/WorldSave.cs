@@ -13,6 +13,7 @@ namespace Kharos.Engine.World;
 ///   rows:varint entity:varint × rows             — в порядке строк
 ///   на поле по порядку: Number — f64 × rows; Flag — u8 × rows; String — номер:varint × rows; Bytes — bytes × rows
 /// </code>
+/// Компоненты с <c>"@save": false</c> (<see cref="ComponentDef.Save"/>) не пишутся: после загрузки их нет.
 /// Номер тика, случайный ряд и память модов — у хоста, не здесь.
 /// </summary>
 public static class WorldSave
@@ -41,8 +42,9 @@ public static class WorldSave
             previous = entity;
         }
         var schema = world.Schema;
-        writer.Varint((ulong)schema.Count);
-        for (var id = 0; id < schema.Count; id++)
+        var saved = Enumerable.Range(0, schema.Count).Where(id => schema[id].Save).ToArray();
+        writer.Varint((ulong)saved.Length);
+        foreach (var id in saved)
         {
             var def = schema[id];
             var store = world.Store(id);

@@ -8,7 +8,7 @@ namespace Kharos.Host;
 /// Сохранение хоста (<see cref="SaveFile"/>, «KHSV»): из него хост продолжает партию тем же миром и с теми же
 /// игроками. Разделы:
 /// <code>
-/// META game:str seed:varint dt:f64 tick:varint random:u64 checksum:blob protocol:varint
+/// META game:str seed:varint dt:f64 tick:varint random:u64 checksum:blob protocol:varint [settings:blob — JSON настроек]
 /// WRLD WorldSave («KHWD»): сущности, компоненты, строки, память модов (Storage)
 /// LAYR LayerCodec: сохраняемые слои мира и игроков (туман «разведано» и слои модов)
 /// LAND Land.Pack — только если карта правлена (иначе её повторяет генератор по зерну)
@@ -28,6 +28,9 @@ public sealed class HostSave
     public required byte[] Layers { get; init; }
     public byte[]? Land { get; init; }
     public required byte[] Players { get; init; }
+
+    /// <summary>Настройки партии (UTF-8 JSON, HostOptions.Settings); пусто — нет.</summary>
+    public byte[] Settings { get; init; } = [];
 
     /// <summary>Состояние хоста сейчас (на его потоке).</summary>
     public static HostSave Capture(Host host)
@@ -52,6 +55,7 @@ public sealed class HostSave
             Layers = LayerCodec.Encode(blocks),
             Land = host.LandEdited ? host.Land?.Pack() : null,
             Players = players.ToArray(),
+            Settings = host.Settings ?? [],
         };
     }
 
@@ -62,6 +66,8 @@ public sealed class HostSave
         Span<byte> random = stackalloc byte[8];
         System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(random, Random);
         meta.Raw(random).Blob(Checksum).Varint(Welcome.ProtocolVersion);
+        if (Settings.Length > 0)
+            meta.Blob(Settings);
         var sections = new List<(string, byte[])> { ("META", meta.ToArray()), ("WRLD", World), ("LAYR", Layers) };
         if (Land is { } land)
             sections.Add(("LAND", land));
@@ -82,12 +88,13 @@ public sealed class HostSave
         var random = System.Buffers.Binary.BinaryPrimitives.ReadUInt64LittleEndian(r.Take(8));
         var checksum = r.Blob().ToArray();
         r.Varint();
+        var settings = r.End ? [] : r.Blob().ToArray();
         if (!(dt > 0 && dt < 10))
             throw new FormatException($"сохранение: длина тика {dt}");
         return new HostSave
         {
             Game = game, Seed = seed, Dt = dt, Tick = tick, Random = random, Checksum = checksum,
-            World = Section("WRLD"), Layers = Section("LAYR"), Land = sections.GetValueOrDefault("LAND"), Players = Section("PLRS"),
+            World = Section("WRLD"), Layers = Section("LAYR"), Land = sections.GetValueOrDefault("LAND"), Players = Section("PLRS"), Settings = settings,
         };
     }
 

@@ -1,0 +1,40 @@
+// Логистика (Logistics): грузовики, склады, заявки, подвоз строителями, лучи. Груз — по столбцу на вид (16: ресурсы,
+// изделия, руда); resource — номер Proto груза (−1 — нет); сущности — номером (0 — нет).
+{
+  // Грузовик: filter — маска грузов по порядку столбцов Stock (0 — любые); route, serve — сущности u32 подряд.
+  "Hauler": {
+    "mine": 0, "from": 0, "to": 0, "resource": -1, "amount": 0, "full": false, "loading": false, "waiting": false,
+    "misses": 0, "stop": 0, "filter": 0, "pickup": 0, "supply": 0, "trapped": false, "route": null, "serve": null,
+    "@net": "owner"
+  },
+  // Ручной приказ «взять здесь, отвезти туда» (TS Hauler.order): from 0 — то, что уже в кузове.
+  "Carry": { "from": 0, "to": 0, "resource": -1, "left": 0, "full": false, "@net": "owner" },
+  // Склад (TS Inventory): объём, резерв и груз по видам; что принимает и сколько — из вида или Limits.
+  "Stock": {
+    "capacity": 0, "reserve": 0,
+    "metal": 0, "silicon": 0, "fuel": 0, "kharite": 0, "lithium": 0, "uranium": 0,
+    "blocks": 0, "ammo": 0, "parts": 0, "rods": 0,
+    "metalOre": 0, "siliconOre": 0, "fuelOre": 0, "khariteOre": 0, "lithiumOre": 0, "uraniumOre": 0,
+    "@net": "owner"
+  },
+  // Свои пределы склада по видам вместо пределов вида (стройка — под её материалы); −1 — без предела.
+  "Limits": {
+    "metal": -1, "silicon": -1, "fuel": -1, "kharite": -1, "lithium": -1, "uranium": -1,
+    "blocks": -1, "ammo": -1, "parts": -1, "rods": -1,
+    "metalOre": -1, "siliconOre": -1, "fuelOre": -1, "khariteOre": -1, "lithiumOre": -1, "uraniumOre": -1,
+    "@net": "owner"
+  },
+  // Заказ станции запроса: сколько груза каждого вида держать.
+  "Wanted": {
+    "metal": 0, "silicon": 0, "fuel": 0, "kharite": 0, "lithium": 0, "uranium": 0,
+    "blocks": 0, "ammo": 0, "parts": 0, "rods": 0,
+    "metalOre": 0, "siliconOre": 0, "fuelOre": 0, "khariteOre": 0, "lithiumOre": 0, "uraniumOre": 0,
+    "@net": "owner"
+  },
+  // Строитель везёт материалы на свою стройку.
+  "Fetch": { "from": 0, "to": 0, "resource": -1, "amount": 0, "full": false, "misses": 0, "@net": "owner" },
+  // Грузовикам не подъехать до тика until.
+  "Unreachable": { "until": 0, "@net": "owner" },
+  // Луч: links — связи для подачи (сущность u32, тянет ли u8, груз i32).
+  "Beam": { "radius": 2, "rate": 10, "give": true, "take": true, "links": null }
+}

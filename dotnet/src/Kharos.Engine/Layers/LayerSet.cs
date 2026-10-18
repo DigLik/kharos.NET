@@ -66,6 +66,9 @@ public sealed class LayerSet
 
     public int Count => _layers.Length;
 
+    /// <summary>Номер правки: растёт при любом изменении блоков (ключ кэшей, производных от слоёв).</summary>
+    public ulong Revision { get; private set; }
+
     public int? Find(string name) => _byName.TryGetValue(name, out var id) ? id : null;
 
     /// <summary>Номер слоя; нет — исключение.</summary>
@@ -90,8 +93,11 @@ public sealed class LayerSet
     {
         foreach (var layer in _layers)
             if (layer.Players.Remove(player, out var blocks))
+            {
                 foreach (var (x, y) in blocks.Keys)
                     layer.Dirty.Add((player, x, y));
+                Revision++;
+            }
     }
 
     /// <summary>Игроки, у которых заведены слои, по возрастанию.</summary>
@@ -137,7 +143,10 @@ public sealed class LayerSet
         var before = kind.Read(place);
         kind.Write(place, value);
         if (!kind.Read(place).Equals(before))
+        {
             layer.Dirty.Add((owner.Code, chunk.X, chunk.Y));
+            Revision++;
+        }
     }
 
     /// <summary>Чанк и место тайла в нём.</summary>
@@ -175,6 +184,7 @@ public sealed class LayerSet
             layer.Kinds[at].Write(record[layer.Offsets[at]..], at < item.Fields.Length ? item.Fields[at] : 0);
         blocks[cell] = grown;
         layer.Dirty.Add((owner.Code, cell.X, cell.Y));
+        Revision++;
     }
 
     /// <summary>Предметы ячейки по порядку.</summary>
@@ -205,6 +215,7 @@ public sealed class LayerSet
         var layer = _layers[id];
         layer.Blocks(owner)?.Remove(cell);
         layer.Dirty.Add((owner.Code, cell.X, cell.Y));
+        Revision++;
         foreach (var item in kept)
             Push(id, owner, item);
     }
@@ -278,6 +289,7 @@ public sealed class LayerSet
             blocks.Remove((change.X, change.Y));
         else
             blocks[(change.X, change.Y)] = (byte[])change.Bytes.Clone();
+        Revision++;
     }
 
     /// <summary>Один слой: объявление, смещения каналов, блоки мира или игроков и изменённое.</summary>

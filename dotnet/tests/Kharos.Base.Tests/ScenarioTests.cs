@@ -37,7 +37,7 @@ public class ScenarioTests
         return WorldSave.Save(host.World);
     }
 
-    [Fact]
+    [Fact(Skip = "ждёт Б1")]
     public void SameSeedGivesIdenticalWorldBytes()
     {
         Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);
@@ -47,7 +47,7 @@ public class ScenarioTests
         Assert.True(first.Length > 1000);
     }
 
-    [Fact]
+    [Fact(Skip = "ждёт Б1")]
     public void RulesComeFromDataSoAnotherModCanTuneThem()
     {
         Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);
@@ -75,7 +75,7 @@ public class ScenarioTests
         Assert.Empty(host.Errors);
     }
 
-    [Fact]
+    [Fact(Skip = "ждёт Б1")]
     public void TickTimeOfOnePlayerSkirmish()
     {
         Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);

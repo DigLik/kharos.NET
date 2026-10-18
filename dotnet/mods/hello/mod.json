@@ -9,6 +9,8 @@
   "client": "client.wasm",
   "components": {
     "Drive": { "speed": 0, "turn": 0, "tx": 0, "ty": 0 },
-    "Unit": { "radius": 0.5 }
+    "Unit": { "radius": 0.5 },
+    "Follow": { "leader": 0, "dx": 0, "dy": 0 },
+    "Anchor": { "since": 0 }
   }
 }

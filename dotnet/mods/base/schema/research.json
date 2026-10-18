@@ -1,0 +1,10 @@
+// Исследования и уровни (Research).
+{
+  // Лаборатория: скорость, чего не хватает (ключ груза или "").
+  "Research": { "speed": 0, "lack": "" },
+  // Улучшение здания до следующего уровня.
+  "Upgrade": { "progress": 0, "scale": 1 },
+  // Наука игрока на сущности счёта (TS Player.research/plan/progress): done, plan — темы, номера Proto i32 подряд;
+  // progress — пары «тема i32, доля f64».
+  "Science": { "done": null, "plan": null, "progress": null, "@net": "owner" }
+}

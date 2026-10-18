@@ -1,3 +1,4 @@
+using Kharos.Engine.Layers;
 using Kharos.Engine.Terrain;
 using Kharos.Engine.Tools;
 using Kharos.Engine.World;
@@ -13,12 +14,17 @@ public sealed class EngineTools : ModTools
 {
     private readonly Host _host;
     private HostMod? _mod;
+    private HostMod? _last;
 
     public EngineTools(Host host) : base(new HostWorld(host)) => _host = host;
 
     /// <summary>Вызов инструмента модом mod (null — без мода: тесты). Ответ — длина; места мало — ничего не записано.</summary>
     public int Call(HostMod? mod, int id, ReadOnlySpan<byte> input, Span<byte> output)
     {
+        // Отложенный до повтора ответ — только тому же моду (у памяти мода ответ свой).
+        if (!ReferenceEquals(mod, _last))
+            ForgetPending();
+        _last = mod;
         _mod = mod;
         try
         {
@@ -51,5 +57,10 @@ public sealed class EngineTools : ModTools
         public Land? Land => host.Land;
         public int ProtoId(string path) => host.Content.FindProto(path)?.Id ?? -1;
         public string? ProtoPath(int id) => (uint)id < (uint)host.Content.Protos.Count ? host.Content.Protos[id].Path : null;
+        public LayerSet Layers => host.Layers;
+        public ulong Tick => host.Tick;
+
+        public byte Sees(uint player, double x, double y) => host.Vision is not { } vision ? (byte)2
+            : vision.Sees(player, x, y) ? (byte)2 : vision.Explored(player, x, y) ? (byte)1 : (byte)0;
     }
 }

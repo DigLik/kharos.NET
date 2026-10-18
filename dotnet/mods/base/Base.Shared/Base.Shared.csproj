@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Общее у частей base (docs/dotnet-n5.md, Н5.4–Н5.5): типы данных data/*.json с генерацией кода JSON (AOT), имена
+    компонентов и полей, payload приказов и сигналов (MemoryPack). Входит в host.wasm и client.wasm ссылкой на проект,
+    ей же пользуются тесты. net10.0, как моды: компилятор NativeAOT-LLVM несёт библиотеки .NET 10.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Base.Shared</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MemoryPack" />
+  </ItemGroup>
+</Project>

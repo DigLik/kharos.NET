@@ -13,6 +13,11 @@ public static class CommandOp
     public const byte Remove = 0x05;
     public const byte Emit = 0x06;
     public const byte Signal = 0x07;
+    public const byte Layer = 0x08;
+    public const byte Item = 0x09;
+    public const byte Land = 0x0A;
+    public const byte SignalTo = 0x0B;
+    public const byte SignalAt = 0x0C;
 }
 
 /// <summary>Метки значений поля в записях Add и Set.</summary>
@@ -35,13 +40,22 @@ public static class ValueTag
 ///
 ///   запись := op:u8 тело
 ///   0x01 Spawn    entity:varint
-///   0x02 Destroy  entity:varint
+///   0x02 Destroy  entity:varint             — и всё, что на ней держится (Mount.parent = entity), глубже — тоже
 ///   0x03 Add      entity:varint component:varint count:u8 (field:u8 value) × count
 ///   0x04 Set      entity:varint component:varint count:u8 (field:u8 value) × count
 ///   0x05 Remove   entity:varint component:varint
 ///   0x06 Emit     name:str payload:bytes      — событие обработчикам после системы
 ///   0x07 Signal   name:str payload:bytes      — сигнал клиентам: звук, вспышка
+///   0x08 Layer    layer:varint owner:varint channel:u8 x:sint y:sint w:varint h:varint value:f64
+///                                             — канал слоя-сетки в прямоугольнике (owner 0 — мир, иначе игрок)
+///   0x09 Item     layer:varint owner:varint mode:u8 x:f64 y:f64 [count:u8 field:f64×count]
+///                                             — предмет слоя: mode 0 положить, 1 убрать лежащие ровно в (x, y)
+///   0x0A Land     kind:u8 x:sint y:sint (0: terrain:u8 biome:u8 tier:u8 flags:u8 dunes:u8 | 1: biome:u8 px:f64 py:f64 r:f64)
+///                                             — правка тайла земли или часть горы (flags & 1 — обрыв)
+///   0x0B SignalTo name:str payload:bytes count:varint player:varint×count — сигнал этим игрокам
+///   0x0C SignalAt name:str payload:bytes x:f64 y:f64                     — сигнал тем, кто видит точку
 ///
+///   sint — целое со знаком: zigzag ((n &lt;&lt; 1) ^ (n &gt;&gt; 31)) поверх varint.
 ///   value := tag:u8 …
 ///   0x00 число      f64
 ///   0x01 false, 0x02 true                     — флаг
@@ -100,6 +114,42 @@ public sealed class CommandBuffer
     public void Emit(string name, ReadOnlySpan<byte> payload = default) => Op(CommandOp.Emit).Text(name).Blob(payload);
 
     public void Signal(string name, ReadOnlySpan<byte> payload = default) => Op(CommandOp.Signal).Text(name).Blob(payload);
+
+    /// <summary>Сигнал только этим игрокам.</summary>
+    public void SignalTo(string name, ReadOnlySpan<byte> payload, ReadOnlySpan<uint> players)
+    {
+        Op(CommandOp.SignalTo).Text(name).Blob(payload).Varint((uint)players.Length);
+        foreach (var player in players)
+            Varint(player);
+    }
+
+    /// <summary>Сигнал тем, кто видит точку (x, y).</summary>
+    public void SignalAt(string name, ReadOnlySpan<byte> payload, double x, double y) => Op(CommandOp.SignalAt).Text(name).Blob(payload).Double(x).Double(y);
+
+    /// <summary>Канал слоя-сетки в прямоугольнике w×h с (x, y); owner 0 — мир.</summary>
+    public void Layer(int layer, uint owner, int channel, int x, int y, int w, int h, double value) =>
+        Op(CommandOp.Layer).Varint((uint)layer).Varint(owner).Byte((byte)channel).SVarint(x).SVarint(y).Varint((uint)w).Varint((uint)h).Double(value);
+
+    /// <summary>Кладёт предмет в слой.</summary>
+    public void PushItem(int layer, uint owner, double x, double y, ReadOnlySpan<double> fields)
+    {
+        if (fields.Length > byte.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(fields));
+        Op(CommandOp.Item).Varint((uint)layer).Varint(owner).Byte(0).Double(x).Double(y).Byte((byte)fields.Length);
+        foreach (var field in fields)
+            Double(field);
+    }
+
+    /// <summary>Убирает предметы слоя, лежащие ровно в (x, y).</summary>
+    public void DeleteItems(int layer, uint owner, double x, double y) => Op(CommandOp.Item).Varint((uint)layer).Varint(owner).Byte(1).Double(x).Double(y);
+
+    /// <summary>Правка тайла земли (не гора).</summary>
+    public void LandTile(int x, int y, Terrain.TileEdit edit) =>
+        Op(CommandOp.Land).Byte(0).SVarint(x).SVarint(y).Byte((byte)edit.Terrain).Byte(edit.Biome).Byte((byte)edit.Tier).Byte(edit.Cliff ? (byte)1 : (byte)0).Byte((byte)edit.Dunes);
+
+    /// <summary>Тайл — часть горы с вершиной (px, py) радиуса radius.</summary>
+    public void LandPeak(int x, int y, byte biome, double px, double py, double radius) =>
+        Op(CommandOp.Land).Byte(1).SVarint(x).SVarint(y).Byte(biome).Double(px).Double(py).Double(radius);
 
     public CommandBuffer Number(int field, double value)
     {
@@ -193,6 +243,15 @@ public sealed class CommandBuffer
         }
         room[at++] = (byte)value;
         _length += at;
+        return this;
+    }
+
+    private CommandBuffer SVarint(int value) => Varint((uint)((value << 1) ^ (value >> 31)));
+
+    private CommandBuffer Double(double value)
+    {
+        BinaryPrimitives.WriteDoubleLittleEndian(Room(8), value);
+        _length += 8;
         return this;
     }
 

@@ -9,6 +9,7 @@ namespace Kharos.Mod.Sdk.Generated;
 
 internal static unsafe class ModExports
 {
+    // Его же зовёт загрузчик режима CLR (отражением): так в обоих режимах создаётся один и тот же класс мода.
     private static global::Kharos.Mod.Sdk.Mod Create() => new KharosModEntry();
 
     [UnmanagedCallersOnly(EntryPoint = "kh_abi_version")]
@@ -29,6 +30,9 @@ internal static unsafe class ModExports
     [UnmanagedCallersOnly(EntryPoint = "kh_prepare")]
     private static int Prepare(int system, int n) => ModRuntime.Prepare(system, n);
 
+    [UnmanagedCallersOnly(EntryPoint = "kh_prepare_table")]
+    private static int PrepareTable(int system, int table, int n) => ModRuntime.PrepareTable(system, table, n);
+
     [UnmanagedCallersOnly(EntryPoint = "kh_system")]
     private static int System(int system, int n) => ModRuntime.System(system, n);
 
@@ -37,4 +41,7 @@ internal static unsafe class ModExports
 
     [UnmanagedCallersOnly(EntryPoint = "kh_command")]
     private static int Command(int order, int player, int ptr, int len) => ModRuntime.Command(order, player, ptr, len);
+
+    [UnmanagedCallersOnly(EntryPoint = "kh_query")]
+    private static int Query(int query, int ptr, int len) => ModRuntime.Query(query, ptr, len);
 }

@@ -56,3 +56,16 @@ public sealed partial class ProbeReport
     public byte[]? Storage { get; set; }
     public uint StorageEntity { get; set; }
 }
+
+/// <summary>
+/// Приказ hello.follow: своим юнитам из списка — держаться за ведущим со сдвигом (Follow); ответ — сигнал hello.staged
+/// хозяину: сколько из них сцена (Stage) видит с Follow сразу после записи.
+/// </summary>
+[MemoryPackable]
+public sealed partial class FollowOrder
+{
+    public uint Leader { get; set; }
+    public uint[] Followers { get; set; } = [];
+    public double Dx { get; set; }
+    public double Dy { get; set; }
+}

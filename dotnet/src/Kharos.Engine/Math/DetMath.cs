@@ -1,10 +1,15 @@
+#if KHAROS_MOD_SDK
+namespace Kharos.Mod.Sdk;
+#else
 namespace Kharos.Engine.Numerics;
+#endif
 
 /// <summary>
 /// Детерминированная математика: одинаковый результат до бита на любой ОС и любом процессоре (docs/dotnet.md, §1).
 /// <see cref="Math.Sin(double)"/> и родня в .NET идут в библиотеку C платформы и расходятся в последнем знаке, поэтому
 /// земля считает только этим. Синус и косинус — перенос musl (он же fdlibm, он же крейт <c>libm</c> Rust-порта), только
 /// сложения и умножения double в заданном порядке, без FMA. Корень, floor и модуль в IEEE 754 точны — их берём у .NET.
+/// Те же файлы собираются в Kharos.Mod.Sdk (пространство имён Kharos.Mod.Sdk): моды в wasm и в CLR считают те же биты.
 /// </summary>
 public static partial class DetMath
 {

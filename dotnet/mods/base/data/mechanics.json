@@ -1,6 +1,0 @@
-{
-  "crowd": { "strength": 0.5 },
-  "orders": { "spacing": 1.2 },
-  "players": { "income": 5 },
-  "production": { "queue": 5 }
-}

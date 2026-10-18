@@ -1,5 +1,6 @@
 {
-  "desert": {
+  "default": {
+    "about": "Местность по умолчанию: DEFAULT_SETTINGS.generator (packages/shared/src/settings.ts).",
     "seed": 1337,
     "zoneScale": 56,
     "zoneWarp": 30,

@@ -15,7 +15,10 @@ internal static class Lua
         value == Math.Floor(value) && Math.Abs(value) < 1e15 ? ((long)value).ToString(CultureInfo.InvariantCulture) : value.ToString("G14", CultureInfo.InvariantCulture);
 }
 
-/// <summary>Вид мода «раздел/имя» (запись data/раздел.json): то, что в пилоте лежало в <c>kind.data</c>.</summary>
+/// <summary>
+/// Вид мода «раздел/имя» (запись data/раздел.json): то, что в пилоте лежало в <c>kind.data</c>. Поля подачи пилота
+/// (title, motor, pitch, exit, color) лежат в подобъекте <c>look</c>: поле ищется в записи, затем в нём.
+/// </summary>
 internal sealed class Kind(string path, JsonElement record)
 {
     /// <summary>«Раздел/имя».</summary>
@@ -23,11 +26,19 @@ internal sealed class Kind(string path, JsonElement record)
 
     public string Name => Path[(Path.IndexOf('/') + 1)..];
 
-    public bool Has(string field) => record.TryGetProperty(field, out var value) && value.ValueKind != JsonValueKind.Null;
+    private bool TryGet(string field, out JsonElement value)
+    {
+        if (record.TryGetProperty(field, out value) && value.ValueKind != JsonValueKind.Null)
+            return true;
+        return record.TryGetProperty("look", out var look) && look.ValueKind == JsonValueKind.Object
+            && look.TryGetProperty(field, out value) && value.ValueKind != JsonValueKind.Null;
+    }
+
+    public bool Has(string field) => TryGet(field, out _);
 
     public bool TryNumber(string field, out double number)
     {
-        if (record.TryGetProperty(field, out var value) && value.ValueKind == JsonValueKind.Number)
+        if (TryGet(field, out var value) && value.ValueKind == JsonValueKind.Number)
         {
             number = value.GetDouble();
             return true;
@@ -38,10 +49,10 @@ internal sealed class Kind(string path, JsonElement record)
 
     public double Number(string field, double fallback = 0) => TryNumber(field, out var number) ? number : fallback;
 
-    public string? Text(string field) => record.TryGetProperty(field, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+    public string? Text(string field) => TryGet(field, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     public string[] Strings(string field) =>
-        record.TryGetProperty(field, out var list) && list.ValueKind == JsonValueKind.Array
+        TryGet(field, out var list) && list.ValueKind == JsonValueKind.Array
             ? [.. list.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.String).Select(item => item.GetString()!)]
             : [];
 
@@ -63,7 +74,7 @@ internal sealed class Kind(string path, JsonElement record)
 /// </summary>
 internal sealed class ClientData
 {
-    private static readonly string[] Sections = ["units", "turrets", "buildings", "deposits", "games", "lands", "mechanics"];
+    private static readonly string[] Sections = ["units", "turrets", "buildings", "deposits", "games", "lands"];
 
     private readonly Dictionary<string, Kind> _kinds = new(StringComparer.Ordinal);
 
@@ -87,8 +98,8 @@ internal sealed class ClientData
     /// <summary>Вид по «раздел/имя»; нет — null.</summary>
     public Kind? Find(string path) => _kinds.GetValueOrDefault(path);
 
-    /// <summary>mechanics/players.income — доход игрока, кредитов в секунду (для подписи панели).</summary>
-    public double Income => Find("mechanics/players")?.Number("income") ?? 0;
+    /// <summary>Доход игрока, кредитов в секунду (для подписи панели): у пилота был mechanics/players.income, на модели TS — ждёт К.</summary>
+    public double Income => 0;
 
     /// <summary>Идущая партия: запись data/games.json.</summary>
     public Kind? Game(string name) => Find("games/" + name);

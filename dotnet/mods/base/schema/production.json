@@ -1,0 +1,4 @@
+// Производство (Production): цеха. Рецепт — из вида здания.
+{
+  "Assembly": { "on": false, "progress": 0, "@net": "owner" }
+}

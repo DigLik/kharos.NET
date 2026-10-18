@@ -32,7 +32,7 @@ public class HelloModTests
 
         Assert.Equal(1, GameModuleHost.AbiVersion);
         Assert.Equal(1, instance.Manifest.Abi);
-        Assert.Equal(2, instance.Manifest.Systems.Length);
+        Assert.Equal(4, instance.Manifest.Systems.Length);
         var drive = instance.Manifest.Systems[0];
         Assert.Equal("hello.drive", drive.Name);
         Assert.Equal(["Position", "Facing", "Drive"], drive.Query);
@@ -40,6 +40,16 @@ public class HelloModTests
         Assert.Empty(drive.After);
         var crowd = instance.Manifest.Systems[1];
         Assert.Equal(("hello.crowd", "drive"), (crowd.Name, Assert.Single(crowd.After)));
+        // Н5: кадр с таблицей и without, система из одной пишущей таблицы, запрос.
+        var follow = instance.Manifest.Systems[2];
+        Assert.Equal("hello.follow", follow.Name);
+        Assert.Equal(["Anchor"], follow.Without);
+        Assert.Equal(["Position", "Unit"], Assert.Single(follow.Tables).Query);
+        Assert.False(follow.Tables[0].Write);
+        var wrap = instance.Manifest.Systems[3];
+        Assert.Equal(("hello.wrap", 0, true), (wrap.Name, wrap.Query.Length, Assert.Single(wrap.Tables).Write));
+        Assert.Equal([new ModTableLayout(3, false)], instance.Systems[2].Tables);
+        Assert.Equal(["hello.count"], instance.Manifest.Queries);
         Assert.Equal(["hello.arrived", "player_joined"], instance.Manifest.Events);
         Assert.Contains("hello.spawn", instance.Manifest.Orders);
         Assert.Equal(HelloModule.Width, instance.Systems[0].Width);
@@ -79,9 +89,9 @@ public class HelloModTests
 
         Assert.True(wasmArrivals > 0, "за 300 тиков кто-то должен доехать");
         Assert.Equal(plainArrivals.Count, wasmArrivals);
-        // Math.Atan2/Sin/Cos в wasm — из wasi-libc (musl), на хосте — из библиотеки C ОС: допуск, а не биты.
+        // Тригонометрия ходовой — DetMath (перенос musl, тот же исходник в wasm и на хосте): совпадение до бита.
         for (var i = 0; i < wasm.Length; i++)
-            Assert.True(Math.Abs(wasm[i] - plain[i]) <= 1e-6 * Math.Max(1, Math.Abs(plain[i])), $"столбец {i / n}, строка {i % n}: {wasm[i]} ≠ {plain[i]}");
+            Assert.True(BitConverter.DoubleToInt64Bits(wasm[i]) == BitConverter.DoubleToInt64Bits(plain[i]), $"столбец {i / n}, строка {i % n}: {wasm[i]:R} ≠ {plain[i]:R}");
     }
 
     [Fact]

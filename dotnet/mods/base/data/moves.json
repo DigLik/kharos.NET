@@ -1,3 +1,73 @@
 {
-  "wheels": { "grip": 1 }
+  "legs": {
+    "about": "Ноги — пехота: лезет у подножия обрыва, на дороге и фундаменте быстрее.",
+    "layer": "ground",
+    "terrain": {
+      "rock": 1,
+      "sand": 1,
+      "swamp": 0.5,
+      "brine": 0.875,
+      "toxic": 0.5,
+      "cliff": 0.30000000000000004,
+      "mountain": 0
+    },
+    "harm": {
+      "toxic": 0.01
+    },
+    "paved": {
+      "road": 1.5,
+      "foundation": 1.2
+    },
+    "slowest": 0.05,
+    "steer": "pivot"
+  },
+  "wheels": {
+    "about": "Колёса — машинки: вязнут в болоте, к подножию обрыва не подъедут, на дороге быстрее.",
+    "layer": "ground",
+    "terrain": {
+      "rock": 1,
+      "sand": 0.9,
+      "swamp": 0.19999999999999996,
+      "brine": 0.8,
+      "toxic": 0.19999999999999996,
+      "cliff": 0,
+      "mountain": 0
+    },
+    "harm": {
+      "toxic": 0.01
+    },
+    "paved": {
+      "road": 1.5,
+      "foundation": 1.2
+    },
+    "slowest": 0.05,
+    "steer": "pivot"
+  },
+  "tracks": {
+    "about": "Гусеницы — тяжёлая техника: песок не замедляет, покрытие снимает только замедление местности.",
+    "layer": "ground",
+    "terrain": {
+      "rock": 1,
+      "sand": 1,
+      "swamp": 0.5,
+      "brine": 0.875,
+      "toxic": 0.5,
+      "cliff": 0,
+      "mountain": 0
+    },
+    "harm": {
+      "toxic": 0.01
+    },
+    "paved": {
+      "road": 1,
+      "foundation": 1
+    },
+    "slowest": 0.05,
+    "steer": "pivot"
+  },
+  "air": {
+    "about": "Воздух: местность не мешает, сталкиваются только летающие.",
+    "layer": "air",
+    "steer": "pivot"
+  }
 }

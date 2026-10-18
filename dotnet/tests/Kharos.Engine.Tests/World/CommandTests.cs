@@ -98,7 +98,7 @@ public sealed class CommandTests
     }
 
     [Theory]
-    [InlineData(new byte[] { 0x09 }, "незнакомая запись")]
+    [InlineData(new byte[] { 0x0D }, "незнакомая запись")]
     [InlineData(new byte[] { 0x03, 0x01 }, "обрывается")]
     [InlineData(new byte[] { 0x02, 0x05 }, "сущности 5 не было")]
     [InlineData(new byte[] { 0x02, 0x00 }, "сущности 0 не было")]

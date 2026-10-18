@@ -1,3 +1,7 @@
+using Kharos.Engine.Layers;
+using Kharos.Engine.Terrain;
+using Kharos.Mod.Abi;
+
 namespace Kharos.Engine.World;
 
 /// <summary>Система: чистая функция над столбцами запроса — столбцы на вход, изменённые столбцы и команды на выход.</summary>
@@ -10,6 +14,32 @@ public interface ISystem
 public sealed class DelegateSystem(Action<SystemContext> run) : ISystem
 {
     public void Run(SystemContext ctx) => run(ctx);
+}
+
+/// <summary>Права приказа или запроса: кто его отдал (fromClient и режимы администратора и редактора в TS).</summary>
+[Flags]
+public enum OrderRights : uint
+{
+    /// <summary>Изнутри: движок, тесты, консоль сервера.</summary>
+    None = 0,
+    /// <summary>От клиента по сети: цель по номеру сущности клиент не называет.</summary>
+    Remote = ModAbi.RightsRemote,
+    /// <summary>Отдал администратор.</summary>
+    Admin = ModAbi.RightsAdmin,
+    /// <summary>Отдал редактор карты.</summary>
+    Editor = ModAbi.RightsEditor,
+}
+
+/// <summary>
+/// Побочная таблица системы (docs/dotnet-n5.md, Н5-3): все сущности со всеми компонентами <see cref="Query"/> и без
+/// <see cref="Without"/> — своим блоком столбцов, как кадр. <see cref="Write"/> — вернуть её столбцы в мир после системы
+/// (с проверкой по битам); компонент, который пишут кадр и таблица или две таблицы, — ошибка порядка.
+/// </summary>
+public sealed class TableSpec
+{
+    public IReadOnlyList<string> Query { get; init; } = [];
+    public IReadOnlyList<string> Without { get; init; } = [];
+    public bool Write { get; init; }
 }
 
 /// <summary>
@@ -33,6 +63,12 @@ public sealed class SystemSpec
 
     /// <summary>И с такими значениями полей-столбцов.</summary>
     public IReadOnlyList<(string Component, string Field, FieldValue Value)> Where { get; init; } = [];
+
+    /// <summary>И без этих компонентов.</summary>
+    public IReadOnlyList<string> Without { get; init; } = [];
+
+    /// <summary>Побочные таблицы: собираются вместе с кадром, номер — по порядку.</summary>
+    public IReadOnlyList<TableSpec> Tables { get; init; } = [];
 
     /// <summary>Чьи столбцы после системы вернуть в мир — подмножество <see cref="Query"/>.</summary>
     public IReadOnlyList<string> Write { get; init; } = [];
@@ -77,6 +113,12 @@ public abstract class Context
     /// <summary>Мир сейчас: на чтение. Менять — командами; столбцы идущей системы сюда ещё не вернулись.</summary>
     public GameWorld World => Scheduler.World;
 
+    /// <summary>Слои партии (на чтение; менять — командами Layer и Item); null — нет.</summary>
+    public LayerSet? Layers => Scheduler.Layers;
+
+    /// <summary>Земля партии (на чтение; менять — командой Land); null — нет.</summary>
+    public Land? Land => Scheduler.Land;
+
     public ulong Tick => Scheduler.Tick;
     public double Dt => Scheduler.Dt;
 
@@ -95,19 +137,29 @@ public abstract class Context
     }
 }
 
-/// <summary>Контекст системы: столбцы запроса и команды.</summary>
+/// <summary>Контекст системы: столбцы запроса, побочные таблицы и команды.</summary>
 public sealed class SystemContext : Context
 {
-    internal SystemContext(Scheduler scheduler, CommandBuffer commands, SystemSpec spec, QueryColumns columns) : base(scheduler, commands)
+    internal SystemContext(Scheduler scheduler, CommandBuffer commands, SystemSpec spec, QueryColumns columns, IReadOnlyList<QueryColumns> tables) : base(scheduler, commands)
     {
         Spec = spec;
         Columns = columns;
+        Tables = tables;
     }
 
     public SystemSpec Spec { get; }
     public QueryColumns Columns { get; }
     public int Count => Columns.Count;
     public ReadOnlySpan<uint> Entities => Columns.Entities;
+
+    /// <summary>Побочные таблицы по порядку объявления.</summary>
+    public IReadOnlyList<QueryColumns> Tables { get; }
+
+    /// <summary>Побочная таблица i.</summary>
+    public QueryColumns Table(int i) => Tables[i];
+
+    /// <summary>Строка сущности в кадре; нет — -1.</summary>
+    public int RowOf(uint entity) => Columns.RowOf(entity);
 
     /// <summary>Столбец поля компонента запроса: читать и писать (вернутся компоненты из Write).</summary>
     public Span<double> Column(int component, string field) => Columns.Column(component, field);
@@ -126,15 +178,20 @@ public sealed class EventContext : Context
 /// <summary>Контекст приказа игрока. Проверять аргументы и права — дело обработчика: приходит что угодно.</summary>
 public sealed class OrderContext : Context
 {
-    internal OrderContext(Scheduler scheduler, CommandBuffer commands, uint player, string name, byte[] payload) : base(scheduler, commands)
+    internal OrderContext(Scheduler scheduler, CommandBuffer commands, uint player, string name, byte[] payload, OrderRights rights) : base(scheduler, commands)
     {
         Player = player;
         Name = name;
         PayloadBytes = payload;
+        Rights = rights;
     }
 
     public uint Player { get; }
     public string Name { get; }
+
+    /// <summary>Кто отдал приказ: клиент по сети, администратор, редактор.</summary>
+    public OrderRights Rights { get; }
+
     private byte[] PayloadBytes { get; }
     public ReadOnlySpan<byte> Payload => PayloadBytes;
 }

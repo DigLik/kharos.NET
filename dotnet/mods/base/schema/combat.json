@@ -1,0 +1,14 @@
+// Бой (Combat): стрелки, выстрелы, взрывы, аварии. Оружие выстрела — Proto; поля prev* сглаживает клиент.
+{
+  // Стрелок: в кого целится, знает только хозяин и союзники.
+  "Armed": { "target": 0, "chase": false, "cooldown": 0, "stuck": 0, "ordered": false, "@private": ["target"] },
+  // Выстрел: от кого и в кого, откуда и куда, возраст и срок в тиках.
+  "Shot": {
+    "player": 0, "source": 0, "target": 0, "fromX": 0, "fromY": 0, "toX": 0, "toY": 0,
+    "age": 0, "life": 0, "blocked": false, "air": false
+  },
+  // Взрыв для глаз.
+  "Blast": { "size": 1, "age": 0, "life": 0, "lift": 0 },
+  // Авария: урон по кругу в ближайшем бою; клиент видит её взрывом (Blast).
+  "Burst": { "radius": 0, "damage": 0, "core": 0, "@net": "none" }
+}

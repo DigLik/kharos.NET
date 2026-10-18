@@ -6,8 +6,8 @@ namespace Kharos.Engine.World;
 public readonly record struct QueryFilter(int Component, int Slot, double Value);
 
 /// <summary>
-/// Запрос: сущности со всеми компонентами списка и с полями, равными условиям. Порядок — строки самого короткого
-/// хранилища: одинаков у всех, кто применил те же команды.
+/// Запрос: сущности со всеми компонентами списка, с полями, равными условиям, и без компонентов <see cref="Without"/>.
+/// Порядок — строки самого короткого хранилища: одинаков у всех, кто применил те же команды.
 /// </summary>
 public sealed class Query
 {
@@ -16,7 +16,8 @@ public sealed class Query
     /// <param name="world">Мир: строки условий переводятся в номера его строк.</param>
     /// <param name="components">Компоненты, чьи столбцы уходят системе.</param>
     /// <param name="where">Условия: компонент, поле, значение.</param>
-    public Query(GameWorld world, IEnumerable<string> components, IEnumerable<(string Component, string Field, FieldValue Value)>? where = null)
+    /// <param name="without">Компоненты, которых у сущности быть не должно.</param>
+    public Query(GameWorld world, IEnumerable<string> components, IEnumerable<(string Component, string Field, FieldValue Value)>? where = null, IEnumerable<string>? without = null)
     {
         var schema = world.Schema;
         Components = [.. components.Select(schema.Id)];
@@ -36,6 +37,9 @@ public sealed class Query
             filters.Add(new QueryFilter(id, def.Slot, world.Encode(value)));
         }
         Filters = [.. filters];
+        Without = [.. (without ?? []).Select(schema.Id)];
+        if (Without.Any(Components.Contains))
+            throw new ArgumentException("компонент и в запросе, и в without");
         Offsets = new int[Components.Length];
         var width = 0;
         for (var at = 0; at < Components.Length; at++)
@@ -51,6 +55,9 @@ public sealed class Query
     public int[] Components { get; }
     public QueryFilter[] Filters { get; }
 
+    /// <summary>Компоненты, которых нет у сущностей запроса.</summary>
+    public int[] Without { get; }
+
     /// <summary>Столбцов f64 у всех компонентов запроса вместе.</summary>
     public int Width { get; }
 
@@ -63,11 +70,12 @@ public sealed class Query
     /// <summary>Сущности запроса по порядку.</summary>
     public void Entities(List<uint> into)
     {
+        var start = into.Count;
         World.Query(Components, into);
-        if (Filters.Length == 0)
+        if (Filters.Length == 0 && Without.Length == 0)
             return;
-        var kept = 0;
-        for (var at = 0; at < into.Count; at++)
+        var kept = start;
+        for (var at = start; at < into.Count; at++)
         {
             var entity = into[at];
             var pass = true;
@@ -80,6 +88,8 @@ public sealed class Query
                     break;
                 }
             }
+            foreach (var component in Without)
+                pass &= !World.Has(entity, component);
             if (pass)
                 into[kept++] = entity;
         }
@@ -161,6 +171,10 @@ public sealed class QueryColumns
     private int[][] _rows = [];
     private bool[] _identity = [];
     private int _width;
+    private int[] _rowOf = [];
+    private int[] _rowStamp = [];
+    private int _stamp;
+    private bool _indexed;
 
     public Query? Query { get; private set; }
     public int Count { get; private set; }
@@ -184,6 +198,39 @@ public sealed class QueryColumns
         return def is { Columnar: true } ? Column(at, def.Slot) : throw new ArgumentException($"нет поля-столбца {field}");
     }
 
+    /// <summary>Строка сущности в блоке; нет — -1. Указатель строится при первом вызове после сборки (O(n)).</summary>
+    public int RowOf(uint entity)
+    {
+        if (!_indexed)
+            Index();
+        return entity < (uint)_rowStamp.Length && _rowStamp[entity] == _stamp ? _rowOf[entity] : -1;
+    }
+
+    private void Index()
+    {
+        _indexed = true;
+        if (++_stamp == int.MaxValue)
+        {
+            Array.Clear(_rowStamp);
+            _stamp = 1;
+        }
+        var top = 0u;
+        foreach (var entity in Entities)
+            top = Math.Max(top, entity);
+        if (Count > 0 && top >= _rowStamp.Length)
+        {
+            var size = (int)Math.Min(int.MaxValue - 64, Math.Max(top + 1, (uint)_rowStamp.Length * 2));
+            Array.Resize(ref _rowStamp, size);
+            Array.Resize(ref _rowOf, size);
+        }
+        var entities = Entities;
+        for (var row = 0; row < entities.Length; row++)
+        {
+            _rowStamp[entities[row]] = _stamp;
+            _rowOf[entities[row]] = row;
+        }
+    }
+
     internal ReadOnlySpan<int> Rows(int queryIndex) => _rows[queryIndex].AsSpan(0, Count);
 
     /// <summary>Строки компонента — 0..n-1 по порядку: столбцы копируются целиком.</summary>
@@ -195,6 +242,7 @@ public sealed class QueryColumns
         var components = query.Components;
         Query = query;
         Count = n;
+        _indexed = false;
         _width = query.Width;
         Revision = query.World.Revision;
         if (_entities.Length < n)

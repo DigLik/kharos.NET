@@ -1,3 +1,5 @@
+using Kharos.Mod.Sdk;
+
 namespace Hello;
 
 /// <summary>Куда система сообщает о доехавших: в моде — событием, в сверке на хосте — счётом.</summary>
@@ -9,8 +11,8 @@ public interface IArrivals
 /// <summary>
 /// Ходовая «колёса» (как mods/base/moves/wheels.luau и move_rust из crates/content-bench): поворот с ограниченной
 /// скоростью и ход туда, куда смотрит; чем сильнее цель в стороне, тем медленнее, цель за спиной — разворот на месте.
-/// Доехавший получает новую цель. Чистый код над столбцами без SDK: тот же файл собирается в мод (wasm) и в
-/// тесты и замер на хосте — для сверки.
+/// Доехавший получает новую цель. Чистый код над столбцами, из SDK — только DetMath: тот же файл собирается в мод (wasm и
+/// CLR) и в тесты и замер на хосте — для сверки до бита.
 /// </summary>
 public static class Wheels
 {
@@ -58,13 +60,13 @@ public static class Wheels
             var step = speed[i] * dt;
             var limit = turn[i] * dt;
             var face = facing[i];
-            var off = Wrap(Math.Atan2(dy, dx) - face);
+            var off = Wrap(DetMath.Atan2(dy, dx) - face);
             face += Math.Abs(off) <= limit ? off : Math.CopySign(limit, off);
-            var ahead = Math.Cos(off);
+            var ahead = DetMath.Cos(off);
             if (ahead > 0)
             {
-                x[i] = px + Math.Cos(face) * step * ahead;
-                y[i] = py + Math.Sin(face) * step * ahead;
+                x[i] = px + DetMath.Cos(face) * step * ahead;
+                y[i] = py + DetMath.Sin(face) * step * ahead;
             }
             facing[i] = Wrap(face);
         }

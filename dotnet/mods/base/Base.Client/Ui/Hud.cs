@@ -1,5 +1,5 @@
 using System.Text;
-using Base.Host;
+using Base.Shared.Orders;
 using Kharos.Mod.Sdk;
 using Kharos.Mod.Sdk.Client;
 using MemoryPack;
@@ -85,7 +85,7 @@ internal sealed class Hud(BaseState state)
                 continue;
             var cost = unit.TryNumber("cost", out var price) ? price : (double?)null;
             list.Add(new Slot(unit.Text("title") ?? name, S.UnitProto(c, name), cost, cost is { } p && money < p, unit.Text("about"), unit,
-                () => c.Send("produce", MemoryPackSerializer.Serialize(new ProduceOrder { Building = building, Unit = name }))));
+                () => c.Send("produce", MemoryPackSerializer.Serialize(new ProduceOrder { Producer = building, Unit = name }))));
         }
         return list;
     }
@@ -375,7 +375,7 @@ internal sealed class Hud(BaseState state)
             var (x, y) = TileAt(u, v);
             var units = Shared.Selection(c).Where(entity => c.Has(entity, S.P.Drive)).ToArray();
             if (units.Length > 0)
-                c.Send("move", MemoryPackSerializer.Serialize(new MoveOrder { Units = units, X = x, Y = y }));
+                c.Send("move", MemoryPackSerializer.Serialize(new MoveOrder { Units = units, X = (int)Math.Floor(x), Y = (int)Math.Floor(y) }));
         }
     }
 

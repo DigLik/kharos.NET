@@ -3,5 +3,5 @@
     <_KharosParentTargets>$([MSBuild]::GetPathOfFileAbove('Directory.Build.targets', '$(MSBuildThisFileDirectory)..'))</_KharosParentTargets>
   </PropertyGroup>
   <Import Project="$(_KharosParentTargets)" Condition="'$(_KharosParentTargets)' != '' and Exists('$(_KharosParentTargets)')" />
-  <Import Project="..\src\Kharos.Mod.Sdk\build\Kharos.Mod.targets" />
+  <Import Project="..\src\Kharos.Mod.Sdk\build\Kharos.Mod.targets" Condition="'$(KharosModLibrary)' != 'true'" />
 </Project>

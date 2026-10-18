@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
+using Kharos.Engine.Layers;
 using Kharos.Engine.Terrain;
 using Kharos.Engine.World;
 using Kharos.Mod.Abi;
@@ -24,17 +25,30 @@ public interface IToolWorld
 
     /// <summary>«Раздел/имя» вида по номеру; нет — null.</summary>
     string? ProtoPath(int id);
+
+    /// <summary>Слои партии; null — нет.</summary>
+    LayerSet? Layers => null;
+
+    /// <summary>Тик мира (ключ кэшей мода).</summary>
+    ulong Tick => 0;
+
+    /// <summary>Видит ли игрок точку: 0 — не разведана, 1 — разведана, 2 — видна сейчас. Без тумана — 2.</summary>
+    byte Sees(uint player, double x, double y) => 2;
 }
 
 /// <summary>
 /// Инструменты движка для модов (kh.tool, форматы — ModAbi.Tool*) над <see cref="IToolWorld"/>: поиск в круге,
 /// расталкивание, местность, чтение компонентов, виды и строки. Общие для хоста и клиента; свои инструменты сторона
-/// добавляет в <see cref="Run"/>. Ответ копится во внутреннем буфере: верен до следующего вызова.
+/// добавляет в <see cref="Run"/>. Ответ копится во внутреннем буфере: верен до следующего вызова. Инструменты Н5
+/// (11–29) разбираются здесь по номеру, а делаются в своих файлах Tools/Tool.&lt;Имя&gt;.cs (у каждого — владелец).
 /// </summary>
-public class ModTools(IToolWorld source)
+public partial class ModTools(IToolWorld source)
 {
     private byte[] _result = new byte[4096];
     private int _length;
+    private int _pending = -1;
+    private byte[] _pendingInput = [];
+    private (ulong World, ulong Positions, ulong Tick) _pendingAt;
     private readonly List<uint> _near = [];
     private double[] _x = [], _y = [], _radius = [], _moving = [];
 
@@ -44,6 +58,16 @@ public class ModTools(IToolWorld source)
     /// <summary>Вызов инструмента. Ответ — длина; места мало — ничего не записано; ошибка — отрицательный код.</summary>
     public int Call(int id, ReadOnlySpan<byte> input, Span<byte> output)
     {
+        // Ответ не поместился, и мод сразу зовёт снова с тем же входом: отдать готовый (Plan и Stand не тратят квоту
+        // дважды). Мир с тех пор менялся — считать заново.
+        if (_pending == id && input.SequenceEqual(_pendingInput) && _pendingAt == Moment())
+        {
+            _pending = -1;
+            if (_length <= output.Length)
+                _result.AsSpan(0, _length).CopyTo(output);
+            return _length;
+        }
+        _pending = -1;
         _length = 0;
         try
         {
@@ -59,8 +83,19 @@ public class ModTools(IToolWorld source)
         }
         if (_length <= output.Length)
             _result.AsSpan(0, _length).CopyTo(output);
+        else
+        {
+            _pending = id;
+            _pendingInput = input.ToArray();
+            _pendingAt = Moment();
+        }
         return _length;
     }
+
+    /// <summary>Забыть ответ, отложенный до повтора (вызывает другой мод).</summary>
+    protected void ForgetPending() => _pending = -1;
+
+    private (ulong, ulong, ulong) Moment() => Source.World is { } world ? (world.Revision, world.PositionRevision, Source.Tick) : default;
 
     /// <summary>Ответ последнего вызова (для тестов и вызовов из C#).</summary>
     public ReadOnlySpan<byte> Result => _result.AsSpan(0, _length);
@@ -192,11 +227,71 @@ public class ModTools(IToolWorld source)
                 BinaryPrimitives.WriteInt32LittleEndian(Room(4), world.Strings.Find(text) is { } found ? (int)found : -1);
                 break;
             }
+            case ModAbi.ToolColumns:
+                return Columns(world, ref r);
+            case ModAbi.ToolBytesMany:
+                return BytesMany(world, ref r);
+            case ModAbi.ToolRevision:
+                return Revision(world, ref r);
+            case ModAbi.ToolChildren:
+                return Children(world, ref r);
+            case ModAbi.ToolSees:
+                return Sees(world, ref r);
+            case ModAbi.ToolTiles:
+                return Tiles(world, ref r);
+            case ModAbi.ToolOccupant:
+                return Occupant(world, ref r);
+            case ModAbi.ToolLayer:
+                return Layer(world, ref r);
+            case ModAbi.ToolItems:
+                return Items(world, ref r);
+            case ModAbi.ToolPeak:
+                return Peak(world, ref r);
+            case ModAbi.ToolWalkable:
+                return Walkable(world, ref r);
+            case ModAbi.ToolPlan:
+                return Plan(world, ref r);
+            case ModAbi.ToolGroupMove:
+                return GroupMove(world, ref r);
+            case ModAbi.ToolFreeTiles:
+                return FreeTiles(world, ref r);
+            case ModAbi.ToolReach:
+                return Reach(world, ref r);
+            case ModAbi.ToolOpenSpawn:
+                return OpenSpawn(world, ref r);
+            case ModAbi.ToolStand:
+                return Stand(world, ref r);
+            case ModAbi.ToolClear:
+                return Clear(world, ref r);
+            case ModAbi.ToolRay:
+                return Ray(world, ref r);
             default:
                 return ModAbi.ErrorUnknownId;
         }
         return 0;
     }
+
+    // Инструменты Н5: каждый — в своём файле Tools/Tool.<Имя>.cs. 0 — готово (ответ — в Room/U32/…), отрицательный —
+    // код ошибки; ещё не сделанный — ModAbi.ErrorUnknownId.
+    private partial int Columns(GameWorld world, ref ToolInput r);
+    private partial int BytesMany(GameWorld world, ref ToolInput r);
+    private partial int Revision(GameWorld world, ref ToolInput r);
+    private partial int Children(GameWorld world, ref ToolInput r);
+    private partial int Sees(GameWorld world, ref ToolInput r);
+    private partial int Tiles(GameWorld world, ref ToolInput r);
+    private partial int Occupant(GameWorld world, ref ToolInput r);
+    private partial int Layer(GameWorld world, ref ToolInput r);
+    private partial int Items(GameWorld world, ref ToolInput r);
+    private partial int Peak(GameWorld world, ref ToolInput r);
+    private partial int Walkable(GameWorld world, ref ToolInput r);
+    private partial int Plan(GameWorld world, ref ToolInput r);
+    private partial int GroupMove(GameWorld world, ref ToolInput r);
+    private partial int FreeTiles(GameWorld world, ref ToolInput r);
+    private partial int Reach(GameWorld world, ref ToolInput r);
+    private partial int OpenSpawn(GameWorld world, ref ToolInput r);
+    private partial int Stand(GameWorld world, ref ToolInput r);
+    private partial int Clear(GameWorld world, ref ToolInput r);
+    private partial int Ray(GameWorld world, ref ToolInput r);
 
     /// <summary>
     /// Число поля для <see cref="ModAbi.ToolGet"/>: на хосте — как лежит; клиент подменяет Position и Facing сглаженными
@@ -325,6 +420,7 @@ public ref struct ToolInput(ReadOnlySpan<byte> bytes)
 
     public byte Byte() => Take(1)[0];
     public uint U32() => BinaryPrimitives.ReadUInt32LittleEndian(Take(4));
+    public int I32() => BinaryPrimitives.ReadInt32LittleEndian(Take(4));
     public double F64() => BinaryPrimitives.ReadDoubleLittleEndian(Take(8));
 
     /// <summary>Счёт элементов не длиннее остатка входа (по size байт на элемент).</summary>
@@ -345,6 +441,9 @@ public ref struct ToolInput(ReadOnlySpan<byte> bytes)
     }
 
     public ReadOnlySpan<byte> Rest() => Take(_bytes.Length - _at);
+
+    /// <summary>Следующие count байт как есть.</summary>
+    public ReadOnlySpan<byte> Bytes(int count) => Take(count);
 
     private ReadOnlySpan<byte> Take(int count)
     {
