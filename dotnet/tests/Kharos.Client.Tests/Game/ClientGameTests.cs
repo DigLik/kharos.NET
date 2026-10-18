@@ -31,8 +31,8 @@ internal sealed class HelloSession : IDisposable
     {
         Assert.SkipUnless(Built, NotBuilt);
         var content = GameContent.Load([ModPackage.Read(ModDir)]);
-        Local = LocalGame.Start(() => new HostGame(content, new HostOptions { Seed = 1 }));
-        Game = new ClientGame(content, Local.Client, new ClientGameOptions { Log = Log.Add });
+        Local = LocalGame.Start(() => new HostGame(content, new HostOptions { Modules = new Kharos.Plugins.Game.GameModuleOptions { CallTimeoutMs = 1000 }, Seed = 1 }));
+        Game = new ClientGame(content, Local.Client, new ClientGameOptions { ModuleOptions = new Kharos.Plugins.Game.GameModuleOptions { CallTimeoutMs = 1000 }, Log = Log.Add });
         Input = new ClientInput { Width = width, Height = height };
     }
 

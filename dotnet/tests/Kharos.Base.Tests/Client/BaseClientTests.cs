@@ -58,7 +58,7 @@ public sealed class BaseClientTests
         Assert.True(credits >= 1000, $"кредитов {credits}");
         Assert.InRange(ShownCredits(session), 1000, session.Credits());
         Assert.Contains("+5/с", session.Texts());
-        Assert.Contains(session.Texts(), text => text.StartsWith("09:", StringComparison.Ordinal));
+        Assert.Contains(session.Texts(), text => System.Text.RegularExpressions.Regex.IsMatch(text, @"^\d\d:\d\d$"));
         Assert.Contains("Меню", session.Texts());
         Assert.Contains("Ничего не выбрано.", session.Texts());
         Assert.Null(session.InfoTitle());

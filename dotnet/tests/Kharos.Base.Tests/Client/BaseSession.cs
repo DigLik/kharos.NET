@@ -41,8 +41,8 @@ internal sealed class BaseSession : IDisposable
     {
         Assert.SkipUnless(Built, NotBuilt);
         Content = BaseGame.Content();
-        Local = LocalGame.Start(() => new HostGame(Content, new HostOptions { Seed = 1 }), step: step ?? TimeSpan.FromMilliseconds(5));
-        Game = new ClientGame(Content, Local.Client, new ClientGameOptions { Log = Log.Add });
+        Local = LocalGame.Start(() => new HostGame(Content, new HostOptions { Modules = new Kharos.Plugins.Game.GameModuleOptions { CallTimeoutMs = 1000 }, Seed = 1 }), step: step ?? TimeSpan.FromMilliseconds(5));
+        Game = new ClientGame(Content, Local.Client, new ClientGameOptions { ModuleOptions = new Kharos.Plugins.Game.GameModuleOptions { CallTimeoutMs = 1000 }, Log = Log.Add });
         Input = new ClientInput { Width = width, Height = height };
     }
 

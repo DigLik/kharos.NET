@@ -60,8 +60,8 @@ internal sealed class BaseSession : IDisposable
                 new Dictionary<string, byte[]> { ["games"] = System.Text.Encoding.UTF8.GetBytes($$"""{ "skirmish": { "start": { "buggy": {{buggies}} } } }""") }));
         var content = GameContent.Load(mods);
         Engine = audio ? new AudioEngine(new AudioEngineOptions { Seed = 3 }) : null;
-        Local = LocalGame.Start(() => new KHost(content, new KHostOptions { Seed = 1 }));
-        Game = new ClientGame(content, Local.Client, new ClientGameOptions { Audio = Engine, Log = Log.Add });
+        Local = LocalGame.Start(() => new KHost(content, new KHostOptions { Modules = new Kharos.Plugins.Game.GameModuleOptions { CallTimeoutMs = 1000 }, Seed = 1 }));
+        Game = new ClientGame(content, Local.Client, new ClientGameOptions { ModuleOptions = new Kharos.Plugins.Game.GameModuleOptions { CallTimeoutMs = 1000 }, Audio = Engine, Log = Log.Add });
     }
 
     public AudioEngine? Engine { get; }

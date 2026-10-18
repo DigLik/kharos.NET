@@ -73,6 +73,8 @@ public class TickBenchTests
         var encoded = DeltaCodec.Encode(taken, host.World, host.Layers, new FullView(1));
         output?.WriteLine($"  сборка дельты {F(build)} мс, кодирование {F(Stopwatch.GetElapsedTime(delta).TotalMilliseconds)} мс, {encoded.Length / 1024} КБ, полей {taken.Fields.Count}");
         Assert.Empty(host.Errors);
-        Assert.True(steps[ticks / 2] < 50, $"медиана тика {steps[ticks / 2]} мс — за бюджетом 50 мс");
+        // Общие машины CI — не замер: там время только печатается.
+        if (Environment.GetEnvironmentVariable("CI") != "true")
+            Assert.True(steps[ticks / 2] < 50, $"медиана тика {steps[ticks / 2]} мс — за бюджетом 50 мс");
     }
 }

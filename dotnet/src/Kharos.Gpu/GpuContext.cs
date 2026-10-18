@@ -33,6 +33,8 @@ public sealed unsafe class GpuContext : IDisposable
     /// <summary>Видеокарта и бэкенд — для журнала и отчётов.</summary>
     public string AdapterName { get; private set; } = "";
     public BackendType Backend { get; private set; }
+    /// <summary>Программный адаптер (WARP, llvmpipe): кадры у него могут отличаться от видеокарт.</summary>
+    public bool IsSoftware { get; private set; }
     /// <summary>Версия wgpu-native: major.minor.patch.build. Сборка из Silk.NET 2.23 номера не знает (0).</summary>
     public string NativeVersion
     {
@@ -112,6 +114,7 @@ public sealed unsafe class GpuContext : IDisposable
         Api.AdapterGetProperties(Adapter, &properties);
         AdapterName = Marshal.PtrToStringUTF8((nint)properties.Name) ?? "";
         Backend = properties.BackendType;
+        IsSoftware = properties.AdapterType == AdapterType.Cpu;
 
         var label = "kharos"u8.ToArray().Append((byte)0).ToArray();
         fixed (byte* name = label)

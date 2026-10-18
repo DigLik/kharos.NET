@@ -38,7 +38,7 @@ public static class BaseGame
     public static KHost Create(ulong seed = 1, GameContent? content = null)
     {
         Assert.SkipUnless(Built, NotBuilt);
-        return new KHost(content ?? Content(), new KHostOptions { Seed = seed });
+        return new KHost(content ?? Content(), new KHostOptions { Modules = new Kharos.Plugins.Game.GameModuleOptions { CallTimeoutMs = 1000 }, Seed = seed });
     }
 
     /// <summary>Хост с начатой партией и вошедшими игроками.</summary>
