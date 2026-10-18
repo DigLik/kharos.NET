@@ -6,6 +6,7 @@
     "radius": 24,
     "size": 128,
     "fog": true,
-    "land": "desert"
+    "land": "desert",
+    "remember": ["Building", "Deposit"]
   }
 }
