@@ -50,7 +50,7 @@ public sealed unsafe partial class Renderer : IDisposable
     private const int Slot = 256;
 
     /// <summary>Конвейеры кадра — по одному на программу и смешение.</summary>
-    public static IReadOnlyList<string> Passes { get; } = ["terrain", "weather", "fog", "blit", "sprite", "silhouette", "spot", "beam", "decal", "batch"];
+    public static IReadOnlyList<string> Passes { get; } = ["terrain", "weather", "fog", "blit", "sprite", "silhouette", "spot", "beam", "decal", "batch", "glow"];
 
     private readonly GpuContext _gpu;
     private readonly Pipelines _pipelines;
@@ -121,6 +121,7 @@ public sealed unsafe partial class Renderer : IDisposable
         _pipelines.Create("beam", "light.wgsl", "beam_vs", "beam_fs", SceneFormat, Blend.Additive, beams);
         _pipelines.Create("decal", "decal.wgsl", "decal_vs", "decal_fs", SceneFormat, Blend.Premultiplied, decals);
         _pipelines.Create("batch", "batch.wgsl", "batch_vs", "batch_fs", SceneFormat, Blend.Interface, batch, PrimitiveTopology.TriangleList);
+        _pipelines.Create("glow", "batch.wgsl", "batch_vs", "glow_fs", SceneFormat, Blend.Additive, batch, PrimitiveTopology.TriangleList);
         if (gpu.HasSurface) _pipelines.Create("present", "screen.wgsl", "fullscreen", "present", gpu.SurfaceFormat, Blend.None, null);
 
         // Окно земли и под ним таблица зерна (Grain): 1024² f32 — по две строки окна на строку таблицы.

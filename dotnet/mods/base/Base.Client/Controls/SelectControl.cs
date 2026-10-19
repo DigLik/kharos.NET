@@ -229,6 +229,21 @@ internal sealed class SelectControl(BaseState state, PlaceWorld world)
                     SelectGroup(c, selection, key[0], input.Shift);
             }
 
+        // Ячейка панели групп (Hud/Groups.cs).
+        if (c.Shared.Remove(Modes.GroupPressKey, out var pressed) && pressed is GroupPress press)
+            switch (press.Action)
+            {
+                case GroupAction.Select:
+                    SelectGroup(c, selection, press.Digit, press.Shift);
+                    break;
+                case GroupAction.Assign:
+                    AssignGroup(c, press.Digit, selection);
+                    break;
+                case GroupAction.Clear:
+                    _groups.Remove(press.Digit);
+                    break;
+            }
+
         // Esc: сначала брошенная протяжка, потом выделение.
         if (listen && input.Hits.Contains("escape") && !CancelDrag(c))
             selection.Clear();

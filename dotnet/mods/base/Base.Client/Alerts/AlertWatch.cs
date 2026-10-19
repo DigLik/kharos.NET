@@ -36,6 +36,9 @@ internal sealed class AlertWatch(LayerRef? deposits)
     private HashSet<(int, int)>? _known;
     private ClientContext? _owner;
     private ulong _lastTick;
+
+    /// <summary>Мир смотрели хоть раз с последнего сброса (тик <see cref="_lastTick"/> уже разобран).</summary>
+    private bool _scanned;
     private double _clock, _spottedAt = double.NegativeInfinity, _foundAt = double.NegativeInfinity, _scanAt = double.NegativeInfinity;
     private ulong _layers = ulong.MaxValue;
     private bool _warned, _ready;
@@ -74,6 +77,7 @@ internal sealed class AlertWatch(LayerRef? deposits)
 
     private void Reset()
     {
+        _scanned = false;
         _alerts.Clear();
         _impacts.Clear();
         _flights.Clear();
@@ -111,8 +115,15 @@ internal sealed class AlertWatch(LayerRef? deposits)
             _owner = c;
             Reset();
         }
-        _lastTick = c.Tick;
         _clock += c.Dt;
+        // Мир меняется только с тиком хоста: между тиками (два кадра из трёх при 60 к/с) смотреть его заново незачем.
+        if (c.Tick == _lastTick && _scanned)
+        {
+            _alerts.RemoveAll(alert => _clock - alert.At > Seconds);
+            return;
+        }
+        _lastTick = c.Tick;
+        _scanned = true;
         _teams.Refresh(c);
 
         var spotted = Foes(c);

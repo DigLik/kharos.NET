@@ -159,11 +159,11 @@ internal sealed class Links(Fx fx, Lacks lacks)
                 continue;
             var seed = work.From * 31.0 + work.To;
             var flicker = 0.55 + 0.45 * Fx.Noise(seed, Math.Floor(time * WeldRate * 2));
-            fx.Line(fromX, fromY, toX, toY, 4, work.Color, 0.35 * flicker);
-            fx.Line(fromX, fromY, toX, toY, 1.5, work.Color, flicker);
-            fx.Dot(fromX, fromY, 4, work.Color, 0.8);
-            fx.Dot(toX, toY, 7, work.Color, flicker);
-            fx.Dot(toX, toY, 3, Core, flicker);
+            fx.GlowLine(fromX, fromY, toX, toY, 4, work.Color, 0.35 * flicker);
+            fx.GlowLine(fromX, fromY, toX, toY, 1.5, work.Color, flicker);
+            fx.GlowDot(fromX, fromY, 4, work.Color, 0.8);
+            fx.GlowDot(toX, toY, 7, work.Color, flicker);
+            fx.GlowDot(toX, toY, 3, Core, flicker);
             var beat = time * WeldRate;
             var phase = beat - Math.Floor(beat);
             for (var i = 0; i < WeldSparks; i++)
@@ -171,7 +171,7 @@ internal sealed class Links(Fx fx, Lacks lacks)
                 var angle = Fx.Noise(seed + i * 7, Math.Floor(beat)) * Math.PI * 2;
                 var reach = WeldSpread * (0.4 + 0.6 * Fx.Noise(seed + i * 13, Math.Floor(beat))) * phase;
                 // Искра падает: чем дальше улетела, тем ниже.
-                fx.Dot(toX + DetMath.Cos(angle) * reach, toY + DetMath.Sin(angle) * reach + reach * phase * 0.6, 2, i % 2 == 1 ? Core : work.Color, 1 - phase);
+                fx.GlowDot(toX + DetMath.Cos(angle) * reach, toY + DetMath.Sin(angle) * reach + reach * phase * 0.6, 2, i % 2 == 1 ? Core : work.Color, 1 - phase);
             }
         }
         Domes(time);
@@ -200,9 +200,7 @@ internal sealed class Links(Fx fx, Lacks lacks)
             var shimmer = 0.8 + 0.2 * DetMath.Sin(time * 2 + entity);
             foreach (var (share, lift, thickness, part) in new[] { (1.0, 0.0, 3.0, 1.0), (0.75, 0.18, 2.0, 0.5), (0.42, 0.32, 2.0, 0.35) })
             {
-                var alpha = level * part * shimmer;
-                if (alpha > 0.004)
-                    c.Draw.Circle(cx, cy - radius * lift, radius * share, Dome.Hex, (float)(fx.Sized(thickness) / fx.Pixel), (float)Math.Min(1, alpha));
+                fx.GlowRing(cx, cy - radius * lift, radius * share, (float)(fx.Sized(thickness) / fx.Pixel), Dome, level * part * shimmer);
             }
         }
     }
@@ -219,10 +217,10 @@ internal sealed class Links(Fx fx, Lacks lacks)
                 if (!fx.Visible(fromX, fromY) && !fx.Visible(toX, toY))
                     continue;
                 var shimmer = 0.75 + 0.25 * DetMath.Sin(time * 9 + entity + target);
-                fx.Line(fromX, fromY, toX, toY, 7, Teal, 0.18 * shimmer);
-                fx.Line(fromX, fromY, toX, toY, 2, Teal, 0.55 * shimmer);
-                fx.Dot(fromX, fromY, 6, Teal, 0.7);
-                fx.Dot(toX, toY, 6, Teal, 0.7);
+                fx.GlowLine(fromX, fromY, toX, toY, 7, Teal, 0.18 * shimmer);
+                fx.GlowLine(fromX, fromY, toX, toY, 2, Teal, 0.55 * shimmer);
+                fx.GlowDot(fromX, fromY, 6, Teal, 0.7);
+                fx.GlowDot(toX, toY, 6, Teal, 0.7);
                 var length = Fx.Hypot(toX - fromX, toY - fromY);
                 if (length <= 0)
                     continue;
@@ -235,7 +233,7 @@ internal sealed class Links(Fx fx, Lacks lacks)
                     var level = Math.Min(1, Math.Min(share * 4, (1 - share) * 4));
                     var (x, y) = (fromX + (toX - fromX) * share, fromY + (toY - fromY) * share);
                     fx.Dot(x, y, 3, cargo, level);
-                    fx.Dot(x, y, 2, cargo, level * 0.6);
+                    fx.GlowDot(x, y, 2, cargo, level * 0.6);
                 }
             }
     }

@@ -203,11 +203,18 @@ internal sealed class Power(Fx fx, Economy economy, Lacks lacks, Paint paint)
             return;
         var c = fx.C;
         var ammo = Array.IndexOf(Icons.Goods, "ammo");
-        foreach (var entity in c.Each(fx.Magazine, fx.Unit, fx.Position))
+        // Хозяин, вид и патроны — столбцами разом: тысяча юнитов — один вызов инструмента, а не три тысячи.
+        var entities = c.Each(fx.Magazine, fx.Unit, fx.Position);
+        var values = Columns(entities, [(fx.Owner, fx.Owner["player"]), (fx.Proto, fx.Proto["id"]), (fx.Magazine, fx.Magazine["ammo"])]);
+        var n = entities.Length;
+        for (var i = 0; i < n; i++)
         {
-            if (!fx.Mine(entity) || fx.UnitOf(entity) is not { } unit || unit.Spec.Ammo is not { } capacity || capacity <= 0)
+            var entity = entities[i];
+            if ((uint)values[i] != c.Player || fx.NameOf((int)values[n + i]) is not { } type || !fx.Tables.Units.TryGetValue(type, out var spec)
+                || spec.Ammo is not { } capacity || capacity <= 0)
                 continue;
-            var rounds = fx.Num(entity, fx.Magazine, "ammo", capacity);
+            var unit = (Type: type, Spec: spec);
+            var rounds = values[2 * n + i];
             var empty = rounds < Cheapest(unit.Type, unit.Spec) - 1e-9;
             if (empty ? !iconOn : rounds >= capacity * Lacks.AmmoReorder)
                 continue;
@@ -216,6 +223,18 @@ internal sealed class Power(Fx fx, Economy economy, Lacks lacks, Paint paint)
             var y = at.Y - fx.Radius(entity) - UnitIconGap;
             fx.Sprite(lack, ammo, at.X - IconTiles / 2, y - IconTiles / 2, IconTiles, IconNative, empty ? 1 : LowAlpha, Fx.Top);
         }
+    }
+
+    private double[] _columns = [];
+
+    /// <summary>Поля пар у сущностей одним вызовом (Tools.Columns): pairs.Length столбцов по entities.Length подряд.</summary>
+    private double[] Columns(uint[] entities, ReadOnlySpan<(ComponentRef Component, FieldRef Field)> pairs)
+    {
+        var count = entities.Length * pairs.Length;
+        if (_columns.Length < count)
+            _columns = new double[Math.Max(count, _columns.Length * 2)];
+        Tools.Columns(entities, pairs, _columns);
+        return _columns;
     }
 
     /// <summary>Самый дешёвый выстрел юнита (cheapestShot): магазин делится на секунды огня всех стволов.</summary>
@@ -276,11 +295,17 @@ internal sealed class Power(Fx fx, Economy economy, Lacks lacks, Paint paint)
     {
         var c = fx.C;
         var pixel = fx.Pixel;
-        foreach (var entity in c.Each(fx.Health, fx.Unit, fx.Position))
+        // Прочность — столбцами разом; место, радиус и вид — только у повреждённых.
+        var entities = c.Each(fx.Health, fx.Unit, fx.Position);
+        var values = Columns(entities, [(fx.Health, fx.Health["value"]), (fx.Health, fx.Health["max"])]);
+        var n = entities.Length;
+        for (var i = 0; i < n; i++)
         {
-            if (c.Get(entity, fx.Health) is not { } record || record.Number(fx.Health["max"]) <= 0)
+            var entity = entities[i];
+            var max = values[n + i];
+            if (max <= 0)
                 continue;
-            var health = record.Number(fx.Health["value"]) / record.Number(fx.Health["max"]);
+            var health = values[i] / max;
             if (health >= 1 || c.Pose(entity) is not { } at || !fx.Visible(at.X, at.Y))
                 continue;
             var radius = fx.Radius(entity);

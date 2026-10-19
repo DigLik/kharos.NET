@@ -186,4 +186,42 @@ public sealed class HudViewerTests
         Assert.Single(viewer.Sent.Of<PingOrder>());
         Assert.Empty(viewer.Log);
     }
+
+    [Fact(DisplayName = "панель групп: пустая ячейка кладёт выделенных, занятая показывает число, правая кнопка по выбранной очищает")]
+    public void GroupBar()
+    {
+        SkipUnless();
+        var (sim, viewer, _) = Base();
+        using (sim)
+        using (viewer)
+        {
+            Assert.True(viewer.Ui.Has("groups"));
+            Assert.Equal("3", viewer.Ui.Text("group:3"));
+            viewer.ClickWorld(1.5, 1.5);
+            viewer.Click("group:3");
+            viewer.Step();
+            Assert.Equal("3 1", viewer.Ui.Text("group:3"));
+            viewer.Click("group:3", PointerButtons.Right);
+            viewer.Step();
+            Assert.Equal("3", viewer.Ui.Text("group:3"));
+            Assert.Empty(viewer.Log);
+        }
+    }
+
+    [Fact(DisplayName = "чат оболочки — правее мини-карты над нижней панелью, на узком экране — у левого края")]
+    public void ChatPlace()
+    {
+        SkipUnless();
+        var (sim, viewer, _) = Base();
+        using (sim)
+        using (viewer)
+        {
+            var wide = viewer.ChatAt!.Split(' ').Select(part => double.Parse(part, CultureInfo.InvariantCulture)).ToArray();
+            Assert.True(wide[0] > 140, viewer.ChatAt);
+            Assert.True(wide[1] > 100, viewer.ChatAt);
+            viewer.Input = viewer.Input with { Width = 640, Height = 400 };
+            viewer.Step();
+            Assert.StartsWith("12 ", viewer.ChatAt);
+        }
+    }
 }

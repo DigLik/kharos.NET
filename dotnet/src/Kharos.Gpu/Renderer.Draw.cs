@@ -68,7 +68,7 @@ public sealed unsafe partial class Renderer
             api.RenderPassEncoderDraw(pass, 4, (uint)(frame.Decals.Count / Frame.Decal), 0, 0);
         }
         // По слою: сначала тени слоя, потом он сам — тень соседа не ляжет на кабину.
-        for (int layer = 0; layer < Frame.Layers; layer++)
+        for (int layer = 0; layer < Frame.OverFog; layer++)
         {
             if (layer > 0) Sprites(pass, "sprite", view, frame, layer, layerOffsets[layer], 1);
             Sprites(pass, "sprite", view, frame, layer, layerOffsets[layer], 0);
@@ -82,6 +82,7 @@ public sealed unsafe partial class Renderer
         }
         Spots(pass, view, frame.Blooms, BloomColor, bloom);
         Fog(pass, view, frame);
+        Sprites(pass, "sprite", view, frame, Frame.OverFog, layerOffsets[Frame.OverFog], 0);
         DrawBatch(pass, frame.World, view, true);
         DrawBatch(pass, frame.Interface, view, false);
         End(pass);
@@ -214,6 +215,7 @@ public sealed unsafe partial class Renderer
                 case PaintKind.Minimap: texture = _minimap; draw.Kind = 1; break;
                 case PaintKind.Skin: texture = _skin; draw.Kind = 1; break;
                 case PaintKind.Sprite: texture = _atlas; draw.Kind = 1; draw.Team = paint.Team; break;
+                case PaintKind.Glow: texture = _font; draw.Kind = 0; break;
                 default: texture = _font; draw.Kind = 0; break;
             }
             if (texture is null) continue;
@@ -230,7 +232,7 @@ public sealed unsafe partial class Renderer
                 if (right <= left || bottom <= top) continue;
             }
             api.RenderPassEncoderSetScissorRect(pass, (uint)left, (uint)top, (uint)(right - left), (uint)(bottom - top));
-            Use(pass, "batch", draw, texture);
+            Use(pass, paint.Kind == PaintKind.Glow ? "glow" : "batch", draw, texture);
             api.RenderPassEncoderDrawIndexed(pass, (uint)(end - start), 1, (uint)start, 0, 0);
         }
         api.RenderPassEncoderSetScissorRect(pass, 0, 0, (uint)Width, (uint)Height);

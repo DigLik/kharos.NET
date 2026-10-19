@@ -86,6 +86,9 @@ public static class Program
         }
         Report.Json = json;
         mode ??= "combat";
+        // Цена кадра клиента (Н6.6) — не раздел баланса: печатает замер, эталона нет.
+        if (mode == "frame")
+            return FrameCost.Run(args.Skip(1).Select(int.Parse).FirstOrDefault(200));
         if (!Modes.Run(mode))
         {
             Console.Error.WriteLine($"Неизвестный раздел «{mode}». Есть: {string.Join(", ", Modes.Names)}");

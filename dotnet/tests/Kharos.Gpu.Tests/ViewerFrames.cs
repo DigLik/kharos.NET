@@ -36,9 +36,7 @@ internal static class ViewerFrames
         var (sim, viewer, _) = ViewerScenes.Build(scene);
         using (sim)
         {
-            viewer.Step(60);
-            var frame = viewer.Frame();
-            frame.Time = (float)scene.Time;
+            var frame = ViewerScenes.Settle(viewer, scene);
             frame.Drift = (0, 0);
             if (!scene.Hud)
                 frame.Interface.Clear();

@@ -93,8 +93,9 @@ public static class ViewerScenes
             Fog = scene.Fog,
             Players = [.. players],
             Mode = mode,
-            // Сцена с панелями — партия frames (как test, но с подачей base: панель игрока и выбор щелчком).
-            Game = scene.Hud ? "frames" : "test",
+            // Партия frames: как test, но с подачей base, как у сцены игры TS (createScene без витрины): отметки выделения,
+            // уголки первого шага, следы; панели рисуются только у сцены с hud.
+            Game = "frames",
             // Час сцены — настройкой партии (weather.startHour, сутки стоят): его видят часы и свет клиента.
             Settings = new { weather = new { startHour = scene.Weather.Hour, dayLength = 0 } },
         });
@@ -118,7 +119,8 @@ public static class ViewerScenes
             }
             foreach (var (player, command) in scene.Commands)
                 Command(sim, player, command, ids, notes);
-            sim.Advance(scene.AdvanceTicks);
+            // Последний тик — в Settle, перед последним кадром: TS рисует с alpha = 0, юниты — на местах тик назад.
+            sim.Advance(Math.Max(0, scene.AdvanceTicks - 1));
             var viewer = sim.Viewer(scene.Player, new ViewerOptions { Width = scene.Width, Height = scene.Height, Mode = mode });
             viewer.Camera = new CameraState(scene.Camera.X, scene.Camera.Y, scene.Camera.Zoom);
             viewer.Atmosphere = new AtmosphereState(scene.Weather.Light, scene.Weather.WindX, scene.Weather.WindY, scene.Weather.Precipitation);
@@ -131,10 +133,11 @@ public static class ViewerScenes
                 // Здание стоит по левому верхнему тайлу: щелчок — в середину основания.
                 if (entity.Kind == "building" && Footprint(sim, entity.Type) is var (w, h))
                     (x, y) = (x + w / 2.0, y + h / 2.0);
-                // С панелями щелчок может прийтись на них: на время щелчка камера ставит сущность под верхнюю полосу.
+                // С панелями щелчок может прийтись на них: на время щелчка камера ставит сущность под верхнюю полосу, левее
+                // панели групп (она по середине экрана над нижней панелью).
                 if (scene.Hud)
                 {
-                    viewer.Camera = new CameraState(x, y + (scene.Height / 2.0 - 100) / scene.Camera.Zoom, scene.Camera.Zoom);
+                    viewer.Camera = new CameraState(x + (scene.Width / 2.0 - 40) / scene.Camera.Zoom, y + (scene.Height / 2.0 - 100) / scene.Camera.Zoom, scene.Camera.Zoom);
                     viewer.Step();
                 }
                 viewer.ClickWorld(x, y, shift: i > 0);
@@ -162,10 +165,7 @@ public static class ViewerScenes
         var (sim, viewer, _) = Build(scene, mode);
         using (sim)
         {
-            // Сглаживание: секунда кадров без тиков хоста — сущности на местах тика (как sim без delta в TS).
-            viewer.Step(60);
-            var frame = viewer.Frame();
-            frame.Time = (float)scene.Time;
+            var frame = Settle(viewer, scene);
             if (!scene.Hud)
                 frame.Interface.Clear();
             foreach (var error in viewer.Log)
@@ -176,6 +176,24 @@ public static class ViewerScenes
                 renderer = Renderers.GetValue(gpu, static gpu => new Renderer(gpu));
             return viewer.Render(renderer);
         }
+    }
+
+    /// <summary>
+    /// Последний кадр сцены. Секунда кадров без тиков хоста — сглаживание доводит сущности до мест предпоследнего тика;
+    /// затем последний тик и кадр ровно в time сцены. Так кадр повторяет TS: page.ts делает advanceTicks целых тиков и
+    /// рисует с alpha = 0 — юниты на местах и с поворотом тик назад (prevX, prevFacing), остальное — после тика; часы
+    /// замороженные (кадры анимации зданий, мигание огней, уголки первого шага — те же, что у проходов TS с этим time).
+    /// </summary>
+    public static Frame Settle(Viewer viewer, FrameScene scene)
+    {
+        const int frames = 60;
+        viewer.FrameAt(scene.Time - frames / 60.0);
+        viewer.Step(frames - 2);
+        if (scene.AdvanceTicks > 0)
+            viewer.Sim.Advance(1);
+        var frame = viewer.FrameAt(scene.Time);
+        frame.Time = (float)scene.Time;
+        return frame;
     }
 
     /// <summary>Рендеры сцен по видеокартам (живут, пока жива видеокарта).</summary>

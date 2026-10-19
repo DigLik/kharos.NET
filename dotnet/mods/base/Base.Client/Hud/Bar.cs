@@ -32,6 +32,13 @@ internal sealed class Bar(BaseState state, Minimap minimap)
     /// <summary>Высота нижней панели (barHeight).</summary>
     public static float HeightOf(float width) => width < TopBar.Narrow ? InnerNarrow + GridNarrow + 16 + 4 : Inner + 16;
 
+    /// <summary>
+    /// Сколько пикселей по высоте поля между верхней полосой и нижней панелью достаётся окнам на нём (уведомления, вести,
+    /// «Первые шаги»): от top + 6 до bottom + 8, как их ставит gui/hud.ts. На низком экране (запись 640 × 360) поле почти
+    /// пропадает: окна показывают то, что влезает, а не наезжают на панели.
+    /// </summary>
+    public static float FieldRoom(float width, float height, float top) => height - (top + 6) - (HeightOf(width) + 8);
+
     /// <summary>Сторона мини-карты (minimapSide).</summary>
     public static float MinimapSide(float width) => width < TopBar.Narrow ? InnerNarrow : MathF.Max(Inner, MathF.Min(MinimapPref, width - BarSpacing - GridWidth - InfoMin));
 

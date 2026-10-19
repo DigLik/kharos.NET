@@ -240,9 +240,17 @@ internal sealed class PlayersPanel
         var side = Bar.MinimapSide(ui.Width);
         var left = ui.Width >= TopBar.Narrow && side > 140 ? side + 12 : 12;
         var above = trade && ui.RectOf("trade") is { } rect ? ui.Height - rect.Y + 6 : bottom + 8;
+        // Низкий экран: последние вести, что влезают в поле под уведомлениями (строка 16 и зазор 3, рамка 8 сверху и снизу).
+        var top = TopBar.HeightOf(ui.Width);
+        var room = ui.Height - above - (top + 6);
+        if (c.Shared.TryGetValue(AlertsSection.ListKey, out var alerts) && alerts is Array { Length: > 0 } && ui.RectOf("alerts") is { } box)
+            room -= box.H + 6;
+        var fits = (int)((room - 16 + 3) / 19);
+        if (fits <= 0)
+            return;
         ui.Box(new Style { Id = "notices", Anchor = new Anchor(Left: left, Bottom: above), Skin = Skin.Panel, Padding = (8, 12), Direction = Direction.Column, Gap = 3, MaxWidth = 360, Passive = true }, () =>
         {
-            foreach (var (text, color, _) in _notices)
+            foreach (var (text, color, _) in _notices.Skip(Math.Max(0, _notices.Count - fits)))
                 ui.Text(text, new TextStyle { Color = color, Shadow = Ink, Wrap = 336 });
         });
     }

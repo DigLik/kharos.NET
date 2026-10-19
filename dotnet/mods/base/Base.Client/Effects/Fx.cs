@@ -31,8 +31,11 @@ internal sealed class Fx(BaseState state)
     /// <summary>Пикселей облика на тайл.</summary>
     public const double Texels = 16;
 
-    /// <summary>Слои свободных спрайтов: земля (следы, дропы), над зданиями (пыль), поверх всего (дым, взрывы, значки).</summary>
-    public const LookLayer Floor = LookLayer.Floor, Over = (LookLayer)4, Top = (LookLayer)6;
+    /// <summary>
+    /// Слои свободных спрайтов: земля (следы, гарь), над зданиями (пыль — под летающими, освещается), верх — слой движка над
+    /// светом и туманом (Frame.OverFog: взрывы, дым, значки сети — проходы TS после fogPass, ночью не темнеют).
+    /// </summary>
+    public const LookLayer Floor = LookLayer.Floor, Over = (LookLayer)4, Top = (LookLayer)7;
 
     private bool _tried;
     private readonly Dictionary<int, string?> _names = [];
@@ -367,6 +370,54 @@ internal sealed class Fx(BaseState state)
         if (level <= 0.004)
             return;
         C.Draw.Line(fromX, fromY, toX, toY, color.Hex, (float)(width / Pixel), (float)Math.Min(1, level));
+    }
+
+    /// <summary>
+    /// Свечение (glow в combatPass.ts): вспышки, лучи, искры, кольца — их цвет прибавляется к кадру. Как в TS, они
+    /// рисуются после всех обычных (solid) — копятся за кадр и уходят разом в <see cref="FlushGlow"/>.
+    /// </summary>
+    private readonly List<(byte Kind, double A, double B, double C, double D, float Width, uint Color, float Alpha)> _glow = [];
+
+    /// <summary>Отрезок свечения толщиной в точках эффектов.</summary>
+    public void GlowLine(double fromX, double fromY, double toX, double toY, double points, Rgb color, double level = 1)
+    {
+        if (level > 0.004)
+            _glow.Add((0, fromX, fromY, toX, toY, (float)(Sized(points) / Pixel), color.Hex, (float)Math.Min(1, level)));
+    }
+
+    /// <summary>Квадрат свечения стороной в точках эффектов вокруг точки.</summary>
+    public void GlowDot(double x, double y, double points, Rgb color, double level = 1)
+    {
+        var side = Sized(points);
+        if (level > 0.004)
+            _glow.Add((1, x - side / 2, y - side / 2, x + side / 2, y + side / 2, 0, color.Hex, (float)Math.Min(1, level)));
+    }
+
+    /// <summary>Кольцо свечения радиуса radius тайлов, толщиной width пикселей.</summary>
+    public void GlowRing(double x, double y, double radius, float width, Rgb color, double level)
+    {
+        if (level > 0.004)
+            _glow.Add((2, x, y, radius, 0, width, color.Hex, (float)Math.Min(1, level)));
+    }
+
+    /// <summary>Свечение кадра — в выход, после обычных рисунков (glow.draw() после solid.draw()).</summary>
+    public void FlushGlow()
+    {
+        if (_glow.Count == 0)
+            return;
+        var draw = C.Draw;
+        draw.Glow(true);
+        foreach (var (kind, a, b, c, d, width, color, alpha) in _glow)
+        {
+            if (kind == 0)
+                draw.Line(a, b, c, d, color, width, alpha);
+            else if (kind == 1)
+                draw.Rect(a, b, c, d, color, null, alpha);
+            else
+                draw.Circle(a, b, c, color, width, alpha);
+        }
+        draw.Glow(false);
+        _glow.Clear();
     }
 
     /// <summary>Квадрат стороной в точках эффектов вокруг точки (dot).</summary>

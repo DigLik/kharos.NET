@@ -36,9 +36,11 @@ internal sealed class EditorPanel(EditorModel model)
     {
         var ui = c.Ui;
         var tool = model.Tool;
+        // Под верхней полосой, когда она есть (редактор поверх партии: play.ts даёт top = topHeight + 8), иначе от края (editor.ts).
+        var top = c.Shared.TryGetValue(TopBar.TopKey, out var bar) && bar is float height ? height + 8 : 8;
         ui.Box(new Style
         {
-            Id = "editor", Anchor = new Anchor(Right: 8, Top: 8, Bottom: 8), Width = MathF.Min(Width, ui.Width - 32), Skin = Skin.Panel,
+            Id = "editor", Anchor = new Anchor(Right: 8, Top: top, Bottom: 8), Width = MathF.Min(Width, ui.Width - 32), Skin = Skin.Panel,
             Padding = 12, Direction = Direction.Column, Gap = 10, Align = Align.Stretch,
         }, () =>
         {

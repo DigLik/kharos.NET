@@ -129,6 +129,9 @@ public sealed class Viewer : IDisposable
     /// <summary>Часы клиента, секунды: растут на <see cref="ViewerOptions.FrameStep"/> за кадр.</summary>
     public double Time { get; private set; }
 
+    /// <summary>Где мод в последнем кадре просил поставить чат оболочки (ShellAction.ChatAt: «left bottom»); не просил — null.</summary>
+    public string? ChatAt { get; private set; }
+
     /// <summary>Кадров сделано.</summary>
     public int Frames { get; private set; }
 
@@ -165,11 +168,29 @@ public sealed class Viewer : IDisposable
     public RenderFrame Frame(ClientInput? input = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        Time += _options.FrameStep;
+        return FrameAt(Time + _options.FrameStep, input);
+    }
+
+    /// <summary>
+    /// Кадр клиента с часами ровно time (сверка кадров: замороженные экранные часы сцены, как аргумент time проходов TS);
+    /// дальше <see cref="Frame"/> идёт от них.
+    /// </summary>
+    public RenderFrame FrameAt(double time, ClientInput? input = null)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        Time = time;
         _records.Clear();
+        ChatAt = null;
         var frame = Game.Step((input ?? Input) with { Time = Time });
         Frames++;
         // Зритель — оболочка тестов: просьбу мода начать заново исполняет, как ShellApp (остальные просьбы — тестам).
+        // Место чата мод просит каждый кадр: последнее — в ChatAt, а в списке оно копилось бы.
+        for (var i = Game.ShellRequests.Count - 1; i >= 0; i--)
+            if (Game.ShellRequests[i].Action == ClientGame.ShellChatAt)
+            {
+                ChatAt ??= Game.ShellRequests[i].Arg;
+                Game.ShellRequests.RemoveAt(i);
+            }
         if (Game.ShellRequests.RemoveAll(request => request.Action == ClientGame.ShellRespawn) is var respawns and > 0)
             for (var i = 0; i < respawns; i++)
                 Game.Respawn();

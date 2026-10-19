@@ -26,6 +26,13 @@ fn minimap_fog(a: f32) -> f32 {
   return mix(120.0, 235.0, (a - remembered) / (240.0 / 255.0 - remembered)) / 255.0;
 }
 
+// Свечение (combatPass.ts: glow, blendFunc ONE, ONE): цвет × непрозрачность прибавляется к кадру, альфа кадра не меняется.
+@fragment
+fn glow_fs(input: BatchOut) -> @location(0) vec4f {
+  let a = input.color.a * textureSampleLevel(image, image_sampler, input.uv, 0.0).r;
+  return vec4f(input.color.rgb * a, 0.0);
+}
+
 @fragment
 fn batch_fs(input: BatchOut) -> @location(0) vec4f {
   if (u.kind == 2) {

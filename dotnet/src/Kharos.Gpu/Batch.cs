@@ -6,13 +6,17 @@ namespace Kharos.Gpu;
 [StructLayout(LayoutKind.Sequential)]
 public record struct Vertex(float X, float Y, float U, float V, uint Rgba);
 
-/// <summary>Чем красить отрезок батча: шрифтовой атлас (альфа), атлас обликов с палитрой стороны, скин, мини-карта, туман на мини-карте.</summary>
-public enum PaintKind : byte { Font, Sprite, Skin, Minimap, Fog }
+/// <summary>
+/// Чем красить отрезок батча: шрифтовой атлас (альфа), атлас обликов с палитрой стороны, скин, мини-карта, туман на
+/// мини-карте; Glow — белый угол шрифтового атласа, но цвет прибавляется (свечение, blend add у combatPass.ts).
+/// </summary>
+public enum PaintKind : byte { Font, Sprite, Skin, Minimap, Fog, Glow }
 
 /// <summary>Краска отрезка; Team — сторона для <see cref="PaintKind.Sprite"/>.</summary>
 public readonly record struct Paint(PaintKind Kind, int Team = 0)
 {
     public static readonly Paint Font = new(PaintKind.Font);
+    public static readonly Paint Glow = new(PaintKind.Glow);
     public static readonly Paint Skin = new(PaintKind.Skin);
 }
 
@@ -37,10 +41,17 @@ public sealed class Batch
     public readonly List<Segment> Segments = [];
     private Clip? _clip;
 
+    /// <summary>Заливки (прямоугольники, отрезки, круги, пунктир) прибавляют цвет, а не кладут его поверх (<see cref="PaintKind.Glow"/>).</summary>
+    public bool Additive { get; set; }
+
+    /// <summary>Чем заливать: обычно белым углом шрифтового атласа, при <see cref="Additive"/> — свечением.</summary>
+    private Paint Fill => Additive ? Paint.Glow : Paint.Font;
+
     public void Clear()
     {
         Vertices.Clear(); Indices.Clear(); Segments.Clear();
         _clip = null;
+        Additive = false;
     }
 
     private void Use(Paint paint)
@@ -75,7 +86,7 @@ public sealed class Batch
     }
 
     public void Rect(float x0, float y0, float x1, float y1, uint color) =>
-        Quad(x0, y0, x1, y1, (WhiteU, WhiteV, WhiteU, WhiteV), color, Paint.Font);
+        Quad(x0, y0, x1, y1, (WhiteU, WhiteV, WhiteU, WhiteV), color, Fill);
 
     /// <summary>Отрезок толщиной width.</summary>
     public void Line(float ax, float ay, float bx, float by, float width, uint color)
@@ -83,7 +94,7 @@ public sealed class Batch
         float dx = bx - ax, dy = by - ay;
         var length = MathF.Max(MathF.Sqrt(dx * dx + dy * dy), 1e-6f);
         float nx = -dy / length * width / 2, ny = dx / length * width / 2;
-        Quad([(ax + nx, ay + ny), (bx + nx, by + ny), (bx - nx, by - ny), (ax - nx, ay - ny)], (WhiteU, WhiteV, WhiteU, WhiteV), color, Paint.Font);
+        Quad([(ax + nx, ay + ny), (bx + nx, by + ny), (bx - nx, by - ny), (ax - nx, ay - ny)], (WhiteU, WhiteV, WhiteU, WhiteV), color, Fill);
     }
 
     /// <summary>
@@ -151,7 +162,7 @@ public sealed class Batch
     /// <summary>Выпуклый многоугольник веером.</summary>
     public void Fan(ReadOnlySpan<(float X, float Y)> points, uint color)
     {
-        Use(Paint.Font);
+        Use(Fill);
         var start = (uint)Vertices.Count;
         foreach (var (x, y) in points) Vertices.Add(new Vertex(x, y, WhiteU, WhiteV, color));
         for (uint i = 1; i + 1 < points.Length; i++) Indices.AddRange([start, start + i, start + i + 1]);
@@ -174,6 +185,6 @@ public sealed class Batch
         }
         float outer = radius + w / 2, inner = MathF.Max(radius - w / 2, 0);
         for (var i = 0; i < segments; i++)
-            Quad([Point(i, outer), Point(i + 1, outer), Point(i + 1, inner), Point(i, inner)], (WhiteU, WhiteV, WhiteU, WhiteV), color, Paint.Font);
+            Quad([Point(i, outer), Point(i + 1, outer), Point(i + 1, inner), Point(i, inner)], (WhiteU, WhiteV, WhiteU, WhiteV), color, Fill);
     }
 }

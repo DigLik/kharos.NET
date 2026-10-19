@@ -29,6 +29,17 @@ internal sealed class Wrecks(Fx fx)
     private const float MarkOpacity = 0.7f;
 
     private bool _broken;
+
+    /// <summary>Выборка слоя следов: тик, правка слоёв, середина и радиус, с запасом <see cref="Spare"/> тайлов на ход камеры.</summary>
+    private MapItem[]? _items;
+    private ulong _itemsTick, _itemsRevision;
+    private double _itemsX, _itemsY, _itemsReach;
+    private const double Spare = 4;
+
+    /// <summary>Облики гари по размеру (<see cref="ScorchSizes"/>) и остовов по виду: имя облика — строкой раз, а не каждый кадр.</summary>
+    private int[]? _scorch;
+    private int _pock = -1;
+    private readonly Dictionary<string, int> _wreckLooks = new(StringComparer.Ordinal);
     private readonly List<(double X, double Y, double[] Fields)> _wrecks = [];
 
     /// <summary>Точки колеи (kind track) в кадре: их соединяет <see cref="Traces.Receive"/>.</summary>
@@ -42,19 +53,31 @@ internal sealed class Wrecks(Fx fx)
         if (_broken || fx.Traces is not { } layer)
             return;
         var c = fx.C;
-        MapItem[] items;
-        try
+        // Слой меняется только с тиком: между тиками и пока камера не ушла за запас — прежняя выборка.
+        var reach = Fx.Hypot(fx.HalfWidth, fx.HalfHeight) + 2;
+        var revision = Tools.Revision().Layers;
+        if (_items is null || c.Tick != _itemsTick || revision != _itemsRevision || Fx.Hypot(fx.CameraX - _itemsX, fx.CameraY - _itemsY) + reach > _itemsReach)
         {
-            items = Tools.Items(layer, 0, fx.CameraX, fx.CameraY, Fx.Hypot(fx.HalfWidth, fx.HalfHeight) + 2);
+            try
+            {
+                _items = Tools.Items(layer, 0, fx.CameraX, fx.CameraY, reach + Spare);
+            }
+            catch (Exception)
+            {
+                // Слой следов не тот, что в data/layers.json (другой набор слоёв), — отметин нет.
+                _broken = true;
+                return;
+            }
+            (_itemsTick, _itemsRevision, _itemsX, _itemsY, _itemsReach) = (c.Tick, revision, fx.CameraX, fx.CameraY, reach + Spare);
         }
-        catch (Exception)
-        {
-            // Слой следов не тот, что в data/layers.json (другой набор слоёв), — отметин нет.
-            _broken = true;
-            return;
-        }
+        var items = _items;
         _wrecks.Clear();
         Tracks.Clear();
+        if (_scorch is null)
+        {
+            _scorch = [.. ScorchSizes.Select(size => fx.Look("decals/scorch/" + size))];
+            _pock = fx.Look("decals/pock");
+        }
         foreach (var item in items)
         {
             if (item.Fields.Length < 8)
@@ -79,9 +102,9 @@ internal sealed class Wrecks(Fx fx)
             var variant = (int)(item.Fields[0] % Variants);
             var size = item.Fields[7];
             if (kind == Burn)
-                Stamp(item.X, item.Y, ScorchSizes[0], fx.Look("decals/scorch/" + ScorchSizes[0]), variant, MarkOpacity * left);
+                Stamp(item.X, item.Y, ScorchSizes[0], _scorch[0], variant, MarkOpacity * left);
             else if (size < PockSize)
-                Stamp(item.X, item.Y, 6, fx.Look("decals/pock"), variant, MarkOpacity * left);
+                Stamp(item.X, item.Y, 6, _pock, variant, MarkOpacity * left);
             else
             {
                 var pixels = size * ScorchScale * 16;
@@ -89,7 +112,7 @@ internal sealed class Wrecks(Fx fx)
                 for (var i = 1; i < ScorchSizes.Length; i++)
                     if (Math.Abs(ScorchSizes[i] - pixels) < Math.Abs(ScorchSizes[index] - pixels))
                         index = i;
-                Stamp(item.X, item.Y, ScorchSizes[index], fx.Look("decals/scorch/" + ScorchSizes[index]), variant, MarkOpacity * left);
+                Stamp(item.X, item.Y, ScorchSizes[index], _scorch[index], variant, MarkOpacity * left);
             }
         }
         foreach (var (x, y, fields) in _wrecks)
@@ -98,7 +121,9 @@ internal sealed class Wrecks(Fx fx)
             if (left <= 0 || fx.NameOf((int)fields[4]) is not { } type)
                 continue;
             var direction = ((int)Math.Round(fields[5] / (Math.PI * 2) * WreckDirections) % WreckDirections + WreckDirections) % WreckDirections;
-            Stamp(x, y, UnitFrame, fx.Look("decals/wreck/" + type), 0, (float)left, direction * Math.PI * 2 / WreckDirections);
+            if (!_wreckLooks.TryGetValue(type, out var look))
+                _wreckLooks[type] = look = fx.Look("decals/wreck/" + type);
+            Stamp(x, y, UnitFrame, look, 0, (float)left, direction * Math.PI * 2 / WreckDirections);
         }
     }
 

@@ -85,6 +85,8 @@ internal sealed class EffectsSection : Section
         _missiles.Draw();
         _combat.DrawMarks();
         _links.Draw();
+        // Свечение — после всех обычных рисунков эффектов, как glow после solid в combatPass.ts.
+        _fx.FlushGlow();
         // Тревоги и полосы — поверх всего.
         _power.Update();
     }

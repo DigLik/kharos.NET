@@ -369,7 +369,7 @@ internal sealed class Combat(Fx fx, Smoke smoke)
             }
             var (x, y) = (at.X, at.Y);
             if (age <= MuzzleTicks)
-                fx.Dot(fromX, fromY, weapon.Shot == "bullet" ? 5 : 9, Bullet);
+                fx.GlowDot(fromX, fromY, weapon.Shot == "bullet" ? 5 : 9, Bullet);
             // Куда летит: снаряды летят прямо — к цели.
             var headingX = toX - fromX;
             var headingY = toY - fromY;
@@ -383,7 +383,7 @@ internal sealed class Combat(Fx fx, Smoke smoke)
                 // След не длиннее пройденного; тёмная подложка: на светлом песке одно свечение не видно.
                 var tail = Math.Min(BulletTail, Fx.Hypot(x - fromX, y - fromY));
                 fx.Line(x - headingX * tail, y - headingY * tail, x, y, 2, Tracer);
-                fx.Line(x - headingX * tail, y - headingY * tail, x, y, 2, Bullet);
+                fx.GlowLine(x - headingX * tail, y - headingY * tail, x, y, 2, Bullet);
             }
             else if (weapon.Shot == "rocket")
             {
@@ -392,7 +392,7 @@ internal sealed class Combat(Fx fx, Smoke smoke)
                 var tailX = x - headingX * RocketBody;
                 var tailY = y - headingY * RocketBody - ArcLift(fromX, fromY, toX, toY, tailX, y - headingY * RocketBody);
                 fx.Dot(x, y, 4, Rocket, 0.25);
-                fx.Line(tailX - headingX * 0.2, tailY - headingY * 0.2, tailX, tailY, 3, Flame);
+                fx.GlowLine(tailX - headingX * 0.2, tailY - headingY * 0.2, tailX, tailY, 3, Flame);
                 fx.Line(tailX, tailY, x, head, 3, Rocket);
             }
             else
@@ -413,20 +413,20 @@ internal sealed class Combat(Fx fx, Smoke smoke)
         {
             // Струя огня: широкая у цели, узкая у ствола, и языки, которые дрожат.
             var seed = entity * 7.0 + Math.Floor(time * ArcRate);
-            fx.Line(fromX, fromY, toX, toY, 5, Flame, left * 0.6);
+            fx.GlowLine(fromX, fromY, toX, toY, 5, Flame, left * 0.6);
             for (var i = 1; i <= FlameTongues; i++)
             {
                 var share = (double)i / FlameTongues;
                 var sway = (Fx.Noise(seed, i) - 0.5) * 0.5 * share;
-                fx.Dot(fromX + dx * share - dy * sway, fromY + dy * share + dx * sway, 3 + share * 6, i % 2 == 1 ? Flame : Ember, left);
+                fx.GlowDot(fromX + dx * share - dy * sway, fromY + dy * share + dx * sway, 3 + share * 6, i % 2 == 1 ? Flame : Ember, left);
             }
             return;
         }
         if (weapon.Shot == "laser")
         {
-            fx.Line(fromX, fromY, toX, toY, 6, Laser, left * 0.7);
-            fx.Line(fromX, fromY, toX, toY, 2, Core, left);
-            fx.Dot(toX, toY, 8, Laser, left);
+            fx.GlowLine(fromX, fromY, toX, toY, 6, Laser, left * 0.7);
+            fx.GlowLine(fromX, fromY, toX, toY, 2, Core, left);
+            fx.GlowDot(toX, toY, 8, Laser, left);
             return;
         }
         // Разряд — ломаная, которая дрожит: изломы меняются много раз в секунду.
@@ -441,11 +441,11 @@ internal sealed class Combat(Fx fx, Smoke smoke)
             var sway = i == joints ? 0 : (Fx.Noise(arcSeed, i) - 0.5) * 2 * ArcSway;
             var x = fromX + dx * i / joints + -dy / length * sway;
             var y = fromY + dy * i / joints + dx / length * sway;
-            fx.Line(lastX, lastY, x, y, 5, Spark, left * 0.8);
-            fx.Line(lastX, lastY, x, y, 1.5, Core, left);
+            fx.GlowLine(lastX, lastY, x, y, 5, Spark, left * 0.8);
+            fx.GlowLine(lastX, lastY, x, y, 1.5, Core, left);
             (lastX, lastY) = (x, y);
         }
-        fx.Dot(toX, toY, 9, Spark, left);
+        fx.GlowDot(toX, toY, 9, Spark, left);
     }
 
     /// <summary>
@@ -482,8 +482,8 @@ internal sealed class Combat(Fx fx, Smoke smoke)
                     var wave = time * 0.8 % 1;
                     Ring(x, y, 1.5, 3, LaunchSite, 0.8);
                     Ring(x, y, 1.5 + wave * 4, 2, LaunchSite, 0.6 * (1 - wave));
-                    fx.Line(x - 0.8, y, x + 0.8, y, 2, LaunchSite, 0.8);
-                    fx.Line(x, y - 0.8, x, y + 0.8, 2, LaunchSite, 0.8);
+                    fx.GlowLine(x - 0.8, y, x + 0.8, y, 2, LaunchSite, 0.8);
+                    fx.GlowLine(x, y - 0.8, x, y + 0.8, 2, LaunchSite, 0.8);
                     break;
                 }
                 default:
@@ -493,7 +493,7 @@ internal sealed class Combat(Fx fx, Smoke smoke)
                     var beat = 0.5 + 0.5 * DetMath.Cos(time * Math.PI * 2 * (left < 5 ? 3 : 1));
                     Ring(x, y, blast.Radius, 3, Strike, 0.35 + 0.4 * beat);
                     Ring(x, y, blast.Core, 2, Strike, 0.25 + 0.3 * beat);
-                    fx.Dot(x, y, 8, Strike, 0.6 + 0.4 * beat);
+                    fx.GlowDot(x, y, 8, Strike, 0.6 + 0.4 * beat);
                     break;
                 }
             }
@@ -503,8 +503,6 @@ internal sealed class Combat(Fx fx, Smoke smoke)
     /// <summary>Кольцо радиуса r толщиной в точках эффектов.</summary>
     private void Ring(double x, double y, double radius, double thickness, Rgb color, double level)
     {
-        if (level <= 0.004)
-            return;
-        fx.C.Draw.Circle(x, y, radius, color.Hex, (float)(fx.Sized(thickness) / fx.Pixel), (float)Math.Min(1, level));
+        fx.GlowRing(x, y, radius, (float)(fx.Sized(thickness) / fx.Pixel), color, level);
     }
 }

@@ -25,6 +25,9 @@ internal static class Modes
     /// <summary>Группы 1–9 и 0: словарь «цифра → номера сущностей» (его ведёт выбор, читают цифры над юнитами и панели).</summary>
     public const string GroupsKey = "groups";
 
+    /// <summary>Нажатие ячейки панели групп (<see cref="GroupPress"/>): его исполняет выбор в том же кадре.</summary>
+    public const string GroupPressKey = "groups.press";
+
     /// <summary>Вид здания, место под которое выбирают; нет — null.</summary>
     public static string? Placing(ClientContext c) => c.Shared.TryGetValue(PlacingKey, out var value) ? value as string : null;
 

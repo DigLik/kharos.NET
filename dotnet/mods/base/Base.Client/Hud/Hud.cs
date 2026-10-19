@@ -8,7 +8,7 @@ namespace Base.Client;
 
 /// <summary>
 /// Панель игрока — перенос createHud из gui/hud.ts в объёме К3а: верхняя полоса (<see cref="TopBar"/>), нижняя панель
-/// (<see cref="Bar"/>: мини-карта, сведения, сетка команд), подсказка по месторождению под указателем. Своё состояние —
+/// (<see cref="Bar"/>: мини-карта, сведения, сетка команд), панель групп над ней (<see cref="Groups"/>), подсказка по месторождению под указателем. Своё состояние —
 /// здесь: страница сетки и набираемый заказ сбрасываются, когда выбрано другое. Клавиши сетки (T…,) и R (окно
 /// исследований) — тоже здесь; поле ввода в фокусе забирает их раньше (UI-ядро).
 /// </summary>
@@ -58,8 +58,15 @@ internal sealed class Hud(BaseState state)
         var slots = hud.Selected ? Commands.Of(hud, _page, actions, _tables!, t, _deal, _ferry) : new Slot?[Commands.Size];
         c.Shared[PanelsFeed.Key] = Feed(hud, c);
 
-        // Снизу вверх: нижняя панель, полоса, подсказки.
+        // Снизу вверх: нижняя панель, группы, полоса, подсказки.
         _bar!.Draw(new Bar.Frame(c, hud, slots, _tables!, t, _parts!, _reader.Heads()));
+        if (!hud.Editor)
+            Groups.Draw(c, state, Bar.HeightOf(c.Ui.Width), t);
+        // Чат оболочки — правее мини-карты, когда она выше панели, над нижней панелью (gui/hud.ts).
+        var width = c.Ui.Width;
+        var side = Bar.MinimapSide(width);
+        var chatLeft = width >= TopBar.Narrow && side > 140 ? side + 12 : 12;
+        c.Ask(ShellAction.ChatAt, string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{chatLeft} {Bar.HeightOf(width) + 8}"));
         TopBar.Draw(c, hud, t);
         HoverTip(c, t);
         Keys(c, slots);

@@ -494,10 +494,15 @@ public sealed class ShellApp : IDisposable
         }
         // Меню, открытое просьбой мода (Esc, когда в игре отменять нечего), в этом кадре не рисуется: тот же Esc закрыл бы его.
         var opened = false;
+        var (chatLeft, chatBottom) = (12f, 12f);
         foreach (var (action, arg) in game.ShellRequests)
         {
             switch (action)
             {
+                case ClientAbi.ShellActionChatAt:
+                    if (ChatAt(arg) is { } at)
+                        (chatLeft, chatBottom) = at;
+                    break;
                 case ClientAbi.ShellActionMenu:
                     opened |= !Paused;
                     Pause(true);
@@ -523,10 +528,21 @@ public sealed class ShellApp : IDisposable
             if (Editor.Overlay(scene.Gui, forms, words, Session, game))
                 _leaveRequested = true;
             var names = game.Players.Select(player => player.Name).ToList();
-            Chat.Draw(scene.Gui, words, game.Commands, names, game.Admin, game.Replica.Player, game.TextOf, game.Say, 12, 12);
+            Chat.Draw(scene.Gui, words, game.Commands, names, game.Admin, game.Replica.Player, game.TextOf, game.Say, chatLeft, chatBottom);
         }
         else if (!opened)
             PauseMenu(scene.Gui, forms, words);
+    }
+
+    /// <summary>Место чата из просьбы мода ChatAt: «left bottom»; не разобрать — null.</summary>
+    internal static (float Left, float Bottom)? ChatAt(string arg)
+    {
+        var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 2
+            && float.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var left)
+            && float.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var bottom)
+            && float.IsFinite(left) && float.IsFinite(bottom)
+            ? (left, bottom) : null;
     }
 
     /// <summary>Меню поверх игры: продолжить, настройки, выйти (в слот — с сохранением).</summary>

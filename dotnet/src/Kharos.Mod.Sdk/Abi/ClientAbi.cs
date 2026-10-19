@@ -86,6 +86,8 @@
 //        0..1 (как Frame.Spots и Frame.Blooms; у фары лампы радиуса r — spot 2r, bloom r)
 //   0x26 Beam x y length level cos sin near spread:f32 — луч (как Frame.Beams и фары LookBeam): начало в тайлах, длина
 //        и ближняя полуширина в текселях, яркость 0..1, направление cos/sin, расширение
+//   0x29 Glow on:u8 — дальнейшие рисунки поверх мира (Line, Circle, Rect, Dashes, DashedCircle) прибавляют цвет, а не
+//        кладут поверх (свечение, blend add; дополнение v2); до конца выхода мода или до Glow 0
 // Эффекты:
 //   0x30 Particle x y vx vy life:f32 color:u32 (0xRRGGBB или 0xAARRGGBB) size:f32 drift:u8
 //   0x31 Decal x1 y1 x2 y2 width:f32 r g b:f32 opacity density life:f32
@@ -102,7 +104,8 @@
 //   0x51 Prefs key:str len:u32 bytes — запись настройки мода (ключ — свой у мода; читается инструментом Prefs);
 //        len 0 — стереть
 //   0x52 Shell action:u8 (ShellAction*) arg:str — просьба к оболочке: 1 в меню, 2 открыть чат с текстом arg, 3 настройки,
-//        4 начать заново (оболочка зовёт ClientGame.Respawn: хост шлёт модам событие player_respawn; дополнение v2)
+//        4 начать заново (оболочка зовёт ClientGame.Respawn: хост шлёт модам событие player_respawn; дополнение v2),
+//        5 где чат оболочки на этот кадр: arg — «left bottom» в пикселях интерфейса, числа через пробел (дополнение v2)
 // Камера и атмосфера (SDK пишет Camera после обработчиков камеры и в конце кадра; рисунки поверх мира берут толщину
 // по камере на момент записи): 0x60 Camera x y zoom:f64 · 0x61 Atmosphere mask:u8 (1 light, 2 wind, 4 precipitation)
 //   [light:f32] [windX windY:f32] [precipitation:f32] · 0x62 Palette 12 × u32 0xRRGGBB (своя, чужая, союзная, ничья ×
@@ -143,7 +146,7 @@ internal static class ClientAbi
     public const byte OpOpen = 0x10, OpClose = 0x11, OpText = 0x12, OpImage = 0x13, OpImageLook = 0x14, OpSpace = 0x15,
         OpButton = 0x16, OpTipText = 0x17, OpTipBegin = 0x18, OpTipEnd = 0x19, OpField = 0x1A, OpIcon = 0x1B, OpFieldWith = 0x1C;
     public const byte OpLine = 0x20, OpCircle = 0x21, OpRect = 0x22, OpSprite = 0x23, OpPaint = 0x24, OpLight = 0x25, OpBeam = 0x26,
-        OpDashes = 0x27, OpDashedCircle = 0x28;
+        OpDashes = 0x27, OpDashedCircle = 0x28, OpGlow = 0x29;
     public const byte OpParticle = 0x30, OpDecal = 0x31;
     public const byte OpPlay = 0x40, OpSoundAt = 0x41, OpLoop = 0x42, OpVoice = 0x43, OpAutomate = 0x44, OpPlace = 0x45,
         OpRelease = 0x46, OpVolume = 0x47;
@@ -159,7 +162,7 @@ internal static class ClientAbi
     public const byte PaintVariant = 1, PaintFrame = 2, PaintBuilt = 4, PaintDim = 8, PaintHide = 16;
 
     // Shell: просьбы к оболочке.
-    public const byte ShellActionMenu = 1, ShellActionChat = 2, ShellActionSettings = 3, ShellActionRespawn = 4;
+    public const byte ShellActionMenu = 1, ShellActionChat = 2, ShellActionSettings = 3, ShellActionRespawn = 4, ShellActionChatAt = 5;
 
     // Стиль узла: биты маски.
     public const uint StyleId = 1 << 0, StyleDirection = 1 << 1, StyleSelf = 1 << 2, StyleGap = 1 << 3, StylePadding = 1 << 4,

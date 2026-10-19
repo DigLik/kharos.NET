@@ -27,6 +27,11 @@ public enum ShellAction : byte
     Settings = ClientAbi.ShellActionSettings,
     /// <summary>Начать заново: оболочка просит хост (событие player_respawn), что делать — решают моды хоста.</summary>
     Respawn = ClientAbi.ShellActionRespawn,
+    /// <summary>
+    /// Где чат оболочки на этот кадр: arg — «left bottom», отступы левого нижнего угла чата в пикселях интерфейса (панели
+    /// мода знают, где мини-карта и нижняя панель). Без просьбы — у левого нижнего угла экрана.
+    /// </summary>
+    ChatAt = ClientAbi.ShellActionChatAt,
 }
 
 /// <summary>Игрок партии (инструмент Roster): номер, ник, в сети ли, администратор ли.</summary>

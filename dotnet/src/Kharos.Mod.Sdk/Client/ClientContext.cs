@@ -123,6 +123,12 @@ public sealed class Draw
     public void DashedCircle(double x, double y, double radius, uint color, int dashes, float dot = 2, float alpha = 1) =>
         _out.U8(ClientAbi.OpDashedCircle).F32((float)x).F32((float)y).F32((float)radius).U32(Rgba(color, alpha)).U16(checked((ushort)dashes)).F32(dot);
 
+    /// <summary>
+    /// Свечение (ABI 2, дополнение волны 4): пока включено, линии, круги, прямоугольники и пунктир поверх мира прибавляют
+    /// свой цвет × непрозрачность к кадру (вспышки, лучи, искры — glow в combatPass.ts). До конца выхода кадра мода.
+    /// </summary>
+    public void Glow(bool on) => _out.U8(ClientAbi.OpGlow).U8(on ? (byte)1 : (byte)0);
+
     /// <summary>Круг: width — толщина кольца в пикселях, null — заливка.</summary>
     public void Circle(double x, double y, double radius, uint color, float? width = null, float alpha = 1) =>
         _out.U8(ClientAbi.OpCircle).F32((float)x).F32((float)y).F32((float)radius).U32(Rgba(color, alpha)).F32(width ?? float.NaN);
@@ -503,7 +509,7 @@ public sealed class ClientContext
         for (var stage = 0; stage < handlers.Stages.Length; stage++)
         {
             foreach (var (name, handler) in handlers.Stages[stage])
-                Guard(name, () => handler(this), fail);
+                Guard(name, handler, fail);
             // После камеры ввод в мире — по новой камере; клиенту — камера до рисунков поверх мира (толщина в пикселях).
             if (stage == (int)ClientBuilder.Stage.Camera)
             {
@@ -513,6 +519,21 @@ public sealed class ClientContext
         }
         End();
         return ((nint)_out.Pointer, _out.Length);
+    }
+
+    /// <summary>Обработчик этапа без замыкания на кадр (их десятки на кадр).</summary>
+    private void Guard(string name, FrameHandler handler, Action<string> fail)
+    {
+        var depth = Ui.Depth;
+        try
+        {
+            handler(this);
+        }
+        catch (Exception error)
+        {
+            Ui.Unwind(depth);
+            fail($"{name}: {error.GetType().Name}: {error.Message}");
+        }
     }
 
     private void Guard(string name, Action run, Action<string> fail)

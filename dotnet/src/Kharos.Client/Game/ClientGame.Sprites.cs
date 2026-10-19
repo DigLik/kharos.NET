@@ -354,7 +354,7 @@ public sealed partial class ClientGame
 
     /// <summary>
     /// Предметы слоёв, которые мод велел рисовать обликами (месторождения): место предмета — точка привязки облика;
-    /// рисуются там, где разведано, как руда. Возвращает, сколько спрайтов.
+    /// рисуются там, где разведано, как руда, в своих цветах (depositsPass.ts: ничьи, но не серые). Возвращает, сколько спрайтов.
     /// </summary>
     private int ItemSprites(RenderFrame frame, LayerSet layers, Span<float> sprite, (float Left, float Top, float Right, float Bottom) area, bool fog)
     {
@@ -375,7 +375,7 @@ public sealed partial class ClientGame
                         var (tx, ty) = ((int)MathF.Floor(x), (int)MathF.Floor(y));
                         if (fog && !(look.Spec.Memory ? Replica.Explored(tx, ty) : Replica.Sees(tx, ty)))
                             continue;
-                        count += Put(frame, sprite, look, look.Cell(0, 0), x, y, 1, (int)look.Spec.Layer, 3, 1, Plain);
+                        count += Put(frame, sprite, look, look.Cell(0, 0), x, y, 1, (int)look.Spec.Layer, 3, 0, Plain);
                     }
         }
         return count;

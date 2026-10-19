@@ -108,6 +108,7 @@
 style mask:u8` и хвост: Digits, Password, Focus, MaxLength `u16`, Placeholder `str`); пунктир `0x27 Dashes x1 y1 x2 y2
 rgba step dot` и `0x28 DashedCircle x y r rgba dashes:u16 dot`; биты стиля `ScrollEnd` (1<<24), `Modal` (1<<25),
 `KeepFocus` (1<<26). Сторону союзника движок определяет сам по `Team.head`.
+**Дополнения после волн 3–4:** действия оболочки `ShellAction.Respawn` (4, «начать заново» через `Host.Respawn`) и `ChatAt` (мод сообщает, где стоит чат); запись `0x29 Glow` — рисунки со смешением ONE, ONE поверх обычных эффектов, как вспышки и лучи `combatPass.ts`; слой спрайтов `OverFog` — значки, взрывы и дым после света и тумана.
 
 ## Н6.3. Тесты
 

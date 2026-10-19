@@ -54,8 +54,11 @@ public sealed class ClientGameOptions
     public IReadOnlyDictionary<string, string>? ClrAssemblies { get; init; }
 }
 
-/// <summary>Сколько стоил кадр клиента без видеокарты, мс: приём, моды, сборка кадра.</summary>
-public readonly record struct ClientFrameStats(double Total, double Pump, double Mods, double Build, int Sprites);
+/// <summary>
+/// Сколько стоил кадр клиента без видеокарты, мс: приём, моды, сборка кадра; Code — из них сам код модов (kh_frame, без
+/// записи входа и разбора выхода).
+/// </summary>
+public readonly record struct ClientFrameStats(double Total, double Pump, double Mods, double Build, int Sprites, double Code = 0);
 
 /// <summary>
 /// Партия на клиенте (Р10, Р11; перенос apps/client/src/game.rs): реплика мира с хоста, моды клиента (подача), атлас
@@ -172,6 +175,9 @@ public sealed partial class ClientGame : IDisposable
 
     public ClientFrameStats Stats { get; private set; }
 
+    /// <summary>Тики Stopwatch в коде модов за кадр (<see cref="ClientFrameStats.Code"/>).</summary>
+    private long _code;
+
     /// <summary>Сбои модов и разбора (последние 1000).</summary>
     public List<string> Errors { get; } = [];
 
@@ -202,6 +208,9 @@ public sealed partial class ClientGame : IDisposable
 
     /// <summary>Просьба мода «начать заново» (ClientAbi.ShellActionRespawn): оболочка отвечает <see cref="Respawn"/>.</summary>
     public const byte ShellRespawn = ClientAbi.ShellActionRespawn;
+
+    /// <summary>Просьба мода «чат вот здесь» (ClientAbi.ShellActionChatAt, arg «left bottom»): её читает оболочка каждый кадр.</summary>
+    public const byte ShellChatAt = ClientAbi.ShellActionChatAt;
 
     /// <summary>
     /// После модов кадра, до сборки кадра рендера: обвязка тестов (Viewer, сверка кадров) ставит камеру и атмосферу
@@ -279,6 +288,7 @@ public sealed partial class ClientGame : IDisposable
         Scene.Time = time;
         BeginUi(input);
         var clock = new FrameClock(time, dt, Replica.Tick, Poses.Alpha, welcome.Dt, Replica.Player);
+        _code = 0;
         foreach (var mod in _mods)
             RunMod(mod, clock, input);
         AfterMods?.Invoke(Scene);
@@ -307,7 +317,8 @@ public sealed partial class ClientGame : IDisposable
             Stopwatch.GetElapsedTime(started, pumped).TotalMilliseconds,
             Stopwatch.GetElapsedTime(pumped, modded).TotalMilliseconds,
             Stopwatch.GetElapsedTime(modded, done).TotalMilliseconds,
-            sprites);
+            sprites,
+            Stopwatch.GetElapsedTime(0, _code).TotalMilliseconds);
         return frame;
     }
 
@@ -569,7 +580,9 @@ public sealed partial class ClientGame : IDisposable
         _frameInput.Write(_input, clock, input, camera, Gui, Scene.Atmosphere, _signals, Audio?.Now, mod.Sounds.TakeEnded(), _rosterRevision);
         try
         {
+            var called = Stopwatch.GetTimestamp();
             var output = instance.Frame(_input.Written);
+            _code += Stopwatch.GetTimestamp() - called;
             ClientStream.Apply(output, Scene, mod.Sounds, new Listener(camera.X, camera.Y, camera.Zoom, input.Width, input.Height));
         }
         catch (ModTrapException error)

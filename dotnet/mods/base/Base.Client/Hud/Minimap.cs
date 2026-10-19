@@ -80,22 +80,16 @@ internal sealed class Minimap(BaseState state)
                 // Месторождения, что клиент знает (слой deposits), — цветом своего ресурса; середина — центр 2 × 2.
                 foreach (var spot in Deposits(c))
                     Dot(ui, Y(spot.Y + 1) - dot / 2, X(spot.X + 1) - dot / 2, dot, dot, spot.Color);
-                var owned = c.Each(P.Owner, P.Position);
-                var owners = new double[owned.Length];
-                var places = new (double X, double Y, double Angle)[owned.Length];
-                c.Column(owned, P.Owner, "player", owners);
-                c.Poses(owned, places);
-                for (var i = 0; i < owned.Length; i++)
+                // Здания и юниты — на местах тика, как в minimap.ts (Position, без сглаживания): точки считаются заново, только
+                // когда мир или места поменялись (тик, правка редактора).
+                var revision = Tools.Revision();
+                if ((revision.World, revision.Positions) != _dotsRevision || inner != _dotsInner || _dotsHeads != heads.Count)
                 {
-                    var entity = owned[i];
-                    var color = ColorOf((uint)owners[i]);
-                    var (px, py, _) = places[i];
-                    if ((c.Has(entity, P.Building) || (parts.Site is { } site && c.Has(entity, site))) && state.Size(c, entity) is { } size)
-                        // Место здания — левый верхний тайл.
-                        Dot(ui, Y(py), X(px), Math.Max(dot, size.W * scale), Math.Max(dot, size.H * scale), color);
-                    else if (c.Has(entity, P.Unit))
-                        Dot(ui, Y(py) - dot / 2, X(px) - dot / 2, dot, dot, color);
+                    CollectDots(c, parts, X, Y, ColorOf, dot, scale);
+                    (_dotsRevision, _dotsInner, _dotsHeads) = ((revision.World, revision.Positions), inner, heads.Count);
                 }
+                foreach (var (dotTop, dotLeft, w, h, color) in _shown)
+                    Dot(ui, dotTop, dotLeft, w, h, color);
                 Marks(c, parts, X, Y, k, scale);
                 // Рамка экрана: только видимая часть — то, что закрыто панелями, на экране не видно.
                 var (x1, y1) = c.ToWorld(0, top);
@@ -239,6 +233,62 @@ internal sealed class Minimap(BaseState state)
             _spots.Add(new Spot(item.X, item.Y, Color.Hex((uint)color)));
         }
         return _spots;
+    }
+
+    private readonly HashSet<uint> _buildings = [], _units = [];
+    private (ulong World, ulong Positions) _dotsRevision = (ulong.MaxValue, ulong.MaxValue);
+    private float _dotsInner;
+    private int _dotsHeads = -1;
+
+    /// <summary>
+    /// Точки зданий и юнитов мини-карты в <see cref="_dots"/>: кто здание и кто юнит — тремя выборками, а не вызовом
+    /// инструмента на каждую сущность (Has — через границу wasm).
+    /// </summary>
+    private void CollectDots(ClientContext c, HudParts parts, Func<double, double> x, Func<double, double> y, Func<uint, Color> colorOf, double dot, double scale)
+    {
+        var owned = c.Each(P.Owner, P.Position);
+        var owners = new double[owned.Length];
+        var xs = new double[owned.Length];
+        var ys = new double[owned.Length];
+        c.Column(owned, P.Owner, "player", owners);
+        c.Column(owned, P.Position, "x", xs);
+        c.Column(owned, P.Position, "y", ys);
+        _dots.Clear();
+        _last.Clear();
+        _buildings.Clear();
+        _buildings.UnionWith(c.Each(P.Building));
+        if (parts.Site is { } sites)
+            _buildings.UnionWith(c.Each(sites));
+        _units.Clear();
+        _units.UnionWith(c.Each(P.Unit));
+        for (var i = 0; i < owned.Length; i++)
+        {
+            var entity = owned[i];
+            var color = colorOf((uint)owners[i]);
+            var (px, py) = (xs[i], ys[i]);
+            if (_buildings.Contains(entity) && state.Size(c, entity) is { } size)
+                // Место здания — левый верхний тайл.
+                Collect(y(py), x(px), Math.Max(dot, size.W * scale), Math.Max(dot, size.H * scale), color);
+            else if (_units.Contains(entity))
+                Collect(y(py) - dot / 2, x(px) - dot / 2, dot, dot, color);
+        }
+        // Одинаковая точка в одном пикселе рисуется раз — последней по порядку: она и так легла бы поверх прежних.
+        // Тысяча юнитов на мини-карте — сотни узлов интерфейса вместо тысяч.
+        _shown.Clear();
+        for (var i = 0; i < _dots.Count; i++)
+            if (_last[_dots[i]] == i)
+                _shown.Add(_dots[i]);
+    }
+
+    private readonly List<(double Top, double Left, double W, double H, Color Color)> _dots = [], _shown = [];
+    private readonly Dictionary<(double Top, double Left, double W, double H, Color Color), int> _last = [];
+
+    /// <summary>Точка юнита или здания в очередь кадра — с теми же округлениями, что у <see cref="Dot"/>.</summary>
+    private void Collect(double top, double left, double w, double h, Color color)
+    {
+        var key = (Math.Floor(top), Math.Floor(left), w, h, color);
+        _last[key] = _dots.Count;
+        _dots.Add(key);
     }
 
     /// <summary>Точка или рамка мини-карты: прямоугольник w × h, левый верхний угол сдвинут на (left, top) от края.</summary>

@@ -198,6 +198,9 @@ public static class ClientStream
                         scene.Recorder?.Invoke(new FrameRecord(op, null, color, [x, y, radius, dashes, dot]));
                         break;
                     }
+                    case ClientAbi.OpGlow:
+                        scene.World.Additive = r.U8() != 0;
+                        break;
                     case ClientAbi.OpSprite:
                     {
                         var sprite = new SceneSprite(r.I32(), r.U16(), r.U16(), r.F32(), r.F32(), r.F32(), r.F32(), r.F32(), r.U8(), r.U8(), r.U32());
@@ -368,6 +371,8 @@ public static class ClientStream
         }
         finally
         {
+            // Свечение — до конца выхода этого мода: следующий начинает с обычных заливок.
+            scene.World.Additive = false;
             // Мод бросил узлы открытыми (сбой посреди панели): закрыть, чтобы следующий мод рисовал свои панели.
             while (tips.Count > 0)
             {

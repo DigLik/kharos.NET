@@ -179,8 +179,8 @@ internal sealed class Missiles(Fx fx, Smoke smoke)
             var tailX = x - headingX * MissileBody;
             var tailY = y - headingY * MissileBody;
             fx.Line(tailX, tailY, x, y, 5, Shell, 0.3);
-            fx.Line(tailX - headingX * 0.5, tailY - headingY * 0.5 - lift, tailX, tailY - lift, 6, Flame);
-            fx.Dot(tailX, tailY - lift, 9, Ember, 0.8);
+            fx.GlowLine(tailX - headingX * 0.5, tailY - headingY * 0.5 - lift, tailX, tailY - lift, 6, Flame);
+            fx.GlowDot(tailX, tailY - lift, 9, Ember, 0.8);
             fx.Line(tailX, tailY - lift, x, y - lift, 6, Shell);
             fx.Line(tailX, tailY - lift, x, y - lift, 4, Rocket);
             fx.Dot(x, y - lift, 3, Wreck);
@@ -204,8 +204,8 @@ internal sealed class Missiles(Fx fx, Smoke smoke)
             var tailX = x - dx;
             var tailY = y - lift - dy;
             fx.Dot(x, y, 3, Shell, 0.25);
-            fx.Line(tailX - dx * 0.4, tailY - dy * 0.4, tailX, tailY, 4, Flame);
-            fx.Dot(tailX, tailY, 6, Ember, 0.8);
+            fx.GlowLine(tailX - dx * 0.4, tailY - dy * 0.4, tailX, tailY, 4, Flame);
+            fx.GlowDot(tailX, tailY, 6, Ember, 0.8);
             fx.Line(tailX, tailY, x, y - lift, 3, Rocket);
         }
     }

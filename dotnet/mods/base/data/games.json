@@ -69,7 +69,7 @@
     ]
   },
   "frames": {
-    "about": "Для сверки кадров с TS (сцены с панелями, ViewerScenes): как test, но с подачей base — панель игрока и выбор щелчком.",
+    "about": "Для сверки кадров с TS (ViewerScenes): как test, но с подачей base, как у игры в TS (createScene без витрины) — выбор, приказы, панель игрока, первые шаги, следы.",
     "title": "Кадры",
     "size": 128,
     "fog": true,
@@ -81,13 +81,17 @@
     ],
     "client": {
       "controls": [
-        "select"
+        "select",
+        "orders"
       ],
       "ui": [
         "hud"
       ],
       "atmosphere": [
         "weather"
+      ],
+      "effects": [
+        "traces"
       ]
     }
     },

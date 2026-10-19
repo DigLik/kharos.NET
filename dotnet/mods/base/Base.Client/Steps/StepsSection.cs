@@ -33,6 +33,9 @@ internal sealed class StepsSection : Section
     private double _readAt = double.NegativeInfinity;
     private bool? _known;
 
+    /// <summary>Высота свёрнутого окна: строка заголовка 28 и рамка 8 + 10.</summary>
+    private const float Header = 46;
+
     public override void Setup(ClientBuilder client) => client.Ui("base.steps", Frame);
 
     public override void Load(BaseState state)
@@ -70,12 +73,43 @@ internal sealed class StepsSection : Section
         // Подсказка сетки — и при спрятанном окне (steps в game/hud.ts), место на карте — нет (stepOf в cursorPass.ts).
         c.Shared[CurrentKey] = current;
         c.Shared[TargetKey] = shown == "off" ? null : _target;
+        if (shown != "off" && current is not null && _target is { } target)
+            Corners(c, target);
 
         var finished = _done.All(done => done);
         _known ??= finished;
         if (shown == "off" || (finished && _known == true))
             return;
+        var ui = c.Ui;
+        var top = c.Shared.TryGetValue(TopBar.TopKey, out var value) && value is float height ? height : TopBar.HeightOf(ui.Width);
+        // Низкий экран (запись 640 × 360): поля между полосой и панелью нет, не влезает даже заголовок — окна нет, уголки
+        // цели на карте остаются. Пока заголовок влезает, окно — как в gui/hud.ts (на узком — только текущий шаг).
+        if (Header > Bar.FieldRoom(ui.Width, ui.Height, top))
+            return;
         Draw(c, shown, finished, current);
+    }
+
+    /// <summary>Цвет уголков цели (STEP), длина стороны уголка и отступ рамки от цели в тайлах, толщина — пиксель арта (cursorPass.ts).</summary>
+    private const uint CornerColor = 0xffd14d;
+    private const double Corner = 0.9, CornerMargin = 0.3, ArtPixel = 1.0 / 16;
+
+    /// <summary>
+    /// Цель текущего шага на карте — золотые уголки рамки вокруг неё (cursorPass.ts): дышат, чтобы цель находилась глазом,
+    /// но не мешала смотреть, что под ней. Слой рисунков мира — над туманом, как проход курсора.
+    /// </summary>
+    private static void Corners(ClientContext c, StepTarget target)
+    {
+        var alpha = (float)(0.75 + 0.25 * Math.Sin(c.Time * 4));
+        var (left, top) = (target.X - CornerMargin, target.Y - CornerMargin);
+        var (right, bottom) = (target.X + target.Width + CornerMargin, target.Y + target.Height + CornerMargin);
+        var thick = Math.Max(ArtPixel * 3, 3 / c.Camera.Zoom);
+        foreach (var (x, y, dx, dy) in (ReadOnlySpan<(double, double, int, int)>)[(left, top, 1, 1), (right, top, -1, 1), (left, bottom, 1, -1), (right, bottom, -1, -1)])
+        {
+            var (hx, hy) = (dx > 0 ? x : x - Corner, dy > 0 ? y : y - thick);
+            c.Draw.Rect(hx, hy, hx + Corner, hy + thick, CornerColor, null, alpha);
+            var (vx, vy) = (dx > 0 ? x : x - thick, dy > 0 ? y : y - Corner);
+            c.Draw.Rect(vx, vy, vx + thick, vy + Corner, CornerColor, null, alpha);
+        }
     }
 
     private void Draw(ClientContext c, string shown, bool finished, StepSpec? current)

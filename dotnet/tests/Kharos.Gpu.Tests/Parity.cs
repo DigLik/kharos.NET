@@ -342,6 +342,21 @@ public sealed class ParityTests
         }
     }
 
+    /// <summary>
+    /// Сцены, которым допуска не достичь, и почему (docs/dotnet-n6.md, Н6.4). Они сверяются тоже, но с потолком: доля
+    /// пикселей вне допуска и средняя |Δ| не выше нынешних с запасом — рисунок не должен уйти дальше. Остальные сцены — в
+    /// допуске <see cref="ParityLimits"/>.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, (string Reason, double OverShare, double MeanDelta)> Known = new Dictionary<string, (string, double, double)>
+    {
+        ["tracks-wrecks"] = ("бой 300 тиков на .NET идёт иначе, чем в sim-ts (расхождения боя — вне Н6, Н6.7): другие остовы, гарь и " +
+            "живые; зерно колеи в TS — Math.random страницы, в .NET — своё", 0.06, 3.0),
+        ["battle-blast"] = ("бой 100 тиков на .NET идёт иначе, чем в sim-ts (Н6.7): юниты на других местах, другие выстрелы и взрывы", 0.08, 4.5),
+        ["hud-panels"] = ("текст: TS рисует строки шрифтом Chrome (fillText со сглаживанием и порогом альфы — буквы толще пиксельного " +
+            "шрифта), .NET — атласом глифов Ark Pixel; мини-карта TS досчитывает местность по 4 мс за кадр (за один кадр — " +
+            "клочок), .NET рисует её сразу и на карте сцены меньше 1024²", 0.04, 5.0),
+    };
+
     [Fact]
     public void ScenesMatchTsFrames()
     {
@@ -357,19 +372,30 @@ public sealed class ParityTests
             using var gpu = GpuContext.TryCreateHeadless(out var reason);
             Assert.SkipWhen(gpu is null, $"нет адаптера WebGPU: {reason}");
             var failures = new List<string>();
-            var summary = new List<string> { "сцена\tдопуск\tвне допуска\tсредняя |Δ|\tпалитра земли" };
+            var summary = new List<string> { "сцена\tдопуск\tвне допуска\tсредняя |Δ|\tпалитра земли\tпочему вне допуска" };
             foreach (var scene in scenes!)
             {
                 var (ts, width, height) = Parity.LoadGolden(scene.Name);
                 var net = Parity.NetFrame!(gpu!, scene);
                 var result = Parity.Compare(scene.Name, ts, net, width, height, scene.TerrainRegions, limits);
+                var passed = result.Passed(limits);
                 TestContext.Current.SendDiagnosticMessage($"{scene.Name}: {result.Describe(limits)}");
-                summary.Add($"{scene.Name}\t{(result.Passed(limits) ? "да" : "нет")}\t{result.OverShare:P2}\t{result.MeanDelta:F2}\t{result.TerrainDistance:F3}");
-                if (!result.Passed(limits)) failures.Add($"{scene.Name}: {result.Describe(limits)}");
+                if (Known.TryGetValue(scene.Name, out var known))
+                {
+                    summary.Add($"{scene.Name}\t{(passed ? "да" : "нет")}\t{result.OverShare:P2}\t{result.MeanDelta:F2}\t{result.TerrainDistance:F3}\t{known.Reason}");
+                    TestContext.Current.SendDiagnosticMessage($"{scene.Name}: известно, почему вне допуска — {known.Reason}");
+                    // На macOS (видеокарта, не программный адаптер) потолок не сверяется: числа там другие.
+                    if (!OperatingSystem.IsMacOS() && (result.OverShare > known.OverShare || result.MeanDelta > known.MeanDelta))
+                        failures.Add($"{scene.Name}: хуже потолка ({known.OverShare:P2}, {known.MeanDelta:F2}): {result.Describe(limits)}");
+                    if (passed && !OperatingSystem.IsMacOS())
+                        failures.Add($"{scene.Name}: теперь в допуске — убрать из Known");
+                    continue;
+                }
+                summary.Add($"{scene.Name}\t{(passed ? "да" : "нет")}\t{result.OverShare:P2}\t{result.MeanDelta:F2}\t{result.TerrainDistance:F3}\t");
+                if (!passed) failures.Add($"{scene.Name}: {result.Describe(limits)}");
             }
             File.WriteAllLines(Path.Combine(Parity.CacheDirectory, "summary.tsv"), summary);
-            // Рисунок .NET догоняет TS в Д1: до него сверка идёт и пишет картинки, а расхождение — пропуск с числами.
-            Assert.SkipWhen(failures.Count > 0, "ждёт Д1:\n" + string.Join("\n", failures));
+            Assert.True(failures.Count == 0, string.Join("\n", failures));
         }
         finally
         {

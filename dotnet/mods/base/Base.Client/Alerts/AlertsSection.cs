@@ -52,6 +52,10 @@ internal sealed class AlertsSection : Section
         var ui = c.Ui;
         var top = c.Shared.TryGetValue(TopBar.TopKey, out var value) && value is float height ? height : TopBar.HeightOf(ui.Width);
         Tr t = (key, args) => c.Text(key, args);
+        // Низкий экран: последние строки, что влезают в поле (строка 20 и зазор 4, рамка 10 сверху и снизу), но хотя бы одна.
+        var fits = Math.Max(1, (int)((Bar.FieldRoom(ui.Width, ui.Height, top) - 20 + 4) / 24));
+        if (list.Count > fits)
+            list = list.Skip(list.Count - fits).ToList();
         ui.Box(new Style { Id = "alerts", Anchor = new Anchor(Left: 12, Top: top + 6), Skin = Skin.Panel, Padding = (10, 12), Direction = Direction.Column, Gap = 4 }, () =>
         {
             foreach (var alert in list)
