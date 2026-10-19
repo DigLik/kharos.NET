@@ -35,10 +35,7 @@ internal static class Strip
 
     /// <summary>Юнит в точке (x + 0.5, y + 0.5) при дробных x, y (spawnUnit сдвигает на полтайла и дробное).</summary>
     public static uint Put(Sim sim, string type, uint player, double x, double y)
-    {
-        sim.EnsurePlayer(player);
-        return sim.PutUnit(type, player, x + 0.5, y + 0.5);
-    }
+        => sim.PutUnit(type, player, x + 0.5, y + 0.5);
 
     /// <summary>Стойка своих юнитов приказом stance.</summary>
     public static void Stance(Sim sim, uint player, string stance, params uint[] units) => sim.Send(player, new StanceOrder { Units = units, Stance = stance });

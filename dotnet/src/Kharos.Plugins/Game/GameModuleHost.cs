@@ -11,7 +11,6 @@ namespace Kharos.Plugins.Game;
 /// </summary>
 public sealed class GameModuleHost : IDisposable
 {
-    private readonly WasmEpochWatchdog _watchdog;
     private bool _disposed;
 
     /// <param name="options">Пределы и журнал; null — по умолчанию.</param>
@@ -19,13 +18,9 @@ public sealed class GameModuleHost : IDisposable
     {
         Options = options ?? new GameModuleOptions();
         Options.Validate();
-        var config = new Config()
-            .WithEpochInterruption(true)
-            .WithOptimizationLevel(OptimizationLevel.Speed);
-        Engine = new Engine(config);
+        Engine = SharedWasm.EngineFor(Options.WatchdogIntervalMs);
         Linker = new Linker(Engine);
         GameImports.Define(Linker);
-        _watchdog = new WasmEpochWatchdog(Engine, Options.WatchdogIntervalMs);
     }
 
     /// <summary>Версия ABI хоста.</summary>
@@ -49,19 +44,12 @@ public sealed class GameModuleHost : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentException.ThrowIfNullOrEmpty(modId);
         ArgumentNullException.ThrowIfNull(load);
-        var module = Module.FromBytes(Engine, modId, wasm);
-        try
-        {
-            var forbidden = GameImports.Forbidden(module);
-            if (forbidden.Count > 0)
-                throw new ModImportException(modId, forbidden);
-            return new GameModule(this, modId, module, load);
-        }
-        catch
-        {
-            module.Dispose();
-            throw;
-        }
+        // Модуль общий на процесс (SharedWasm): здесь он не освобождается.
+        var module = SharedWasm.Compile(Options.WatchdogIntervalMs, modId, wasm);
+        var forbidden = GameImports.Forbidden(module);
+        if (forbidden.Count > 0)
+            throw new ModImportException(modId, forbidden);
+        return new GameModule(this, modId, module, load);
     }
 
     /// <summary>То же из файла.</summary>
@@ -76,8 +64,7 @@ public sealed class GameModuleHost : IDisposable
         if (_disposed)
             return;
         _disposed = true;
-        _watchdog.Dispose();
+        // Engine, сторож и модули общие на процесс — не трогаем.
         Linker.Dispose();
-        Engine.Dispose();
     }
 }

@@ -458,14 +458,78 @@ public sealed class IncomeTests
         Close(PowerRules.ReliefIncome + IncomeOf("command"), sim.Economy(1).Income);
     }
 
-    [Fact(DisplayName = "радар разведывает вспышками в своём радиусе; уровень растит радиус и потребление, выключенный не разведывает", Skip = "ждёт С7: радар (scan)")]
+    [Fact(DisplayName = "радар разведывает вспышками в своём радиусе; уровень растит радиус и потребление, выключенный не разведывает")]
     public void RadarScans()
     {
+        var (sim, x, y) = Start();
+        using var _sim = sim;
+        var radar = Put(sim, "radar", x + 9, y);
+        Put(sim, "generator", x + 6, y + 4);
+        var spec = Tables.Buildings["radar"];
+        Assert.Equal(60, MissileRules.ScanRadius(spec));
+        var center = (X: x + 10.0, Y: y + 1.0);
+        var spots = new List<(double X, double Y)>();
+        double last = -1;
+        for (var tick = 0; tick < 300 / Sim.Dt; tick++)
+        {
+            sim.Advance();
+            if (!sim.Has(radar, Names.Scan.Name) || sim.Num(radar, "Scan.tick") is var flashed && flashed == last)
+                continue;
+            last = flashed;
+            var spot = (X: sim.Num(radar, "Scan.x"), Y: sim.Num(radar, "Scan.y"));
+            spots.Add(spot);
+            // Обзор пересчитывается раз в несколько тиков: вспышка в нём — к следующему пересчёту.
+            sim.Seconds(0.25);
+            tick += 5;
+            Assert.True(sim.Sees(1, spot.X, spot.Y));
+        }
+        // Раз в десять секунд, все — в радиусе первого уровня, и дальше постоянного обзора радара тоже.
+        Assert.True(spots.Count > 25);
+        double Reach((double X, double Y) spot) => Sim.Distance(spot, center);
+        foreach (var spot in spots)
+            Assert.True(Reach(spot) <= MissileRules.ScanRadius(spec) + 0.1);
+        var sight = spec.Sight ?? Math.Max(spec.Width, spec.Height) / 2 + 4;
+        Assert.Contains(spots, spot => Reach(spot) > sight + MissileRules.ScanSize);
+        // Места ложатся по кругу ровно, а не кучей у радара: в среднем — две трети радиуса и дальше: неразведанное
+        // радар ищет сперва, а оно дальше. Кучей у радара вышло бы ближе.
+        Assert.True(spots.Average(Reach) > MissileRules.ScanRadius(spec) * 0.68);
+        // Вспышка погасла, а место осталось разведанным.
+        sim.Seconds(3);
+        Assert.True(sim.Explored(1, spots[0].X, spots[0].Y));
+
+        // Третий уровень — радиус вдвое, и ест радар вдвое.
+        Assert.Equal(MissileRules.ScanRadius(spec) * 2, MissileRules.ScanRadius(spec, 3));
+        var demand = sim.Economy(1).Demand;
+        sim.Set(radar, "Building.level", 3);
+        Assert.Equal(demand + 3, sim.Economy(1).Demand);
+
+        sim.Send(1, new WorkOrder { Building = radar, On = false });
+        sim.Seconds(0.1);
+        var stopped = sim.Num(radar, "Scan.tick");
+        sim.Seconds(25);
+        Assert.Equal(stopped, sim.Num(radar, "Scan.tick"));
     }
 
-    [Fact(DisplayName = "радар без энергии видит не дальше обычного здания, с энергией — снова далеко", Skip = "ждёт С7: радар (scan)")]
+    [Fact(DisplayName = "радар без энергии видит не дальше обычного здания, с энергией — снова далеко")]
     public void RadarWithoutPower()
     {
+        var (sim, x, y) = Start();
+        using var _sim = sim;
+        var radar = Put(sim, "radar", x + 9, y);
+        // В 12 тайлах от середины радара: дальше обычного здания, ближе его обзора.
+        var far = (X: x + 22.0, Y: y + 1.0);
+        sim.Seconds(2);
+        Assert.Equal(0, sim.PowerSupply().GetValueOrDefault(radar));
+        Assert.Equal(1, sim.Num(radar, "Scan.dark"));
+        Assert.False(sim.Sees(1, far.X, far.Y));
+        // Без энергии и вспышек нет.
+        sim.Seconds(25);
+        Assert.Equal(-1, sim.Num(radar, "Scan.tick"));
+
+        Put(sim, "generator", x + 6, y + 4);
+        sim.Seconds(2);
+        Assert.Equal(0, sim.Num(radar, "Scan.dark"));
+        Assert.True(sim.Sees(1, far.X, far.Y));
     }
 
     [Fact(DisplayName = "потребитель без дела просит меньше: казармы без заказа — 1 вместо 2, с заказом — все 2, после него — снова 1")]

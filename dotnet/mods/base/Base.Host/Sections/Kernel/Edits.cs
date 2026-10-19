@@ -21,6 +21,9 @@ internal static class Edits
     /// <summary>Самый большой радиус горы (MAX_PEAK_RADIUS).</summary>
     private const double MaxPeakRadius = 2.75;
 
+    /// <summary>Здания сменили хозяина (правка edit.owner): кэш сетей забывает посчитанное (ставит раздел игроков).</summary>
+    public static Action? OwnersChanged { get; set; }
+
     public static void Setup()
     {
         Commands.Handle<EditPaintOrder>(EditPaintOrder.Name, Paint);
@@ -46,10 +49,17 @@ internal static class Edits
         Commands.Handle<EditOwnerOrder>(EditOwnerOrder.Name, (call, _, edit) =>
         {
             Accounts.Ensure(call, edit.Player);
+            var buildings = false;
             foreach (var entity in Alive(call, edit.Entities))
+            {
+                buildings |= call.Has(entity, S.Building);
                 foreach (var target in (uint[])[entity, .. Factory.TurretsOf(call, entity)])
                     if (call.Has(target, S.Owner))
                         call.Set(target, S.Owner).Number(S.OwnerPlayer, edit.Player);
+            }
+            // Сети зданий — чьи они (resetZones в setOwner): смену хозяина ревизия мира не замечает.
+            if (buildings)
+                OwnersChanged?.Invoke();
             return true;
         });
         Commands.Handle<EditHealthOrder>(EditHealthOrder.Name, (call, _, edit) =>

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Балансный харнесс (перенос tools/balance.ts и tools/harness/*.ts, docs/dotnet-n5.md, Н5.6): сцены на обвязке
+    tests/Kharos.Base.Scenario, вывод того же вида, что у TS с KHAROS_HARNESS_JSON=1. Сверка с эталонами — BalanceTests.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <!-- Ловушки Wasmtime на Windows несовместимы с теневым стеком CET (см. tests/Kharos.Plugins.Tests). -->
+    <CetCompat>false</CetCompat>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\tests\Kharos.Base.Scenario\Kharos.Base.Scenario.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Host\Kharos.Host.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Content\Kharos.Content.csproj" />
+    <ProjectReference Include="..\..\mods\base\Base.Shared\Base.Shared.csproj" />
+    <PackageReference Include="MemoryPack" />
+  </ItemGroup>
+</Project>

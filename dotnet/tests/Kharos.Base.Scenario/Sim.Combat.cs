@@ -31,10 +31,7 @@ public sealed partial class Sim
             Send(group.Key, new StanceOrder { Units = [.. group], Stance = stance });
     }
 
-    /// <summary>
-    /// Заводит игроку счёт, если его нет: правка юнита для игрока без счёта сначала заводит счёт, и номер новой сущности
-    /// был бы номером счёта, а не юнита.
-    /// </summary>
+    /// <summary>Заводит игроку счёт с нулём кредитов, если его нет.</summary>
     public void EnsurePlayer(uint player)
     {
         if (player != 0 && Wallet(player) == 0)

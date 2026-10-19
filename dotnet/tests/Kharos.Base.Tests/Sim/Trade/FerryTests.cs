@@ -171,7 +171,7 @@ public sealed class FerryTests
         Assert.True(loaded.TransferOf(port).Done);
     }
 
-    [Fact(DisplayName = "/give переводит деньги союзнику сразу, а чужим и в долг — отказывает", Skip = "ждёт Н6/С9: чат хоста (/give, /ally) — в моде этой команды нет")]
+    [Fact(DisplayName = "/give переводит деньги союзнику сразу, а чужим и в долг — отказывает", Skip = "ждёт Н6: команда чата хоста /give — не приказ мода (союзы /ally — приказы ally раздела игроков)")]
     public void GiveCommandTransfersMoney()
     {
     }

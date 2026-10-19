@@ -1,3 +1,4 @@
+using Base.Shared;
 using Base.Shared.Orders;
 using Base.Shared.Signals;
 using Kharos.Engine.World;
@@ -23,20 +24,22 @@ public sealed partial class Sim
         Flush();
     }
 
-    /// <summary>Правка, создающая сущность: номер первой созданной; отказ мода (refused) или молчание — исключение.</summary>
-    private uint Spawned<T>(T payload) where T : class
+    /// <summary>
+    /// Правка, создающая сущность: номер первой созданной с компонентом kind (правка может сперва завести счёт игрока, у
+    /// которого его не было); отказ мода (refused) или молчание — исключение.
+    /// </summary>
+    private uint Spawned<T>(T payload, string kind) where T : class
     {
         var name = NameOf(typeof(T));
         var first = World.NextEntity;
         var before = Signals.Count;
         Edit(payload);
-        if (World.NextEntity == first || !World.Alive(first))
-        {
-            var reason = Signals.Skip(before).Where(signal => signal.Name == RefusedSignal.Name)
-                .Select(signal => MemoryPackSerializer.Deserialize<RefusedSignal>(signal.Payload)?.Reason).FirstOrDefault();
-            throw new InvalidOperationException($"{name}: сущность не создана" + (reason is null ? "" : $" ({reason})"));
-        }
-        return first;
+        for (var entity = first; entity < World.NextEntity; entity++)
+            if (World.Alive(entity) && Has(entity, kind))
+                return entity;
+        var reason = Signals.Skip(before).Where(signal => signal.Name == RefusedSignal.Name)
+            .Select(signal => MemoryPackSerializer.Deserialize<RefusedSignal>(signal.Payload)?.Reason).FirstOrDefault();
+        throw new InvalidOperationException($"{name}: сущность не создана" + (reason is null ? "" : $" ({reason})"));
     }
 
     private void RequireHandler(string name)
@@ -49,11 +52,11 @@ public sealed partial class Sim
 
     /// <summary>Готовый юнит игрока в точке (x, y): центр тайла — x + 0,5, как у <c>spawnUnit</c> в TS. Возвращает его номер.</summary>
     public uint PutUnit(string type, uint player, double x, double y) =>
-        Spawned(new EditUnitOrder { Type = type, X = x, Y = y, Player = player });
+        Spawned(new EditUnitOrder { Type = type, X = x, Y = y, Player = player }, Names.Unit.Name);
 
     /// <summary>Готовое здание игрока, левый верхний тайл (x, y) (<c>placeBuilding</c>). Возвращает его номер.</summary>
     public uint PutBuilding(string type, int x, int y, uint player) =>
-        Spawned(new EditBuildingOrder { Type = type, X = x, Y = y, Player = player });
+        Spawned(new EditBuildingOrder { Type = type, X = x, Y = y, Player = player }, Names.Building.Name);
 
     /// <summary>Месторождение с запасом reserve, левый верхний тайл (x, y).</summary>
     public void PutDeposit(string kind, int x, int y, double reserve) =>

@@ -42,6 +42,9 @@ internal sealed partial class Battle
     private const double Overfly = 1.5;
     private const double SplashEdge = 0.5;
     private const double SlotMargin = 0.5, SlotReach = 0.75, SlotReplan = 4;
+
+    /// <summary>Ближе стольких тайлов к точке своего места гонящийся считается на ней: доезжать незачем.</summary>
+    private const double SlotSnap = 0.05;
     private const int SlotPatience = 10;
     /// <summary>Учебный противник (TRAINING_PLAYER).</summary>
     public const uint TrainingPlayer = 9999;

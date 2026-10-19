@@ -12,9 +12,9 @@ namespace Base.Host.Sections.Energy;
 /// не в сети — доля дохода (rules.offlineIncome), и за одно отсутствие не больше потолка (rules.offlineMinutes минут
 /// обычного дохода): Player.away — сколько уже набрано. В конце тика перегруженные станции изнашиваются.
 /// <para>
-/// Кто в сети — Player.online по событиям движка player_online и player_left. Пока хост ни разу не сказал, кто в сети
-/// (сценарии, тесты), в сети все: так в TS при <c>sim.online</c> = undefined. Сказал — помнит это память мода
-/// (<see cref="Key"/>).
+/// Кто в сети — Player.online по событиям движка player_online и player_left (их ведёт раздел игроков, Players/Presence).
+/// Пока хост ни разу не сказал, кто в сети (сценарии, тесты), в сети все: так в TS при <c>sim.online</c> = undefined.
+/// Сказал — помнит это память мода (<see cref="Key"/>).
 /// </para>
 /// </summary>
 internal static class Income
@@ -114,24 +114,6 @@ internal static class Income
         }
     }
 
-    /// <summary>Говорил ли хост, кто в сети.</summary>
+    /// <summary>Говорил ли хост, кто в сети (пишет раздел игроков, Players/Presence).</summary>
     public static bool Tracked(Call call) => Memory.Of(call).Get(Key) is { Length: > 0 } bytes && bytes[0] != 0;
-
-    /// <summary>События player_online и player_left: Player.online игрока; с первого — хост следит, кто в сети.</summary>
-    public static void OnOnline(EventContext ctx) => Mark(ctx, true);
-
-    public static void OnLeft(EventContext ctx) => Mark(ctx, false);
-
-    private static void Mark(EventContext ctx, bool online)
-    {
-        if (ctx.Payload.Length < 4)
-            return;
-        var player = BinaryPrimitives.ReadUInt32LittleEndian(ctx.Payload);
-        var call = Call.Of(ctx);
-        if (!Tracked(call))
-            Memory.Of(call).Put(call, Key, [1]);
-        var account = Accounts.Ensure(call, player);
-        if (account != 0)
-            call.Set(account, S.Player).Flag(R.PlayerOnline, online);
-    }
 }

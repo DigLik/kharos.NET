@@ -44,10 +44,7 @@ internal static class Arena
 
     /// <summary>Юнит в центре тайла (spawnUnit).</summary>
     public static uint Spawn(Sim sim, string type, uint player, int x, int y)
-    {
-        sim.EnsurePlayer(player);
-        return Scene.Spawn(sim, type, player, x, y);
-    }
+        => Scene.Spawn(sim, type, player, x, y);
 
     /// <summary>
     /// Готовое здание (placeBuilding): в TS места не проверяются, правка же проверяет — под основные здания на песке

@@ -277,6 +277,18 @@ internal sealed partial class Battle
         var close = slot is { } s && Distance(at.X - s.X, at.Y - s.Y) < SlotReplan;
         if (path is not null && !close && path.Slot == slot.HasValue && Math.Abs(path.GoalX - goalX) <= 1 && Math.Abs(path.GoalY - goalY) <= 1)
             return;
+        // Уже в тайле своего места, но не на выстреле: путь в свой же тайл поиск не даёт (он пуст), и юнит, которого
+        // остановили на краю тайла (новым приказом атаки, соседом), так и стоял бы в шаге от выстрела. Доезжает до самой
+        // точки места — она в том же тайле, и искать нечего.
+        if (slot is { } spot && (int)Math.Floor(at.X) == goalX && (int)Math.Floor(at.Y) == goalY && Distance(at.X - spot.X, at.Y - spot.Y) > SlotSnap)
+        {
+            _chasing.Add(mover);
+            Moves.WritePath(_call, mover, [spot.X, spot.Y], goalX, goalY);
+            _call.Set(mover, S.Path).Flag(S.PathSlot, true);
+            _paths[mover] = new PathState { GoalX = goalX, GoalY = goalY, Wait = 0, Slot = true };
+            _armStuck[row] = 0;
+            return;
+        }
         // Остальные дождутся своей очереди: сотня поисков пути за тик — заметная запинка.
         if (_searches++ >= ChaseSearches)
             return;

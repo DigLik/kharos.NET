@@ -82,6 +82,9 @@ public sealed class CombatBench
         };
         foreach (var row in rows.Take(14))
             lines.Add($"  {row.Name}: {F(row.Ms)} мс (система {F(row.Run)})");
+        // Ракеты и игроки (волна 6) — всегда, даже если не в первых строках.
+        foreach (var row in rows.Skip(14).Where(row => row.Name.Contains("missiles/", StringComparison.Ordinal) || row.Name.Contains("players/", StringComparison.Ordinal)))
+            lines.Add($"  {row.Name}: {F(row.Ms)} мс (система {F(row.Run)})");
         TestContext.Current.SendDiagnosticMessage(string.Join("\n", lines));
         Console.WriteLine(string.Join("\n", lines));
         // Вывод теста виден не всегда: итог — ещё и в файл (KHAROS_BENCH_OUT, по умолчанию — во временной папке).

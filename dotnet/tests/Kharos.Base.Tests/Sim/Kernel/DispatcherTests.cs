@@ -26,9 +26,11 @@ public sealed class DispatcherTests
     public void OrderWithoutSectionHandlerIsRefusedWithItsPackage()
     {
         using var sim = Create(64);
-        sim.Send(1, new LaunchOrder());
+        // Все приказы книги получили обработчики разделов: ждать некому, а неизвестный приказ отвергается.
+        Assert.False(sim.HasOrder("noSuchOrder"));
+        sim.Send(1, "noSuchOrder", []);
         sim.Advance();
-        Assert.Equal(["launch: ждёт С7"], Reasons(sim));
+        Assert.Empty(Reasons(sim));
     }
 
     [Fact]

@@ -15,7 +15,8 @@ namespace Base.Host.Sections.Energy;
 /// Раздел Energy (С3). Энергия: хозяйства энергосетей и книги тика (<see cref="Books"/>), реакторы (<see cref="Reactors"/>),
 /// занятые потребители (<see cref="Busy"/>), накопители (<see cref="Batteries"/>), доход и износ станций
 /// (<see cref="Income"/>), выключатель (<see cref="Switches"/>, приказ work). Системы burnFuel, markBusy, storeEnergy,
-/// openBooks, earn, closeBooks; события player_online и player_left; запросы energy.*.
+/// openBooks, earn, closeBooks; запросы energy.*. Кто в сети (Player.online, события player_online и player_left), ведёт
+/// раздел игроков (Players/Presence).
 /// <para>
 /// Другим разделам: <see cref="Books.ShareOf"/> и <see cref="Books.Supply"/> (powerSupply — доля энергии потребителя),
 /// <see cref="Books.SwitchedOff"/>, <see cref="Books.States"/>, <see cref="Reactors.Meltdown"/> (зовёт тот, кто разрушает
@@ -34,8 +35,6 @@ internal static class EnergySection
         Order.System(mod, "earn", new Income.Earn()).Query(Names.Player.Name);
         Order.System(mod, "closeBooks", new Income.CloseBooks());
         Commands.Handle<WorkOrder>(WorkOrder.Name, (call, player, order) => Switches.SetWorking(call, player, order.Building, order.On));
-        mod.On("player_online", Income.OnOnline);
-        mod.On("player_left", Income.OnLeft);
 
         // Потребителю энергии при её нехватке — доля, вне сети и выключенному — ноль; остальным — полная скорость.
         KernelProduction.Speed = (call, entity) => (Books.Kind(call, entity)?.Spec.Power ?? 0) < 0 ? Books.ShareOf(call, entity) : 1;

@@ -29,6 +29,23 @@ internal static class Spawning
         Accounts.Ensure(call, player);
         if (!fresh || !Core.Game.Start)
             return;
+        Place(call, player);
+    }
+
+    /// <summary>
+    /// Тестовая карта (sandbox.ts) для партии с <c>sandbox</c> в games.json: ставит её раздел игроков (С9). false — места
+    /// под неё нет, и игрок начинает как обычно.
+    /// </summary>
+    public static Func<Call, uint, bool>? Sandbox { get; set; }
+
+    /// <summary>
+    /// Ставит игроку стартовое (place в host.ts): в партии-песочнице — готовую базу, иначе стартовый набор в случайном
+    /// месте и защиту новичка. Так же — начавшему заново (раздел игроков).
+    /// </summary>
+    public static void Place(Call call, uint player)
+    {
+        if (Core.Game.Sandbox && Sandbox?.Invoke(call, player) == true)
+            return;
         var (x, y) = SpawnPoint(call) ?? Fallback(player);
         StartKit(call, player, x, y);
         Accounts.Protect(call, player);

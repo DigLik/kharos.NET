@@ -3,34 +3,12 @@ using Kharos.Engine.World;
 namespace Kharos.Host.Tests;
 
 /// <summary>
-/// Союзы в сети (Д4, allies.test.ts — то, что о видимости): союз задаётся прямо в <c>Team</c> счёта, без приказов
-/// /ally (они — раздел С9). Союзнику — общий обзор и всё, что видит хозяин; третьему — нет.
+/// Союзы в сети (Д4, allies.test.ts — то, что о видимости): союз задаётся прямо в <c>Team</c> счёта, без приказов мода
+/// ally (их и остальные тесты allies.test.ts — Kharos.Base.Tests/Sim/Players/AlliesTests). Союзнику — общий обзор и всё,
+/// что видит хозяин; третьему — нет.
 /// </summary>
 public class AlliesVisibilityTests
 {
-    private const string WaitsPlayers = "ждёт С9";
-
-    [Fact(DisplayName = "союз — предложение и согласие; главой становится предложивший, и он один распоряжается союзом", Skip = WaitsPlayers)]
-    public void OfferAndAccept() { }
-
-    [Fact(DisplayName = "вступление в группу: принявший союз у главы — союзник и всем остальным, и предложения ждать больше нечего", Skip = WaitsPlayers)]
-    public void JoinGroup() { }
-
-    [Fact(DisplayName = "сохранение прежних версий с попарными союзами достраивается до групп, а главой становится младший", Skip = WaitsPlayers)]
-    public void PairsBecomeGroups() { }
-
-    [Fact(DisplayName = "союзников не атакуют — ни сами, ни по приказу, — и ворота перед ними не закрываются", Skip = WaitsPlayers)]
-    public void AlliesAreNotAttacked() { }
-
-    [Fact(DisplayName = "союзом распоряжается глава: рядовой не зовёт и не исключает, выходит сам, а уходит глава — союз распущен", Skip = WaitsPlayers)]
-    public void HeadRulesAlliance() { }
-
-    [Fact(DisplayName = "стена союзника стрельбе не мешает, а чужая — по-прежнему укрытие", Skip = WaitsPlayers)]
-    public void AlliedWallIsNoCover() { }
-
-    [Fact(DisplayName = "сигнал союзникам: метку видят сам игрок и союзник где угодно, чужой — нет; сигналами не засыпать, и они гаснут", Skip = WaitsPlayers)]
-    public void PingLimits() { }
-
     [Fact(DisplayName = "разведка у союзников общая: после /ally каждый видит базу другого со складами, чужой — по-прежнему нет")]
     public void AlliesShareScouting()
     {

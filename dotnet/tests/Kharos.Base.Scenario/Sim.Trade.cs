@@ -6,7 +6,7 @@ using Base.Shared.Signals;
 namespace Kharos.Base.Scenario;
 
 // Раздел Trade (С2d): космопорт, корабли с подарками, передача юнитов. Приказы идут «сразу», как прямые вызовы sell, buy,
-// sendFerry и handOver в тестах TS; союзы до раздела Players (С9) ставятся записью Team.head.
+// sendFerry и handOver в тестах TS; союзы — приказами ally раздела игроков (Sim.Players.cs).
 public sealed partial class Sim
 {
     /// <summary>
@@ -20,13 +20,14 @@ public sealed partial class Sim
         return !Signals.Skip(before).Any(signal => signal.Name == RefusedSignal.Name);
     }
 
-    /// <summary>Союз двух игроков (offerAlliance в обе стороны): общий Team.head; у обоих должен быть счёт (<see cref="SetCredits"/>).</summary>
+    /// <summary>
+    /// Союз двух игроков (offerAlliance в обе стороны): настоящие приказы ally раздела игроков (<see cref="Offer"/>); у обоих
+    /// должен быть счёт (<see cref="SetCredits"/>). a — одиночка или глава: он предлагает, b принимает.
+    /// </summary>
     public void Ally(uint a, uint b)
     {
-        var (wa, wb) = (Wallet(a), Wallet(b));
-        var head = Num(wa, "Team.head") is var current && current >= 0 ? current : a;
-        Set(wa, "Team.head", head);
-        Set(wb, "Team.head", head);
+        Offer(a, b);
+        Offer(b, a);
     }
 
     /// <summary>Заявка космопорта (Trade): груз — имя, остальное — как в схеме; нет заявки — null.</summary>

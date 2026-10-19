@@ -95,6 +95,12 @@ public sealed class Host : IDisposable
     /// <summary>Игрок просит начать заново: payload — u32 игрок и u8 (1 — велел администратор).</summary>
     public const string RespawnEvent = "player_respawn";
 
+    /// <summary>
+    /// Сигнал мода игроку, которого он начал заново в ответ на <see cref="RespawnEvent"/> (адресно, SignalTo): хост
+    /// закрывает ему туман и забывает его память о зданиях (restart в host.ts: vision.forget, forgetBuildings).
+    /// </summary>
+    public const string RespawnedSignal = "player_respawned";
+
     /// <summary>Система обзора в порядке тика: на неё можно ссылаться в after/before (все системы движка — EngineSystems).</summary>
     public const string VisionSystem = "engine.vision";
 
@@ -483,8 +489,19 @@ public sealed class Host : IDisposable
         var payload = new byte[5];
         BinaryPrimitives.WriteUInt32LittleEndian(payload, player);
         payload[4] = forced ? (byte)1 : (byte)0;
+        var from = Scheduler.Signals.Count;
         Scheduler.Emit(RespawnEvent, payload);
         Settle();
+        // Мод начал игрока заново (решает он: проигравшего или по велению администратора) — тот начинает как в новом мире.
+        var signals = Scheduler.Signals;
+        for (var at = from; at < signals.Count; at++)
+            if (signals[at].Name == RespawnedSignal && signals[at].To is { } to && Array.IndexOf(to, player) >= 0)
+            {
+                Vision?.Forget(player);
+                Buildings.Forget(player);
+                Vision?.Update(World, Tick);
+                break;
+            }
     }
 
     /// <summary>Помнит ли зритель сущность, ушедшую из виду (у неё компонент из <see cref="HostOptions.Remember"/>).</summary>

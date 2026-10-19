@@ -15,6 +15,8 @@
     <ProjectReference Include="..\..\src\Kharos.Mod.Sdk\Kharos.Mod.Sdk.csproj" />
     <!-- Обвязка сценариев: Sim.Create, Advance, Send, правки edit.* и сохранение (docs/dotnet-n5.md, Н5.6). -->
     <ProjectReference Include="..\Kharos.Base.Scenario\Kharos.Base.Scenario.csproj" />
+    <!-- Балансный харнесс (tools/Kharos.Balance): BalanceTests сверяют его вывод с эталонами TS из Balance/golden. -->
+    <ProjectReference Include="..\..\tools\Kharos.Balance\Kharos.Balance.csproj" />
     <!-- Общее base: данные, имена, приказы — то же, что в host.wasm и client.wasm. -->
     <ProjectReference Include="..\..\mods\base\Base.Shared\Base.Shared.csproj" />
     <!-- Звук base: движок звука (офлайн, без устройства). -->

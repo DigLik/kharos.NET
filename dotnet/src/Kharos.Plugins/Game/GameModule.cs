@@ -152,6 +152,6 @@ public sealed class GameModule : IModModule
         _disposed = true;
         while (_pool.TryDequeue(out var instance))
             instance.Dispose();
-        Module.Dispose();
+        // Module общий на процесс (SharedWasm) — не освобождается.
     }
 }

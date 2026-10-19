@@ -8,7 +8,7 @@ namespace Kharos.Base.Tests.Pipes;
 /// <summary>
 /// Тестовая карта (spawnSandbox в sandbox.ts) на стороне теста — правками: готовая база игрока у ближайшего к началу мира
 /// месторождения металла, соединённая трубами (edit.connectAll), запас в хранилищах, строители, войска и грузовики.
-/// Партия «sandbox» из games.json сама её пока не ставит (вход игрока — ядро и раздел игроков).
+/// Партия «sandbox» из games.json ставит её сама — мод при входе игрока (Players/Sandbox, Players/SandboxGameTests).
 /// </summary>
 internal static class Sandbox
 {
