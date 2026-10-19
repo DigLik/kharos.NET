@@ -15,7 +15,8 @@ namespace Kharos.Host;
 /// </list>
 /// Что из видимой уходит — <see cref="WireRules"/>: своему (хозяин, союзник, ничья сущность) — всё, кроме @net none;
 /// чужому — без @net owner и с @private по умолчанию. Слои — мира с send и свои слои игрока (союзников — у слоёв с
-/// allies). Сигналы — <see cref="IViewFilter.Hears"/>. Помнит сущности с компонентами <see cref="HostOptions.Remember"/>;
+/// allies); предметные слои мира с remember или sight (месторождения, следы) и покрытие при тумане идут не слоем мира, а
+/// версией игрока (<see cref="Host.LayersForPlayer"/>, <see cref="ItemMemory"/>): что в тумане, не уходит. Сигналы — <see cref="IViewFilter.Hears"/>. Помнит сущности с компонентами <see cref="HostOptions.Remember"/>;
 /// при входе получает призраки из <see cref="Host.Buildings"/>. Тумана у партии нет — видно всё.
 /// </summary>
 public sealed class VisionView : IViewFilter
@@ -103,8 +104,12 @@ public sealed class VisionView : IViewFilter
         return Sees(x, y);
     }
 
+    /// <summary>
+    /// Уходит ли зрителю блок слоя: слои мира с send — кроме тех, что идут ему его версией (<see cref="Host.Fogged"/>:
+    /// покрытие при тумане, предметы по обзору — <see cref="ItemMemory"/>); свои слои игрока и союзные с allies.
+    /// </summary>
     public bool Layer(LayerSpec spec, LayerOwner owner) =>
-        spec.Send && (owner.IsWorld || owner.PlayerId == Player || (spec.Allies && Friend(owner.PlayerId)));
+        spec.Send && (owner.IsWorld ? !_host.Fogged(spec.Name) : owner.PlayerId == Player || (spec.Allies && Friend(owner.PlayerId)));
 
     public bool Remembers(uint entity) => _host.Remembered(entity);
 

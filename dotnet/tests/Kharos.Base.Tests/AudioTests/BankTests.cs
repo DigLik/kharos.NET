@@ -20,7 +20,14 @@ public sealed class BankTests
         "running:clatter", "running:roll", "running:squeal", "running:screech", "ignition", "ignitionDiesel", "airBrake",
         // sounds/world
         "built", "deploy", "rollout", "brownout", "countdown", "unitReady", "researched", "upgraded", "warheadReady", "reward", "delivered", "protectionOver",
+        // sounds/world, остальное (Б-Зв): бой, щиты, ворота, корабли, деньги, чат и петли мира
+        "flame", "flak", "artillery", "bombFall", "ricochet", "wreck", "collapse", "nukeBlast", "shieldHit", "sizzle", "burn", "zap",
+        "doorsLocked", "liftoff", "shieldDown", "shieldUp", "gate", "crates", "paved", "radar", "shipLaunch", "shipLand", "depleted",
+        "powerOn", "powerOff", "cargo", "coins", "gift", "defeat", "surrender", "chat", "chatSystem",
+        "overload", "construct", "weld", "tractor", "servo", "reactor", "dome", "hydraulic", "steam", "rocket", "charge", "flow",
     ];
+
+    private static readonly HashSet<string> WorldLoopNames = ["overload", "construct", "weld", "tractor", "servo", "reactor", "dome", "hydraulic", "steam", "rocket", "charge", "flow"];
 
     [Fact]
     public void BankHasEveryPilotSound()
@@ -30,7 +37,7 @@ public sealed class BankTests
         Assert.Equal(Pilot.Order(StringComparer.Ordinal), names.Order(StringComparer.Ordinal));
         foreach (var entry in SoundBank.All)
         {
-            var loop = entry.Name.StartsWith("hum") || entry.Name is "machinery" or "drill" or "steps" || entry.Name.StartsWith("noise:") || entry.Name.StartsWith("motor:") || entry.Name.StartsWith("running:") || entry.Name == "reverb";
+            var loop = entry.Name.StartsWith("hum") || entry.Name is "machinery" or "drill" or "steps" || entry.Name.StartsWith("noise:") || entry.Name.StartsWith("motor:") || entry.Name.StartsWith("running:") || entry.Name == "reverb" || WorldLoopNames.Contains(entry.Name);
             Assert.Equal(loop ? 1 : SoundBank.Variants, entry.Variants);
         }
     }

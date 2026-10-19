@@ -38,8 +38,11 @@ public readonly record struct MapBounds(int Left, int Top, int Right, int Bottom
 /// </summary>
 public sealed class Welcome
 {
-    /// <summary>Версия протокола: разошлась — клиент предлагает обновиться.</summary>
-    public const int ProtocolVersion = 2;
+    /// <summary>
+    /// Версия протокола: разошлась — клиент предлагает обновиться. 3 — сообщения хоста (чат, отказ) идут ключом словаря
+    /// и подстановками, а не готовым текстом (Н6-5); старые клиенты не поддерживаются.
+    /// </summary>
+    public const int ProtocolVersion = 3;
 
     public int Version { get; init; } = ProtocolVersion;
     public required uint Player { get; init; }

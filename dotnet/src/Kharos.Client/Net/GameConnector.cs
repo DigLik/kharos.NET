@@ -42,6 +42,11 @@ public sealed class GameConnector
     /// <summary>Почему хост не пустил; null — пустил (или ещё не ответил).</summary>
     public string? Refused { get; private set; }
 
+    /// <summary>Язык, на котором пишется причина отказа хоста (сообщение хоста идёт ключом, Н6-5).</summary>
+    public string Lang { get; set; } = global::Kharos.I18n.Langs.Default;
+
+    private static readonly global::Kharos.I18n.Texts Texts = global::Kharos.I18n.Texts.Shell();
+
     /// <summary>Отказ из-за пароля: спросить его у игрока.</summary>
     public bool PasswordNeeded { get; private set; }
 
@@ -70,7 +75,11 @@ public sealed class GameConnector
             }
             Replica.Apply(message);
             if (message[0] == (byte)MessageType.Refused)
-                (Refused, PasswordNeeded) = Messages.ReadRefused(message);
+            {
+                var (reason, password, args) = Messages.ReadRefused(message);
+                Refused = args is null ? reason : Texts.Host(Lang, reason, args);
+                PasswordNeeded = password;
+            }
             else if (message[0] == (byte)MessageType.Welcome && !ReferenceEquals(_welcome, Replica.Welcome))
                 Welcome(Replica.Welcome!);
         }

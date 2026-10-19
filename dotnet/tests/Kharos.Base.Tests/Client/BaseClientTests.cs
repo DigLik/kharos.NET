@@ -102,8 +102,10 @@ public sealed class BaseClientTests
         var mod = Assert.Single(game.Mods);
         Assert.Equal("base", mod.Name);
         Assert.Equal(viewer.Mode, mod.Mode);
-        // Облики: 18 юнитов, 8 турелей, 48 зданий (завод с чертежом, остальные заглушками) и 6 месторождений.
-        Assert.Equal(18 + 8 + 48 + 6, game.Looks.Count);
+        // Облики видов: 18 юнитов, 8 турелей, 48 зданий и 6 месторождений; остальные — свободные облики (значки, эффекты,
+        // покрытие, Б-З) с номерами после всех видов.
+        Assert.Equal(18 + 8 + 48 + 6, game.Looks.Count(look => look.Proto < game.Content.Protos.Count));
+        Assert.Contains(game.Looks, look => look.Proto >= game.Content.Protos.Count && look.Name == "paving/road");
 
         var frame = OnScreen(viewer);
         var layers = BaseSession.Layers(frame);

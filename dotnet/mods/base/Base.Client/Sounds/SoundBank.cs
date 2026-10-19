@@ -109,6 +109,53 @@ internal static class SoundBank
         Chime("reward", [784, 988, 1175], 0.07, 0.3);
         Chime("delivered", [659, 784, 659], 0.08, 0.25);
         Chime("protectionOver", [880, 659, 523], 0.14, 0.3);
+
+        // sounds/world, остальное: бой (шина боя), щиты, ворота, корабли, деньги и мелочи мира.
+        Mono("flame", Bus.Battle, WorldSounds.Flame);
+        Mono("flak", Bus.Battle, WorldSounds.Flak);
+        Mono("artillery", Bus.Battle, WorldSounds.Artillery);
+        Mono("bombFall", Bus.Battle, WorldSounds.BombFall);
+        Mono("ricochet", Bus.Battle, WorldSounds.Ricochet);
+        Mono("wreck", Bus.Battle, WorldSounds.Wreck);
+        Mono("collapse", Bus.Battle, WorldSounds.Collapse);
+        Mono("nukeBlast", Bus.Battle, WorldSounds.NukeBlast);
+        Mono("shieldHit", Bus.Battle, WorldSounds.ShieldHit);
+        Mono("sizzle", Bus.Battle, WorldSounds.Sizzle);
+        Mono("burn", Bus.Battle, WorldSounds.Burn);
+        Mono("zap", Bus.Battle, WorldSounds.Zap);
+        Mono("doorsLocked", Bus.World, WorldSounds.DoorsLocked);
+        Mono("liftoff", Bus.World, WorldSounds.Liftoff);
+        Mono("shieldDown", Bus.World, WorldSounds.ShieldDown);
+        Mono("shieldUp", Bus.World, WorldSounds.ShieldUp);
+        Mono("gate", Bus.World, WorldSounds.Gate);
+        Mono("crates", Bus.World, WorldSounds.Crates);
+        Mono("paved", Bus.World, WorldSounds.Paved);
+        Mono("radar", Bus.World, WorldSounds.Radar);
+        Mono("shipLaunch", Bus.World, WorldSounds.ShipLaunch);
+        Mono("shipLand", Bus.World, WorldSounds.ShipLand);
+        Mono("depleted", Bus.World, WorldSounds.Depleted);
+        Mono("powerOn", Bus.World, (rate, variant) => WorldSounds.Power(rate, variant, true));
+        Mono("powerOff", Bus.World, (rate, variant) => WorldSounds.Power(rate, variant, false));
+        Mono("cargo", Bus.World, WorldSounds.Cargo);
+        Mono("coins", Bus.Interface, WorldSounds.Coins);
+        Mono("gift", Bus.Interface, WorldSounds.Gift);
+        Mono("defeat", Bus.Interface, WorldSounds.Defeat);
+        Mono("surrender", Bus.Interface, WorldSounds.Surrender);
+        Mono("chat", Bus.Interface, (rate, variant) => WorldSounds.ChatBell(rate, variant, 1175));
+        Mono("chatSystem", Bus.Interface, (rate, variant) => WorldSounds.ChatBell(rate, variant, 784));
+        // Петли мира (WORLD_LOOPS): громкость каждой задаёт тот, кто её играет.
+        Looped("overload", WorldLoops.Overload);
+        Looped("construct", WorldLoops.Construct);
+        Looped("weld", WorldLoops.Weld);
+        Looped("tractor", WorldLoops.Tractor);
+        Looped("servo", WorldLoops.Servo);
+        Looped("reactor", WorldLoops.Reactor);
+        Looped("dome", WorldLoops.Dome);
+        Looped("hydraulic", WorldLoops.Hydraulic);
+        Looped("steam", WorldLoops.Steam);
+        Looped("rocket", WorldLoops.Rocket);
+        Looped("charge", WorldLoops.Charge);
+        Looped("flow", WorldLoops.Flow);
         return list;
     }
 }

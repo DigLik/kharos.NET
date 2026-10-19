@@ -214,13 +214,18 @@ public sealed class HostSession
         Leave(connection);
     }
 
-    /// <summary>Выгоняет игрока: отказ с причиной всем его подключениям, затем они закрываются.</summary>
-    public int Kick(uint player, string reason)
+    /// <summary>Выгоняет игрока: отказ с причиной (готовый текст) всем его подключениям, затем они закрываются.</summary>
+    public int Kick(uint player, string reason) => Kick(player, null, reason);
+
+    /// <summary>Выгоняет игрока: отказ с причиной-ключом раздела host (клиент напишет её на своём языке).</summary>
+    public int Kick(uint player, HostText reason) => Kick(player, reason, null);
+
+    private int Kick(uint player, HostText? key, string? text)
     {
         var count = 0;
         foreach (var connection in _connections.Where(c => c.Player == player).ToList())
         {
-            Send(connection, Protocol.Messages.Refused(reason));
+            Send(connection, key is null ? Protocol.Messages.Refused(text!) : Protocol.Messages.Refused(key));
             Disconnect(connection);
             count++;
         }
@@ -340,14 +345,27 @@ public sealed class HostSession
     /// <summary>Пишет всем в чат от имени хоста (/say, консоль, моды).</summary>
     public void Say(string text) => Chat([new ChatLine(0, Options.ServerName, text, ChatKind.System)]);
 
+    /// <summary>Пишет всем сообщение хоста ключом: каждый читает его на своём языке.</summary>
+    public void Say(HostText text) => Chat([KeyLine(0, Options.ServerName, text)]);
+
     /// <summary>Сообщение хоста только игроку (всем его подключениям).</summary>
-    public void Tell(uint player, string text)
+    public void Tell(uint player, string text) => Tell(player, new ChatLine(0, "", text, ChatKind.System));
+
+    /// <summary>Сообщение хоста ключом только игроку: он прочтёт его на своём языке.</summary>
+    public void Tell(uint player, HostText text) => Tell(player, KeyLine(0, "", text));
+
+    /// <summary>Весть всем о игроке ключом (поражение, ядерный пуск…): «ник текст» на языке каждого.</summary>
+    public void Announce(uint player, HostText text) => Chat([KeyLine(player, Host.Roster.NameOf(player), text)]);
+
+    private void Tell(uint player, ChatLine line)
     {
-        var message = Protocol.Messages.Chat([new ChatLine(0, "", text, ChatKind.System)]);
+        var message = Protocol.Messages.Chat([line]);
         foreach (var connection in _connections)
             if (connection.Player == player)
                 Send(connection, message);
     }
+
+    private static ChatLine KeyLine(uint player, string name, HostText text) => new(player, name, text.Key, ChatKind.System, null, text.Args);
 
     /// <summary>Выполняет команду (с «/» или без) от имени caller.</summary>
     public void Command(string text, Caller caller)
@@ -366,7 +384,7 @@ public sealed class HostSession
                 Host.Send(caller.Player ?? 0, order, [caller.Admin ? (byte)1 : (byte)0, .. rest], rights);
                 return;
             }
-            caller.Reply($"Нет команды /{parsed.Name}. Список — /help");
+            caller.Reply("noCommand", ("name", parsed.Name));
             return;
         }
         command.Run(new CommandCall(parsed.Name, parsed.Args, parsed.Rest, caller));
@@ -413,7 +431,7 @@ public sealed class HostSession
         Send(connection, snapshot);
         SendCommands(connection);
         if (online && !Options.Local && !_hidden.Contains(player))
-            Notice(player, "входит в игру");
+            Notice(player, "joins");
         AnnouncePlayers();
         return connection;
     }
@@ -427,7 +445,7 @@ public sealed class HostSession
             return;
         Host.Offline(player);
         if (!Options.Local && !_hidden.Contains(player))
-            Notice(player, "выходит из игры");
+            Notice(player, "leaves");
         AnnouncePlayers();
     }
 
@@ -456,7 +474,7 @@ public sealed class HostSession
         if (connection.Strikes!.Take(now))
             return false;
         Options.Log?.Invoke($"! {Host.Roster.NameOf(connection.Player)} отключён: слишком много сообщений");
-        Send(connection, Protocol.Messages.Refused("Слишком много сообщений"));
+        Send(connection, Protocol.Messages.Refused(HostText.Of("flood")));
         Disconnect(connection);
         return false;
     }
@@ -510,7 +528,7 @@ public sealed class HostSession
         // Команда никому не уходит: пароль администратора не должен попасть в чат.
         if (clean.StartsWith('/'))
         {
-            Command(clean, new Caller(connection.Player, connection.Admin, reply => Send(connection, Protocol.Messages.Chat([new ChatLine(0, "", reply, ChatKind.System)])), connection));
+            Command(clean, new Caller(connection.Player, connection.Admin, (HostText reply) => Send(connection, Protocol.Messages.Chat([KeyLine(0, "", reply)])), connection));
             return;
         }
         Chat([new ChatLine(connection.Player, Host.Roster.NameOf(connection.Player), clean)]);
@@ -525,8 +543,8 @@ public sealed class HostSession
             Send(connection, message);
     }
 
-    /// <summary>Весть всем о игроке: «ник текст».</summary>
-    private void Notice(uint player, string text) => Chat([new ChatLine(player, Host.Roster.NameOf(player), text, ChatKind.System)]);
+    /// <summary>Весть всем о игроке: «ник текст», текст — ключ раздела host (joins, leaves, kicked…).</summary>
+    private void Notice(uint player, string key) => Announce(player, HostText.Of(key));
 
     /// <summary>Кто играет — каждому своими глазами: скрытых он не видит, кроме себя.</summary>
     private void AnnouncePlayers()
@@ -590,7 +608,7 @@ public sealed class HostSession
         {
             var who = index < call.Args.Count ? Host.Roster.FindPlayer(string.Join(' ', call.Args.Skip(index))) : call.Caller.Player;
             if (who is null)
-                call.Caller.Reply(index < call.Args.Count ? $"Нет игрока {string.Join(' ', call.Args.Skip(index))}" : "Нужно имя игрока");
+                call.Caller.Reply(index < call.Args.Count ? "noPlayer" : "needPlayer", ("name", string.Join(' ', call.Args.Skip(index))));
             return who;
         }
 
@@ -605,7 +623,7 @@ public sealed class HostSession
                         continue;
                     if (call.Caller.Player is null ? command.Game : command.Console)
                         continue;
-                    call.Caller.Reply($"{command.Usage} — {command.Help}");
+                    call.Caller.Reply("help", ("command", command.Usage), ("name", command.Name), ("help", command.Help));
                 }
             },
         });
@@ -616,10 +634,13 @@ public sealed class HostSession
             {
                 var present = _connections.Select(c => c.Player).Distinct().ToList();
                 var here = present.Where(p => !_hidden.Contains(p)).Select(Name).ToList();
-                call.Caller.Reply(here.Count > 0 ? $"В игре {here.Count}: {string.Join(", ", here)}" : "В игре никого");
+                if (here.Count > 0)
+                    call.Caller.Reply("list", ("count", here.Count), ("names", string.Join(", ", here)));
+                else
+                    call.Caller.Reply("listEmpty");
                 var unseen = present.Where(_hidden.Contains).Select(Name).ToList();
                 if (call.Caller.Admin && unseen.Count > 0)
-                    call.Caller.Reply($"Скрыты: {string.Join(", ", unseen)}");
+                    call.Caller.Reply("listHidden", ("names", string.Join(", ", unseen)));
             },
         });
         Add(new HostCommand
@@ -640,13 +661,13 @@ public sealed class HostSession
                 var to = Host.Roster.FindPlayer(call.Arg(0));
                 if (to is null || (_hidden.Contains(to.Value) && !call.Caller.Admin))
                 {
-                    call.Caller.Reply($"Нет игрока {call.Arg(0)}");
+                    call.Caller.Reply("noPlayer", ("name", call.Arg(0)));
                     return;
                 }
                 var text = call.Rest(1);
                 if (text.Length == 0)
                 {
-                    call.Caller.Reply($"Как: {call.Name} {ChatCommands.PlayerArg} <text>");
+                    call.Caller.Reply("usage", ("command", $"/{call.Name} {ChatCommands.PlayerArg} <text>"));
                     return;
                 }
                 var message = Protocol.Messages.Chat([new ChatLine(from, Name(from), text, ChatKind.Whisper, Name(to.Value))]);
@@ -654,7 +675,7 @@ public sealed class HostSession
                     if (connection.Player == to || connection.Player == from)
                         Send(connection, message);
                 if (!Online(to.Value))
-                    call.Caller.Reply($"{Name(to.Value)} не в сети");
+                    call.Caller.Reply("notOnline", ("name", Name(to.Value)));
             },
         });
         Add(new HostCommand
@@ -666,31 +687,31 @@ public sealed class HostSession
                 var local = Options.Local;
                 if (!local && string.IsNullOrEmpty(Options.AdminPassword))
                 {
-                    call.Caller.Reply("Режима администратора на этом сервере нет");
+                    call.Caller.Reply("noAdminMode");
                     return;
                 }
                 if (connection.Admin)
                 {
-                    call.Caller.Reply("Вы уже администратор");
+                    call.Caller.Reply("alreadyAdmin");
                     return;
                 }
                 var now = _clock.Elapsed.TotalSeconds;
                 if (now < connection.AdminLocked)
                 {
-                    call.Caller.Reply("Подождите");
+                    call.Caller.Reply("wait");
                     return;
                 }
                 if (!local && !Same(string.Join(' ', call.Args), Options.AdminPassword!))
                 {
                     connection.AdminLocked = now + 3;
                     Options.Log?.Invoke($"! неверный пароль администратора от {Name(connection.Player)}");
-                    call.Caller.Reply("Неверный пароль");
+                    call.Caller.Reply("wrongPassword");
                     return;
                 }
                 connection.Admin = true;
                 SendCommands(connection);
                 Options.Log?.Invoke($"! {Name(connection.Player)} — администратор");
-                call.Caller.Reply("Режим администратора включён");
+                call.Caller.Reply("adminOn");
             },
         });
         Add(new HostCommand
@@ -702,7 +723,7 @@ public sealed class HostSession
                 connection.Admin = false;
                 connection.Editor = false;
                 SendCommands(connection);
-                call.Caller.Reply("Режим администратора выключен");
+                call.Caller.Reply("adminOff");
             },
         });
         Add(new HostCommand
@@ -713,7 +734,7 @@ public sealed class HostSession
                 var connection = call.Caller.Connection!;
                 connection.Editor = !connection.Editor;
                 Options.Log?.Invoke($"! {Name(connection.Player)} {(connection.Editor ? "открыл" : "закрыл")} редактор");
-                call.Caller.Reply(connection.Editor ? "Редактор открыт" : "Редактор закрыт");
+                call.Caller.Reply(connection.Editor ? "editorOn" : "editorOff");
             },
         });
         Add(new HostCommand
@@ -724,14 +745,14 @@ public sealed class HostSession
                 var who = call.Caller.Player!.Value;
                 if (_hidden.Remove(who))
                 {
-                    Notice(who, "входит в игру");
-                    call.Caller.Reply("Вас снова видно");
+                    Notice(who, "joins");
+                    call.Caller.Reply("shown");
                 }
                 else
                 {
-                    Notice(who, "выходит из игры");
+                    Notice(who, "leaves");
                     _hidden.Add(who);
-                    call.Caller.Reply("Вы скрыты");
+                    call.Caller.Reply("hidden");
                 }
                 AnnouncePlayers();
             },
@@ -744,7 +765,7 @@ public sealed class HostSession
                 var text = PlayerRoster.CleanChat(call.Rest(0));
                 if (text.Length == 0)
                 {
-                    call.Caller.Reply("Как: /say <text>");
+                    call.Caller.Reply("usage", ("command", "/say <text>"));
                     return;
                 }
                 Say(text);
@@ -758,15 +779,15 @@ public sealed class HostSession
             {
                 if (Host.Roster.FindPlayer(string.Join(' ', call.Args)) is not { } who)
                 {
-                    call.Caller.Reply($"Нет игрока {string.Join(' ', call.Args)}");
+                    call.Caller.Reply("noPlayer", ("name", string.Join(' ', call.Args)));
                     return;
                 }
-                if (Kick(who, "Вас отключили") == 0)
+                if (Kick(who, HostText.Of("kickedYou")) == 0)
                 {
-                    call.Caller.Reply($"{Name(who)} не в сети");
+                    call.Caller.Reply("notOnline", ("name", Name(who)));
                     return;
                 }
-                Notice(who, "отключён");
+                Notice(who, "kicked");
                 Options.Log?.Invoke($"! {Name(who)} отключён");
             },
         });
@@ -782,7 +803,7 @@ public sealed class HostSession
                     if (column[row] >= 1)
                         counts[(uint)column[row]] = counts.GetValueOrDefault((uint)column[row]) + 1;
                 foreach (var record in Host.Roster.All)
-                    call.Caller.Reply($"#{record.Id} {record.Name}: {(Online(record.Id) ? "в сети" : "не в сети")}, сущностей {counts.GetValueOrDefault(record.Id)}");
+                    call.Caller.Reply(Online(record.Id) ? "playerOnlineEntities" : "playerOfflineEntities", ("number", record.Id), ("name", record.Name), ("count", counts.GetValueOrDefault(record.Id)));
             },
         });
         Add(new HostCommand
@@ -793,7 +814,7 @@ public sealed class HostSession
                 if (Target(call, 0) is not { } who)
                     return;
                 Host.Respawn(who, forced: true);
-                call.Caller.Reply($"{Name(who)} начинает заново");
+                call.Caller.Reply("restarted", ("name", Name(who)));
                 Options.Log?.Invoke($"! reset {Name(who)}");
             },
         });
@@ -806,11 +827,11 @@ public sealed class HostSession
                     return;
                 if (Host.Vision is not { } vision)
                 {
-                    call.Caller.Reply("Тумана нет");
+                    call.Caller.Reply("noFog");
                     return;
                 }
                 vision.Reveal(who);
-                call.Caller.Reply($"{Name(who)}: карта открыта");
+                call.Caller.Reply("revealed", ("name", Name(who)));
             },
         });
     }

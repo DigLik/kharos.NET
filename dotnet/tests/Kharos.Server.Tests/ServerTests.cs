@@ -369,7 +369,7 @@ public class ServerTests
         await client.WaitAsync(() => client.Replica.Ready, "вошёл");
 
         Assert.Contains(await server.CommandAsync("list"), line => line.Contains("Альфа"));
-        Assert.Contains(await server.CommandAsync("players"), line => line.StartsWith("#1 Альфа: в сети"));
+        Assert.Contains(await server.CommandAsync("players"), line => line.StartsWith("#1 Альфа — в сети"));
         Assert.Contains(await server.CommandAsync("status"), line => line.Contains("клиентов 1"));
         Assert.Contains(await server.CommandAsync("help"), line => line.Contains("save"));
         Assert.Contains(await server.CommandAsync("/save"), line => line.StartsWith("мир сохранён"));
@@ -381,7 +381,7 @@ public class ServerTests
         Assert.Empty(await server.CommandAsync("kick Альфа"));
         var (status, _) = await client.ClosedAsync();
         Assert.Equal(WebSocketCloseStatus.NormalClosure, status);
-        Assert.Contains("Вас отключили", client.Refusals());
+        Assert.Contains("Вас отключил администратор", client.Refusals());
         Assert.Contains("Нет команды /fly", Assert.Single(await server.CommandAsync("fly")));
     }
 

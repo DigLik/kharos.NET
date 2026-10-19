@@ -82,13 +82,97 @@ public sealed class DepositLayerTests
         Assert.Single(loaded.Layers.Cells(layer, LayerOwner.World));
     }
 
-    [Fact(DisplayName = "месторождения в тумане клиенту не шлются", Skip = "ждёт видимости слоёв предметов в сети (Д4): слои предметов мира пока уходят всем")]
-    public void DepositsInFogAreNotSentToClient()
+    /// <summary>Месторождения у клиента: все предметы слоя deposits по порядку ячеек.</summary>
+    private static List<LayerItem> Items(Peer peer)
     {
+        var layers = peer.Replica.Layers!;
+        var id = layers.Id("deposits");
+        return [.. layers.Cells(id, LayerOwner.World).SelectMany(cell => layers.Items(id, LayerOwner.World, cell))];
     }
 
-    [Fact(DisplayName = "клиенту шлются ушедшие месторождения, которые игрок помнит, и не шлются новые, которых он не видел", Skip = "ждёт видимости слоёв предметов в сети (Д4) и памяти предметных слоёв игрока в движке (призраки и находки месторождений: мод их не ведёт, С2а)")]
+    /// <summary>Тики сессии: хост идёт, подключения получают рассылку.</summary>
+    private static void Steps(int count, HostSession session, params Peer[] peers)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            session.Step();
+            foreach (var peer in peers)
+                peer.Pump();
+        }
+    }
+
+    [Fact(DisplayName = "месторождения в тумане клиенту не шлются")]
+    public void DepositsInFogAreNotSentToClient()
+    {
+        using var host = LayerLab.Create(ModMode.Clr);
+        host.Start();
+        host.Send(1, "hello.item", LayerLab.Item("deposits", 60, 60, [1, 300]));
+        host.Send(1, "hello.item", LayerLab.Item("deposits", -80, 30, [2, 120]));
+        host.Step();
+        var session = new HostSession(host, new HostSessionOptions { SendRate = 0 });
+        var peer = new Peer(session, 1);
+        Steps(2 * Vision.Ticks, session, peer);
+        var deposits = host.Layers.Id("deposits");
+        Assert.Equal(2, host.Layers.Cells(deposits, LayerOwner.World).Sum(cell => host.Layers.Items(deposits, LayerOwner.World, cell).Count));
+        Assert.Equal(0, peer.Count());
+
+        // Месторождение у дома игрока — на виду: оно приходит, а те, что в тумане, — нет.
+        host.Send(1, "hello.item", LayerLab.Item("deposits", 1, 5, [3, 50]));
+        Steps(2 * Vision.Ticks, session, peer);
+        Assert.Equal([new LayerItem(1, 5, [3, 50])], Items(peer));
+        Assert.Empty(host.Errors);
+    }
+
+    [Fact(DisplayName = "клиенту шлются ушедшие месторождения, которые игрок помнит, и не шлются новые, которых он не видел")]
     public void GhostDepositsAreSentAndUnseenNewOnesAreNot()
     {
+        using var host = LayerLab.Create(ModMode.Clr);
+        host.Start();
+        var session = new HostSession(host, new HostSessionOptions { SendRate = 0 });
+        var one = new Peer(session, 1);
+        var two = new Peer(session, 2);
+        host.Send(1, "hello.item", LayerLab.Item("deposits", 60, 60, [1, 300]));
+        Steps(2 * Vision.Ticks, session, one, two);
+        Assert.Equal(0, one.Count());
+
+        // Игрок 1 приходит к месторождению — узнаёт его.
+        host.Send(1, "hello.spawn", HelloGame.Spawn(2, 61, 61, spread: 0));
+        Steps(2 * Vision.Ticks, session, one, two);
+        Assert.Equal([new LayerItem(60, 60, [1, 300])], Items(one));
+        var scouts = HelloGame.Units(host.World, 1).Where(unit => HelloGame.Position(host.World, unit).X > 30).ToList();
+        Assert.Equal(2, scouts.Count);
+
+        // Ушёл. В тумане запас месторождения меняется — клиенту уходит прежний, каким игрок его видел.
+        LayerLab.Teleport(host, scouts, -60, -60);
+        Steps(2 * Vision.Ticks, session, one, two);
+        host.Send(1, "hello.item", LayerLab.Item("deposits", 60, 60, [], delete: true));
+        host.Send(1, "hello.item", LayerLab.Item("deposits", 60, 60, [1, 250]));
+        Steps(2 * Vision.Ticks, session, one, two);
+        Assert.Equal([new LayerItem(60, 60, [1, 300])], Items(one));
+        // Месторождение выработано и убрано, рядом — новое, которого никто не видел.
+        host.Send(1, "hello.item", LayerLab.Item("deposits", 60, 60, [], delete: true));
+        host.Send(1, "hello.item", LayerLab.Item("deposits", 66, 60, [2, 500]));
+        host.Send(1, "hello.item", LayerLab.Item("deposits", -100, 100, [3, 40]));
+        Steps(2 * Vision.Ticks, session, one, two);
+        Assert.Equal([new LayerItem(60, 60, [1, 300])], Items(one));
+        Assert.Equal(0, two.Count());
+        Assert.Equal([new LayerItem(60, 60, [1, 300])], host.ItemMemory!.Items("deposits", 1));
+
+        // Новая вкладка того же игрока получает то же, что он помнит; память переживает сохранение.
+        var tab = new Peer(session, 1);
+        Assert.Equal(Items(one), Items(tab));
+        using (var loaded = Host.Load(LayerLab.Content(), host.Save(), LayerLab.Options(ModMode.Clr)))
+        {
+            Assert.Equal(host.ItemMemory.Items("deposits", 1), loaded.ItemMemory!.Items("deposits", 1));
+            Assert.Empty(loaded.ItemMemory.Items("deposits", 2));
+        }
+
+        // Вернулся — увидел, что старого нет, и нашёл новое; игрок 2 так ничего и не знает.
+        LayerLab.Teleport(host, scouts, 63, 61);
+        Steps(2 * Vision.Ticks, session, one, two, tab);
+        Assert.Equal([new LayerItem(66, 60, [2, 500])], Items(one));
+        Assert.Equal(Items(one), Items(tab));
+        Assert.Equal(0, two.Count());
+        Assert.Empty(host.Errors);
     }
 }

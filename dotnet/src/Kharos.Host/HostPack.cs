@@ -25,7 +25,7 @@ public sealed class HostPack
     public static HostPack Of(ModPackage package)
     {
         var pack = new ContentPack(package.Name, package.Version, Encoding.UTF8.GetBytes(package.Manifest.GetRawText()),
-            [.. package.Data.Select(pair => (pair.Key, pair.Value))], package.ClientWasm);
+            [.. package.PackedFiles.Select(pair => (pair.Key, pair.Value))], package.ClientWasm);
         var bytes = pack.Encode();
         var packed = ContentPack.Deflate(bytes);
         return new HostPack(new ModRef(package.Name, package.Version, ContentPack.Hash(bytes), packed.Length), packed);

@@ -3,7 +3,7 @@ using Kharos.Gpu;
 namespace Kharos.Client.Ui;
 
 /// <summary>Чем узел является сам: коробка с детьми, строка текста, картинка или пустое место.</summary>
-public enum LeafKind : byte { Box, Text, Image, Space }
+public enum LeafKind : byte { Box, Text, Image, Space, Caret }
 
 /// <summary>Узел дерева кадра: стиль, лист и дети; после раскладки — желаемый размер и место. Узлы берутся из пула.</summary>
 public sealed class Node
@@ -23,6 +23,10 @@ public sealed class Node
     internal float Content;
     /// <summary>Ряд с переносом: номера детей по строкам; null — без переноса.</summary>
     internal List<List<int>>? WrapLines;
+    /// <summary>Полоса прокрутки: русло, бегунок и состояние (0 — покой, 1 — наведена, 2 — тянут); после <see cref="Gui.Finish()"/>.</summary>
+    internal bool HasBar;
+    internal Rect BarTrack, BarThumb;
+    internal byte BarState;
 
     internal void Reset(in Style style, LeafKind kind)
     {
@@ -37,6 +41,7 @@ public sealed class Node
         Rect = default;
         Content = 0;
         WrapLines = null;
+        HasBar = false;
     }
 }
 
@@ -82,6 +87,9 @@ internal static class Layout
                 break;
             case LeafKind.Space:
                 (width, height) = (0, 0);
+                break;
+            case LeafKind.Caret:
+                (width, height) = (1, Fonts.Line(FontName.Body));
                 break;
             default:
                 if (style.Direction == Direction.Stack)
@@ -187,7 +195,7 @@ internal static class Layout
     }
 
     /// <summary>Ставит узел в rect (с округлением до пикселя) и его детей на места.</summary>
-    public static void Place(Node node, Rect rect, Dictionary<string, float> scrolls)
+    public static void Place(Node node, Rect rect, Dictionary<string, float> scrolls, Dictionary<string, float>? rooms = null)
     {
         node.Rect = new Rect(Gui.Round(rect.X), Gui.Round(rect.Y), Gui.Round(rect.W), Gui.Round(rect.H));
         var children = node.Children;
@@ -199,8 +207,12 @@ internal static class Layout
         if (style.Scroll && style.Id is { } id)
         {
             var room = MathF.Max(node.Content - node.Rect.H, 0);
-            var offset = Math.Clamp(scrolls.GetValueOrDefault(id), 0, room);
+            var wanted = scrolls.TryGetValue(id, out var kept) ? kept : style.ScrollEnd ? room : 0;
+            // Держится низа: если в прошлом кадре бегунок был внизу, а содержимое выросло, ездит за ним.
+            if (style.ScrollEnd && rooms is not null && rooms.TryGetValue(id, out var before) && wanted >= before - 1) wanted = room;
+            var offset = Math.Clamp(wanted, 0, room);
             scrolls[id] = offset;
+            if (rooms is not null) rooms[id] = room;
             inner = inner with { Y = inner.Y - offset, H = node.Content - pad.Top - pad.Bottom };
         }
         if (style.Direction == Direction.Stack)
@@ -216,7 +228,7 @@ internal static class Layout
                 var (horizontal, vertical) = child.Style.Self ?? (Align.Start, Align.Start);
                 var w = child.Style.Grow > 0 ? inner.W : child.Want.W;
                 var h = child.Style.Grow > 0 ? inner.H : child.Want.H;
-                Place(child, new Rect(inner.X + At(horizontal, inner.W, w), inner.Y + At(vertical, inner.H, h), w, h), scrolls);
+                Place(child, new Rect(inner.X + At(horizontal, inner.W, w), inner.Y + At(vertical, inner.H, h), w, h), scrolls, rooms);
             }
             return;
         }
@@ -240,7 +252,7 @@ internal static class Layout
                         _ => 0,
                     };
                     var h = style.Align == Align.Stretch ? height : child.Want.H;
-                    Place(child, new Rect(x, y + cross, w, h), scrolls);
+                    Place(child, new Rect(x, y + cross, w, h), scrolls, rooms);
                     x += w + gap;
                 }
                 y += height + gap;
@@ -281,7 +293,7 @@ internal static class Layout
                 _ => 0,
             };
             var cross = (row ? inner.Y : inner.X) + crossOffset;
-            Place(child, row ? new Rect(along, cross, size, crossWant) : new Rect(cross, along, crossWant, size), scrolls);
+            Place(child, row ? new Rect(along, cross, size, crossWant) : new Rect(cross, along, crossWant, size), scrolls, rooms);
             along += size + spacing;
         }
     }
@@ -355,6 +367,9 @@ internal static class Layout
                 }
                 break;
             }
+            case LeafKind.Caret:
+                batch.QuadClipped(x0, y0 + 2, x0 + 1, y1 - 2, White, Color.Hex(0xeef6ff).Faded(alpha).Rgba, Paint.Font, clip);
+                break;
             case LeafKind.Image:
             {
                 var white = Color.White.Faded(alpha).Rgba;
@@ -382,5 +397,15 @@ internal static class Layout
             inner = new Clip(own.X, own.Y, own.W, own.H);
         }
         foreach (var child in node.Children) Draw(fonts, batch, child, inner, alpha);
+        if (node.HasBar) PaintBar(batch, node, inner, alpha);
+    }
+
+    /// <summary>Русло и бегунок полосы прокрутки.</summary>
+    private static void PaintBar(Batch batch, Node node, Clip? clip, float alpha)
+    {
+        var (track, thumb) = (node.BarTrack, node.BarThumb);
+        batch.QuadClipped(track.X, track.Y, track.X + track.W, track.Y + track.H, White, Gui.BarTrackColor.Faded(alpha).Rgba, Paint.Font, clip);
+        var color = node.BarState switch { 2 => Gui.BarThumbActive, 1 => Gui.BarThumbHover, _ => Gui.BarThumbColor };
+        batch.QuadClipped(thumb.X, thumb.Y, thumb.X + thumb.W, thumb.Y + thumb.H, White, color.Faded(alpha).Rgba, Paint.Font, clip);
     }
 }

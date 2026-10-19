@@ -7,12 +7,12 @@ namespace Base.Client.Sounds;
 /// Звуки зданий и мира — перенос mods/base/sounds/world.luau (worldSynth.ts): стройка, разворачивание, выезд из
 /// завода, перегруз сети, отсчёт и уведомления.
 /// </summary>
-internal static class WorldSounds
+internal static partial class WorldSounds
 {
     private const double PI2 = 2 * PI;
 
     /// <summary>Металл: звонкие неровные обертоны от основы basis, гаснут за time; возвращает сэмпл от времени удара.</summary>
-    private static Func<double, double> Metal(double basis, double time, double seed)
+    internal static Func<double, double> Metal(double basis, double time, double seed)
     {
         var next = Random(seed);
         var ratios = new[] { 1, 2.32 + next() * 0.2, 3.89 + next() * 0.3, 5.61 + next() * 0.4, 7.13 + next() * 0.5 };
@@ -26,7 +26,7 @@ internal static class WorldSounds
     }
 
     /// <summary>Лязг: удар металла о металл в момент at секунд, громкостью level.</summary>
-    private static Func<double, double, double> ClangAt(double rate, double at, double basis, double level, double seed)
+    internal static Func<double, double, double> ClangAt(double rate, double at, double basis, double level, double seed)
     {
         var ring = Metal(basis, 0.25, seed);
         var thud = Lowpass(rate, 220.0);

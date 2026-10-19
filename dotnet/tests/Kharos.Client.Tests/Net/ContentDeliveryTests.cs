@@ -103,11 +103,11 @@ public sealed class ContentDeliveryTests
         Assert.True(connector.PasswordNeeded);
 
         (host, client) = MemoryTransport.Pair();
-        host.Send(Messages.Refused("Вас отключили"));
+        host.Send(Messages.Refused(HostText.Of("kickedYou")));
         host.Dispose();
         Assert.SkipUnless(HelloSession.Built, HelloSession.NotBuilt);
         var content = GameContent.Load([ModPackage.Read(HelloSession.ModDir)]);
         error = Assert.Throws<ClientException>(() => new ClientGame(content, client));
-        Assert.Contains("Вас отключили", error.Message);
+        Assert.Contains("Вас отключил администратор", error.Message);
     }
 }

@@ -7,7 +7,9 @@
 //
 // Клиентский мод (client.wasm, ModLoadInfo.Side = "client") экспортирует kh_abi_version, kh_alloc, kh_free, kh_shared,
 // kh_load (как хост, в out — ModManifest с Looks, ItemLooks, CellLooks, Bank, Voices, Minimap) и:
-//   kh_look(look) -> i32                   облик вида Looks[look]; в out — поток облика (ниже)
+//   kh_look(look) -> i32                   облик Looks[look]; в out — поток облика (ниже). Имя в Looks — вид контента
+//                                          («раздел/имя» из data) или свободный облик мода (значок, эффект, покрытие):
+//                                          его номер — после всех видов (инструмент 52 Look)
 //   kh_bank(entry, variant, rate) -> i32   запись банка Bank[entry], вариант variant при частоте rate;
 //                                          в out — channels:u8 frames:u32 f32 × frames × channels (канал за каналом)
 //   kh_frame(ptr, len) -> i32              кадр клиента: на входе — вход кадра, в out — выход кадра (ниже)
@@ -51,16 +53,25 @@
 //   0x16 Button id:str flags:u8 (1 active, 2 disabled) style — открывает узел кнопки, закрывает Close
 //   0x17 TipText id:str text:str · 0x18 TipBegin · 0x19 TipEnd anchor
 //   0x1A Field id:str value:str style — поле ввода: узел id с текстом value (что показать); правки — во входе кадра
-//   0x1B Icon look:i32 cell:u16 size:f32 — значок внутри текста: ячейка cell облика вида look, своей стороной, size × size
+//   0x1B Icon look:i32 cell:u16 size:f32 — значок внутри текста: ячейка cell облика look, своей стороной, size × size
+//   0x1C FieldWith id:str value:str style options — поле ввода с настройками (дополнение волны 1; без настроек SDK
+//        пишет 0x1A): options — mask:u8 (Field*: 1 только цифры, 2 пароль, 4 фокус в этом кадре, 8 maxLength, 16
+//        placeholder), затем [maxLength:u16] [placeholder:str]
 //   style: mask:u32 (StyleBit*), затем поля по возрастанию битов: id str, direction u8, self u8 u8, gap f32,
 //          padding f32×4 (верх, право, низ, лево), align u8, justify u8, width f32, height f32, minWidth f32,
 //          maxWidth f32, minHeight f32, maxHeight f32, grow f32, skin u8, background rgba, outline rgba, alpha f32,
-//          anchor; флаги shrink, wrap, clip, scroll, passive — только битом
+//          anchor; флаги shrink, wrap, clip, scroll, passive — только битом; дополнение волны 1 — тоже только битом:
+//          scrollEnd (1 << 24, прокрутка держится у низа, как лента чата), modal (1 << 25, корневая панель — модальное
+//          окно: ввод ниже неё не доходит), keepFocus (1 << 26, нажатие по узлу не снимает фокус поля)
 //   anchor: mask:u8 (left 1, right 2, top 4, bottom 8, centerX 16, centerY 32) и f32 на каждый бит; 0x80 — пустая
 //          привязка (у корня — левый верхний угол); в TipEnd mask 0 — без привязки (подсказка у указателя)
 //   textStyle: mask:u8 (TextBit*): font u8, color rgba, shadow rgba, lift f32, wrap f32; ellipsis — битом
 // Поверх мира (в тайлах, толщина — в пикселях экрана; width NaN — заливка):
 //   0x20 Line x1 y1 x2 y2:f32 rgba width:f32 · 0x21 Circle x y r:f32 rgba width:f32 · 0x22 Rect x1 y1 x2 y2:f32 rgba width:f32
+//   дополнение волны 1 (пунктир движка, Batch.Dashes):
+//   0x27 Dashes x1 y1 x2 y2:f32 rgba step dot:f32 — квадратные точки стороной dot через step (пиксели экрана), отсчёт
+//        от (x2, y2): у цели точка есть всегда (путь, приказ) · 0x28 DashedCircle x y r:f32 rgba dashes:u16 dot:f32 —
+//        dashes точек по окружности с угла 0 (граница зоны)
 // Спрайты и свет (v2; места — в тайлах мира):
 //   0x23 Sprite look:i32 variant:u16 frame:u16 angle:f32 x y:f32 scale alpha:f32 team:u8 layer:u8 tint:u32
 //        свободный спрайт облика вида look (эффекты, призраки): вариант, фаза frame (номер среди phases'), направление
@@ -129,8 +140,9 @@ internal static class ClientAbi
 
     // Записи выхода кадра.
     public const byte OpOpen = 0x10, OpClose = 0x11, OpText = 0x12, OpImage = 0x13, OpImageLook = 0x14, OpSpace = 0x15,
-        OpButton = 0x16, OpTipText = 0x17, OpTipBegin = 0x18, OpTipEnd = 0x19, OpField = 0x1A, OpIcon = 0x1B;
-    public const byte OpLine = 0x20, OpCircle = 0x21, OpRect = 0x22, OpSprite = 0x23, OpPaint = 0x24, OpLight = 0x25, OpBeam = 0x26;
+        OpButton = 0x16, OpTipText = 0x17, OpTipBegin = 0x18, OpTipEnd = 0x19, OpField = 0x1A, OpIcon = 0x1B, OpFieldWith = 0x1C;
+    public const byte OpLine = 0x20, OpCircle = 0x21, OpRect = 0x22, OpSprite = 0x23, OpPaint = 0x24, OpLight = 0x25, OpBeam = 0x26,
+        OpDashes = 0x27, OpDashedCircle = 0x28;
     public const byte OpParticle = 0x30, OpDecal = 0x31;
     public const byte OpPlay = 0x40, OpSoundAt = 0x41, OpLoop = 0x42, OpVoice = 0x43, OpAutomate = 0x44, OpPlace = 0x45,
         OpRelease = 0x46, OpVolume = 0x47;
@@ -153,7 +165,12 @@ internal static class ClientAbi
         StyleAlign = 1 << 5, StyleJustify = 1 << 6, StyleWidth = 1 << 7, StyleHeight = 1 << 8, StyleMinWidth = 1 << 9,
         StyleMaxWidth = 1 << 10, StyleMinHeight = 1 << 11, StyleMaxHeight = 1 << 12, StyleGrow = 1 << 13, StyleShrink = 1 << 14,
         StyleWrap = 1 << 15, StyleSkin = 1 << 16, StyleBackground = 1 << 17, StyleOutline = 1 << 18, StyleAlpha = 1 << 19,
-        StyleClip = 1 << 20, StyleScroll = 1 << 21, StyleAnchor = 1 << 22, StylePassive = 1 << 23;
+        StyleClip = 1 << 20, StyleScroll = 1 << 21, StyleAnchor = 1 << 22, StylePassive = 1 << 23,
+        // Дополнение волны 1 (только биты, без полей): держать прокрутку у низа, модальное окно, не снимать фокус поля.
+        StyleScrollEnd = 1 << 24, StyleModal = 1 << 25, StyleKeepFocus = 1 << 26;
+
+    // Настройки поля (0x1C FieldWith): биты маски.
+    public const byte FieldDigits = 1, FieldPassword = 2, FieldFocus = 4, FieldMaxLength = 8, FieldPlaceholder = 16;
 
     public const byte AnchorLeft = 1, AnchorRight = 2, AnchorTop = 4, AnchorBottom = 8, AnchorCenterX = 16, AnchorCenterY = 32;
     public const byte TextFont = 1, TextColor = 2, TextShadow = 4, TextLift = 8, TextWrap = 16, TextEllipsis = 32;
@@ -176,6 +193,10 @@ internal static class ClientAbi
     //  50 Roster    in: —                        out: n:u32 (player:u32 nick:str online:u8 admin:u8)×n — игроки партии
     //  51 Settings  in: —                        out: UTF-8 JSON { "game", "settings" (запись data/games.json),
     //               "map" ({ left, top, right, bottom } или null), "fog", "rights" { "admin", "editor" } }
+    // v2, дополнение волны 1 (старые моды его не зовут):
+    //  52 Look      in: name:str                 out: look:i32 — номер облика «раздел/имя» (−1 — нет): у облика вида —
+    //               номер вида, у свободного облика (имя из Looks манифеста, что не вид контента: значок, эффект,
+    //               покрытие) — номер после всех видов, по порядку объявления. Им облик назван в Sprite, Icon, ImageLook
     public const int ToolEach = 40, ToolPose = 41, ToolPick = 42, ToolWithin = 43, ToolSees = 44, ToolExplored = 45,
-        ToolMeasure = 46, ToolColumn = 47, ToolText = 48, ToolPrefs = 49, ToolRoster = 50, ToolSettings = 51;
+        ToolMeasure = 46, ToolColumn = 47, ToolText = 48, ToolPrefs = 49, ToolRoster = 50, ToolSettings = 51, ToolLook = 52;
 }

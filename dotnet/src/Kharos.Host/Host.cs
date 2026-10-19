@@ -231,6 +231,9 @@ public sealed class Host : IDisposable
             Vision = new Vision(map, Layers);
         // Следы и память игроков (Д3): правила слоёв и журналы правок включаются до первой команды мода.
         Traces = TraceLayer.Create(Layers, () => Scheduler.Tick, Flies(content));
+        // Предметные слои по обзору (Д6): месторождения помнят, следы видят только в обзоре.
+        if (Vision is not null)
+            ItemMemory = ItemMemory.Create(Layers);
         if (Land is not null)
             Land.TrackEdits = true;
         if (Vision is not null && (Land is not null || Layers.Find(PavingMemory.LayerName) is not null))
@@ -272,6 +275,21 @@ public sealed class Host : IDisposable
             catch (FormatException error)
             {
                 throw new HostException($"сохранение не читается: {error.Message}", error);
+            }
+            if (ItemMemory is { } items && Vision is { } vision)
+            {
+                try
+                {
+                    // Память предметов (раздел IMEM); в прежних сохранениях её нет — игрок знает то, что разведал.
+                    if (save.Items is { Length: > 0 } known)
+                        items.Decode(known);
+                    else
+                        items.KnowExplored(vision.Players, vision.Explored);
+                }
+                catch (FormatException error)
+                {
+                    throw new HostException($"сохранение: память предметов не читается: {error.Message}", error);
+                }
             }
         }
         Tools = new EngineTools(this);
@@ -403,6 +421,12 @@ public sealed class Host : IDisposable
     /// <summary>Память игроков о земле и покрытии (engine.recallLand, engine.recallPaving); null — нет тумана, земли и покрытия.</summary>
     public PlayerMemory? Recall { get; }
 
+    /// <summary>
+    /// Версии предметных слоёв у игроков (месторождения, следы; engine.memory): слой с remember или sight уходит игроку
+    /// его версией. null — нет тумана или таких слоёв.
+    /// </summary>
+    public ItemMemory? ItemMemory { get; }
+
     public EngineTools Tools { get; }
 
     /// <summary>Точность чисел в сети.</summary>
@@ -499,6 +523,7 @@ public sealed class Host : IDisposable
             {
                 Vision?.Forget(player);
                 Buildings.Forget(player);
+                ItemMemory?.ForgetPlayer(player);
                 Vision?.Update(World, Tick);
                 break;
             }
@@ -572,8 +597,8 @@ public sealed class Host : IDisposable
         World.TakeChanges(_changes);
         var layers = Layers.TakeChanges();
         // Покрытие при тумане уходит игроку таким, каким он его знает, а не слоем мира.
-        if (Recall?.Paving is not null)
-            layers.RemoveAll(change => change.Layer == PavingMemory.LayerName);
+        if (Recall?.Paving is not null || ItemMemory is not null)
+            layers.RemoveAll(change => Fogged(change.Layer));
         var delta = WorldDelta.Build(World, _changes, _stringsSent, layers, _signals, Tick);
         if (Recall is { } memory)
         {
@@ -582,6 +607,14 @@ public sealed class Host : IDisposable
             foreach (var (player, blocks) in memory.TakeLearnedPaving())
                 delta.LayersKnown[player] = blocks;
         }
+        if (ItemMemory is { } items)
+            foreach (var (player, blocks) in items.TakeLearned())
+            {
+                if (delta.LayersKnown.TryGetValue(player, out var known))
+                    known.AddRange(blocks);
+                else
+                    delta.LayersKnown[player] = blocks;
+            }
         else if (Land is { } land)
         {
             foreach (var edit in land.TakeEdits())
@@ -610,17 +643,29 @@ public sealed class Host : IDisposable
     public IReadOnlyList<LandTile> KnownLand(uint player) => Recall?.KnownLand(player) ?? [];
 
     /// <summary>
-    /// Слои мира игроку: блоки, что ему уходят, без слоёв, которые при тумане идут иначе (покрытие), и они же, какими игрок
-    /// их знает. known — блоки игрока из дельты; null — все его знания (подключение).
+    /// Слои мира игроку: блоки, что ему уходят, без слоёв, которые при тумане идут иначе (покрытие, предметы по обзору), и
+    /// они же, какими игрок их знает. known — блоки игрока из дельты; null — все его знания (подключение).
     /// </summary>
     public List<LayerChange> LayersForPlayer(List<LayerChange> blocks, uint player, IReadOnlyList<LayerChange>? known = null)
     {
-        if (Recall?.Paving is null)
+        if (Recall?.Paving is null && ItemMemory is null)
             return blocks;
-        blocks.RemoveAll(change => change.Layer == PavingMemory.LayerName);
-        blocks.AddRange(known ?? Recall.KnownPaving(player));
+        blocks.RemoveAll(change => Fogged(change.Layer));
+        if (known is not null)
+        {
+            blocks.AddRange(known);
+            return blocks;
+        }
+        if (Recall?.Paving is not null)
+            blocks.AddRange(Recall.KnownPaving(player));
+        if (ItemMemory is { } items)
+            blocks.AddRange(items.Blocks(player));
         return blocks;
     }
+
+    /// <summary>Идёт ли слой игрокам их версиями, а не слоем мира: покрытие при тумане, предметы по обзору.</summary>
+    public bool Fogged(string layer) =>
+        (Recall?.Paving is not null && layer == PavingMemory.LayerName) || ItemMemory?.Covers(layer) == true;
 
     /// <summary>Ходовые, которые летают (слой записи moves.json — «air»): колею они не оставляют.</summary>
     private static Func<string, bool> Flies(GameContent content)

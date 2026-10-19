@@ -20,7 +20,7 @@ public record struct View(float X, float Y, float Zoom, float ScreenWidth, float
 
 /// <summary>
 /// Что рисовать в кадре — перенос <c>Frame</c> из <c>apps/client/src/render.rs</c>, числа в тех же раскладках.
-/// Порядок кадра: земля, следы, по слоям тень и спрайты, осадки, свет (ночью), туман, батч поверх мира, батч интерфейса.
+/// Порядок кадра: земля, клетки слоёв, следы, по слоям тень и спрайты, осадки, свет (ночью), туман, батч поверх мира, батч интерфейса.
 /// </summary>
 public sealed class Frame
 {
@@ -30,14 +30,22 @@ public sealed class Frame
     public const int Teams = 4;
     /// <summary>Слоёв спрайтов: на земле, наземные, их турели, здания, турели зданий, летающие, их турели.</summary>
     public const int Layers = 7;
-    /// <summary>Чисел на спрайт: левый верхний угол и размер в тайлах, uv кадра, сторона, сдвиг и сила тени, серость.</summary>
-    public const int Sprite = 12;
+    /// <summary>
+    /// Чисел на спрайт: левый верхний угол и размер в тайлах (от камеры), uv кадра, сторона, сдвиг и сила тени, серость,
+    /// множитель цвета rgba с предумноженной альфой (1, 1, 1, 1 — как есть).
+    /// </summary>
+    public const int Sprite = 16;
     /// <summary>Чисел на след: отрезок, ширина, кадр атласа (ширина 0 — белый), цвет и непрозрачность, сколько осталось, плотность, зерно.</summary>
     public const int Decal = 16;
 
     public View View;
     /// <summary>Спрайты по слоям, <see cref="Sprite"/> чисел на каждый.</summary>
     public readonly List<float>[] SpriteLayers = [.. Enumerable.Range(0, Layers).Select(_ => new List<float>())];
+    /// <summary>
+    /// Клетки слоёв обликами (покрытие: дорога, фундамент, мост), <see cref="Sprite"/> чисел на каждую: лежат на земле —
+    /// над ней и под следами, без теней (pavingPass.ts).
+    /// </summary>
+    public readonly List<float> Cells = [];
     /// <summary>Следы на земле, <see cref="Decal"/> чисел на каждый.</summary>
     public readonly List<float> Decals = [];
     /// <summary>Фары: x, y, радиус в текселях, яркость.</summary>
@@ -65,10 +73,21 @@ public sealed class Frame
     /// <summary>Интерфейс в логических пикселях.</summary>
     public readonly Batch Interface = new();
 
+    /// <summary>
+    /// Спрайт в слой layer: место и размер в тайлах от камеры, uv кадра, сторона, тень (сдвиг в тайлах, сила), серость и
+    /// множитель цвета (r, g, b, a уже умножены на a).
+    /// </summary>
+    public void AddSprite(int layer, float left, float top, float width, float height, (float U0, float V0, float U1, float V1) uv,
+        int team, float shadowShift, float shadow, bool grey, (float R, float G, float B, float A)? tint = null)
+    {
+        var (r, g, b, a) = tint ?? (1, 1, 1, 1);
+        SpriteLayers[Math.Clamp(layer, 0, Layers - 1)].AddRange([left, top, width, height, uv.U0, uv.V0, uv.U1, uv.V1, team, shadowShift, shadow, grey ? 1 : 0, r, g, b, a]);
+    }
+
     public void Clear()
     {
         foreach (var layer in SpriteLayers) layer.Clear();
-        Decals.Clear(); Spots.Clear(); Blooms.Clear(); Beams.Clear();
+        Cells.Clear(); Decals.Clear(); Spots.Clear(); Blooms.Clear(); Beams.Clear();
         FogUpdate = null;
         World.Clear(); Interface.Clear();
     }

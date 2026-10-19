@@ -49,8 +49,40 @@ public enum ChatKind : byte
     Whisper = 2,
 }
 
-/// <summary>Строка чата: от кого (0 — хост), подпись, текст; у шёпота — кому.</summary>
-public sealed record ChatLine(uint Player, string Name, string Text, ChatKind Kind = ChatKind.Player, string? To = null);
+/// <summary>
+/// Строка чата: от кого (0 — хост), подпись, текст; у шёпота — кому. Args не null — это сообщение хоста: Text — ключ
+/// раздела host словаря («joins»), Args — подстановки парами «имя, значение»; клиент пишет его на своём языке (Н6-5).
+/// </summary>
+public sealed record ChatLine(uint Player, string Name, string Text, ChatKind Kind = ChatKind.Player, string? To = null, IReadOnlyList<string>? Args = null)
+{
+    /// <summary>Ключ и подстановки сообщения хоста; готовый текст человека — null.</summary>
+    public HostText? Host => Args is null ? null : new HostText(Text, Args);
+}
+
+/// <summary>
+/// Сообщение хоста ключом: id строки раздела host словаря и подстановки парами «имя, значение» (имя без скобок).
+/// Клиент берёт строку на своём языке, так что хост не знает, на каком читают.
+/// </summary>
+public sealed record HostText(string Key, IReadOnlyList<string> Args)
+{
+    /// <summary>Сообщение с подстановками: числа пишутся инвариантно.</summary>
+    public static HostText Of(string key, params (string Name, object Value)[] args)
+    {
+        var list = new string[args.Length * 2];
+        for (var i = 0; i < args.Length; i++)
+            (list[i * 2], list[i * 2 + 1]) = (args[i].Name, Convert.ToString(args[i].Value, System.Globalization.CultureInfo.InvariantCulture) ?? "");
+        return new HostText(key, list);
+    }
+
+    /// <summary>Подстановки по именам.</summary>
+    public Dictionary<string, string> Named()
+    {
+        var map = new Dictionary<string, string>(Args.Count / 2, StringComparer.Ordinal);
+        for (var i = 0; i + 1 < Args.Count; i += 2)
+            map[Args[i]] = Args[i + 1];
+        return map;
+    }
+}
 
 /// <summary>Игрок партии: номер, ник и в сети ли.</summary>
 public sealed record PlayerInfo(uint Player, string Name, bool Online);
@@ -70,10 +102,11 @@ public readonly record struct ViewBox(float Left, float Top, float Right, float 
 /// <summary>
 /// Сообщения вне мира (чат, игроки, отказ, команды, доставка модов, экран) — кодирование и разбор.
 /// <code>
-/// 0x04 Chat     count:varint (player:varint name:str text:str kind:u8 [to:str, если kind = 2])×
+/// 0x04 Chat     count:varint (player:varint name:str text:str kind:u8 [to:str, если kind = 2]
+///                                  [args:varint str×, если kind &amp; 0x80 — text это ключ host.*, args — пары имя, значение])×
 /// 0x05 Chunk    hash:32 total:varint offset:varint data:blob   — data ≤ 64 КБ
 /// 0x06 Players  count:varint (player:varint name:str flags:u8)×  — flags: 1 в сети
-/// 0x07 Refused  reason:str flags:u8                             — flags: 1 нужен пароль
+/// 0x07 Refused  reason:str flags:u8 [args:varint str×]          — flags: 1 нужен пароль, 2 reason — ключ host.* с подстановками
 /// 0x08 Commands admin:u8 count:varint (name:str args:varint str× help:str flags:u8)×  — flags: 1 secret
 /// 0x09 Land     packed:blob                                     — deflate-raw Land.Save
 /// 0x0A LandEdits count:varint (x:svarint y:svarint terrain:u8 biome:u8 peak:u8 relief:u8)×  — хранимые байты тайла
@@ -99,9 +132,11 @@ public static class Messages
         var w = new WireWriter(64).Byte((byte)MessageType.Chat).Varint((ulong)lines.Count);
         foreach (var line in lines)
         {
-            w.Varint(line.Player).Text(line.Name).Text(line.Text).Byte((byte)line.Kind);
+            w.Varint(line.Player).Text(line.Name).Text(line.Text).Byte((byte)((byte)line.Kind | (line.Args is null ? 0 : KeyFlag)));
             if (line.Kind == ChatKind.Whisper)
                 w.Text(line.To ?? "");
+            if (line.Args is not null)
+                WriteArgs(w, line.Args);
         }
         return w.ToArray();
     }
@@ -115,8 +150,11 @@ public static class Messages
             var player = r.U32();
             var name = r.Text();
             var text = r.Text();
-            var kind = r.Byte() is var k && k <= (byte)ChatKind.Whisper ? (ChatKind)k : throw new FormatException($"строка чата: вид {k}");
-            lines.Add(new ChatLine(player, name, text, kind, kind == ChatKind.Whisper ? r.Text() : null));
+            var raw = r.Byte();
+            var key = (raw & KeyFlag) != 0;
+            var kind = (raw & ~KeyFlag) is var k && k <= (byte)ChatKind.Whisper ? (ChatKind)k : throw new FormatException($"строка чата: вид {raw}");
+            var to = kind == ChatKind.Whisper ? r.Text() : null;
+            lines.Add(new ChatLine(player, name, text, kind, to, key ? ReadArgs(ref r) : null));
         }
         return Close(ref r, lines);
     }
@@ -161,12 +199,45 @@ public static class Messages
     public static byte[] Refused(string reason, bool password = false) =>
         new WireWriter(16 + reason.Length * 2).Byte((byte)MessageType.Refused).Text(reason).Byte(password ? (byte)1 : (byte)0).ToArray();
 
-    public static (string Reason, bool Password) ReadRefused(ReadOnlySpan<byte> message)
+    /// <summary>Отказ сообщением хоста: reason — ключ раздела host словаря, args — подстановки (клиент пишет на своём языке).</summary>
+    public static byte[] Refused(HostText reason, bool password = false)
+    {
+        var w = new WireWriter(32 + reason.Key.Length * 2).Byte((byte)MessageType.Refused).Text(reason.Key).Byte((byte)((password ? 1 : 0) | 2));
+        WriteArgs(w, reason.Args);
+        return w.ToArray();
+    }
+
+    /// <summary>Отказ: почему (Args не null — это ключ host.* с подстановками, иначе готовый текст); password — клиенту спросить пароль.</summary>
+    public static (string Reason, bool Password, IReadOnlyList<string>? Args) ReadRefused(ReadOnlySpan<byte> message)
     {
         var r = Open(message, MessageType.Refused);
         var reason = r.Text();
-        var password = (r.Byte() & 1) != 0;
-        return Close(ref r, (reason, password));
+        var flags = r.Byte();
+        var args = (flags & 2) != 0 ? ReadArgs(ref r) : null;
+        return Close(ref r, (reason, (flags & 1) != 0, args));
+    }
+
+    /// <summary>Бит в байте вида строки чата: Text — ключ, за строкой подстановки.</summary>
+    private const int KeyFlag = 0x80;
+
+    private static void WriteArgs(WireWriter w, IReadOnlyList<string> args)
+    {
+        if (args.Count % 2 != 0)
+            throw new ArgumentException("подстановки идут парами «имя, значение»");
+        w.Varint((ulong)args.Count);
+        foreach (var arg in args)
+            w.Text(arg);
+    }
+
+    private static List<string> ReadArgs(ref WireReader r)
+    {
+        var count = r.Count(1);
+        if (count % 2 != 0)
+            throw new FormatException("подстановки идут парами «имя, значение»");
+        var args = new List<string>(count);
+        for (var i = 0; i < count; i++)
+            args.Add(r.Text());
+        return args;
     }
 
     public static byte[] Commands(IReadOnlyList<CommandInfo> commands, bool admin)

@@ -43,7 +43,11 @@ public sealed class ClientBuilder
     internal List<(string Name, FrameHandler Handler)>[] Stages { get; } = [.. Enumerable.Range(0, (int)Stage.Count).Select(_ => new List<(string, FrameHandler)>())];
     internal uint[] MinimapPalette { get; private set; } = [];
 
-    /// <summary>Облик вида proto («раздел/имя»).</summary>
+    /// <summary>
+    /// Облик «раздел/имя»: если это вид контента — облик его сущностей; иначе свободный облик мода (значок, эффект,
+    /// покрытие), к которому обращаются по имени (ItemLook, CellLook) или номеру (<see cref="ClientContext.LookId"/>:
+    /// Sprite, Icon, Image).
+    /// </summary>
     public void Look(string proto, LookSpec spec)
     {
         ArgumentException.ThrowIfNullOrEmpty(proto);

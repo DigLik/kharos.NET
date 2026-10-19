@@ -3,15 +3,26 @@ using Kharos.Protocol;
 
 namespace Kharos.Host;
 
-/// <summary>Кто зовёт команду: игрок из чата (подключение) или консоль сервера (Player — null).</summary>
-public sealed class Caller(uint? player, bool admin, Action<string> reply, Connection? connection = null)
+/// <summary>
+/// Кто зовёт команду: игрок из чата (подключение) или консоль сервера (Player — null). Ответ идёт ключом словаря и
+/// подстановками (<see cref="HostText"/>) — игрок читает его на своём языке; консоли ответ переводится сразу.
+/// </summary>
+public sealed class Caller(uint? player, bool admin, Action<HostText> reply, Connection? connection = null)
 {
+    private static readonly Kharos.I18n.Texts Shell = Kharos.I18n.Texts.Shell();
+
+    /// <summary>Консоль (тесты, сервер): ответ готовым текстом на языке lang.</summary>
+    public Caller(uint? player, bool admin, Action<string> reply, Connection? connection = null, string lang = "ru")
+        : this(player, admin, text => reply(Shell.Host(lang, text.Key, text.Args)), connection) { }
+
     public uint? Player { get; } = player;
     public bool Admin { get; } = admin;
     public Connection? Connection { get; } = connection;
 
-    /// <summary>Ответ только ему.</summary>
-    public void Reply(string text) => reply(text);
+    /// <summary>Ответ только ему: строка key раздела host словаря с подстановками.</summary>
+    public void Reply(string key, params (string Name, object Value)[] args) => reply(HostText.Of(key, args));
+
+    public void Reply(HostText text) => reply(text);
 }
 
 /// <summary>Разобранная команда: слова после имени и Rest(n) — текст после n слов как есть.</summary>

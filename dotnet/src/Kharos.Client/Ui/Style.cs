@@ -114,6 +114,12 @@ public record struct Style()
     public bool Clip { get; set; }
     /// <summary>Прокрутка колесом (нужен Id): содержимое выше узла ездит внутри него; включает обрезку.</summary>
     public bool Scroll { get; set; }
+    /// <summary>Прокрутка держится низа, пока её не отвели вверх (чат); как <c>scroll: 'end'</c> в ui.ts.</summary>
+    public bool ScrollEnd { get; set; }
+    /// <summary>Корневая панель — модальное окно: ввод ниже неё не доходит (см. <see cref="Gui.Modal"/>).</summary>
+    public bool Modal { get; set; }
+    /// <summary>Нажатие сюда не снимает фокус с поля ввода (подсказки дополнения под строкой чата).</summary>
+    public bool KeepFocus { get; set; }
     public Anchor? Anchor { get; set; }
     /// <summary>Корневая панель не закрывает собой мир: щелчки сквозь неё идут дальше.</summary>
     public bool Passive { get; set; }

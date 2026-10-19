@@ -72,7 +72,10 @@ public sealed partial class ClientGame : IDisposable
     private readonly GameModuleHost _modules;
     private readonly List<ClientModule> _mods = [];
     private readonly List<Look> _looks = [];
-    private readonly Look?[] _lookByProto;
+    // Облики по номеру: сначала виды контента (номер облика = номер вида), за ними свободные облики модов — значки,
+    // эффекты, покрытие, которые не вид контента (имя → номер в _lookIds).
+    private readonly List<Look?> _lookById;
+    private readonly Dictionary<string, int> _lookIds = new(StringComparer.Ordinal);
     private readonly AbiWriter _input = new();
     private readonly FrameInput _frameInput = new();
     private readonly List<ReplicaSignal> _signals = [];
@@ -111,19 +114,21 @@ public sealed partial class ClientGame : IDisposable
         Fonts = _options.Fonts ?? Fonts.Load();
         Gui = new Gui(Fonts);
         Audio = _options.Audio;
-        Scene = new ClientScene(Gui) { LookOf = proto => (uint)proto < (uint)_lookByProto!.Length ? _lookByProto[proto] : null };
+        Scene = new ClientScene(Gui) { LookOf = LookOf };
         Scene.SetPalette(ClientScene.DefaultTeams);
         Land = TerrainOf(Replica);
         Tools = new ClientTools(Replica, content, () => Land, Poses, Fonts)
         {
+            Texts = BuildTexts(content),
             Log = Report,
             Storage = _options.Storage ?? new MemoryStorage(),
             Players = () => Players,
             Admin = () => Admin,
         };
+        Tools.LookId = LookId;
         _ownsModules = _options.Modules is null;
         _modules = _options.Modules ?? new GameModuleHost(_options.ModuleOptions);
-        _lookByProto = new Look?[content.Protos.Count];
+        _lookById = [.. new Look?[content.Protos.Count]];
         try
         {
             LoadMods(welcome);
@@ -203,8 +208,18 @@ public sealed partial class ClientGame : IDisposable
     /// <summary>Начать заново (что делать, решают моды хоста).</summary>
     public void Respawn() => _transport.Send(Protocol.Messages.Respawn());
 
-    /// <summary>Облик вида; нет — null.</summary>
-    public Look? LookOf(int proto) => (uint)proto < (uint)_lookByProto.Length ? _lookByProto[proto] : null;
+    /// <summary>Облик по номеру (номер вида или свободного облика, <see cref="LookId"/>); нет — null.</summary>
+    public Look? LookOf(int look) => (uint)look < (uint)_lookById.Count ? _lookById[look] : null;
+
+    /// <summary>
+    /// Номер облика «раздел/имя»: у вида контента — номер вида, у свободного облика мода — номер после всех видов
+    /// (в порядке объявления, по всем модам); нет такого облика — −1. Инструмент клиента Look (ClientAbi, 52).
+    /// </summary>
+    public int LookId(string name) =>
+        _lookIds.TryGetValue(name, out var id) ? id : Content.FindProto(name) is { } proto && _lookById[proto.Id] is not null ? proto.Id : -1;
+
+    /// <summary>Облик «раздел/имя» (вид или свободный); нет — null.</summary>
+    public Look? LookOf(string name) => LookOf(LookId(name));
 
     /// <summary>
     /// Ресурсы рендеру: атлас обликов, скин, мини-карта и земля — один раз на рендер, шрифтовой атлас — когда менялся,
@@ -316,7 +331,7 @@ public sealed partial class ClientGame : IDisposable
             if (_transport.TryReceive(out var message))
             {
                 if (Replica.Apply(message) == MessageType.Refused)
-                    throw new ClientException($"хост не пустил: {Protocol.Messages.ReadRefused(message).Reason}");
+                    throw new ClientException($"хост не пустил: {RefusedText(Protocol.Messages.ReadRefused(message))}");
                 continue;
             }
             if (_transport.Closed)
@@ -368,7 +383,7 @@ public sealed partial class ClientGame : IDisposable
                         Commands = commands;
                         break;
                     case MessageType.Refused:
-                        Refused = Protocol.Messages.ReadRefused(message).Reason;
+                        Refused = RefusedText(Protocol.Messages.ReadRefused(message));
                         Report($"хост: {Refused}");
                         break;
                 }
@@ -443,9 +458,9 @@ public sealed partial class ClientGame : IDisposable
             for (var index = 0; index < manifest.Looks.Length; index++)
             {
                 var path = manifest.Looks[index];
-                if (Content.FindProto(path) is not { } proto)
+                if (path.Length == 0)
                 {
-                    Report($"мод {package.Name}: облик {path} — нет такого вида");
+                    Report($"мод {package.Name}: облик №{index} без имени");
                     continue;
                 }
                 LookSpec spec;
@@ -457,10 +472,21 @@ public sealed partial class ClientGame : IDisposable
                 {
                     throw new ClientException($"мод {package.Name}, облик {path}: {error.Message}", error);
                 }
-                var look = Look.Build(proto.Id, spec);
-                if (_lookByProto[proto.Id] is { } previous)
+                // Облик вида — под номером вида; облик, что не вид контента (значок, эффект, покрытие), — свободный:
+                // номер после всех видов. Позднее объявление того же имени (мод поверх мода) заменяет прежнее.
+                int id;
+                if (Content.FindProto(path) is { } proto)
+                    id = proto.Id;
+                else if (!_lookIds.TryGetValue(path, out id))
+                {
+                    id = _lookById.Count;
+                    _lookIds[path] = id;
+                    _lookById.Add(null);
+                }
+                var look = Look.Build(id, spec, path);
+                if (_lookById[id] is { } previous)
                     _looks.Remove(previous);
-                _lookByProto[proto.Id] = look;
+                _lookById[id] = look;
                 _looks.Add(look);
             }
             LoadSounds(package, instance, manifest);
@@ -518,6 +544,7 @@ public sealed partial class ClientGame : IDisposable
     {
         var started = Stopwatch.GetTimestamp();
         Tools.Mod = mod.Name;
+        Tools.Lang = input.Lang;
         IClientModInstance? instance;
         try
         {

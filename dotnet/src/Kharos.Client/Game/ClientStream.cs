@@ -41,7 +41,11 @@ public static class ClientStream
                     case ClientAbi.OpText:
                     {
                         var text = r.Str();
-                        gui.Text(text, ReadText(ref r));
+                        var style = ReadText(ref r);
+                        if (FollowedByIcon(r))
+                            Rich(ref r, scene, new Run(text, style), false);
+                        else
+                            gui.Text(text, style);
                         break;
                     }
                     case ClientAbi.OpImage:
@@ -98,25 +102,38 @@ public static class ClientStream
                     }
                     case ClientAbi.OpField:
                     {
-                        // TODO(Д2): настоящее поле ввода (каретка, выделение, фокус) — в UI-ядре; пока узел с текстом.
+                        // Поле ввода с кареткой и выделением; правки уходят в Gui.FrameEdits и во вход кадра мода.
+                        var id = r.Str();
+                        var value = r.Str();
+                        gui.Input(id, value, ReadStyle(ref r));
+                        break;
+                    }
+                    case ClientAbi.OpFieldWith:
+                    {
                         var id = r.Str();
                         var value = r.Str();
                         var style = ReadStyle(ref r);
-                        gui.Open(style with { Id = id });
-                        gui.Text(value, new TextStyle());
-                        gui.Close();
+                        var mask = r.U8();
+                        var options = new FieldOptions
+                        {
+                            Digits = (mask & ClientAbi.FieldDigits) != 0,
+                            Password = (mask & ClientAbi.FieldPassword) != 0,
+                            Focus = (mask & ClientAbi.FieldFocus) != 0,
+                            MaxLength = (mask & ClientAbi.FieldMaxLength) != 0 ? r.U16() : 0,
+                            Placeholder = (mask & ClientAbi.FieldPlaceholder) != 0 ? r.Str() : null,
+                        };
+                        gui.Input(id, value, style, options);
                         break;
                     }
                     case ClientAbi.OpIcon:
                     {
-                        // TODO(Д2): значок в строке текста (rich); пока картинка ячейки облика отдельным узлом.
-                        var proto = r.I32();
-                        var cell = r.U16();
-                        var size = r.F32();
-                        if (scene.LookOf(proto) is { Cells.Length: > 0 } look)
-                            gui.Image(cell < look.Cells.Length ? new Icon(look.Cells[cell], look.Width, look.Height) : look.Icon, size, size, 0);
+                        var run = ReadIcon(ref r, scene);
+                        if (NextIsText(r))
+                            Rich(ref r, scene, run, true);
+                        else if (run.Icon is { } icon)
+                            gui.Image(icon, run.Size, run.Size, 0);
                         else
-                            gui.Space(size, size);
+                            gui.Space(run.Size, run.Size);
                         break;
                     }
                     case ClientAbi.OpLine:
@@ -156,6 +173,29 @@ public static class ClientStream
                             scene.World.Line(left, bottom, left, top, w, color);
                         }
                         scene.Recorder?.Invoke(new FrameRecord(op, null, color, [x1, y1, x2, y2, width]));
+                        break;
+                    }
+                    case ClientAbi.OpDashes:
+                    {
+                        var (x1, y1, x2, y2) = (r.F32(), r.F32(), r.F32(), r.F32());
+                        var color = r.U32();
+                        var (step, dot) = (r.F32(), r.F32());
+                        var zoom = Zoom(scene);
+                        // Не больше 4096 точек на запись: шаг меньше пикселя на длинной линии — не повод съесть кадр.
+                        var length = MathF.Sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+                        if (step > 0 && float.IsFinite(length) && length / (step / zoom) <= 4096)
+                            scene.World.Dashes(x1, y1, x2, y2, step / zoom, dot / zoom, color);
+                        scene.Recorder?.Invoke(new FrameRecord(op, null, color, [x1, y1, x2, y2, step, dot]));
+                        break;
+                    }
+                    case ClientAbi.OpDashedCircle:
+                    {
+                        var (x, y, radius) = (r.F32(), r.F32(), r.F32());
+                        var color = r.U32();
+                        var dashes = r.U16();
+                        var dot = r.F32();
+                        scene.World.DashedCircle(x, y, radius, dashes, dot / Zoom(scene), color);
+                        scene.Recorder?.Invoke(new FrameRecord(op, null, color, [x, y, radius, dashes, dot]));
                         break;
                     }
                     case ClientAbi.OpSprite:
@@ -395,6 +435,54 @@ public static class ClientStream
         }
     }
 
+    private static Run ReadIcon(ref AbiReader r, ClientScene scene)
+    {
+        var proto = r.I32();
+        var cell = r.U16();
+        var size = r.F32();
+        if (scene.LookOf(proto) is { Cells.Length: > 0 } look)
+            return Run.Glyph(cell < look.Cells.Length ? new Icon(look.Cells[cell], look.Width, look.Height) : look.Icon, size);
+        return Run.Glyph(null, size);
+    }
+
+    /// <summary>Идёт ли следом запись Icon (r — сразу после тела записи).</summary>
+    private static bool FollowedByIcon(AbiReader r) => !r.End && r.U8() == ClientAbi.OpIcon;
+
+    private static bool NextIsText(AbiReader r) => !r.End && r.U8() == ClientAbi.OpText;
+
+    /// <summary>
+    /// Строка со значками: записи Text и Icon подряд собираются в один ряд. Текст входит в ряд, если перед ним значок
+    /// или после него значок; остальные Text — отдельные строки. Первый кусок уже прочитан; width ряда — Wrap первого текста.
+    /// </summary>
+    private static void Rich(ref AbiReader r, ClientScene scene, Run first, bool afterIcon)
+    {
+        var runs = new List<Run> { first };
+        var previousIcon = afterIcon;
+        while (!r.End)
+        {
+            var look = r;
+            var op = look.U8();
+            if (op == ClientAbi.OpIcon)
+            {
+                r = look;
+                runs.Add(ReadIcon(ref r, scene));
+                previousIcon = true;
+            }
+            else if (op == ClientAbi.OpText)
+            {
+                var text = look.Str();
+                var style = ReadText(ref look);
+                if (!previousIcon && !FollowedByIcon(look)) break;
+                r = look;
+                runs.Add(new Run(text, style));
+                previousIcon = false;
+            }
+            else break;
+        }
+        var width = runs.FirstOrDefault(run => run.Text is not null).Style.Wrap;
+        scene.Gui.Rich(runs, width);
+    }
+
     private static Style ReadStyle(ref AbiReader r)
     {
         var mask = r.U32();
@@ -423,6 +511,9 @@ public static class ClientStream
         if ((mask & ClientAbi.StyleScroll) != 0) s.Scroll = true;
         if ((mask & ClientAbi.StyleAnchor) != 0) s.Anchor = ReadAnchor(ref r) ?? default(Anchor);
         if ((mask & ClientAbi.StylePassive) != 0) s.Passive = true;
+        if ((mask & ClientAbi.StyleScrollEnd) != 0) s.ScrollEnd = true;
+        if ((mask & ClientAbi.StyleModal) != 0) s.Modal = true;
+        if ((mask & ClientAbi.StyleKeepFocus) != 0) s.KeepFocus = true;
         return s;
     }
 

@@ -107,6 +107,15 @@ public record struct Style()
     public Anchor? Anchor { get; set; }
     /// <summary>Корневая панель не закрывает собой мир.</summary>
     public bool Passive { get; set; }
+    /// <summary>Прокрутка держится у низа, пока её не сдвинули (лента чата); нужны Id и <see cref="Scroll"/>.</summary>
+    public bool ScrollEnd { get; set; }
+    /// <summary>
+    /// Корневая панель — модальное окно: ввод ниже неё не доходит ни до интерфейса, ни до модов, клавиши игры молчат
+    /// (нужен Id). Закрыть — перестать описывать.
+    /// </summary>
+    public bool Modal { get; set; }
+    /// <summary>Нажатие по узлу (и его детям) не снимает фокус с поля ввода: кнопки рядом со строкой чата (нужен Id).</summary>
+    public bool KeepFocus { get; set; }
 
     /// <summary>Стиль кнопки по умолчанию: ряд, по центру, отступы 4 × 10, промежуток 6.</summary>
     public static Style Button => new() { Direction = Direction.Row, Align = Align.Center, Justify = Align.Center, Padding = (4, 10), Gap = 6 };
@@ -124,6 +133,21 @@ public record struct TextStyle()
     public float Lift { get; set; } = 1;
     public float? Wrap { get; set; }
     public bool Ellipsis { get; set; }
+}
+
+/// <summary>Настройки поля ввода (как FieldOptions в ui.ts): только цифры, пароль, предел длины, подсказка, фокус в этом кадре.</summary>
+public record struct FieldOptions()
+{
+    /// <summary>Только цифры: количество в сделке.</summary>
+    public bool Digits { get; set; }
+    /// <summary>Вместо букв — точки.</summary>
+    public bool Password { get; set; }
+    /// <summary>Не длиннее (0 — без предела, не больше 65535).</summary>
+    public int MaxLength { get; set; }
+    /// <summary>Серая подсказка в пустом поле.</summary>
+    public string? Placeholder { get; set; }
+    /// <summary>Поле получает фокус в этом кадре (чат открывается по Enter).</summary>
+    public bool Focus { get; set; }
 }
 
 /// <summary>Щелчок: кнопка (0 — левая, 1 — средняя, 2 — правая), клавиши, долгое ли касание.</summary>

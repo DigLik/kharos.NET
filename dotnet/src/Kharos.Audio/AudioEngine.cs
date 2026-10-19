@@ -58,6 +58,8 @@ public sealed class AudioEngine
     private readonly Dictionary<string, Sound> _loops = new(StringComparer.Ordinal);
     private readonly Dictionary<string, float> _loopVolumes = new(StringComparer.Ordinal);
     private readonly VoiceContext _context;
+    private readonly float[] _busVolumes = [1f, 1f, 1f, 1f];
+    private Sound? _music;
     private uint _seed;
     private uint _nextId = 1;
     private int _rendering;
@@ -173,7 +175,52 @@ public sealed class AudioEngine
     public float LoopVolume(string name) => _loopVolumes.GetValueOrDefault(name);
 
     /// <summary>Громкость шины — плавно за 50 мс.</summary>
-    public void SetVolume(Bus bus, float volume) => Send(new BusVolume((int)bus, volume));
+    public void SetVolume(Bus bus, float volume)
+    {
+        volume = MathF.Max(volume, 0f);
+        _busVolumes[(int)bus] = volume;
+        Send(new BusVolume((int)bus, volume));
+    }
+
+    /// <summary>Громкость, которую последней просили у шины (к ней она идёт за 50 мс); по умолчанию 1.</summary>
+    public float Volume(Bus bus) => _busVolumes[(int)bus];
+
+    /// <summary>Играющая музыка (null — тишина или музыка снята).</summary>
+    public Sound? CurrentMusic => _music is { IsFinished: false } ? _music : null;
+
+    /// <summary>
+    /// Музыка с перекрёстным переходом: новый голос на шине music нарастает с нуля до level за fade секунд, прежний за то
+    /// же время затихает и снимается. Два голоса звучат вместе только на время перехода. Шина music со своей громкостью —
+    /// <see cref="SetVolume"/>. Что играть и когда менять — дело мода (К5); движок даёт шину и переход.
+    /// </summary>
+    public Sound PlayMusic(VoiceGraph graph, float fade = 2f, float level = 1f)
+    {
+        var next = Voice(graph, new VoiceOptions { Bus = Bus.Music });
+        fade = MathF.Max(fade, 0.01f);
+        next.Set(0, ParamId.Gain, 0f);
+        next.Ramp(0, ParamId.Gain, level, Now + fade);
+        StopMusic(fade);
+        _music = next;
+        return next;
+    }
+
+    /// <summary>Музыка из записи банка (по кругу или один раз).</summary>
+    public Sound? PlayMusic(string sample, float fade = 2f, float level = 1f, bool loop = true)
+    {
+        if (!Bank.Contains(sample))
+            return null;
+        var builder = new VoiceGraphBuilder();
+        builder.SetOut(new GainSpec(0f));
+        builder.Sample(sample, loop: loop, variant: 0).To(builder.Out);
+        return PlayMusic(builder.Build(), fade, level);
+    }
+
+    /// <summary>Снять музыку: затихает за fade секунд.</summary>
+    public void StopMusic(float fade = 2f)
+    {
+        _music?.Release(fade);
+        _music = null;
+    }
 
     /// <summary>Общая громкость: доля от <see cref="AudioEngineOptions.Master"/>.</summary>
     public void SetMasterVolume(float volume) => Send(new BusVolume(-1, Options.Master * volume));

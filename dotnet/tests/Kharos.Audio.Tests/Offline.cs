@@ -43,6 +43,17 @@ internal static class Offline
         return count;
     }
 
+    /// <summary>
+    /// Короткий путь для проверок и золотых записей банка: движок без компрессора (или с ним), setup заводит звуки,
+    /// рендер seconds секунд. Без устройства, детерминированно при том же зерне.
+    /// </summary>
+    public static RenderedAudio Render(Action<AudioEngine> setup, double seconds, uint seed = 1, bool compressor = false)
+    {
+        var engine = new AudioEngine(new AudioEngineOptions { Seed = seed, Master = 1f, Compressor = compressor });
+        setup(engine);
+        return OfflineRender.Seconds(engine, seconds);
+    }
+
     /// <summary>Левый канал следующих frames кадров.</summary>
     public static float[] Left(AudioEngine engine, int frames) => engine.Render(frames).Left;
 }

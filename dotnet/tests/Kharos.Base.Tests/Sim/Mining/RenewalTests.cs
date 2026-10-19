@@ -8,7 +8,7 @@ namespace Kharos.Base.Tests.Mining;
 
 /// <summary>
 /// Смена месторождений (packages/tests/renewal.test.ts): выработанное уходит, через depositRenewal минут появляется новое.
-/// Туман (находки и призраки) — память запоминаемого слоя в движке, ждёт его (Skip). Мир 256×256 — Size 128.
+/// Туман (находки и призраки) — память запоминаемого слоя deposits в движке (ItemMemory хоста). Мир 256×256 — Size 128.
 /// </summary>
 public sealed class RenewalTests
 {
@@ -79,9 +79,55 @@ public sealed class RenewalTests
         Assert.Empty(sim.Renewal().Due);
     }
 
-    [Fact(DisplayName = "туман: ушедшее помнят, пока не увидят его место; новое знает только тот, кто его видел", Skip = "ждёт памяти предметных слоёв игрока в движке (призраки и находки месторождений, remember у слоя deposits, Д4)")]
+    /// <summary>Знает ли игрок месторождение с левым верхним тайлом (x, y) — есть ли оно в его версии слоя deposits (knowsDeposit).</summary>
+    private static bool Knows(Sim sim, uint player, int x, int y) =>
+        sim.Host.ItemMemory!.Items("deposits", player).Any(item => item.X == x && item.Y == y);
+
+    [Fact(DisplayName = "туман: ушедшее помнят, пока не увидят его место; новое знает только тот, кто его видел")]
     public void FogGhostsAndFoundDeposits()
     {
+        using var sim = Small(fog: true);
+        var spot = Central(sim);
+        var scout = Scene.Spawn(sim, "infantry", 1, spot.X, spot.Y);
+        sim.Seconds(1);
+        Assert.True(Knows(sim, 1, spot.X, spot.Y));
+        // Ушёл — разведанное помнит, но не видит.
+        void Put(int x, int y)
+        {
+            sim.Set(scout, "Position.x", x + 0.5);
+            sim.Set(scout, "Position.y", y + 0.5);
+        }
+        Put(spot.X + 40, spot.Y);
+        sim.Seconds(1);
+        sim.Exhaust(spot);
+        sim.Seconds(1);
+        Assert.Null(sim.DepositAt(spot.X, spot.Y));
+        Assert.True(Knows(sim, 1, spot.X, spot.Y));
+        Assert.False(Knows(sim, 2, spot.X, spot.Y));
+
+        // Новое месторождение на разведанной земле: игрок о нём не знает, пока не увидит.
+        sim.PutDeposit(spot.Kind, spot.X + 3, spot.Y, 500);
+        sim.Seconds(0.25);
+        Assert.NotNull(sim.DepositAt(spot.X + 3, spot.Y));
+        Assert.True(sim.Host.Vision!.Explored(1, spot.X + 3, spot.Y));
+        Assert.False(Knows(sim, 1, spot.X + 3, spot.Y));
+
+        // Сохранение помнит и ушедшее, и кто что нашёл.
+        using (var again = sim.ThroughSave())
+        {
+            Assert.Equal(sim.Host.ItemMemory!.Items("deposits", 1), again.Host.ItemMemory!.Items("deposits", 1));
+            Assert.Equal(sim.DepositAt(spot.X + 3, spot.Y), again.DepositAt(spot.X + 3, spot.Y));
+            Assert.Equal(sim.Renewal().Due, again.Renewal().Due);
+            Assert.Equal(sim.Renewal().Spawned, again.Renewal().Spawned);
+        }
+
+        // Вернулся — увидел, что старого нет, и нашёл новое.
+        Put(spot.X + 1, spot.Y + 1);
+        // Обзор — раз в несколько тиков: за две секунды успевает.
+        sim.Seconds(2);
+        Assert.False(Knows(sim, 1, spot.X, spot.Y));
+        Assert.True(Knows(sim, 1, spot.X + 3, spot.Y));
+        Assert.False(Knows(sim, 2, spot.X + 3, spot.Y));
     }
 
     [Fact(DisplayName = "новое месторождение там же, где у TS: эталон сида 40507 и счёта попыток")]

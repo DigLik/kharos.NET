@@ -215,11 +215,13 @@ public sealed class TestClient : IAsyncDisposable
         return (CloseStatus ?? WebSocketCloseStatus.Empty, CloseReason ?? "");
     }
 
-    /// <summary>Тексты отказа, пришедшие сообщением Refused.</summary>
+    private static readonly Kharos.I18n.Texts Shell = Kharos.I18n.Texts.Shell();
+
+    /// <summary>Тексты отказа, пришедшие сообщением Refused, на русском (хост шлёт ключ и подстановки).</summary>
     public List<string> Refusals()
     {
         Pump();
-        return [.. Replica.Inbox.Where(m => m[0] == (byte)MessageType.Refused).Select(m => Messages.ReadRefused(m).Reason)];
+        return [.. Replica.Inbox.Where(m => m[0] == (byte)MessageType.Refused).Select(m => Messages.ReadRefused(m)).Select(r => r.Args is null ? r.Reason : Shell.Host("ru", r.Reason, r.Args))];
     }
 
     public Task SendAsync(byte[] message) => _socket.SendAsync(message, WebSocketMessageType.Binary, true, CancellationToken.None);

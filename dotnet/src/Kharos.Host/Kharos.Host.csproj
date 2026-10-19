@@ -5,6 +5,7 @@
     <ProjectReference Include="..\Kharos.Plugins\Kharos.Plugins.csproj" />
     <ProjectReference Include="..\Kharos.Content\Kharos.Content.csproj" />
     <ProjectReference Include="..\Kharos.Protocol\Kharos.Protocol.csproj" />
+    <ProjectReference Include="..\Kharos.I18n\Kharos.I18n.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Числа договора с модом (номера инструментов, коды ошибок) — общий файл SDK, как в Kharos.Plugins. -->

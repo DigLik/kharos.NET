@@ -189,6 +189,31 @@ public sealed class Ui
         WriteStyle(style ?? new Style());
     }
 
+    /// <summary>
+    /// Поле ввода с настройками (<see cref="FieldOptions"/>: цифры, пароль, предел длины, подсказка, фокус). Без настроек
+    /// — то же, что <see cref="Field(string, string, Style?)"/>.
+    /// </summary>
+    public void Field(string id, string value, FieldOptions options, Style? style = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        byte mask = 0;
+        if (options.Digits) mask |= ClientAbi.FieldDigits;
+        if (options.Password) mask |= ClientAbi.FieldPassword;
+        if (options.Focus) mask |= ClientAbi.FieldFocus;
+        if (options.MaxLength > 0) mask |= ClientAbi.FieldMaxLength;
+        if (options.Placeholder is not null) mask |= ClientAbi.FieldPlaceholder;
+        if (mask == 0)
+        {
+            Field(id, value, style);
+            return;
+        }
+        _out.U8(ClientAbi.OpFieldWith).Str(id).Str(value);
+        WriteStyle(style ?? new Style());
+        _out.U8(mask);
+        if (options.MaxLength > 0) _out.U16(checked((ushort)options.MaxLength));
+        if (options.Placeholder is { } placeholder) _out.Str(placeholder);
+    }
+
     /// <summary>Значок внутри текста (ABI 2): ячейка cell облика вида proto (номер вида), size × size, своей стороной.</summary>
     public void Icon(int proto, int cell = 0, float size = 12) =>
         _out.U8(ClientAbi.OpIcon).I32(proto).U16(checked((ushort)cell)).F32(size);
@@ -262,6 +287,9 @@ public sealed class Ui
         if (s.Scroll) mask |= ClientAbi.StyleScroll;
         if (s.Anchor is not null) mask |= ClientAbi.StyleAnchor;
         if (s.Passive) mask |= ClientAbi.StylePassive;
+        if (s.ScrollEnd) mask |= ClientAbi.StyleScrollEnd;
+        if (s.Modal) mask |= ClientAbi.StyleModal;
+        if (s.KeepFocus) mask |= ClientAbi.StyleKeepFocus;
         _out.U32(mask);
         if (s.Id is { } id) _out.Str(id);
         if ((mask & ClientAbi.StyleDirection) != 0) _out.U8((byte)s.Direction);
@@ -382,6 +410,15 @@ internal static class ClientTools
             at += 2;
         }
         return entries;
+    }
+
+    /// <summary>52 Look: номер облика «раздел/имя» (вид или свободный облик); нет — −1.</summary>
+    public static int Look(string name)
+    {
+        Begin();
+        Str(name);
+        var output = Call(ClientAbi.ToolLook);
+        return output.Length >= 4 ? BinaryPrimitives.ReadInt32LittleEndian(output) : -1;
     }
 
     /// <summary>51 Settings: JSON настроек партии и прав.</summary>

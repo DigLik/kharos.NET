@@ -118,6 +118,28 @@ public sealed class Vision
     /// <summary>Бывал ли тайл в виду игрока.</summary>
     public bool Explored(uint player, double x, double y) => Cell(player, x, y) >= Known;
 
+    /// <summary>
+    /// Ячейки стороной cell тайлов (ячейки слоя предметов), где игрок видит хоть один тайл сейчас, — в into: по ним
+    /// память предметов (<see cref="ItemMemory"/>) сверяет увиденное, не обходя всю карту.
+    /// </summary>
+    public void SeenCells(uint player, int cell, HashSet<(int X, int Y)> into)
+    {
+        if (cell <= 0 || !_sights.TryGetValue(player, out var sight))
+            return;
+        var width = Bounds.Width;
+        var (lastX, lastY) = (int.MinValue, int.MinValue);
+        foreach (var index in sight.Lit)
+        {
+            var x = (int)Math.Floor((double)(Bounds.Left + index % width) / cell);
+            var y = (int)Math.Floor((double)(Bounds.Top + index / width) / cell);
+            // Открытое идёт рядами: соседние тайлы чаще всего в той же ячейке.
+            if (x == lastX && y == lastY)
+                continue;
+            (lastX, lastY) = (x, y);
+            into.Add((x, y));
+        }
+    }
+
     /// <summary>Видит ли игрок хоть один тайл прямоугольника w × h с левым верхним углом (x, y): основание здания.</summary>
     public bool SeesArea(uint player, double x, double y, double w, double h)
     {

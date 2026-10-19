@@ -266,22 +266,20 @@ public sealed class GameServer : IAsyncDisposable
             if (version != Welcome.ProtocolVersion)
             {
                 _log($"× клиент версии {version}");
-                var text = version < Welcome.ProtocolVersion
-                    ? $"Игра устарела: сервер версии {Welcome.ProtocolVersion}, у вас {version}. Обновите игру."
-                    : $"Сервер устарел: у него версия {Welcome.ProtocolVersion}, у вас {version}.";
+                var text = HostText.Of(version < Welcome.ProtocolVersion ? "versionOld" : "versionNew", ("server", Welcome.ProtocolVersion), ("client", version));
                 await RefuseAsync(socket, $"version: server {Welcome.ProtocolVersion}, client {version}", text, false).ConfigureAwait(false);
             }
             else if (!PasswordOk(password))
             {
                 _log(password.Length == 0 ? "× нужен пароль" : "× неверный пароль");
                 await RefuseAsync(socket, password.Length == 0 ? "password-needed" : "wrong-password",
-                    password.Length == 0 ? "Нужен пароль" : "Неверный пароль", true).ConfigureAwait(false);
+                    HostText.Of(password.Length == 0 ? "passwordNeeded" : "wrongPassword"), true).ConfigureAwait(false);
             }
             // Новый игрок занимает место на карте: с одного адреса их заводится немного.
             else if (!await KnowsAsync(id).ConfigureAwait(false) && !_gate.Newcomer(address))
             {
                 _log($"× слишком много новых игроков с {address}");
-                await RefuseAsync(socket, "newcomers", "Слишком много новых игроков с вашего адреса, попробуйте позже", false).ConfigureAwait(false);
+                await RefuseAsync(socket, "newcomers", HostText.Of("tooManyNewcomers"), false).ConfigureAwait(false);
             }
             else
             {
@@ -298,7 +296,7 @@ public sealed class GameServer : IAsyncDisposable
     private Task<bool> KnowsAsync(string? token) => string.IsNullOrEmpty(token) ? Task.FromResult(false) : _loop.Invoke(session => session.Knows(token));
 
     /// <summary>Отказ: сообщение протокола с причиной для игрока, затем закрытие 1008 с кодом причины (для старых клиентов и логов).</summary>
-    private static async Task RefuseAsync(WebSocket socket, string code, string text, bool password)
+    private static async Task RefuseAsync(WebSocket socket, string code, HostText text, bool password)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         try

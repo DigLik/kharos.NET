@@ -34,11 +34,34 @@ public sealed partial class ClientGame
     }
 
     /// <summary>
-    /// Огни и лучи модов этого кадра (<see cref="ClientScene.Lights"/>, <see cref="ClientScene.Beams"/>). TODO(Д1):
-    /// в Frame.Spots, Frame.Blooms и Frame.Beams; пока записи только разобраны.
+    /// Огни и лучи модов этого кадра (<see cref="ClientScene.Lights"/>, <see cref="ClientScene.Beams"/>) — в тот же
+    /// проход освещения, что фары и огни зданий (lights.add в lightingPass.ts): пятно в карту освещённости, ореол
+    /// поверх; нулевой радиус — огонь без пятна или без ореола, огни не ярче <see cref="Renderer.MinLevel"/> не рисуются.
+    /// Лучи — с тенями от наземных и зданий.
     /// </summary>
     private void SceneLights(RenderFrame frame)
     {
+        var (left, top, right, bottom) = frame.View.Bounds(8);
+        foreach (var light in Scene.Lights)
+        {
+            if (!(light.Level > Renderer.MinLevel) || light.X < left || light.X > right || light.Y < top || light.Y > bottom)
+                continue;
+            var level = light.Level;
+            if (light.Spot > 0)
+                Push(frame.Spots, [light.X, light.Y, light.Spot, level]);
+            if (light.Bloom > 0)
+                Push(frame.Blooms, [light.X, light.Y, light.Bloom, level]);
+        }
+        foreach (var beam in Scene.Beams)
+        {
+            var reach = beam.Length / RenderFrame.Texels;
+            if (!(beam.Level > Renderer.MinLevel) || !(beam.Length > 0) || beam.X < left - reach || beam.X > right + reach || beam.Y < top - reach || beam.Y > bottom + reach)
+                continue;
+            var norm = MathF.Sqrt(beam.Cos * beam.Cos + beam.Sin * beam.Sin);
+            if (!(norm > 0))
+                continue;
+            Push(frame.Beams, [beam.X, beam.Y, beam.Length, beam.Level, beam.Cos / norm, beam.Sin / norm, MathF.Max(beam.Near, 0), MathF.Max(beam.Spread, 0)]);
+        }
     }
 
     /// <summary>Частицы: ход, снос ветром, отмирание; рисуются в слой поверх мира квадратами по текселю.</summary>

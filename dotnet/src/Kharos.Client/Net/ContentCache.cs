@@ -57,5 +57,5 @@ public sealed class ContentCache(string directory)
 
     /// <summary>Пакет мода, каким его шлёт хост (хеш совпадёт с хешем в приветствии).</summary>
     public static ContentPack ToPack(ModPackage package) =>
-        new(package.Name, package.Version, System.Text.Encoding.UTF8.GetBytes(package.Manifest.GetRawText()), [.. package.Data.Select(pair => (pair.Key, pair.Value))], package.ClientWasm);
+        new(package.Name, package.Version, System.Text.Encoding.UTF8.GetBytes(package.Manifest.GetRawText()), [.. package.PackedFiles.Select(pair => (pair.Key, pair.Value))], package.ClientWasm);
 }

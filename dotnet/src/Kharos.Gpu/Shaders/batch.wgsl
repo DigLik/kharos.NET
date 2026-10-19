@@ -1,6 +1,6 @@
 // Батч треугольников (BATCH_VS/FS): интерфейс (world = 0, логические пиксели) или слой мира (world = 1, тайлы через
 // камеру). kind: 0 — шрифтовой атлас (альфа в r), 1 — атлас обликов, скин или мини-карта с палитрой стороны team,
-// 2 — туман на мини-карте (чёрный с альфой из r, рамка картинки срезана сдвигом inset).
+// 2 — туман на мини-карте (чёрный с альфой из r в долях minimap.ts, рамка картинки срезана сдвигом inset).
 
 struct BatchOut {
   @builtin(position) position: vec4f,
@@ -19,10 +19,18 @@ fn batch_vs(@location(0) pos: vec2f, @location(1) uv: vec2f, @location(2) color:
   return out;
 }
 
+// Туман мира (fogPass.ts: 0, 128, 240) — в туман мини-карты (FOG_ALPHA в minimap.ts: 0, 120, 235), между ними — линейно.
+fn minimap_fog(a: f32) -> f32 {
+  let remembered = 128.0 / 255.0;
+  if (a <= remembered) { return a * (120.0 / 128.0); }
+  return mix(120.0, 235.0, (a - remembered) / (240.0 / 255.0 - remembered)) / 255.0;
+}
+
 @fragment
 fn batch_fs(input: BatchOut) -> @location(0) vec4f {
   if (u.kind == 2) {
-    return vec4f(0.0, 0.0, 0.0, textureSampleLevel(image, image_sampler, u.inset + input.uv * (1.0 - 2.0 * u.inset), 0.0).r * input.color.a);
+    let fog = textureSampleLevel(image, image_sampler, u.inset + input.uv * (1.0 - 2.0 * u.inset), 0.0).r;
+    return vec4f(0.0, 0.0, 0.0, minimap_fog(fog) * input.color.a);
   }
   if (u.kind == 0) {
     return vec4f(input.color.rgb, input.color.a * textureSampleLevel(image, image_sampler, input.uv, 0.0).r);

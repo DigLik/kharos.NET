@@ -35,9 +35,10 @@ fn spot_fs(input: SpotOut) -> @location(0) vec4f {
   return vec4f(u.color * alpha, alpha);
 }
 
-// Быстрый луч: трапеция по конусу, тень — раз в SPACING текселей пути до источника, с ранним выходом.
-const SPACING: f32 = 3.0;
-const MAX_STEPS: i32 = 64;
+// Луч: трапеция по конусу; тень — как beamFragment в lightingPass.ts: от пикселя к источнику STEPS проверок карты
+// силуэтов в серединах равных долей пути (u.samples: 10, 20 или 40 — настройка теней; по умолчанию 40, «высокая»).
+// Преграда, внутри которой лежит сам пиксель, не в счёт; источник не затеняет себя на SKIP текселей.
+const MAX_STEPS: i32 = 40;
 const SKIP: f32 = 1.5;
 
 struct BeamOut {
@@ -75,19 +76,21 @@ fn beam_fs(input: BeamOut) -> @location(0) vec4f {
   if (along <= 0.0 || value <= 0.0) { discard; }
   let start = input.beam.xy + texel / TEXELS;
   let goal = input.beam.xy + direction * SKIP / TEXELS;
-  let steps = max(1, i32(ceil(max(length(texel) - SKIP, 0.0) / SPACING)));
+  let steps = clamp(i32(u.samples), 1, MAX_STEPS);
   var outside = false;
+  var shaded = false;
   for (var i = 0; i < MAX_STEPS; i++) {
     if (i >= steps) { break; }
-    let at = clip(mix(start, goal, f32(i + 1) / f32(steps)));
+    let at = clip(mix(start, goal, (f32(i) + 0.5) / f32(steps)));
     // В GL строка 0 цели — низ экрана (v = y·0,5 + 0,5), у WebGPU — верх: v отражается.
     let solid = textureSampleLevel(image, image_sampler, vec2f(at.x * 0.5 + 0.5, 0.5 - at.y * 0.5), 0.0).r > 0.5;
     if (!solid) {
       outside = true;
     } else if (outside) {
-      discard;
+      shaded = true;
     }
   }
+  if (shaded) { discard; }
   let dither = bayer(cell);
   let stepped = min(1.0, floor(value * LEVELS + dither) / LEVELS);
   let detail = clamp(texel_pixels * 2.0 - 1.0, 0.0, 1.0);

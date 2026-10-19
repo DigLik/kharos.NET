@@ -76,7 +76,7 @@ public sealed class LookGoldenMoreTests
         var checkedFrames = 0;
         foreach (var look in game.Looks)
         {
-            var name = game.Content.Protos[look.Proto].Path;
+            var name = look.Name;
             if (!golden.Frames.TryGetValue(name, out var expected) || !name.StartsWith("buildings/", StringComparison.Ordinal))
                 continue;
             var hashes = expected.FrameHashes;
@@ -102,16 +102,34 @@ public sealed class LookGoldenMoreTests
         var golden = GoldenMore.Load();
         var game = session.Game;
         string[] prefixes = ["effects/", "decals/", "power/", "selection/", "drops/", "paving/", "goods/"];
-        var names = golden.Frames.Keys.Where(k => prefixes.Any(p => k.StartsWith(p, StringComparison.Ordinal))).ToHashSet();
-        var drawn = game.Looks.Select(l => game.Content.Protos[l.Proto].Path).Where(names.Contains).ToList();
+        // Группа с кадрами разных размеров (гарь) лежит в .NET обликами по размеру: имя/сторона.
+        var expected = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        foreach (var (key, group) in golden.Frames.Where(f => prefixes.Any(p => f.Key.StartsWith(p, StringComparison.Ordinal))))
+        {
+            if (group.Sizes is null)
+            {
+                expected[key] = group.FrameHashes;
+                continue;
+            }
+            var sizes = group.Sizes.Split(' ');
+            foreach (var side in sizes.Distinct())
+                expected[$"{key}/{side.Split('x')[0]}"] = [.. group.FrameHashes.Where((_, i) => sizes[i] == side)];
+        }
+        var names = expected.Keys.ToHashSet();
+        // Значки, эффекты и покрытие — свободные облики мода: не виды контента, номера — после всех видов.
+        Assert.Empty(game.Errors);
+        Assert.Null(game.Content.FindProto("goods/metal"));
+        Assert.True(game.LookId("goods/metal") >= game.Content.Protos.Count);
+        Assert.Equal("goods/metal", game.LookOf(game.LookId("goods/metal"))!.Name);
+        var drawn = game.Looks.Select(l => l.Name).Where(names.Contains).ToList();
         Assert.SkipWhen(drawn.Count < names.Count, $"{Waiting}: эффектов, следов, значков и покрытия в .NET {drawn.Count} из {names.Count} групп");
         var problems = new List<string>();
         foreach (var look in game.Looks)
         {
-            var name = game.Content.Protos[look.Proto].Path;
+            var name = look.Name;
             if (!names.Contains(name))
                 continue;
-            var hashes = golden.Frames[name].FrameHashes;
+            var hashes = expected[name];
             if (look.Cells.Length != hashes.Length)
             {
                 problems.Add($"{name}: кадров {look.Cells.Length}, в TS {hashes.Length}");

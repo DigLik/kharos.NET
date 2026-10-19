@@ -104,10 +104,26 @@ internal static class EngineSystems
         public bool Sees(uint player, double x, double y) => vision.Sees(player, x, y);
     }
 
-    /// <summary>updateBuildMemory (Д4): игроки запоминают чужие здания, ушедшие из обзора, — на тиках пересчёта обзора.</summary>
+    /// <summary>
+    /// updateBuildMemory (Д4): игроки запоминают чужие здания, ушедшие из обзора, — на тиках пересчёта обзора. И память
+    /// предметов (Д6, renewal.ts learn, host.ts traces): изменённые ячейки — каждый тик, ячейки обзора — с обзором.
+    /// </summary>
     private static ISystem RememberBuildings(Host host) => new DelegateSystem(ctx =>
     {
-        if (host.Vision is { } vision && ctx.Tick % Kharos.Host.Vision.Ticks == 0)
+        if (host.Vision is not { } vision)
+            return;
+        if (ctx.Tick % Kharos.Host.Vision.Ticks == 0)
             host.Buildings.Update(ctx.World, vision, host.RememberComponents);
+        host.ItemMemory?.Update(new VisionItems(vision), ctx.Tick);
     });
+
+    /// <summary>Обзор хоста для памяти предметов.</summary>
+    private sealed class VisionItems(Vision vision) : Kharos.Engine.Layers.IItemSight
+    {
+        public IEnumerable<uint> Players => vision.Players;
+
+        public bool Sees(uint player, double x, double y) => vision.Sees(player, x, y);
+
+        public void SeenCells(uint player, int cell, HashSet<(int X, int Y)> into) => vision.SeenCells(player, cell, into);
+    }
 }

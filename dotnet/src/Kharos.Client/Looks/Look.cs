@@ -70,7 +70,16 @@ public sealed class Look
     /// <summary>Пикселей спрайта на тайл.</summary>
     public const float Tile = 16;
 
+    /// <summary>
+    /// Номер облика: у облика вида — номер вида (Proto), у свободного облика мода (значок, эффект, покрытие — не вид
+    /// контента) — номер после всех видов (<see cref="Game.ClientGame.LookId"/>). Им облик назван в записях Sprite, Icon,
+    /// ImageLook.
+    /// </summary>
     public int Proto { get; }
+
+    /// <summary>Имя облика «раздел/имя», как его объявил мод (пусто — облик собран вне партии).</summary>
+    public string Name { get; }
+
     public LookSpec Spec { get; }
     public int Width => Spec.Width;
     public int Height => Spec.Height;
@@ -94,9 +103,10 @@ public sealed class Look
     public Uv? PortraitUv { get; internal set; }
     public (float Width, float Height) PortraitSize { get; }
 
-    private Look(int proto, LookSpec spec)
+    private Look(int proto, LookSpec spec, string name)
     {
         Proto = proto;
+        Name = name;
         Spec = spec;
         Directions = Math.Max(spec.Directions, 1);
         Phases = Math.Max(spec.Phases, 1);
@@ -122,8 +132,8 @@ public sealed class Look
         PortraitSize = Portrait is { } cropped ? (cropped.Width, cropped.Height) : (spec.Width, spec.Height);
     }
 
-    /// <summary>Растеризует облик вида proto: Directions × Phases кадров и портрет.</summary>
-    public static Look Build(int proto, LookSpec spec) => new(proto, spec);
+    /// <summary>Растеризует облик номер proto (имя name): Directions × Phases кадров и портрет.</summary>
+    public static Look Build(int proto, LookSpec spec, string name = "") => new(proto, spec, name);
 
     /// <summary>Портрет: рисуется один раз и обрезается по закрашенному (toCanvas в portraits.ts).</summary>
     private static (byte[], int, int) Crop(PortraitSpec spec)

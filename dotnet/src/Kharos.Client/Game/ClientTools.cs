@@ -8,6 +8,7 @@ using Kharos.Engine.Movement;
 using Kharos.Engine.Terrain;
 using Kharos.Engine.Tools;
 using Kharos.Engine.World;
+using Kharos.I18n;
 using Kharos.Mod.Abi;
 using Kharos.Protocol;
 
@@ -130,6 +131,12 @@ public sealed class ClientTools : ModTools
     /// <summary>Чей вызов сейчас (имя мода): настройки Prefs у каждого мода свои. null — настроек нет.</summary>
     public string? Mod { get; set; }
 
+    /// <summary>Словари оболочки и всех модов партии (Text, ABI 2): ClientGame собирает их по пакетам модов.</summary>
+    public Texts Texts { get; set; } = new();
+
+    /// <summary>Язык игрока кадра (вход кадра lang): ClientGame ставит его перед каждым модом.</summary>
+    public string Lang { get; set; } = Langs.Default;
+
     /// <summary>Игроки партии для Roster (ростер протокола).</summary>
     public Func<IReadOnlyList<PlayerInfo>> Players { get; set; } = () => [];
 
@@ -138,6 +145,9 @@ public sealed class ClientTools : ModTools
 
     /// <summary>Право редактора у этого подключения. TODO(Р): протокол его не шлёт — до оболочки редактора false.</summary>
     public Func<bool> Editor { get; set; } = () => false;
+
+    /// <summary>Номер облика по имени (Look, ABI 2): вид или свободный облик мода; нет — −1.</summary>
+    public Func<string, int> LookId { get; set; } = _ => -1;
 
     /// <summary>Ключ настройки key мода mod в хранилище.</summary>
     public static string PrefsKey(string mod, string key) => $"prefs/{mod}/{key}";
@@ -229,10 +239,14 @@ public sealed class ClientTools : ModTools
             {
                 var key = Str(ref r);
                 var n = BinaryPrimitives.ReadUInt16LittleEndian(r.Bytes(2));
+                // Аргументы — пары «имя, значение»: подстановки {имя} строки словаря (нечётный хвост отбрасывается).
+                var pairs = new string[n];
                 for (var i = 0; i < n; i++)
-                    Str(ref r);
-                // TODO(Д3): словари всех модов (Kharos.I18n) на языке игрока с подстановкой аргументов; пока — сам ключ.
-                WriteStr(key);
+                    pairs[i] = Str(ref r);
+                var args = new (string Name, object Value)[n / 2];
+                for (var i = 0; i < args.Length; i++)
+                    args[i] = (pairs[i * 2], pairs[i * 2 + 1]);
+                WriteStr(Texts.T(Lang, key, args));
                 return 0;
             }
             case ClientAbi.ToolPrefs:
@@ -261,6 +275,12 @@ public sealed class ClientTools : ModTools
             case ClientAbi.ToolSettings:
                 WriteSettings();
                 return 0;
+            case ClientAbi.ToolLook:
+            {
+                var look = LookId(Str(ref r));
+                BinaryPrimitives.WriteInt32LittleEndian(Room(4), look);
+                return 0;
+            }
             case ModAbi.ToolStorage:
                 return ModAbi.ErrorUnknownId;
             default:

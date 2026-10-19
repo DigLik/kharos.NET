@@ -113,6 +113,28 @@ public sealed class ViewerTests
     }
 
     [Fact]
+    public void AlliedUnitsGetTheAllyPalette()
+    {
+        SkipUnless(ModMode.Clr);
+        using var sim = Sim.Create(new SimOptions { Size = 64, Fog = false, Land = new { blank = true }, Mode = ModMode.Clr, Players = [1, 2, 3] });
+        sim.PutUnit("buggy", 1, 6.5, 10.5);
+        sim.PutUnit("buggy", 2, 9.5, 10.5);
+        sim.PutUnit("buggy", 3, 12.5, 10.5);
+        sim.Advance();
+        Assert.Equal("offered", sim.Offer(1, 2));
+        Assert.Equal("allied", sim.Offer(2, 1));
+        using var viewer = sim.Viewer(1, new ViewerOptions { Mode = ModMode.Clr, Width = 640, Height = 400 });
+        viewer.Camera = new CameraState(9, 10, 32);
+        var frame = viewer.Run(0.5);
+        // Сторона спрайта — 9-е число из 16: 0 своя, 1 чужая, 2 союзная, 3 ничья.
+        var teams = frame.SpriteLayers.SelectMany(layer => layer.Where((_, i) => i % RenderFrame.Sprite == 8)).Distinct().Order().ToArray();
+        Assert.Equal([0f, 1f, 2f], teams);
+        Assert.True(viewer.Game.Allied(2));
+        Assert.False(viewer.Game.Allied(3));
+        Assert.Empty(viewer.Log);
+    }
+
+    [Fact]
     public void ViewerRendersHeadlessFrame()
     {
         SkipUnless(ModMode.Clr);

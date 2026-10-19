@@ -30,6 +30,7 @@ public sealed unsafe partial class Renderer
         // Инстансы слоя — в буфер один раз: их берут и тени, и спрайты, и силуэты.
         Span<int> layerOffsets = stackalloc int[Frame.Layers];
         for (int layer = 0; layer < Frame.Layers; layer++) layerOffsets[layer] = Push(CollectionsMarshal.AsSpan(frame.SpriteLayers[layer]));
+        var cellsOffset = Push(CollectionsMarshal.AsSpan(frame.Cells));
 
         if (night)
         {
@@ -46,6 +47,7 @@ public sealed unsafe partial class Renderer
                 var draw = Camera(view);
                 draw.ColorR = LightColor.X; draw.ColorG = LightColor.Y; draw.ColorB = LightColor.Z;
                 draw.Strength = 1;
+                draw.Samples = ShadowSteps;
                 Use(light, "beam", draw, _occluders);
                 api.RenderPassEncoderSetVertexBuffer(light, 0, _data, (ulong)offset, (ulong)(frame.Beams.Count * 4));
                 api.RenderPassEncoderDraw(light, 4, (uint)(frame.Beams.Count / 8), 0, 0);
@@ -55,6 +57,8 @@ public sealed unsafe partial class Renderer
 
         var pass = Begin(encoder, _scene.View, new WColor(Empty.X, Empty.Y, Empty.Z, 1));
         Terrain(pass, view, frame);
+        // Клетки слоёв (покрытие) — на земле, под следами и спрайтами.
+        Instances(pass, "sprite", view, frame.Cells, cellsOffset, 0);
         // Следы — над землёй и под юнитами, до освещения: ночью темнеют вместе с землёй.
         if (frame.Decals.Count > 0)
         {
@@ -156,9 +160,12 @@ public sealed unsafe partial class Renderer
     }
 
     /// <summary>Спрайты слоя: mode 0 — сами, 1 — тени, 2 — силуэты.</summary>
-    private void Sprites(RenderPassEncoder* pass, string pipeline, View view, Frame frame, int layer, int offset, int mode)
+    private void Sprites(RenderPassEncoder* pass, string pipeline, View view, Frame frame, int layer, int offset, int mode) =>
+        Instances(pass, pipeline, view, frame.SpriteLayers[layer], offset, mode);
+
+    /// <summary>Спрайты из атласа инстансами, уже лежащие в буфере кадра по смещению offset.</summary>
+    private void Instances(RenderPassEncoder* pass, string pipeline, View view, List<float> instances, int offset, int mode)
     {
-        var instances = frame.SpriteLayers[layer];
         if (_atlas is null || instances.Count < Frame.Sprite) return;
         var draw = Camera(view);
         draw.Mode = mode;
@@ -325,6 +332,7 @@ public sealed unsafe partial class Renderer
         static int Bytes(int count, int size) => ((count * size + Slot - 1) & ~(Slot - 1)) + Slot;
         int data = 0;
         foreach (var layer in frame.SpriteLayers) data += Bytes(layer.Count, 4);
+        data += Bytes(frame.Cells.Count, 4);
         data += Bytes(frame.Decals.Count, 4) + Bytes(frame.Spots.Count, 4) + Bytes(frame.Blooms.Count, 4) + Bytes(frame.Beams.Count, 4);
         int vertex = Marshal.SizeOf<Vertex>();
         foreach (var batch in (ReadOnlySpan<Batch>)[frame.World, frame.Interface])

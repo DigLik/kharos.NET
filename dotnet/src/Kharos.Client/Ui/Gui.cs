@@ -28,6 +28,11 @@ public record struct UiInput()
     public bool Alt { get; set; }
     /// <summary>Последним указателем было касание, а не мышь.</summary>
     public bool Touch { get; set; }
+    /// <summary>Набранный за кадр текст (для поля ввода).</summary>
+    public string Text { get; set; } = "";
+    /// <summary>Клавиши, нажатые за кадр ("a", "left", "escape", "backspace"…), и зажатые сейчас — для поля ввода и модального окна.</summary>
+    public IReadOnlyList<string> Hits { get; set; } = [];
+    public IReadOnlyList<string> Keys { get; set; } = [];
 }
 
 /// <summary>Узел с номером в прошлом кадре: видимая часть и ближайший предок с номером (индекс в списке, −1 — нет).</summary>
@@ -47,7 +52,7 @@ public readonly record struct Icon(Uv Uv, float Width, float Height);
 /// <see cref="Text"/>/<see cref="Image(ImageSpec)"/>, которые без изменений лягут в поток команд мода клиента.
 /// </para>
 /// </summary>
-public sealed class Gui
+public sealed partial class Gui
 {
     /// <summary>Через сколько секунд наведения появляется подсказка.</summary>
     public const double TipDelay = 0.35;
@@ -116,7 +121,7 @@ public sealed class Gui
     /// <summary>Верхний узел с номером в точке: индекс в местах прошлого кадра, −1 — нет.</summary>
     private int Topmost(float x, float y)
     {
-        for (var i = _hits.Count - 1; i >= 0; i--)
+        for (var i = _hits.Count - 1; i >= _modalFrom; i--)
             if (_hits[i].Rect.Contains(x, y)) return i;
         return -1;
     }
@@ -126,6 +131,7 @@ public sealed class Gui
     /// <summary>Лежит ли в точке панель или узел с номером.</summary>
     public bool Covers(float x, float y)
     {
+        if (ModalOpen) return true;
         foreach (var rect in _roots) if (rect.Contains(x, y)) return true;
         foreach (var hit in _hits) if (hit.Rect.Contains(x, y)) return true;
         return false;
@@ -144,6 +150,7 @@ public sealed class Gui
         _used = 0;
         PressedButton = null;
         HoveredButton = false;
+        BeginFields(input);
         var shift = input.Shift;
         var ctrl = input.Ctrl;
         var alt = input.Alt;
@@ -158,6 +165,8 @@ public sealed class Gui
                 var id = TopmostId(px, py);
                 if (id is not null && _buttons.TryGetValue(id, out var disabled) && button == 0) PressedButton = disabled;
                 _press = new Press(id, button, px, py) { Time = input.Time };
+                PressOnFields(id, button, input);
+                PressOnBar(id, button, py);
             }
             if (input.Released.HasFlag(flag) && _press is { } press)
             {
@@ -176,6 +185,9 @@ public sealed class Gui
                 _clicks[pressed] = Modifiers(2, true);
             }
         }
+        DragScrollbar(input);
+        DragSelection(input);
+        TypeIntoField(input);
         // Колесо — ближайшему прокручиваемому списку под указателем.
         if (input.Wheel != 0 && input.Pointer is not null)
         {
@@ -401,6 +413,8 @@ public sealed class Gui
         // Незакрытая подсказка закрывается первой: её узлы — в её панель, а не в корни.
         while (_savedStacks.Count > 0) EndTip();
         while (_stack.Count > 0) Close();
+        // Модальные окна — поверх прочих панелей (в порядке описания), подсказка — поверх всего.
+        StackModals();
         // Подсказка — своей корневой панелью у указателя (или где ей велено), поверх всего; нажатия сквозь неё идут.
         if (_tips.Count > 0)
         {
@@ -422,10 +436,13 @@ public sealed class Gui
         {
             var anchor = root.Style.Anchor ?? default;
             Layout.Measure(Fonts, root, Width - (anchor.Left ?? 0) - (anchor.Right ?? 0));
-            Layout.Place(root, Layout.Anchored(root, Width, Height), _scrolls);
+            Layout.Place(root, Layout.Anchored(root, Width, Height), _scrolls, _rooms);
         }
         _nextHits.Clear();
         _roots.Clear();
+        _nextBars.Clear();
+        _nextKeeps.Clear();
+        _nextModal = -1;
         var screen = new Rect(0, 0, Width, Height);
         foreach (var root in _top)
         {
@@ -433,6 +450,12 @@ public sealed class Gui
             if (!root.Style.Passive) _roots.Add(root.Rect);
         }
         (_hits, _nextHits) = (_nextHits, _hits);
+        (_bars, _nextBars) = (_nextBars, _bars);
+        (_keeps, _nextKeeps) = (_nextKeeps, _keeps);
+        ModalOpen = _nextModal >= 0;
+        ModalId = ModalOpen ? _hits[_nextModal].Id : null;
+        _modalFrom = Math.Max(_nextModal, 0);
+        EndFields();
         foreach (var root in _top) Layout.Draw(Fonts, batch, root, null, 1);
     }
 
@@ -444,7 +467,10 @@ public sealed class Gui
             _nextHits.Add(new Hit(id, visible, parent));
             parent = _nextHits.Count - 1;
         }
+        if (node.Style.Modal && node.Style.Id is not null) _nextModal = Math.Max(_nextModal, parent);
+        if (node.Style.KeepFocus && node.Style.Id is { } kept) _nextKeeps.Add(kept);
         var inner = node.Style.Clips ? visible : clip;
         foreach (var child in node.Children) Walk(child, inner, parent);
+        WalkScrollbar(node, visible, parent);
     }
 }

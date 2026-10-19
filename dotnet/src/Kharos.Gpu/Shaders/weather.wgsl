@@ -155,7 +155,7 @@ fn weather(input: Screen) -> @location(0) vec4f {
   let clouds = noise(p - u.drift, 0.125) * 0.6 + noise(p - u.drift * 2.0, 1.0) * 0.4;
   let cover = smoothstep(0.75 - u.precipitation * 0.7, 1.05 - u.precipitation * 0.5, clouds);
 
-  // Результат — с предумноженной альфой (смешивается всё же SRC_ALPHA, как в render.rs).
+  // Результат — с предумноженной альфой, смешивается как ONE, ONE_MINUS_SRC_ALPHA (precipitationPass.ts).
   var result = vec4f(0.0);
   if (rain > 0.001) {
     result = over(result, FOG_COLOR, stepped((0.15 + cover * 0.3) * u.precipitation * rain * FOG_ALPHA, dither));

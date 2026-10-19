@@ -79,7 +79,7 @@ public enum LayerScope : byte
 /// <summary>Объявление слоя: строка layers.json (docs/layers.md, §2).</summary>
 public sealed class LayerSpec
 {
-    private static readonly HashSet<string> Keys = ["scope", "shape", "channels", "cell", "fields", "save", "send", "remember", "allies", "about"];
+    private static readonly HashSet<string> Keys = ["scope", "shape", "channels", "cell", "fields", "save", "send", "remember", "sight", "allies", "about"];
 
     public required string Name { get; init; }
     public required LayerScope Scope { get; init; }
@@ -102,8 +102,18 @@ public sealed class LayerSpec
     /// <summary>Слой мира, который игроки запоминают: у каждого — версия, какой он её видел.</summary>
     public bool Remember { get; init; }
 
+    /// <summary>
+    /// Слой предметов мира, который игрок видит только в обзоре (следы): предмет уходит ему, пока его место в обзоре, и
+    /// забывается, когда уходит из обзора. Запоминаемый слой предметов (<see cref="Remember"/>) уходит, каким игрок его
+    /// видел последним. Оба — <see cref="ItemMemory"/>.
+    /// </summary>
+    public bool Sight { get; init; }
+
     /// <summary>Слой игрока, который читают и союзники.</summary>
     public bool Allies { get; init; }
+
+    /// <summary>Предметы этого слоя уходят игроку по обзору (<see cref="ItemMemory"/>): запоминаемые или только в обзоре.</summary>
+    public bool Fogged => !IsGrid && Scope == LayerScope.World && (Remember || Sight);
 
     public bool IsGrid => Cell == 0;
 
@@ -181,10 +191,15 @@ public sealed class LayerSpec
             Save = Flag("save", false),
             Send = Flag("send", true),
             Remember = Flag("remember", false),
+            Sight = Flag("sight", false),
             Allies = Flag("allies", false),
         };
         if (spec.Remember && scope != LayerScope.World)
             throw new FormatException($"{name}: запоминают только слои мира");
+        if (spec.Sight && (scope != LayerScope.World || grid))
+            throw new FormatException($"{name}: только в обзоре бывают предметы мира");
+        if (spec.Sight && spec.Remember)
+            throw new FormatException($"{name}: слой или запоминают, или видят только в обзоре");
         if (spec.Allies && scope != LayerScope.Player)
             throw new FormatException($"{name}: союзникам открывают только слой игрока");
         return spec;

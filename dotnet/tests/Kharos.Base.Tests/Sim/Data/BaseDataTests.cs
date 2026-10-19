@@ -93,7 +93,7 @@ public sealed class BaseDataTests
             ["layers"] =
             [
                 ("scope", new OneOf(["world", "player"])), ("shape", new OneOf(["grid", "items"])), ("channels?", new ListOf(channel)), ("cell?", Number), ("fields?", new MapOf(channel)),
-                ("save?", Boolean), ("send?", Boolean), ("remember?", Boolean), ("allies?", Boolean),
+                ("save?", Boolean), ("send?", Boolean), ("remember?", Boolean), ("allies?", Boolean), ("sight?", Boolean),
             ],
             // Таблицы .NET: правила мира, ходовые, партии, местности.
             ["rules"] =

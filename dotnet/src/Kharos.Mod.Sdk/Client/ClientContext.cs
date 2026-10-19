@@ -112,6 +112,17 @@ public sealed class Draw
     public void Line(double x1, double y1, double x2, double y2, uint color, float width = 1, float alpha = 1) =>
         _out.U8(ClientAbi.OpLine).F32((float)x1).F32((float)y1).F32((float)x2).F32((float)y2).U32(Rgba(color, alpha)).F32(width);
 
+    /// <summary>
+    /// Пунктир от (x1, y1) к (x2, y2) в тайлах (ABI 2, дополнение волны 1): квадратные точки стороной dot через step —
+    /// в пикселях экрана; отсчёт от (x2, y2), у цели точка есть всегда (путь, очередь приказов — selectionPass.ts).
+    /// </summary>
+    public void Dashes(double x1, double y1, double x2, double y2, uint color, float step = 6, float dot = 2, float alpha = 1) =>
+        _out.U8(ClientAbi.OpDashes).F32((float)x1).F32((float)y1).F32((float)x2).F32((float)y2).U32(Rgba(color, alpha)).F32(step).F32(dot);
+
+    /// <summary>Окружность точками (граница зоны, cursorPass.ts): dashes точек стороной dot пикселей с угла 0.</summary>
+    public void DashedCircle(double x, double y, double radius, uint color, int dashes, float dot = 2, float alpha = 1) =>
+        _out.U8(ClientAbi.OpDashedCircle).F32((float)x).F32((float)y).F32((float)radius).U32(Rgba(color, alpha)).U16(checked((ushort)dashes)).F32(dot);
+
     /// <summary>Круг: width — толщина кольца в пикселях, null — заливка.</summary>
     public void Circle(double x, double y, double radius, uint color, float? width = null, float alpha = 1) =>
         _out.U8(ClientAbi.OpCircle).F32((float)x).F32((float)y).F32((float)radius).U32(Rgba(color, alpha)).F32(width ?? float.NaN);
@@ -175,6 +186,7 @@ public sealed class ClientContext
     private readonly ByteWriter _out = new();
     private readonly List<HostSignal> _signals = [];
     private ComponentRef? _proto, _owner;
+    private readonly Dictionary<string, int> _lookIds = new(StringComparer.Ordinal);
 
     /// <summary>Свой кадр вне wasm (тесты): выход пишется в собственный буфер.</summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
@@ -282,6 +294,20 @@ public sealed class ClientContext
 
     /// <summary>«Раздел/имя» вида по номеру.</summary>
     public string? ProtoPath(int id) => Tools.ProtoName(id);
+
+    /// <summary>
+    /// Номер облика «раздел/имя» для Sprite, Icon и Image (инструмент Look, ClientAbi 52): облик вида — номер вида,
+    /// свободный облик (<see cref="ClientBuilder.Look(string, LookSpec)"/> с именем, что не вид контента: значок, эффект,
+    /// покрытие) — номер после всех видов. Нет такого облика — −1. Номер не меняется за партию.
+    /// </summary>
+    public int LookId(string name)
+    {
+        if (_lookIds.TryGetValue(name, out var id))
+            return id;
+        id = ClientTools.Look(name);
+        _lookIds[name] = id;
+        return id;
+    }
 
     /// <summary>Своя ли сущность.</summary>
     public bool Mine(uint entity)

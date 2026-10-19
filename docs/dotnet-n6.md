@@ -103,6 +103,11 @@
 (`ModAbiTypes.cs`) — `CellLooks (layer, field, looks[], connect)` для покрытия с соседством; вход кадра — `lang:str`,
 `edits: n (id:str value:str)`, `shell:u8` (меню поверх партии, редактор, запись), `roster:u32` (ревизия). Проверить
 инструменты 14, 16, 17 и 21 над репликой: на них стоят `Placing` и `canPlace` из `Base.Shared/Rules`.
+**Дополнения v2 после волны 1** (без смены версии, старые моды пишут те же байты): инструмент 52 Look (имя → номер облика,
+−1 — нет; свободные облики мода получают номера после видов, в порядке объявления); запись `0x1C FieldWith` (`id value
+style mask:u8` и хвост: Digits, Password, Focus, MaxLength `u16`, Placeholder `str`); пунктир `0x27 Dashes x1 y1 x2 y2
+rgba step dot` и `0x28 DashedCircle x y r rgba dashes:u16 dot`; биты стиля `ScrollEnd` (1<<24), `Modal` (1<<25),
+`KeepFocus` (1<<26). Сторону союзника движок определяет сам по `Team.head`.
 
 ## Н6.3. Тесты
 

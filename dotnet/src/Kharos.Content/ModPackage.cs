@@ -56,9 +56,17 @@ public sealed class ModPackage
         HostWasm = hostWasm;
         ClientWasm = clientWasm;
         var files = new SortedDictionary<string, byte[]>(StringComparer.Ordinal);
+        var i18n = new SortedDictionary<string, byte[]>(StringComparer.Ordinal);
         foreach (var (name, bytes) in data)
-            files[name] = bytes;
+        {
+            // Словари мода (i18n/<язык>.json) едут в пакете среди данных под именем «i18n/<язык>».
+            if (name.StartsWith(I18nPrefix, StringComparison.Ordinal))
+                i18n[name[I18nPrefix.Length..]] = bytes;
+            else
+                files[name] = bytes;
+        }
         Data = files;
+        I18n = i18n;
         var schemaFiles = new SortedDictionary<string, byte[]>(StringComparer.Ordinal);
         foreach (var (name, bytes) in schema ?? new Dictionary<string, byte[]>())
             schemaFiles[name] = bytes;
@@ -202,6 +210,16 @@ public sealed class ModPackage
     /// <summary>data/*.json по имени файла без расширения (по порядку имён).</summary>
     public IReadOnlyDictionary<string, byte[]> Data { get; }
 
+    /// <summary>Префикс имени словаря в пакете, который уходит клиенту (Н6-5).</summary>
+    public const string I18nPrefix = "i18n/";
+
+    /// <summary>i18n/*.json по языку (имя файла без расширения): словарь строк мода, вложенный JSON.</summary>
+    public IReadOnlyDictionary<string, byte[]> I18n { get; }
+
+    /// <summary>Всё, что уходит клиенту в пакете: data/*.json и словари под именами «i18n/&lt;язык&gt;».</summary>
+    public IEnumerable<KeyValuePair<string, byte[]>> PackedFiles =>
+        Data.Concat(I18n.Select(pair => new KeyValuePair<string, byte[]>(I18nPrefix + pair.Key, pair.Value)));
+
     /// <summary>schema/*.json по имени файла без расширения (по порядку имён); у присланного мода пусто.</summary>
     public IReadOnlyDictionary<string, byte[]> Schema { get; }
 
@@ -223,6 +241,10 @@ public sealed class ModPackage
         if (System.IO.Directory.Exists(dataDir))
             foreach (var file in System.IO.Directory.GetFiles(dataDir, "*.json"))
                 data[Path.GetFileNameWithoutExtension(file)] = File.ReadAllBytes(file);
+        var i18nDir = Path.Combine(directory, "i18n");
+        if (System.IO.Directory.Exists(i18nDir))
+            foreach (var file in System.IO.Directory.GetFiles(i18nDir, "*.json"))
+                data[I18nPrefix + Path.GetFileNameWithoutExtension(file)] = File.ReadAllBytes(file);
         var schema = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         var schemaDir = Path.Combine(directory, "schema");
         if (System.IO.Directory.Exists(schemaDir))

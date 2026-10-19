@@ -34,6 +34,7 @@ internal sealed class ArtSection : Section
             client.Look("deposits/" + kind, DepositArt.Look(kind));
         // Месторождения — предметы слоя deposits: поле kind — номер записи в deposits.json (порядок = DepositArt.Types).
         client.ItemLook("deposits", "kind", [.. DepositArt.Types.Select(kind => "deposits/" + kind)]);
+        ArtExtras.Setup(client, type => State.Data.Find("units/" + type)?.Mounts() ?? []); // Б-З: значки, эффекты, следы, покрытие.
         // Мини-карта пустыни (lands/desert.luau): цвета по биомам (эрг, солончаки, красные пустоши, топи) —
         // [песок, скала, болото, горы], средние тона палитр terrain.frag (PALETTE в minimap.ts).
         client.Minimap(

@@ -66,6 +66,7 @@
     "scope": "world",
     "shape": "items",
     "cell": 16,
+    "sight": true,
     "fields": {
       "id": "u32",
       "tick": "u32",

@@ -86,6 +86,68 @@ public sealed class Batch
         Quad([(ax + nx, ay + ny), (bx + nx, by + ny), (bx - nx, by - ny), (ax - nx, ay - ny)], (WhiteU, WhiteV, WhiteU, WhiteV), color, Paint.Font);
     }
 
+    /// <summary>
+    /// Пунктир от (fromX, fromY) к (toX, toY) — как dashes у selectionPass.ts: квадратные точки стороной dot через step,
+    /// отсчёт от конца (у цели точка есть всегда). Возвращает, сколько точек.
+    /// </summary>
+    public int Dashes(float fromX, float fromY, float toX, float toY, float step, float dot, uint color)
+    {
+        var length = MathF.Sqrt((toX - fromX) * (toX - fromX) + (toY - fromY) * (toY - fromY));
+        if (length <= 0 || step <= 0) return 0;
+        var count = 0;
+        for (var along = 0f; along < length; along += step, count++)
+        {
+            var x = toX + (fromX - toX) / length * along;
+            var y = toY + (fromY - toY) / length * along;
+            Rect(x - dot / 2, y - dot / 2, x + dot / 2, y + dot / 2, color);
+        }
+        return count;
+    }
+
+    /// <summary>
+    /// Пунктир по ломаной (путь, очередь приказов): отрезки подряд, шаг точек сквозной — точка на изломе не двоится.
+    /// Отсчёт — от первой точки. Возвращает, сколько точек.
+    /// </summary>
+    public int Dashes(ReadOnlySpan<(float X, float Y)> points, float step, float dot, uint color)
+    {
+        if (points.Length < 2 || step <= 0) return 0;
+        var count = 0;
+        var carry = 0f;
+        for (var i = 1; i < points.Length; i++)
+        {
+            var (ax, ay) = points[i - 1];
+            var (bx, by) = points[i];
+            var length = MathF.Sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+            var along = carry;
+            for (; along < length; along += step, count++)
+            {
+                var x = ax + (bx - ax) / length * along;
+                var y = ay + (by - ay) / length * along;
+                Rect(x - dot / 2, y - dot / 2, x + dot / 2, y + dot / 2, color);
+            }
+            carry = along - length;
+        }
+        return count;
+    }
+
+    /// <summary>
+    /// Граница зоны точками (cursorPass.ts): dashes точек стороной dot по окружности, с угла 0; skip(x, y) — точку не
+    /// ставить (лежит внутри соседней зоны). Возвращает, сколько точек.
+    /// </summary>
+    public int DashedCircle(float cx, float cy, float radius, int dashes, float dot, uint color, Func<float, float, bool>? skip = null)
+    {
+        var count = 0;
+        for (var dash = 0; dash < dashes; dash++)
+        {
+            var angle = (float)dash / dashes * MathF.Tau;
+            float x = cx + MathF.Cos(angle) * radius, y = cy + MathF.Sin(angle) * radius;
+            if (skip?.Invoke(x, y) == true) continue;
+            Rect(x - dot / 2, y - dot / 2, x + dot / 2, y + dot / 2, color);
+            count++;
+        }
+        return count;
+    }
+
     /// <summary>Выпуклый многоугольник веером.</summary>
     public void Fan(ReadOnlySpan<(float X, float Y)> points, uint color)
     {

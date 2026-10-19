@@ -1,6 +1,8 @@
-// Спрайты из общего атласа инстансами (SPRITE_VS/FS). Инстанс: левый верхний угол и размер в тайлах от камеры,
-// uv кадра, сторона, сдвиг и сила тени, серость. mode: 0 — спрайт (метка тона в альфе: 254 − тон, тон 1..3 —
-// цвет стороны из палитры), 1 — тень, 2 — силуэт для карты загораживающих.
+// Спрайты из общего атласа инстансами (SPRITE_VS/FS, render/sprites.ts). Инстанс: левый верхний угол и размер в
+// тайлах от камеры, uv кадра, сторона, сдвиг и сила тени, серость, множитель цвета rgba с предумноженной альфой (как
+// aTint у TS: (1, 1, 1, 1) — как есть; чертёж стройки, выключенное, призраки, прозрачные эффекты). mode: 0 — спрайт
+// (метка тона в альфе: 254 − тон, тон 1..3 — цвет стороны из палитры), 1 — тень, 2 — силуэт для карты загораживающих
+// (прозрачнее половины — не загораживает, как у TS альфа > 0,5).
 
 struct SpriteOut {
   @builtin(position) position: vec4f,
@@ -8,10 +10,12 @@ struct SpriteOut {
   @location(1) @interpolate(flat) team: i32,
   @location(2) @interpolate(flat) shadow: f32,
   @location(3) @interpolate(flat) grey: f32,
+  @location(4) @interpolate(flat) tint: vec4f,
 }
 
 @vertex
-fn sprite_vs(@builtin(vertex_index) index: u32, @location(1) rect: vec4f, @location(2) cell: vec4f, @location(3) more: vec4f) -> SpriteOut {
+fn sprite_vs(@builtin(vertex_index) index: u32, @location(1) rect: vec4f, @location(2) cell: vec4f, @location(3) more: vec4f,
+  @location(4) tint: vec4f) -> SpriteOut {
   let c = corner(index);
   let shift = select(vec2f(0.0), vec2f(more.y), u.mode == 1);
   let px = (rect.xy + c * rect.zw + shift) * u.zoom;
@@ -21,6 +25,7 @@ fn sprite_vs(@builtin(vertex_index) index: u32, @location(1) rect: vec4f, @locat
   out.team = i32(more.x + 0.5);
   out.shadow = more.z;
   out.grey = more.w;
+  out.tint = tint;
   return out;
 }
 
@@ -28,11 +33,18 @@ fn sprite_vs(@builtin(vertex_index) index: u32, @location(1) rect: vec4f, @locat
 fn sprite_fs(input: SpriteOut) -> @location(0) vec4f {
   let texel = textureSampleLevel(image, image_sampler, input.uv, 0.0);
   if (texel.a < 0.5) { discard; }
-  if (u.mode == 1) { return vec4f(0.0, 0.0, 0.0, input.shadow); }
-  if (u.mode == 2) { return vec4f(1.0); }
+  if (u.mode == 1) {
+    let shadow = input.shadow * input.tint.a;
+    if (shadow <= 0.0) { discard; }
+    return vec4f(0.0, 0.0, 0.0, shadow);
+  }
+  if (u.mode == 2) {
+    if (input.tint.a <= 0.5) { discard; }
+    return vec4f(1.0);
+  }
   let tone = floor((1.0 - texel.a) * 255.0 + 0.5);
   var rgb = texel.rgb;
   if (tone >= 1.0 && tone <= 3.0) { rgb = palette[input.team * 3 + i32(tone) - 1].rgb; }
   if (input.grey > 0.5) { rgb = vec3f(dot(rgb, vec3f(0.3, 0.59, 0.11))); }
-  return vec4f(rgb, 1.0);
+  return vec4f(rgb, 1.0) * input.tint;
 }

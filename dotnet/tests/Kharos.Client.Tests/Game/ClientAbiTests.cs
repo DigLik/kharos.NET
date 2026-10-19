@@ -266,11 +266,20 @@ public sealed class ClientAbiToolsTests : IDisposable
     private static uint[] U32s(byte[] bytes) => [.. Enumerable.Range(0, bytes.Length / 4).Select(i => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(i * 4)))];
 
     [Fact]
-    public void TextReturnsTheKeyUntilDictionariesArrive()
+    public void TextResolvesTheKeyInThePlayersLanguageFromTheMergedDictionaries()
     {
         var mod = new S.ClientContext();
-        Assert.Equal("menu.play", mod.Text("menu.play"));
-        Assert.Equal("units.count", mod.Text("units.count", "3", "ё"));
+        // Без словарей инструмент отдаёт сам ключ.
+        Assert.Equal("units.count", mod.Text("units.count", "n", "3"));
+        _tools.Texts = Kharos.I18n.Texts.Shell();
+        _tools.Texts.Add("ru", """{ "units": { "count": "{n} шт. ({what:lower})" } }"""u8);
+        _tools.Texts.Add("en", """{ "units": { "count": "{n} pcs ({what:lower})" } }"""u8);
+        Assert.Equal("3 шт. (ёж)", mod.Text("units.count", "n", "3", "what", "ЁЖ"));
+        _tools.Lang = "en";
+        Assert.Equal("3 pcs (ёж)", mod.Text("units.count", "n", "3", "what", "ЁЖ"));
+        Assert.Equal("Play", mod.Text("common.play"));
+        Assert.Equal("{n} pcs ({what:lower})", mod.Text("units.count"));
+        Assert.Equal("no.such.key", mod.Text("no.such.key"));
     }
 
     [Fact]
@@ -288,6 +297,18 @@ public sealed class ClientAbiToolsTests : IDisposable
         Assert.Equal([9], new S.ClientContext().Prefs.Get("volume"));
         _tools.Mod = null;
         Assert.Empty(new S.ClientContext().Prefs.Get("volume"));
+    }
+
+    [Fact]
+    public void LookToolNamesFreeLooks()
+    {
+        // Без партии облика нет; с ней — номер от движка (облик вида или свободный, после всех видов).
+        Assert.Equal(-1, new S.ClientContext().LookId("goods/metal"));
+        _tools.LookId = name => name switch { "goods/metal" => 1000, "units/buggy" => 4, _ => -1 };
+        var mod = new S.ClientContext();
+        Assert.Equal(1000, mod.LookId("goods/metal"));
+        Assert.Equal(4, mod.LookId("units/buggy"));
+        Assert.Equal(-1, mod.LookId("goods/none"));
     }
 
     [Fact]

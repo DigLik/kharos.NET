@@ -10,6 +10,7 @@
     <ProjectReference Include="..\Kharos.Protocol\Kharos.Protocol.csproj" />
     <ProjectReference Include="..\Kharos.Gpu\Kharos.Gpu.csproj" />
     <ProjectReference Include="..\Kharos.Audio\Kharos.Audio.csproj" />
+    <ProjectReference Include="..\Kharos.I18n\Kharos.I18n.csproj" />
     <!-- Растеризатор шрифтов: управляемый, без платформенных библиотек, безопасен для NativeAOT. -->
     <PackageReference Include="StbTrueTypeSharp" />
     <InternalsVisibleTo Include="Kharos.Client.Tests" />

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Языки (Н6-5): словари, t(), множественное число, rich. Без платформы и без отражения; ключи оболочки — lang/*.json ресурсами сборки. -->
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="lang\*.json" LogicalName="Kharos.I18n.lang.%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

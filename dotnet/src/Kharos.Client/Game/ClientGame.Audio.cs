@@ -11,9 +11,18 @@ public sealed partial class ClientGame
 {
     // Владелец — Д5 (docs/dotnet-n6.md, Н6.5): звук движка — банк и голоса модов.
 
+    private AudioPrefs? _audioPrefs;
+
+    /// <summary>
+    /// Громкости игрока (общая, выключение, шины) из хранилища клиента; применяются к звуку при первом обращении и при
+    /// загрузке мода. Без звука (<see cref="Audio"/> = null) значения всё равно читаются и пишутся.
+    /// </summary>
+    public AudioPrefs SoundPrefs => _audioPrefs ??= new AudioPrefs(Audio, Tools.Storage.Get, (key, value) => Tools.Storage.Set(key, value));
+
     /// <summary>Банк звуков и голоса мода из манифеста — в звук клиента (без звука — ничего).</summary>
     private void LoadSounds(ModPackage package, IClientModInstance instance, ModManifest manifest)
     {
+        _ = SoundPrefs;
         if (Audio is { } audio)
         {
             for (var entry = 0; entry < manifest.Bank.Length; entry++)

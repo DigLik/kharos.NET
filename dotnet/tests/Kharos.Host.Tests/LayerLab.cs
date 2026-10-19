@@ -21,7 +21,7 @@ public static class LayerLab
           "notes": { "scope": "player", "shape": "grid", "channels": ["u8"], "save": true },
           "deposits": { "scope": "world", "shape": "items", "cell": 40, "fields": { "kind": "u8", "reserve": "f64" }, "save": true, "remember": true },
           "paving": { "scope": "world", "shape": "grid", "channels": ["u16"], "save": true, "remember": true },
-          "traces": { "scope": "world", "shape": "items", "cell": 16, "fields": { "id": "u32", "tick": "u32", "kind": "u8", "entity": "u32", "type": "u16", "facing": "f64", "player": "u16", "size": "f64" } }
+          "traces": { "scope": "world", "shape": "items", "cell": 16, "sight": true, "fields": { "id": "u32", "tick": "u32", "kind": "u8", "entity": "u32", "type": "u16", "facing": "f64", "player": "u16", "size": "f64" } }
         }
         """;
 
@@ -65,6 +65,20 @@ public static class LayerLab
 
     /// <summary>Приказ hello.read; ответ приходит сигналом (<see cref="ReadAnswer"/>).</summary>
     public static byte[] Read(ReadOrder order) => MemoryPackSerializer.Serialize(order);
+
+    /// <summary>Переносит юниты hello в точку (x, y) и там их оставляет: место и цель ходовой (Object.assign в тестах TS).</summary>
+    public static void Teleport(Host host, IEnumerable<uint> units, double x, double y)
+    {
+        var world = host.World;
+        var drive = world.Schema.Id("Drive");
+        foreach (var unit in units)
+        {
+            world.SetNumber(unit, Kharos.Engine.World.Builtin.Position, 0, x);
+            world.SetNumber(unit, Kharos.Engine.World.Builtin.Position, 1, y);
+            world.Set(unit, drive, "tx", Kharos.Engine.World.FieldValue.Of(x));
+            world.Set(unit, drive, "ty", Kharos.Engine.World.FieldValue.Of(y));
+        }
+    }
 
     /// <summary>Ответ hello.read из дельты: сигнал адресован игроку.</summary>
     public static ReadReport ReadAnswer(WorldDelta delta, uint player)

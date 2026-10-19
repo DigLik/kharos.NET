@@ -31,6 +31,8 @@ public sealed unsafe partial class Renderer : IDisposable
     public const int ChunkSize = 32;
     public const int ChunkBytes = ChunkSize * ChunkSize * 4;
     private const int WindowChunks = Window / ChunkSize;
+    /// <summary>Строк окна земли под таблицей зерна (<see cref="Grain"/>): 1024 × 1024 × 4 байта по <see cref="Window"/> × 4 в строке.</summary>
+    private const int GrainRows = Grain.Size * Grain.Size / Window;
 
     /// <summary>Оттенки освещения, как в lightingPass.ts: ночь, сумерки (добавка в середине шкалы); полдень — белый.</summary>
     public static readonly Vector3 Night = new(0.16f, 0.2f, 0.42f);
@@ -83,10 +85,12 @@ public sealed unsafe partial class Renderer : IDisposable
     /// <summary>Размер кадра в физических пикселях.</summary>
     public int Width { get; private set; }
     public int Height { get; private set; }
-    /// <summary>Барханы (uDunes): порог полей в эрге, в красных пустошах и их отступ. По умолчанию — как settings.ts.</summary>
-    public Vector3 Dunes { get; set; } = new(0.9f - 0.6f * 0.6f, 0.9f - 0.35f * 0.6f, 0.15f);
+    /// <summary>Барханы (uDunes): порог полей в эрге, в красных пустошах и их отступ. По умолчанию — DEFAULT_RENDER_CONFIG из packages/shared/src/settings.ts (ergDunes 0,6, redDunes 0,37, duneMargin 0,3), в double, как Float32Array у TS.</summary>
+    public Vector3 Dunes { get; set; } = new((float)(0.9 - 0.6 * 0.6), (float)(0.9 - 0.37 * 0.6), 0.3f);
     /// <summary>Сколько точек усредняет земля в пикселе издалека: 4, 2 или 1 (uSamples).</summary>
     public float TerrainSamples { get; set; } = 4;
+    /// <summary>Проверок тени на пиксель луча: 10, 20 или 40 (SHADOW_STEPS в lightingPass.ts; 40 — «высокая»).</summary>
+    public int ShadowSteps { get; set; } = 40;
     /// <summary>Детализация осадков: 2, 1 или 0 (uDetail).</summary>
     public int WeatherDetail { get; set; } = 2;
 
@@ -98,17 +102,20 @@ public sealed unsafe partial class Renderer : IDisposable
         _linear = CreateSampler(FilterMode.Linear, FilterMode.Linear);
         _minimapSampler = CreateSampler(FilterMode.Linear, FilterMode.Nearest);
 
-        var sprites = new Layout(Frame.Sprite * 4, VertexStepMode.Instance, [(VertexFormat.Float32x4, 0, 1), (VertexFormat.Float32x4, 16, 2), (VertexFormat.Float32x4, 32, 3)]);
+        var sprites = new Layout(Frame.Sprite * 4, VertexStepMode.Instance,
+            [(VertexFormat.Float32x4, 0, 1), (VertexFormat.Float32x4, 16, 2), (VertexFormat.Float32x4, 32, 3), (VertexFormat.Float32x4, 48, 4)]);
         var spots = new Layout(16, VertexStepMode.Instance, [(VertexFormat.Float32x4, 0, 1)]);
         var beams = new Layout(32, VertexStepMode.Instance, [(VertexFormat.Float32x4, 0, 1), (VertexFormat.Float32x4, 16, 2)]);
         var decals = new Layout(Frame.Decal * 4, VertexStepMode.Instance,
             [(VertexFormat.Float32x4, 0, 1), (VertexFormat.Float32, 16, 2), (VertexFormat.Float32x4, 20, 3), (VertexFormat.Float32x4, 36, 4), (VertexFormat.Float32x3, 52, 5)]);
         var batch = new Layout(Unsafe.SizeOf<Vertex>(), VertexStepMode.Vertex, [(VertexFormat.Float32x2, 0, 0), (VertexFormat.Float32x2, 8, 1), (VertexFormat.Unorm8x4, 16, 2)]);
         _pipelines.Create("terrain", "terrain.wgsl", "fullscreen", "terrain", SceneFormat, Blend.None, null);
-        _pipelines.Create("weather", "weather.wgsl", "fullscreen", "weather", SceneFormat, Blend.Alpha, null);
+        // Осадки — с предумноженной альфой, как setBlend('alpha') у precipitationPass.ts (ONE, ONE_MINUS_SRC_ALPHA).
+        _pipelines.Create("weather", "weather.wgsl", "fullscreen", "weather", SceneFormat, Blend.Premultiplied, null);
         _pipelines.Create("fog", "screen.wgsl", "fullscreen", "fog", SceneFormat, Blend.Alpha, null);
         _pipelines.Create("blit", "screen.wgsl", "fullscreen", "blit", SceneFormat, Blend.Multiply, null);
-        _pipelines.Create("sprite", "sprite.wgsl", "sprite_vs", "sprite_fs", SceneFormat, Blend.Alpha, sprites);
+        // Спрайты и тени — с предумноженной альфой, как setBlend('alpha') у TS: множитель цвета уже умножен на альфу.
+        _pipelines.Create("sprite", "sprite.wgsl", "sprite_vs", "sprite_fs", SceneFormat, Blend.Premultiplied, sprites);
         _pipelines.Create("silhouette", "sprite.wgsl", "sprite_vs", "sprite_fs", TextureFormat.R8Unorm, Blend.None, sprites);
         _pipelines.Create("spot", "light.wgsl", "spot_vs", "spot_fs", SceneFormat, Blend.Additive, spots);
         _pipelines.Create("beam", "light.wgsl", "beam_vs", "beam_fs", SceneFormat, Blend.Additive, beams);
@@ -116,7 +123,9 @@ public sealed unsafe partial class Renderer : IDisposable
         _pipelines.Create("batch", "batch.wgsl", "batch_vs", "batch_fs", SceneFormat, Blend.Interface, batch, PrimitiveTopology.TriangleList);
         if (gpu.HasSurface) _pipelines.Create("present", "screen.wgsl", "fullscreen", "present", gpu.SurfaceFormat, Blend.None, null);
 
-        _land = NewTexture(Window, Window, TextureFormat.Rgba8Unorm, TextureUsage.CopyDst, Filter.Nearest);
+        // Окно земли и под ним таблица зерна (Grain): 1024² f32 — по две строки окна на строку таблицы.
+        _land = NewTexture(Window, Window + GrainRows, TextureFormat.Rgba8Unorm, TextureUsage.CopyDst, Filter.Nearest);
+        _land.Write(Grain.Bytes, 0, Window, Window, GrainRows);
         _font = NewTexture(Batch.AtlasSize, Batch.AtlasSize, TextureFormat.R8Unorm, TextureUsage.CopyDst, Filter.Linear);
         _white = NewTexture(1, 1, TextureFormat.Rgba8Unorm, TextureUsage.CopyDst, Filter.Nearest);
         _white.Write([255, 255, 255, 255], 0, 0, 1, 1);

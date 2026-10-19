@@ -106,9 +106,20 @@ internal static class BuildingKit
         g.Light(x + 1, y + 1, 1, level);
     }
 
+    /// <summary>Чертёж с вариантом (соседство, ступень пуска, число ракет): холст, фаза цикла t, вариант, есть ли работа.</summary>
+    public delegate void ArtVariant(Canvas g, double t, int variant, bool working);
+
     /// <summary>Облик здания width × height тайлов; working — есть ли у здания вид работы (тогда кадров вдвое больше).</summary>
     public static LookSpec Look(int width, int height, Art draw, bool working = false) =>
-        new((canvas, _, phase) => draw(canvas, phase % Frames / (double)Frames, phase >= Frames))
+        Look(width, height, (g, t, _, w) => draw(g, t, w), 1, working);
+
+    /// <summary>
+    /// Облик здания с вариантами (LookVariants) и видом работы (LookWorking): ячейка — вариант × фазы, затем те же фазы
+    /// «в работе» (framesOf в buildingsPass.ts). Портрет — вариант 0, первый кадр работы, с полем в 2 пикселя;
+    /// portraitMounts дорисовывает на портрете башни креплений (drawMounts в portraits.ts); начало — угол основания.
+    /// </summary>
+    public static LookSpec Look(int width, int height, ArtVariant draw, int variants = 1, bool working = false, Action<Canvas>? portraitMounts = null) =>
+        new((canvas, _, phase) => draw(canvas, phase % Frames / (double)Frames, 0, phase >= Frames))
         {
             Width = width * Tile + Pad * 2,
             Height = height * Tile + Pad * 2,
@@ -116,13 +127,93 @@ internal static class BuildingKit
             // Место сущности — левый верхний тайл основания.
             Anchor = (0, 0),
             Directions = 1,
-            Phases = working ? Frames * 2 : Frames,
+            Phases = Frames,
+            Working = working,
+            Variants = variants,
+            DrawCell = (canvas, variant, _, phase) => draw(canvas, phase % Frames / (double)Frames, variant, phase >= Frames),
             Fps = 8,
             Layer = LookLayer.Building,
             Shadow = (3, 0.4f),
             // Портрет: первый кадр работы с полем в 2 пикселя (buildingCanvas в portraits.ts).
-            Portrait = new PortraitSpec(width * Tile + 4, height * Tile + 4, canvas => draw(canvas, 0, true)) { Origin = (2, 2) },
+            Portrait = new PortraitSpec(width * Tile + 4, height * Tile + 4, canvas =>
+            {
+                draw(canvas, 0, 0, true);
+                portraitMounts?.Invoke(canvas);
+            }) { Origin = (2, 2) },
         };
+
+    // ---- Общие помощники чертежей (Б-А; Б-Б берёт их отсюда же). Только дополняются, не меняются. ----
+
+    /// <summary>Math.round из JS: к ближайшему целому, половина — вверх (для отрицательных тоже, −1,5 → −1).</summary>
+    public static double Round(double value) => Math.Floor(value + 0.5);
+
+    /// <summary>Тона от тёмного к светлому (пять оттенков).</summary>
+    public static readonly uint[] White = [0x6d7680, 0x9aa4ae, 0xc3cbd3, 0xe1e7ec, 0xffffff];
+
+    /// <summary>Огонь печи: от тёмно-красного к белому.</summary>
+    public static readonly uint[] Fire = [0x6a1a10, 0xc2401a, 0xf08a2a, 0xffd36a, 0xfff4d0];
+
+    public static uint FireColor(double level) => Fire[(int)Math.Min(Fire.Length - 1, Math.Max(0, Math.Floor(level * Fire.Length)))];
+
+    /// <summary>Огнеупорный кирпич печей.</summary>
+    public static readonly uint[] Brick = [0x2a1a16, Rust[0], Rust[1], Rust[2], 0xe0a080];
+
+    /// <summary>Электрическая дуга: от синего к белому.</summary>
+    public static readonly uint[] Arc = [0x2f5fd0, 0x8fc0ff, 0xf2f8ff];
+
+    /// <summary>Материя, которую выдаёт генератор: слитки цвета кредитов.</summary>
+    public static readonly uint[] Gold3 = [0xc9962b, 0xf0c95a, 0xfff0b0];
+
+    /// <summary>Бетон реактора, шахты и перехватчика.</summary>
+    public static readonly uint[] Concrete = [0x4f4c47, 0x77736b, 0x9d988e, 0xbfb9ae, 0xe0dbd1];
+
+    /// <summary>Цвет груза (GOOD_COLORS в resourceColors.ts): для окраски частей здания.</summary>
+    public static class GoodColor
+    {
+        public const uint Metal = 0xb8c4d0, Silicon = 0x7f9cff, Fuel = 0xffc93c, Kharite = 0xc06bff, Lithium = 0xf59ac0,
+            Uranium = 0xb4e84a, Blocks = 0xd8b98a, Ammo = 0xe0803a, Parts = 0x4fd6a2, Rods = 0x7ef0b0,
+            MetalOre = 0x8d7a5f, SiliconOre = 0x5a6a8a, FuelOre = 0x8a7a2a, KhariteOre = 0x7a4a9a, LithiumOre = 0x9a6a7e,
+            UraniumOre = 0x6a8a3a;
+    }
+
+    /// <summary>Три тона цвета: тёмный, основной, светлый — для окраски частей здания цветом его груза (accent в buildingArt.ts).</summary>
+    public static uint[] Accent(uint color)
+    {
+        uint Mix(double amount)
+        {
+            uint Channel(int shift)
+            {
+                var value = (double)((color >> shift) & 255);
+                return (uint)Round(amount > 0 ? value + (255 - value) * amount : value * (1 + amount)) << shift;
+            }
+            return Channel(16) | Channel(8) | Channel(0);
+        }
+        return [Mix(-0.55), Mix(-0.15), Mix(0.3)];
+    }
+
+    /// <summary>Воспроизводимое случайное число от 0 до 1 по двум целым (hash в buildingArt.ts).</summary>
+    public static double Hash(double a, double b)
+    {
+        var value = Math.Sin(a * 127.1 + b * 311.7) * 43758.5453;
+        return value - Math.Floor(value);
+    }
+
+    /// <summary>Труба с обводкой: горизонтальная, длиной w, осью по строке y (pipe в buildingArt.ts).</summary>
+    public static void Conduit(Canvas g, double x, double y, double w)
+    {
+        g.Rect(x, y - 1, w, 3, Ink);
+        g.Rect(x, y, w, 1, Rust[1]);
+    }
+
+    /// <summary>Окна цвета команды в ряд: каждое 3×2 с бликом.</summary>
+    public static void Windows(Canvas g, ReadOnlySpan<double> xs, double y)
+    {
+        foreach (var x in xs)
+        {
+            g.Rect(x, y, 3, 2, Team[1]);
+            g.Rect(x, y, 1, 1, Team[2]);
+        }
+    }
 
     /// <summary>Заглушка по основанию и роли из данных (<see cref="BuildingInfo"/>).</summary>
     public static LookSpec Placeholder(BuildingInfo info) => Placeholder(info.Width, info.Height, info.Role);

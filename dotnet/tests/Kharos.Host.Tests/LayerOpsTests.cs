@@ -181,8 +181,64 @@ public sealed class LayerOpsTests
 
     // «погибшая техника оставляет остов и гарь» — мод base: Kharos.Base.Tests/Sim/Combat/TracesTests.cs.
 
-    [Fact(DisplayName = "следы приходят только в обзор: пришедший позже видит колею врага, ушедший её забывает, вернувшийся получает снова", Skip = "ждёт видимости слоёв предметов в сети (Д4): слои предметов мира пока уходят всем")]
+    [Fact(DisplayName = "следы приходят только в обзор: пришедший позже видит колею врага, ушедший её забывает, вернувшийся получает снова")]
     public void TracesReachOnlyTheViewOfPlayer()
     {
+        using var host = LayerLab.Create(ModMode.Clr);
+        host.Start();
+        var session = new HostSession(host, new HostSessionOptions { SendRate = 0 });
+        var (hostEnd, end) = Kharos.Protocol.MemoryTransport.Pair();
+        session.Connect(hostEnd, 1);
+        var (otherEnd, other) = Kharos.Protocol.MemoryTransport.Pair();
+        session.Connect(otherEnd, 2);
+        var first = new Kharos.Protocol.Replica();
+        var second = new Kharos.Protocol.Replica();
+        void Tick(int count = 1)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                session.Step();
+                first.Pump(end);
+                second.Pump(other);
+            }
+        }
+        Tick(2);
+        // Юнит игрока 2 проходит в стороне от всех, и никто его не видит: колея — точками вдоль пути.
+        var far = (X: 60.0, Y: 60.0);
+        for (var i = 0; i < 6; i++)
+        {
+            host.Send(2, "hello.item", LayerLab.Item("traces", far.X + i, far.Y + 0.5, [0, 0, TraceLayer.Track, 99, 1, 0, 2, 0]));
+            Tick();
+        }
+        Tick(2 * Vision.Ticks);
+        List<LayerItem> EnemyTracks()
+        {
+            var layers = first.Layers!;
+            var id = layers.Id("traces");
+            return [.. layers.Cells(id, LayerOwner.World).SelectMany(cell => layers.Items(id, LayerOwner.World, cell))
+                .Where(item => item.Fields[TraceLayer.Kind] == TraceLayer.Track && item.Fields[TraceLayer.Player] == 2)];
+        }
+        var traces = host.Layers.Id("traces");
+        Assert.Equal(6, host.Layers.Cells(traces, LayerOwner.World).Sum(cell => host.Layers.Items(traces, LayerOwner.World, cell).Count));
+        Assert.Empty(EnemyTracks());
+
+        // Игрок 1 приводит своих туда, где враг прошёл.
+        var home = HelloGame.Units(host.World, 1);
+        LayerLab.Teleport(host, home, far.X + 3, far.Y);
+        Tick(2 * Vision.Ticks);
+        var seen = EnemyTracks();
+        Assert.Equal(6, seen.Count);
+        // Пришли они старыми: по их времени видно, давно ли тут прошли.
+        Assert.True(seen.Max(item => item.Fields[TraceLayer.Tick]) < host.Tick - Vision.Ticks);
+        Assert.Equal(seen.Count, seen.Select(item => item.Fields[TraceLayer.Id]).Distinct().Count());
+
+        // Ушли — клиент о следах больше не знает; вернулись — хост присылает их снова.
+        LayerLab.Teleport(host, home, far.X - 60, far.Y);
+        Tick(2 * Vision.Ticks);
+        Assert.Empty(EnemyTracks());
+        LayerLab.Teleport(host, home, far.X + 3, far.Y);
+        Tick(2 * Vision.Ticks);
+        Assert.Equal(seen, EnemyTracks());
+        Assert.Empty(host.Errors);
     }
 }

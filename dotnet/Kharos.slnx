@@ -6,6 +6,7 @@
     <Project Path="src/Kharos.Engine/Kharos.Engine.csproj" />
     <Project Path="src/Kharos.Gpu/Kharos.Gpu.csproj" />
     <Project Path="src/Kharos.Host/Kharos.Host.csproj" />
+    <Project Path="src/Kharos.I18n/Kharos.I18n.csproj" />
     <Project Path="src/Kharos.Mod.Sdk/Kharos.Mod.Sdk.csproj" />
     <Project Path="src/Kharos.Plugins/Kharos.Plugins.csproj" />
     <Project Path="src/Kharos.Protocol/Kharos.Protocol.csproj" />

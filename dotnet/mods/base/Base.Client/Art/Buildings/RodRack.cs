@@ -1,10 +1,23 @@
 using Kharos.Mod.Sdk.Client;
+using static Base.Client.BuildingKit;
 
 namespace Base.Client.Buildings;
 
-/// <summary>Стеллаж стержней (rodRack, 1×1) — владелец Б-Б (docs/dotnet-n6.md, Н6.5).</summary>
+/// <summary>Стойка стержней (rodRack) — перенос из buildingArt.ts: шкаф со стержнями, по которым бежит заряд.</summary>
 internal static class RodRack
 {
-    // TODO(Б-Б): чертёж rodRack из packages/client/src/game/buildings/buildingArt.ts; пока — заглушка по основанию и роли.
-    public static LookSpec Look(BuildingInfo info) => BuildingKit.Placeholder(info);
+    public static LookSpec Look(BuildingInfo info) => KitB.Look(info.Width, info.Height, (g, t, _, _) =>
+    {
+        var tint = KitB.Accent(KitB.Rods);
+        Slab(g, 0, 1, 16, 15, 2, Iron);
+        g.Rect(2, 3, 12, 9, Ink);
+        g.Rect(3, 4, 10, 7, Iron[1]);
+        for (var i = 0; i < 3; i++)
+        {
+            var x = 4 + i * 3;
+            g.Rect(x, 5, 2, 5, Iron[3]);
+            g.Rect(x, 5, 2, 1, Chase(t, i / 3.0) > 0.3 ? tint[2] : tint[1]);
+        }
+        g.Light(8, 7, 2, 0.2 + 0.3 * Pulse(t));
+    });
 }

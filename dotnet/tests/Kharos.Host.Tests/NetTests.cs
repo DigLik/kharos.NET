@@ -285,6 +285,41 @@ public class NetTests
     }
 
     [Fact]
+    public void SaveVersionDoesNotFollowProtocolVersion()
+    {
+        Assert.SkipUnless(HelloGame.Built, HelloGame.NotBuilt);
+        using var host = HelloGame.Create();
+        host.Start();
+        for (var tick = 0; tick < 5; tick++)
+            host.Step();
+        var file = host.Save();
+        var sections = SaveFile.Unpack(file);
+        var decoded = HostSave.Decode(file);
+        // META до format: game, seed, dt, tick, random, checksum — тем же писателем, что HostSave.Encode.
+        var head = new WireWriter(128).Text(decoded.Game).Varint(decoded.Seed).F64(decoded.Dt).Varint(decoded.Tick);
+        var random = new byte[8];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(random, decoded.Random);
+        head.Raw(random).Blob(decoded.Checksum);
+        var prefix = head.ToArray();
+        var meta = sections["META"];
+        Assert.Equal(prefix, meta[..prefix.Length]);
+        // В format — своя версия сохранения, не версия протокола.
+        var r = new WireReader(meta.AsSpan(prefix.Length));
+        Assert.Equal((ulong)SaveFile.Version, r.Varint());
+        Assert.NotEqual(SaveFile.Version, Welcome.ProtocolVersion);
+
+        // Сохранения, записанные при протоколе 2 и 3 (в format стояла версия протокола), читаются и продолжают партию.
+        foreach (var legacy in new ulong[] { 2, 3 })
+        {
+            var old = new WireWriter(meta.Length + 4).Raw(prefix).Varint(legacy).Raw(meta.AsSpan(prefix.Length + 1)).ToArray();
+            var oldFile = SaveFile.Pack(sections.Select(section => (section.Key, section.Key == "META" ? old : section.Value)));
+            using var loaded = Host.Load(HelloGame.Content(), oldFile, new HostOptions { Modules = Modules });
+            Assert.Equal(host.Tick, loaded.Tick);
+            Assert.Equal(WorldSave.Save(host.World), WorldSave.Save(loaded.World));
+        }
+    }
+
+    [Fact]
     public void OtherSaveVersionIsRefused()
     {
         using var host = HelloGame.Create();
@@ -315,6 +350,11 @@ public class NetTests
         }
     }
 
+    private static readonly Kharos.I18n.Texts Shell = Kharos.I18n.Texts.Shell();
+
+    /// <summary>Строка чата на русском: сообщения хоста идут ключом и подстановками (протокол 3), слова человека — как есть.</summary>
+    private static string Shown(ChatLine line) => line.Args is null ? line.Text : Shell.Host("ru", line.Text, line.Args);
+
     [Fact]
     public void ChatAndCommands()
     {
@@ -324,7 +364,7 @@ public class NetTests
         var session = new HostSession(host, new HostSessionOptions { SendRate = 0, AdminPassword = "секрет", ChatGap = TimeSpan.Zero, Log = log.Add });
         var alice = new Client(session, name: "Алиса");
         var bob = new Client(session, name: "Боб");
-        Assert.Contains(alice.Chat.Concat(bob.Chat), line => line.Text == "входит в игру" && line.Name == "Боб");
+        Assert.Contains(alice.Chat.Concat(bob.Chat), line => line is { Text: "joins", Args: not null } && line.Name == "Боб");
 
         void Say(Client client, string text)
         {
@@ -340,9 +380,9 @@ public class NetTests
         Assert.Contains(bob.Chat, line => line.Kind == ChatKind.Whisper);
 
         Say(alice, "/kick Боб");
-        Assert.Contains(alice.Chat, line => line.Text.StartsWith("Нет команды /kick"));
+        Assert.Contains(alice.Chat, line => Shown(line).StartsWith("Нет команды /kick"));
         Say(alice, "/admin неверно");
-        Assert.Contains(alice.Chat, line => line.Text == "Неверный пароль");
+        Assert.Contains(alice.Chat, line => Shown(line) == "Неверный пароль");
         Assert.Contains(log, line => line.Contains("неверный пароль"));
         Assert.DoesNotContain(bob.Chat, line => line.Text.Contains("неверно"));
         Say(bob, "/admin секрет");
@@ -350,19 +390,20 @@ public class NetTests
         Assert.Contains(session.Commands.Values, c => c.Name == "kick");
 
         Say(bob, "/players");
-        Assert.Contains(bob.Chat, line => line.Text.StartsWith("#1 Алиса: в сети, сущностей 3"));
+        Assert.Contains(bob.Chat, line => Shown(line).StartsWith("#1 Алиса — в сети, сущностей 3"));
         Say(bob, "/say  Сервер  уходит на обед");
         Assert.Contains(alice.Chat, line => line is { Player: 0, Name: "[Сервер]", Text: "Сервер уходит на обед" });
         Say(bob, "/help");
-        Assert.Contains(bob.Chat, line => line.Text.StartsWith("/kick <player>"));
+        Assert.Contains(bob.Chat, line => Shown(line).StartsWith("/kick <игрок>"));
+        Assert.Contains(bob.Chat, line => line is { Text: "help", Args: ["command", "/kick <player>", ..] });
         Say(bob, "/reveal Алиса");
         Assert.True(host.Vision!.Explored(1, 200.5, 200.5));
 
         Say(bob, "/kick Алиса");
-        Assert.Contains(alice.Refused, reason => reason == "Вас отключили");
+        Assert.Contains(alice.Refused, reason => reason == "kickedYou");
         Assert.True(alice.End.Closed);
         Assert.Single(session.Connections);
-        Assert.Contains(bob.Chat, line => line is { Name: "Алиса", Text: "отключён" });
+        Assert.Contains(bob.Chat, line => line is { Name: "Алиса", Text: "kicked", Args: not null });
 
         var parsed = ChatCommands.Parse("/MSG \"Игрок 3\" привет   мир")!;
         Assert.Equal("msg", parsed.Name);

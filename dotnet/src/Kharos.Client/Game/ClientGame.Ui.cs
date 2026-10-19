@@ -1,3 +1,4 @@
+using Kharos.Client.Ui;
 using RenderFrame = Kharos.Gpu.Frame;
 
 namespace Kharos.Client.Game;
@@ -17,6 +18,16 @@ public sealed partial class ClientGame
     ];
 
     private uint[] _minimapPalette = DefaultMinimap;
+
+    /// <summary>Буфер обмена полей ввода: оболочка подставляет системный (по умолчанию — в памяти).</summary>
+    public IClipboard Clipboard
+    {
+        get => Gui.Clipboard;
+        set => Gui.Clipboard = value;
+    }
+
+    /// <summary>В поле ввода набирают текст или открыто модальное окно: оболочка не отдаёт клавиши своим горячим клавишам.</summary>
+    public bool CapturesKeys => Gui.CapturesKeys;
 
     /// <summary>Начало интерфейса кадра: ввод — Gui (места и щелчки прошлого кадра).</summary>
     private void BeginUi(in ClientInput input) => Gui.Begin(input.ToUi());

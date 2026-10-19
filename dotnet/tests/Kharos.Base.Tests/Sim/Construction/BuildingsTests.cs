@@ -1,4 +1,7 @@
+using Base.Client;
 using Base.Shared.Queries;
+using Kharos.Client.Game;
+using Kharos.Client.Looks;
 using Kharos.Base.Tests.Kernel;
 
 namespace Kharos.Base.Tests.Construction;
@@ -41,13 +44,44 @@ public sealed class BuildingsTests
         Assert.False(sim.Query<bool>(KernelQueries.CanPlace, new PlaceArgs { Type = "turret", X = x - 2, Y = y, Gap = 2 }));
     }
 
-    [Fact(DisplayName = "каждый чертёж рисуется во всех кадрах и сообщает одни и те же огни", Skip = "клиент: чертежи зданий — Looks (К, Н6)")]
+    [Fact(DisplayName = "каждый чертёж рисуется во всех кадрах и сообщает одни и те же огни")]
     public void EveryArtDraws()
     {
+        // Все виды base на CLR: поток облика → растеризация клиента; число и порядок огней кадра не зависят ни от фазы, ни от работы (место огня может ходить: головка ремонта, стрела).
+        foreach (var name in BuildingArt.Names)
+        {
+            var look = Look.Build(0, LookStream.Decode(BuildingArt.Look(name, new BuildingInfo(2, 2, BuildingKit.Role.Storage)).Encode()));
+            Assert.NotEmpty(look.Images);
+            Assert.Equal(look.Images.Count, look.FrameLights.Count);
+            Assert.All(look.Images, image => Assert.Contains(image, b => b != 0));
+            var per = look.Images.Count / look.Variants;
+            for (var i = 0; i < look.FrameLights.Count; i++)
+            {
+                var first = look.FrameLights[i / per * per];
+                Assert.True(look.FrameLights[i].Length == first.Length, $"{name}: кадр {i} — огней {look.FrameLights[i].Length}, в первом {first.Length}");
+            }
+        }
     }
 
-    [Fact(DisplayName = "чертёж стены протягивает рукава только к соседям по четырём сторонам", Skip = "клиент: чертежи зданий — Looks (К, Н6)")]
+    [Fact(DisplayName = "чертёж стены протягивает рукава только к соседям по четырём сторонам")]
     public void WallArtArms()
     {
+        var look = Look.Build(0, LookStream.Decode(BuildingArt.Look("wall", new BuildingInfo(1, 1, BuildingKit.Role.Defense)).Encode()));
+        Assert.Equal(16, look.Variants);
+        var per = look.Images.Count / look.Variants;
+        // Тайл стены лежит в кадре со сдвигом 16 пикселей поля; край тайла закрашен только там, где есть сосед.
+        bool Solid(int variant, int x, int y) => look.Images[variant * per][((16 + y) * look.Width + 16 + x) * 4 + 3] != 0;
+        var seen = new HashSet<string>();
+        for (var mask = 0; mask < 16; mask++)
+        {
+            Assert.Equal((mask & 1) != 0, Solid(mask, 8, 0));
+            Assert.Equal((mask & 2) != 0, Solid(mask, 15, 8));
+            Assert.Equal((mask & 4) != 0, Solid(mask, 8, 15));
+            Assert.Equal((mask & 8) != 0, Solid(mask, 0, 8));
+            // Углы тайла не закрашены ни у одного варианта: рукава идут только по четырём сторонам.
+            foreach (var (x, y) in new[] { (0, 0), (15, 0), (0, 15), (15, 15) })
+                Assert.False(Solid(mask, x, y));
+            Assert.True(seen.Add(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(look.Images[mask * per]))), $"вариант {mask} повторяет другой");
+        }
     }
 }

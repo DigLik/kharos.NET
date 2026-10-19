@@ -37,7 +37,10 @@ public record struct ClientInput()
     /// <summary>Язык игрока (ABI 2): ru, en, … — моды берут его для своих строк.</summary>
     public string Lang { get; set; } = "ru";
 
-    /// <summary>Правки полей ввода мода (Field) за кадр: номер поля и новое значение (ABI 2). TODO(Д2): ведёт UI-ядро.</summary>
+    /// <summary>
+    /// Правки полей ввода мода (Field) за кадр: номер поля и новое значение (ABI 2). Пусто — берутся правки интерфейса
+    /// кадра (<see cref="Gui.FrameEdits"/>); заполненное оболочкой или тестом идёт как есть.
+    /// </summary>
     public IReadOnlyList<(string Id, string Value)> Edits { get; set; } = [];
 
     /// <summary>Режим оболочки (ABI 2): ClientAbi.Shell* — меню поверх партии, редактор, запись. TODO(Д4): ставит оболочка.</summary>
@@ -48,6 +51,7 @@ public record struct ClientInput()
     {
         Time = Time, Width = Width, Height = Height, Scale = Scale, Pointer = Pointer, Pressed = Pressed, Released = Released,
         Wheel = Wheel, Shift = Shift, Ctrl = Ctrl, Alt = Alt, Touch = Touch,
+        Text = Text, Hits = Hits, Keys = Keys,
     };
 }
 
@@ -85,12 +89,21 @@ public sealed class FrameInput
         if (input.Ctrl) flags |= ClientAbi.InputCtrl;
         if (input.Alt) flags |= ClientAbi.InputAlt;
         var (x, y) = input.Pointer ?? (float.NaN, float.NaN);
-        w.U8(flags).F32(x).F32(y).U8(Buttons(input.Down)).U8(Buttons(input.Pressed)).U8(Buttons(input.Released)).F32(input.Wheel);
-        w.U16((ushort)Math.Min(input.Keys.Count, ushort.MaxValue));
-        for (var i = 0; i < Math.Min(input.Keys.Count, ushort.MaxValue); i++) w.Str(input.Keys[i]);
-        w.U16((ushort)Math.Min(input.Hits.Count, ushort.MaxValue));
-        for (var i = 0; i < Math.Min(input.Hits.Count, ushort.MaxValue); i++) w.Str(input.Hits[i]);
-        w.Str(input.Text);
+        // Поле ввода в фокусе или модальное окно забирают клавиши: игре остаются только Enter, Escape, Tab и стрелки
+        // вверх и вниз (их поле отдаёт панелям), а под модальным окном — ничего, и нажатие мира не начинается.
+        var capture = gui.CapturesKeys;
+        var modal = gui.ModalOpen;
+        var keys = capture ? [] : input.Keys;
+        var hits = !capture ? input.Hits : modal ? [] : [.. input.Hits.Where(key => Array.IndexOf(Gui.FieldPassKeys, key) >= 0)];
+        var text = capture ? "" : input.Text;
+        var pressed = modal ? PointerButtons.None : input.Pressed;
+        var wheel = modal ? 0 : input.Wheel;
+        w.U8(flags).F32(x).F32(y).U8(Buttons(input.Down)).U8(Buttons(pressed)).U8(Buttons(input.Released)).F32(wheel);
+        w.U16((ushort)Math.Min(keys.Count, ushort.MaxValue));
+        for (var i = 0; i < Math.Min(keys.Count, ushort.MaxValue); i++) w.Str(keys[i]);
+        w.U16((ushort)Math.Min(hits.Count, ushort.MaxValue));
+        for (var i = 0; i < Math.Min(hits.Count, ushort.MaxValue); i++) w.Str(hits[i]);
+        w.Str(text);
 
         // Интерфейс: номера узлов прошлого кадра и щелчков этого.
         byte ui = 0;
@@ -134,10 +147,11 @@ public sealed class FrameInput
         w.F32(atmosphere.Light).F32(atmosphere.WindX).F32(atmosphere.WindY).F32(atmosphere.Precipitation);
 
         w.Str(input.Lang);
-        var edits = Math.Min(input.Edits.Count, ushort.MaxValue);
+        IReadOnlyList<(string Id, string Value)> list = input.Edits.Count > 0 ? input.Edits : gui.FrameEdits;
+        var edits = Math.Min(list.Count, ushort.MaxValue);
         w.U16((ushort)edits);
         for (var i = 0; i < edits; i++)
-            w.Str(input.Edits[i].Id).Str(input.Edits[i].Value);
+            w.Str(list[i].Id).Str(list[i].Value);
         w.U8(input.Shell).U32(roster);
     }
 

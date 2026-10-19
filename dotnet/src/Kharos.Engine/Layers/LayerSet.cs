@@ -174,6 +174,30 @@ public sealed class LayerSet
         return list;
     }
 
+    /// <summary>
+    /// Следить за ячейками слоя предметов мира: каждая изменённая ячейка записывается (<see cref="TakeCells"/>). Нужно
+    /// памяти игроков о предметах (<see cref="ItemMemory"/>). Сеть и загрузка (<see cref="Apply"/>) не пишут.
+    /// </summary>
+    public void WatchCells(int id)
+    {
+        var layer = _layers[id];
+        if (layer.Spec.IsGrid || layer.Spec.Scope != LayerScope.World)
+            throw new InvalidOperationException($"{layer.Spec.Name}: следить можно за предметами мира");
+        layer.Cells ??= [];
+    }
+
+    /// <summary>Ячейки, изменённые с прошлого раза, по возрастанию (x, затем y); слежение — <see cref="WatchCells"/>.</summary>
+    public List<(int X, int Y)> TakeCells(int id)
+    {
+        var cells = _layers[id].Cells;
+        if (cells is null || cells.Count == 0)
+            return [];
+        var list = new List<(int X, int Y)>(cells);
+        cells.Clear();
+        list.Sort();
+        return list;
+    }
+
     /// <summary>Чанк и место тайла в нём.</summary>
     public static ((int X, int Y) Chunk, int Tile) ChunkOf(int x, int y)
     {
@@ -237,6 +261,8 @@ public sealed class LayerSet
             layer.Kinds[at].Write(record[layer.Offsets[at]..], at < item.Fields.Length ? item.Fields[at] : 0);
         blocks[cell] = grown;
         layer.Dirty.Add((owner.Code, cell.X, cell.Y));
+        if (owner.IsWorld)
+            layer.Cells?.Add(cell);
         Revision++;
         return true;
     }
@@ -269,6 +295,8 @@ public sealed class LayerSet
         var layer = _layers[id];
         layer.Blocks(owner)?.Remove(cell);
         layer.Dirty.Add((owner.Code, cell.X, cell.Y));
+        if (owner.IsWorld)
+            layer.Cells?.Add(cell);
         Revision++;
         foreach (var item in kept)
             Put(id, owner, item);
@@ -372,6 +400,9 @@ public sealed class LayerSet
 
         /// <summary>Изменённые тайлы сетки мира, если за ними следят (<see cref="WatchTiles"/>).</summary>
         public HashSet<(int X, int Y)>? Tiles { get; set; }
+
+        /// <summary>Изменённые ячейки предметов мира, если за ними следят (<see cref="WatchCells"/>).</summary>
+        public HashSet<(int X, int Y)>? Cells { get; set; }
 
         /// <summary>Правило слоя предметов (<see cref="Intercept"/>).</summary>
         public ItemRule? Rule { get; set; }

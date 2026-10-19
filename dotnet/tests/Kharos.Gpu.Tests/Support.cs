@@ -149,7 +149,7 @@ public static class Scene
         int team, float shadowShift = 0, float shadow = 0, bool grey = false)
     {
         var view = frame.View;
-        frame.SpriteLayers[layer].AddRange([x - view.X, y - view.Y, w, h, uv.U0, uv.V0, uv.U1, uv.V1, team, shadowShift, shadow, grey ? 1 : 0]);
+        frame.AddSprite(layer, x - view.X, y - view.Y, w, h, uv, team, shadowShift, shadow, grey);
     }
 
     public static Frame Frame(float x, float y, float zoom, int width, int height, float scale = 1)

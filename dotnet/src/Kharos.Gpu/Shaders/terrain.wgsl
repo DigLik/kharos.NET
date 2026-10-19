@@ -94,6 +94,13 @@ fn tile(cell: vec2i) -> vec4f {
   return textureLoad(image, cell & vec2i(WINDOW - 1), 0);
 }
 
+// Зерно текселя — таблица Grain под окном (f32 битами в RGBA8): sin так, как его считает SwiftShader у эталонов TS.
+fn grain_at(texel: vec2i) -> f32 {
+  let g = texel & vec2i(1023);
+  let c = vec4u(round(textureLoad(image, vec2i(g.x & (WINDOW - 1), WINDOW + g.y * 2 + (g.x >> 9u)), 0) * 255.0));
+  return bitcast<f32>(c.x | (c.y << 8u) | (c.z << 16u) | (c.w << 24u));
+}
+
 fn shade(value: f32, dither: f32) -> i32 {
   return clamp(i32(floor(value * 4.0 + dither)), 0, 4);
 }
@@ -344,7 +351,8 @@ fn terrain_color(world_p: vec2f, detail: f32, wall: vec4f) -> vec3f {
   let texel = vec2i(floor(world_p * TEXELS_PER_TILE));
   let p = (vec2f(texel) + 0.5) / TEXELS_PER_TILE;
   let dither = mix(0.5, bayer(texel), detail);
-  let grain = mix(0.5, fract(sin(dot(modulo2(vec2f(texel), vec2f(1024.0)), vec2f(12.9898, 78.233))) * 43758.5453), detail);
+  // fract(sin(dot(mod(texel, 1024), (12.9898, 78.233))) * 43758.5453) — из таблицы (grain_at).
+  let grain = mix(0.5, grain_at(texel), detail);
 
   let coarse = fbm(p, 1.0);
   let fine = noise(p, vec2f(8.0));

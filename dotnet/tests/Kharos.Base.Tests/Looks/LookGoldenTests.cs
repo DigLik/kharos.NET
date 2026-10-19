@@ -141,16 +141,20 @@ public sealed class LookGoldenTests
         var names = new List<string>();
         var placeholders = new List<string>();
         var problems = new List<string>();
-        foreach (var look in game.Looks)
+        // Облики видов; свободные облики (значки, эффекты, покрытие — Б-З) сверяет LookGoldenMoreTests.
+        foreach (var look in game.Looks.Where(l => l.Proto < game.Content.Protos.Count))
         {
-            var name = game.Content.Protos[look.Proto].Path;
+            var name = look.Name;
+            Assert.Equal(game.Content.Protos[look.Proto].Path, name);
             names.Add(name);
             if (!golden.Frames.TryGetValue(name, out var expected))
             {
-                // Заглушка здания: один кадр, привязка по левому верхнему тайлу.
+                // Здание вне art.json (его кадры сверяет LookGoldenMoreTests по art-more.json): заглушка — один кадр,
+                // привязка по левому верхнему тайлу; настоящий чертёж — с кадрами работы и вариантами.
                 Assert.StartsWith("buildings/", name);
-                Assert.Single(look.Cells);
-                placeholders.Add(name);
+                Assert.NotEmpty(look.Cells);
+                if (look.Cells.Length == 1)
+                    placeholders.Add(name);
                 continue;
             }
             problems.AddRange(Compare(name, expected, look, game.Atlas));
@@ -161,7 +165,6 @@ public sealed class LookGoldenTests
             [.. UnitArt.Units.Select(u => "units/" + u.Name), .. UnitArt.Turrets.Select(t => "turrets/" + t.Name), .. BuildingArt.Names.Select(b => "buildings/" + b), .. DepositArt.Types.Select(d => "deposits/" + d)],
             names, StringComparer.Ordinal);
         Assert.Equal(golden.Frames.Values.Sum(f => f.FrameHashes.Length), checkedFrames);
-        Assert.Equal(47, placeholders.Count);
         Assert.DoesNotContain("buildings/factory", placeholders);
         Assert.Empty(problems);
         Assert.Empty(game.Errors);
@@ -195,9 +198,9 @@ public sealed class LookGoldenTests
         Assert.Equal((0.0, 0.0), factory.Spec.Anchor);
         Assert.Equal((LookLayer.Building, 8f, (3f, 0.4f)), (factory.Spec.Layer, factory.Spec.Fps, factory.Spec.Shadow));
 
-        // Заглушки: по размеру основания (data/buildings.json), один кадр.
+        // Стена — не заглушка: 16 вариантов соседства, в каждом цикл из 16 кадров (framesOf в buildingsPass.ts).
         var wall = LookOf("buildings/wall");
-        Assert.Equal((48, 48, 1, 1), (wall.Width, wall.Height, wall.Directions, wall.Phases));
+        Assert.Equal((48, 48, 1, 16), (wall.Width, wall.Height, wall.Directions, wall.Phases));
         Assert.Equal(((0.0, 0.0), LookLayer.Building), (wall.Spec.Anchor, wall.Spec.Layer));
         var airfield = LookOf("buildings/airfield");
         Assert.Equal((4 * 16 + 32, 3 * 16 + 32), (airfield.Width, airfield.Height));
