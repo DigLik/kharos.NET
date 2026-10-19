@@ -9,7 +9,7 @@ namespace Kharos.Base.Tests.Mining;
 
 /// <summary>
 /// Добыча (packages/tests/mining.test.ts): месторождения из сида, шахты, переработка, вывоз руды грузовиками (раздел
-/// Logistics). Что идёт через торговлю, ждёт своего раздела (Skip); механику добычи без грузовиков проверяют свои тесты в конце файла.
+/// Logistics). Продажу космопорту ведёт раздел Trade; механику добычи без грузовиков проверяют свои тесты в конце файла.
 /// </summary>
 public sealed class MiningTests
 {
@@ -249,9 +249,78 @@ public sealed class MiningTests
         Assert.Equal(capacity * 2, StockOf(sim, 1).Capacity);
     }
 
-    [Fact(DisplayName = "космопорт продаёт по заявке: диспетчер шлёт свободные грузовики свезти товар из хранилищ, потом приходят кредиты", Skip = "ждёт С2d: торговля (sell, closeSale)")]
+    [Fact(DisplayName = "космопорт продаёт по заявке: диспетчер шлёт свободные грузовики свезти товар из хранилищ, потом приходят кредиты")]
     public void SpaceportSellsByOrder()
     {
+        var (sim, spot, mine, _, truck) = HaulBase();
+        using var _sim = sim;
+        var first = Logistics.LogisticsScene.Place(sim, "metalYard", spot.X + 5, spot.Y + 5);
+        sim.SetStock(first, "metal", 80);
+        var second = Logistics.LogisticsScene.Place(sim, "metalYard", spot.X + 9, spot.Y + 5);
+        sim.SetStock(second, "metal", 15);
+        // С деньгами главное здание даёт обычный доход, без подмоги: иначе её не отличить от выручки.
+        sim.SetCredits(1, global::Base.Shared.Rules.PowerRules.ReliefBelow);
+        var credits = sim.Credits(1);
+        double Stored() => sim.Stock(first, "metal") + sim.Stock(second, "metal");
+        // Без космопорта металл лежит и денег не приносит.
+        sim.Seconds(5);
+        Assert.True(sim.Credits(1) - credits <= 1);
+        Assert.True(sim.CanBuild(1, "spaceport", spot.X + 9, spot.Y));
+        var port = Logistics.LogisticsScene.Place(sim, "spaceport", spot.X + 9, spot.Y);
+        Assert.True(sim.CanSell(1, port));
+        Assert.False(sim.CanSell(2, port));
+
+        // Заявка сама по себе товар не приносит: его должны привезти.
+        sim.Send(2, new SellOrder { Port = port, Resource = "metal", Amount = 50 });
+        sim.Send(1, new SellOrder { Port = port, Resource = "metal", Amount = 50 });
+        sim.Advance();
+        Assert.Equal(50, sim.TradeOf(port)!.Wanted);
+        Assert.Equal(95, Stored());
+        // Пока заявка открыта, вторую космопорт не берёт.
+        sim.Send(1, new SellOrder { Port = port, Resource = "metal", Amount = 10 });
+        sim.Advance();
+        Assert.Equal(50, sim.TradeOf(port)!.Wanted);
+
+        // Космопорт заказал металл, и диспетчер отдал заявку свободному грузовику: тот выкачивает его из хранилища
+        // и сгружает в космопорт.
+        Assert.True(sim.Until(() => sim.Hauler(truck).To == port, 120));
+        Assert.True(sim.Until(() => sim.Hauler(truck).Loading && sim.Stock(truck, "metal") > 0, 120));
+        Assert.True(sim.Until(() => sim.Delivered(port) > 0, 120));
+        Assert.True(sim.Gap(port, truck) <= sim.Num(truck, "Beam.radius"));
+        // Металл нигде не теряется: он в хранилищах, в кузове или в космопорте.
+        Close(95, Stored() + sim.Stock(truck, "metal") + sim.Delivered(port), 2);
+
+        // Привезли всё — грузовик свободен, корабль улетел, кредиты приходят после полёта.
+        Assert.True(sim.Until(() => sim.TradeOf(port)!.Total > 0, 120));
+        Close(50, sim.Delivered(port), 2);
+        Close(45, Stored(), 2);
+        Assert.True(sim.Until(() => sim.Hauler(truck).To != port, 5));
+        Assert.Equal(0, sim.Stock(truck, "metal"));
+        var before = sim.Credits(1);
+        const double sellSeconds = global::Base.Shared.Rules.TradeRules.SellSeconds;
+        sim.Seconds(sellSeconds - 2);
+        Assert.True(sim.Credits(1) - before < 10);
+        Assert.NotNull(sim.TradeOf(port));
+        sim.Seconds(2);
+        Assert.Null(sim.TradeOf(port));
+        Assert.Equal(0, sim.Delivered(port));
+        var income = Tables.Buildings["command"].Income!.Value * sellSeconds;
+        var reward = Tables.All.Rewards["sale"].Credits;
+        Assert.True(Math.Abs(sim.Credits(1) - before - 50 * Tables.All.Resources["metal"].Price - income - reward) <= 1);
+
+        // Грузовик, привязанный к шахте, на зов космопорта не идёт; заявку можно закрыть с тем, что привезли.
+        sim.Send(1, new HaulOrder { Units = [truck], Mine = mine });
+        sim.Seconds(1);
+        var stock = Math.Floor(Stored());
+        sim.Send(1, new SellOrder { Port = port, Resource = "metal", Amount = 1000 });
+        sim.Seconds(5);
+        Assert.Equal(stock, sim.TradeOf(port)!.Wanted);
+        Assert.NotEqual(port, sim.Hauler(truck).To);
+        Assert.Equal(0, sim.Delivered(port));
+        sim.Send(1, new CloseSaleOrder { Port = port });
+        sim.Advance();
+        Assert.Null(sim.TradeOf(port));
+        Assert.True(Stored() >= 45);
     }
 
     [Fact(DisplayName = "здания можно ставить вплотную к шахте, а выработанное месторождение освобождает грузовик")]

@@ -5,7 +5,7 @@ namespace Kharos.Base.Tests.Kernel;
 
 /// <summary>
 /// Армия (packages/tests/army.test.ts): требования и темы юнитов, лимит армии, марш армии приказом move. Бой
-/// (артиллерия, бомбардировщик, зенитка, огнемётчик) ждёт раздела Combat (С5а).
+/// (артиллерия, бомбардировщик, зенитка, огнемётчик) — раздел Combat (С5а).
 /// </summary>
 public sealed class ArmyTests
 {
@@ -95,29 +95,70 @@ public sealed class ArmyTests
         Assert.False(OverLimit(free, 1, "tank"));
     }
 
-    [Fact(DisplayName = "артиллерия бьёт дальше любой турели и разносит её, не получив ответа", Skip = "ждёт С5а: бой")]
+    [Fact(DisplayName = "артиллерия бьёт дальше любой турели и разносит её, не получив ответа")]
     public void ArtilleryOutrangesTurrets()
     {
+        var weapons = Data.All.Weapons;
+        Assert.True(weapons["artillery"].Range > Math.Max(weapons["cannon"].Range, Math.Max(weapons["launcher"].Range, weapons["machinegun"].Range)) + 2);
+        using var sim = Create();
+        var turret = Combat.Arena.Place(sim, "cannonTurret", 0, 0, 2);
+        var gun = Spawn(sim, "artillery", 1, 11, 0);
+        sim.Seconds(60);
+        Assert.False(sim.Alive(turret));
+        Assert.Equal(1, sim.HealthOf(gun));
     }
 
-    [Fact(DisplayName = "в мёртвой зоне артиллерия молчит", Skip = "ждёт С5а: бой")]
+    [Fact(DisplayName = "в мёртвой зоне артиллерия молчит")]
     public void ArtilleryDeadZone()
     {
+        using var sim = Create();
+        var foe = Spawn(sim, "infantry", 2, 0, 0);
+        Spawn(sim, "artillery", 1, 2, 0);
+        sim.Seconds(10);
+        Assert.Equal(1, sim.HealthOf(foe));
     }
 
-    [Fact(DisplayName = "бомбардировщик сносит здание, а по летающим не бьёт", Skip = "ждёт С5а: бой")]
+    [Fact(DisplayName = "бомбардировщик сносит здание, а по летающим не бьёт")]
     public void BomberHitsBuildingsNotFlyers()
     {
+        using var sim = Create();
+        var target = Combat.Arena.Place(sim, "generator", 0, 0, 2);
+        var bomber = Spawn(sim, "bomber", 1, 8, 0);
+        var drone = Spawn(sim, "drone", 2, 9, 3);
+        sim.Send(1, new AttackOrder { Units = [bomber], Target = target });
+        sim.Seconds(60);
+        Assert.False(sim.Alive(target));
+        // Дрон бомбардировщика клюёт, а тот ему не отвечает.
+        Assert.Equal(1, sim.HealthOf(drone));
     }
 
-    [Fact(DisplayName = "зенитка сбивает летающих, а по земле не стреляет", Skip = "ждёт С5а: бой")]
+    [Fact(DisplayName = "зенитка сбивает летающих, а по земле не стреляет")]
     public void FlakHitsFlyersOnly()
     {
+        using var sim = Create();
+        var flak = Spawn(sim, "flak", 1, 0, 0);
+        var ground = Spawn(sim, "infantry", 2, 5, 0);
+        var drone = Spawn(sim, "drone", 2, 0, 6);
+        sim.Seconds(8);
+        Assert.False(sim.Alive(drone));
+        Assert.Equal(1, sim.HealthOf(ground));
+        // Приказ атаковать наземного зенитке не принимается.
+        sim.OrderNow(1, new AttackOrder { Units = [flak], Target = ground });
+        Assert.NotEqual(ground, sim.TargetOf(flak));
     }
 
-    [Fact(DisplayName = "огнемётчик выжигает пехоту, и огонь перекидывается на соседа", Skip = "ждёт С5а: бой")]
+    [Fact(DisplayName = "огнемётчик выжигает пехоту, и огонь перекидывается на соседа")]
     public void FlamerSpreadsFire()
     {
+        using var sim = Create();
+        Spawn(sim, "flamer", 1, 0, 0);
+        var first = Spawn(sim, "infantry", 2, 2, 0);
+        var second = Spawn(sim, "infantry", 2, 3, 1);
+        sim.Seconds(1);
+        // Когда огнемётчик заметит цель, решает номер сущности (onTurn): здесь он замечает раньше, чем в TS, и за секунду
+        // успевает выжечь первого целиком — это тоже «меньше единицы».
+        Assert.True(!sim.Alive(first) || sim.HealthOf(first) < 1);
+        Assert.True(sim.HealthOf(second) < 1);
     }
 
     [Fact(DisplayName = "армия доходит по пересечённой местности вся: никто не бросает цель оттого, что по дороге мешали")]

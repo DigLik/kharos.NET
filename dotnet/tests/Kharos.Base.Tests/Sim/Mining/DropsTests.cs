@@ -9,7 +9,7 @@ namespace Kharos.Base.Tests.Mining;
 
 /// <summary>
 /// Дропы (packages/tests/drops.test.ts): груз, брошенный на землю. Бросает его раздел Mining (Drops.Items, DropCargo);
-/// вывозят грузовики (раздел Logistics); закупка с орбиты ждёт С2d (Skip).
+/// вывозят грузовики (раздел Logistics); закупку с орбиты возвращает разбор космопорта (раздел Trade).
 /// </summary>
 public sealed class DropsTests
 {
@@ -107,9 +107,33 @@ public sealed class DropsTests
         Assert.Equal([3, 2, 1], [sim.Stock(drop, "metal"), sim.Stock(drop, "fuel"), sim.Stock(drop, "metalOre")]);
     }
 
-    [Fact(DisplayName = "разбор возвращает оплаченное вперёд: очередь юнитов и закупку с орбиты, чей корабль не прилетел", Skip = "ждёт С1: разбор (demolish, refundOf) и С2d: торговля (закупка с орбиты)")]
+    [Fact(DisplayName = "разбор возвращает оплаченное вперёд: очередь юнитов и закупку с орбиты, чей корабль не прилетел")]
     public void DemolitionRefundsPaidInAdvance()
     {
+        var (sim, buildings, _, x, y) = Logistics.LogisticsScene.Row(["barracks", "spaceport"]);
+        using var _sim = sim;
+        var (barracks, port) = (buildings[0], buildings[1]);
+        var builder = Logistics.LogisticsScene.Spawn(sim, "builder", 1, x + 13, y + 4);
+        sim.Set(barracks, "Producer.queue", Scene.Ids(Scene.Proto(sim, "units/infantry"), Scene.Proto(sim, "units/infantry"), Scene.Proto(sim, "units/rocketeer")));
+        sim.PutTrade(port, "metal", 10, left: 100000, total: 100000, buy: true);
+        var queued = Tables.Units["infantry"].Cost * 2 + Tables.Units["rocketeer"].Cost;
+        var before = sim.Credits(1);
+        sim.Send(1, new DemolishOrder { Building = barracks, Builders = [builder] });
+        Assert.True(sim.Until(() => !sim.Alive(barracks), 120));
+        // Сверху — доход главного здания за время разбора.
+        var gained = sim.Credits(1) - before;
+        var refund = global::Base.Shared.Rules.BuildRules.RefundOf(Tables.Buildings["barracks"]);
+        Assert.True(gained >= refund + queued, $"{gained} < {refund + queued}");
+        Assert.True(gained < refund + queued + 40, $"{gained} >= {refund + queued + 40}");
+
+        var middle = sim.Credits(1);
+        sim.Send(1, new DemolishOrder { Building = port, Builders = [builder] });
+        Assert.True(sim.Until(() => !sim.Alive(port), 120));
+        var back = sim.Credits(1) - middle;
+        var bought = 10 * global::Base.Shared.Rules.TradeRules.BuyPrice(Tables.All.Resources["metal"].Price);
+        var portRefund = global::Base.Shared.Rules.BuildRules.RefundOf(Tables.Buildings["spaceport"]);
+        Assert.True(back >= portRefund + bought, $"{back} < {portRefund + bought}");
+        Assert.True(back < portRefund + bought + 60, $"{back} >= {portRefund + bought + 60}");
     }
 
     [Fact(DisplayName = "дроп — склад без хозяина на одном тайле: места ровно под груз")]

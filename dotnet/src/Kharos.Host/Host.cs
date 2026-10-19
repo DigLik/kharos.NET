@@ -176,6 +176,8 @@ public sealed class Host : IDisposable
         }
         schema.DeclareString(ModAbi.StorageComponent, "mod", "");
         schema.DeclareBytes(ModAbi.StorageComponent, "data");
+        // Память мода — только хосту: в ней чужие тайны (грузы, учёт труб) и меняется она почти каждый тик.
+        schema.Attributes(ModAbi.StorageComponent, NetMode.None);
         StorageComponent = schema.Id(ModAbi.StorageComponent);
         StorageData = schema[StorageComponent].FieldIndex("data");
         try
@@ -338,7 +340,7 @@ public sealed class Host : IDisposable
                         ctx.Commands.Append(instance.RunOrder(order, ctx.Player, ctx.Payload, HostMod.Call(ctx)));
                 }, mod.Name);
             }
-            // Память мода — сущность с Storage { mod, data }: сохраняется и ходит по сети, как весь мир (Р3).
+            // Память мода — сущность с Storage { mod, data }: сохраняется, как весь мир (Р3), но по сети не ходит (@net none).
             var entity = save is null ? 0 : FindStorage(mod.Name);
             if (entity == 0)
             {

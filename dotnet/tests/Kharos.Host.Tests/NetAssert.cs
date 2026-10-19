@@ -22,6 +22,12 @@ public static class NetAssert
         var format = host.Format;
         for (var c = 0; c < schema.Count; c++)
         {
+            // @net none (память мода, Sighting) в сеть не уходит.
+            if (schema[c].Net == NetMode.None)
+            {
+                Assert.Equal(0, world.Store(c).Count);
+                continue;
+            }
             Assert.Equal(host.World.Store(c).Entities.ToArray().Count(shown.Contains), world.Store(c).Count);
             foreach (var entity in host.World.Store(c).Entities)
             {

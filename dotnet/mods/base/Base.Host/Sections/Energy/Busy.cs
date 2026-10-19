@@ -135,7 +135,7 @@ internal sealed class Busy : ISystem
             return call.Num(entity, S.Interceptor, R.InterceptorTicks) > 0;
         // Космопорт: идёт рейс или подарок союзнику.
         if (spec.Trades)
-            return call.Has(entity, R.Trade) || call.Has(entity, R.Transfer);
+            return Base.Host.Sections.Trade.Trading.Busy(call, entity);
         // Щит: купол не полон — заряжается.
         if (spec.Shield is { } shield)
             return call.Num(entity, S.Shield, R.ShieldCharge) < shield.Capacity - Epsilon;

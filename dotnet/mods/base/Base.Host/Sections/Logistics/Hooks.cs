@@ -14,4 +14,10 @@ internal static class Hooks
     /// количество. Нет — лаборатории ничего не заказывают и отдают всё.
     /// </summary>
     public static Func<Call, uint, IReadOnlyList<(string Good, double Amount)>>? ResearchNeeds { get; set; }
+
+    /// <summary>
+    /// Пачки в трубах, ещё не пришедшие (С2c), для потоков вне систем логистики (приказы, запросы, крючки стройки): куда,
+    /// груз (номер в Cargo), сколько. Нет — там пачек не видно (в системах логистики их даёт кадр).
+    /// </summary>
+    public static Func<Call, List<(uint To, int Good, double Amount)>>? Batches { get; set; }
 }

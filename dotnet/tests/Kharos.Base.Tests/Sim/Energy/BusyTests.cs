@@ -151,7 +151,7 @@ public sealed class BusyTests
         new("перехватчик готовит ракету", "interceptor", (sim, e) => sim.Set(e, "Interceptor.ticks", 5), true),
         new("перехватчик готов", "interceptor", (sim, e) => sim.Set(e, "Interceptor.ticks", 0), false),
         new("космопорт с рейсом", "spaceport", (sim, e) => Ensure(sim, e, Names.Trade.Name), true),
-        new("космопорт с подарком", "spaceport", (sim, e) => Ensure(sim, e, Names.Transfer.Name), true),
+        new("космопорт с подарком", "spaceport", (sim, e) => { Ensure(sim, e, Names.Transfer.Name); sim.Set(e, "Transfer.left", 100); }, true),
         new("космопорт без дел", "spaceport", (_, _) => { }, false),
         new("щит заряжается", "shieldGenerator", (sim, e) => sim.Set(e, "Shield.charge", 0), true),
         new("щит полон", "shieldGenerator", (sim, e) => sim.Set(e, "Shield.charge", Tables.Buildings["shieldGenerator"].Shield!.Capacity), false),

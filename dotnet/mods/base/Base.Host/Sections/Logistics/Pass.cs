@@ -85,8 +85,8 @@ internal sealed class Pass
         return list;
     }
 
-    /// <summary>Пачки в трубах, ещё не пришедшие: куда, что, сколько (раздел Pipes; в приказах и запросах — пусто).</summary>
-    public List<(uint To, int Good, double Amount)> Batches => _batches ??= [];
+    /// <summary>Пачки в трубах, ещё не пришедшие: куда, что, сколько (раздел Pipes; в приказах и запросах — через <see cref="Hooks.Batches"/>).</summary>
+    public List<(uint To, int Good, double Amount)> Batches => _batches ??= Hooks.Batches?.Invoke(Call) ?? [];
 
     /// <summary>Поручение строителя поменялось за вызов: потоки пересчитать с ним.</summary>
     public void Refetch(List<FetchJob> fetchers) => _fetchers = fetchers;

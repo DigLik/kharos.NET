@@ -178,10 +178,7 @@ public sealed class LayerOpsTests
 
     // Тесты traces.test.ts, которые ждут других разделов.
 
-    [Fact(DisplayName = "погибшая техника оставляет остов и гарь", Skip = "ждёт С5а: остов и гарь кладёт бой командой Item")]
-    public void DestroyedVehicleLeavesWreckAndScar()
-    {
-    }
+    // «погибшая техника оставляет остов и гарь» — мод base: Kharos.Base.Tests/Sim/Combat/TracesTests.cs.
 
     [Fact(DisplayName = "следы приходят только в обзор: пришедший позже видит колею врага, ушедший её забывает, вернувшийся получает снова", Skip = "ждёт видимости слоёв предметов в сети (Д4): слои предметов мира пока уходят всем")]
     public void TracesReachOnlyTheViewOfPlayer()

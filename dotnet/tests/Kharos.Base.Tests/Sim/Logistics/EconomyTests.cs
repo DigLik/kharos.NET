@@ -62,6 +62,13 @@ public sealed class EconomyTests
 
     private static double Blocks(string type) => Tables.Buildings[type].Materials["blocks"];
 
+    /// <summary>Тиков работы одного строителя на здание (siteTicks).</summary>
+    private static double SiteTicks(string type) => Math.Floor(Tables.Buildings[type].Cost / 20 / Tick + 0.5);
+
+    /// <summary>Какую долю стройки позволяют привезённые материалы (materialShare).</summary>
+    private static double MaterialShare(Sim sim, uint site, string type) =>
+        Tables.Buildings[type].Materials.Select(item => Amount(sim, site, item.Key) >= item.Value - 1e-6 ? 1 : Amount(sim, site, item.Key) / item.Value).DefaultIfEmpty(1).Min();
+
     [Fact(DisplayName = "месторождения бывают разных видов: что где лежит, решает биом")]
     public void DepositKindsDependOnBiome()
     {
@@ -74,9 +81,28 @@ public sealed class EconomyTests
         Assert.Equal([.. Sim.DepositTypes.Order()], kinds.Order());
     }
 
-    [Fact(DisplayName = "стройка ждёт материалов: без стройблоков она не идёт дальше привезённого, по трубам их привозят из хранилища", Skip = "ждёт С2c: трубы (pipeFlow)")]
+    [Fact(DisplayName = "стройка ждёт материалов: без стройблоков она не идёт дальше привезённого, по трубам их привозят из хранилища")]
     public void SiteWaitsForMaterialsByPipes()
     {
+        using var @base = Make();
+        var (sim, x, y) = (@base.Sim, @base.X, @base.Y);
+        var builder = Spawn(sim, "builder", 1, x + 5, y + 4);
+        sim.Send(1, new BuildOrder { Building = "factory", X = x, Y = y + 4, Builders = [builder] });
+        // Труба от главного здания к площадке: стройка в сети базы.
+        Place(sim, "pipe", x, y + 3);
+        sim.Advance();
+        var site = sim.SiteAt(x, y + 4);
+        sim.Seconds(10);
+        // Материалов нет — стройка стоит в самом начале.
+        Assert.True(sim.AwaitsMaterials(site));
+        Assert.Equal(0, sim.Num(site, "Site.progress"));
+
+        // Стройблоки в хранилище — стройка идёт до конца: к ней подведена труба.
+        @base.Stash(("blocks", 50));
+        Until(sim, () => MaterialShare(sim, site, "factory") > 0, 200);
+        Assert.True(sim.Num(site, "Site.progress") <= SiteTicks("factory") * MaterialShare(sim, site, "factory") + 1e-6);
+        Until(sim, () => !sim.Has(site, Names.Site.Name), 200);
+        Assert.Equal(50 - Blocks("factory"), Amount(sim, @base.Store("blocks"), "blocks"), 6);
     }
 
     [Fact(DisplayName = "грузовик довозит материалы и на площадку, к которой строитель ещё не приступил")]
@@ -95,29 +121,94 @@ public sealed class EconomyTests
         Assert.Equal(50 - Blocks("factory"), Amount(sim, @base.Store("blocks"), "blocks"), 6);
     }
 
-    [Fact(DisplayName = "производство ждёт материалов первого заказа и тратит их в начале работы", Skip = "ждёт С2c: трубы (pipeFlow)")]
+    [Fact(DisplayName = "производство ждёт материалов первого заказа и тратит их в начале работы")]
     public void ProductionWaitsForMaterials()
     {
+        using var @base = Make("factory");
+        var (sim, factory) = (@base.Sim, @base.Buildings[0]);
+        sim.Send(1, new ProduceOrder { Producer = factory, Unit = "tank" });
+        sim.Seconds(Tables.Units["tank"].BuildTime + 2);
+        Assert.Equal(["tank"], Scene.Queue(sim, factory));
+        Assert.Equal(0, sim.Num(factory, "Producer.progress"));
+
+        @base.Stash(("metal", 40), ("parts", 10));
+        Until(sim, () => Scene.Units(sim, "tank") > 0, 200);
+        // Привезли ровно на танк, и танк их забрал.
+        var tank = Tables.Units["tank"].Materials;
+        Assert.Equal(40 - tank["metal"], Amount(sim, @base.Store("metal"), "metal") + Amount(sim, factory, "metal"), 6);
+        Assert.Equal(10 - tank["parts"], Amount(sim, @base.Store("parts"), "parts") + Amount(sim, factory, "parts"), 6);
     }
 
-    [Fact(DisplayName = "космопорт продаёт любой ресурс по его цене; первая продажа — награда", Skip = "ждёт С2d: торговля (sell)")]
+    [Fact(DisplayName = "космопорт продаёт любой ресурс по его цене; первая продажа — награда")]
     public void SpaceportSells()
     {
+        using var @base = Make("spaceport");
+        var (sim, port) = (@base.Sim, @base.Buildings[0]);
+        @base.Stash(("metal", 30));
+        sim.Send(1, new SellOrder { Port = port, Resource = "metal", Amount = 20 });
+        sim.Seconds(1);
+        var before = sim.Credits(1);
+        Until(sim, () => sim.Credits(1) - before >= 20 * Tables.All.Resources["metal"].Price, 200);
+        Assert.Equal(10, Amount(sim, @base.Store("metal"), "metal"), 6);
+        Assert.Equal(0, Amount(sim, port, "metal"), 6);
+        Assert.Contains("sale", Scene.Rewards(sim, 1));
+        // Пока везли и летели, прошло не меньше полёта.
+        Assert.True(sim.Time > global::Base.Shared.Rules.TradeRules.SellSeconds);
     }
 
-    [Fact(DisplayName = "корабль улетает, когда товар привезён; рейс улучшенного космопорта короче; выручка — целыми кредитами", Skip = "ждёт С2d: торговля (рейс корабля)")]
+    [Fact(DisplayName = "корабль улетает, когда товар привезён; рейс улучшенного космопорта короче; выручка — целыми кредитами")]
     public void ShipLeaves()
     {
+        using var sim = Blank();
+        sim.SetCredits(1, 0);
+        var port = Place(sim, "spaceport", 0, 0);
+        sim.Set(port, "Building.level", 2);
+        // Привезено без крошки меньше погрешности: продаётся, и выручка округляется.
+        sim.SetStock(port, "metal", 20 - 1e-10);
+        sim.PutTrade(port, "metal", 20);
+        sim.Advance();
+        var ticks = sim.FlightTicks(port, global::Base.Shared.Rules.TradeRules.SellSeconds);
+        Assert.True(ticks < Math.Round(global::Base.Shared.Rules.TradeRules.SellSeconds / Tick));
+        var order = sim.TradeOf(port)!;
+        Assert.Equal((ticks, ticks), (order.Left, order.Total));
+        sim.Advance(ticks - 1);
+        Assert.NotNull(sim.TradeOf(port));
+        sim.Advance();
+        Assert.Null(sim.TradeOf(port));
+        Assert.Equal(20 * Tables.All.Resources["metal"].Price + Tables.All.Rewards["sale"].Credits, sim.Credits(1));
     }
 
-    [Fact(DisplayName = "переработка отправляет готовое в хранилище по трубам пачками, а вставшая — до крошки", Skip = "ждёт С2c: трубы (pipeFlow)")]
+    [Fact(DisplayName = "переработка отправляет готовое в хранилище по трубам пачками, а вставшая — до крошки")]
     public void RefineryPushesByPipes()
     {
+        using var @base = Make("smelter");
+        var (sim, smelter) = (@base.Sim, @base.Buildings[0]);
+        // Руда ещё есть: переработка сделает больше, и 3 единицы ждут полной пачки.
+        sim.SetStock(smelter, "metal", 3);
+        sim.SetStock(smelter, "metalOre", 20);
+        sim.Seconds(0.5);
+        Assert.Equal(0, Amount(sim, @base.Store("metal"), "metal"));
+
+        // Руды нет и не везут: остаток меньше порога увозят весь.
+        sim.SetStock(smelter, "metal", 7);
+        sim.SetStock(smelter, "metalOre", 0);
+        Until(sim, () => Amount(sim, smelter, "metal") < 1e-9, 200);
+        Until(sim, () => Amount(sim, @base.Store("metal"), "metal") >= 7 - 1e-6, 200);
     }
 
-    [Fact(DisplayName = "дробный остаток материалов довозят: завод не встаёт на 19,7 из 20", Skip = "ждёт С2c: трубы (pipeFlow)")]
+    [Fact(DisplayName = "дробный остаток материалов довозят: завод не встаёт на 19,7 из 20")]
     public void FractionalRemainderDelivered()
     {
+        using var @base = Make("factory");
+        var (sim, factory) = (@base.Sim, @base.Buildings[0]);
+        var tank = Tables.Units["tank"].Materials;
+        // Дробное — прямо в мир: правка edit.stock округляет до целых.
+        sim.Set(factory, "Stock.metal", tank["metal"] - 0.3);
+        sim.SetStock(factory, "parts", tank["parts"]);
+        @base.Stash(("metal", 10));
+        sim.Send(1, new ProduceOrder { Producer = factory, Unit = "tank" });
+        Until(sim, () => sim.Num(factory, "Producer.progress") > 0, 60);
+        Assert.True(Amount(sim, @base.Store("metal"), "metal") < 10);
     }
 
     [Fact(DisplayName = "груз для заявки грузовик берёт и с дропа в зоне, если он ближе склада")]
@@ -214,9 +305,15 @@ public sealed class EconomyTests
         Assert.True(Amount(sim, smelter, "metal") > 0);
     }
 
-    [Fact(DisplayName = "машинный завод строит MCV из стройблоков и металла, и тот разворачивается в новую базу", Skip = "ждёт С2c: трубы (pipeFlow)")]
+    [Fact(DisplayName = "машинный завод строит MCV из стройблоков и металла, и тот разворачивается в новую базу")]
     public void FactoryBuildsMcv()
     {
+        using var @base = Make("factory");
+        var (sim, factory) = (@base.Sim, @base.Buildings[0]);
+        @base.Stash(("blocks", 40), ("metal", 40));
+        sim.Send(1, new ProduceOrder { Producer = factory, Unit = "mcv" });
+        Until(sim, () => Scene.Units(sim, "mcv") > 0, 200);
+        Assert.True(sim.Has(Scene.UnitsOf(sim, "mcv")[0], Names.Producer.Name));
     }
 
     [Fact(DisplayName = "груз, который уже везут на переработку, занимает её место: второй грузовик туда не едет и не набирает руду")]

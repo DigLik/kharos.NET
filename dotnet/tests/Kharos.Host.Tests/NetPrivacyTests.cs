@@ -1,4 +1,5 @@
 using Kharos.Engine.World;
+using Kharos.Mod.Abi;
 using Kharos.Protocol;
 
 namespace Kharos.Host.Tests;
@@ -67,6 +68,23 @@ public class NetPrivacyTests
         Assert.False(second.Has(radar, "Scan"));
         Assert.False(second.Sees(40.5, 0.5));
         Assert.False(second.Has(flash));
+    }
+
+    [Fact]
+    public void ModMemoryNeverLeavesTheHost()
+    {
+        using var arena = new Arena(fog: false);
+        // Память мода — сущность без места: её видел бы каждый, а в ней чужие тайны.
+        var world = arena.Host.World;
+        var memory = world.Spawn();
+        world.Add(memory, arena.Host.StorageComponent);
+        world.SetBytes(memory, arena.Host.StorageComponent, arena.Host.StorageData, [1, 2, 3]);
+        var peer = arena.Join(1);
+        arena.Step();
+        world.SetBytes(memory, arena.Host.StorageComponent, arena.Host.StorageData, [4, 5, 6]);
+        arena.Step();
+        Assert.Equal(NetMode.None, world.Schema[arena.Host.StorageComponent].Net);
+        Assert.False(peer.Has(memory, ModAbi.StorageComponent));
     }
 
     [Fact]

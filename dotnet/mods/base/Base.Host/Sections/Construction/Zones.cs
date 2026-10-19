@@ -110,6 +110,13 @@ internal static class Zones
         return false;
     }
 
+    /// <summary>Основание здания или начатой стройки из кэша (x, y, w, h); нет в кэше — null (для путей пачек, С2c).</summary>
+    public static (int X, int Y, int W, int H)? BaseOf(uint entity)
+    {
+        Refresh();
+        return _bases.TryGetValue(entity, out var found) ? found : null;
+    }
+
     /// <summary>Забыть посчитанное (resetZones): следующий вызов пересчитает.</summary>
     public static void Reset() => _key = (ulong.MaxValue, ulong.MaxValue);
 

@@ -1,3 +1,4 @@
+using Base.Shared;
 using Kharos.Base.Tests.Kernel;
 using Kharos.Engine.Terrain;
 using Tables = Kharos.Base.Tests.Kernel.Data;
@@ -153,9 +154,32 @@ public sealed class LithiumTests
         Assert.Equal(250, Charge(loaded, cell));
     }
 
-    [Fact(DisplayName = "литий покупается с орбиты, только когда изучена его выпарка; уран — никогда", Skip = "ждёт С2d: закупка с орбиты (buy), и С6: темы (buyResearch)")]
+    [Fact(DisplayName = "литий покупается с орбиты, только когда изучена его выпарка; уран — никогда")]
     public void LithiumBoughtWithResearch()
     {
+        // В TS дерево технологий включают после создания партии, здесь — с самого начала: темы выдаёт запись Science.done.
+        using var sim = Grid.Create(new { protection = 0, techTree = true });
+        var (x, y) = Grid.Field(sim, 20, 10);
+        sim.SetCredits(1, 50000);
+        var port = Scene.Place(sim, "spaceport", x + 4, y + 2, 1);
+        Scene.Place(sim, "generator", x + 7, y + 2, 1);
+        var granted = new List<int>();
+        void Grant(IEnumerable<string> topics)
+        {
+            granted.AddRange(topics.Select(topic => Scene.Proto(sim, "research/" + topic)));
+            sim.Set(sim.Wallet(1), "Science.done", Scene.Ids([.. granted]));
+        }
+        Grant(Tables.All.Research.Keys.Where(topic => topic != "lithiumOre"));
+        Assert.False(sim.Buy(1, port, "uranium", 10));
+        Assert.Equal("lithiumOre", sim.BuyResearch(1, "lithium"));
+        Assert.False(sim.Buy(1, port, "lithium", 10));
+        Assert.False(sim.Has(port, Names.Trade.Name));
+        // Металл и прочее темы для покупки не просят.
+        Assert.Null(sim.BuyResearch(1, "metal"));
+        Grant(["lithiumOre"]);
+        Assert.True(sim.Buy(1, port, "lithium", 10));
+        sim.Seconds(25);
+        Assert.Equal(10, sim.Stock(port, "lithium"));
     }
 
     [Fact(DisplayName = "у каждого биома свой приз: харит — в эрге, литий — на солончаках, уран — в рыжих пустошах")]

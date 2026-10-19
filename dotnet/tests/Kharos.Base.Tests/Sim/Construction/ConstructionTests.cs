@@ -506,8 +506,24 @@ public sealed class ConstructionTests
         Assert.Equal(2, sim.Count(Names.Site.Name));
     }
 
-    [Fact(DisplayName = "строитель, которого обступили свои, сходит с площадки трубы у здания, и труба строится", Skip = "ждёт С2c: протяжка труб (pipes)")]
+    [Fact(DisplayName = "строитель, которого обступили свои, сходит с площадки трубы у здания, и труба строится")]
     public void BuilderLeavesPipeSite()
     {
+        using var yard = Start();
+        var (sim, core, builders) = (yard.Sim, yard.Core, yard.Builders);
+        Research(sim, 1, "pipes");
+        var (cx, cy) = sim.At(core);
+        // Тайл над правым краем главного здания: снизу — здание, справа — своя труба, слева — багги, сверху — второй строитель.
+        var (x, y) = ((int)cx + 2, (int)cy - 1);
+        sim.PutBuilding("pipe", x + 1, y, 1);
+        Scene.Spawn(sim, "buggy", 1, x - 1, y);
+        sim.Erase([.. builders]);
+        var (inside, above) = (Scene.Spawn(sim, "builder", 1, x, y), Scene.Spawn(sim, "builder", 1, x, y - 1));
+        sim.Send(1, new PipesOrder { Tiles = [x, y], Builders = [above, inside] });
+        sim.Seconds(15);
+        var pipe = sim.OccupantAt(x, y);
+        Assert.NotEqual(0u, pipe);
+        Assert.Equal("pipe", TypeOf(sim, pipe));
+        Assert.False(sim.Has(pipe, Names.Site.Name));
     }
 }

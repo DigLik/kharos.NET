@@ -30,9 +30,18 @@ public sealed class RequestTests
         Assert.Equal(90, Amount(sim, yard, "metal"), 6);
     }
 
-    [Fact(DisplayName = "станция запроса в сети труб получает заказ по трубам", Skip = "ждёт С2c: трубы (connectAll, pipeFlow)")]
+    [Fact(DisplayName = "станция запроса в сети труб получает заказ по трубам")]
     public void StationInPipeNetworkGetsOrderByPipes()
     {
+        var (sim, buildings, _, _, _) = Row(["metalYard", "requestStation"], truck: false, rules: Unprotected);
+        using var _sim = sim;
+        var (yard, station) = (buildings[0], buildings[1]);
+        sim.ConnectAll(1);
+        sim.SetStock(yard, "metal", 100);
+        sim.Send(1, new WantOrder { Buildings = [station], Resource = "metal", Amount = 30 });
+        Until(sim, () => Amount(sim, station, "metal") >= 30 - 1e-6, 60);
+        sim.Seconds(10);
+        Assert.Equal(30, Amount(sim, station, "metal"), 6);
     }
 
     [Fact(DisplayName = "станции запроса не берут друг у друга")]

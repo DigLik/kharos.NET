@@ -138,14 +138,47 @@ public sealed class PavingTests
         Assert.Equal(0u, sim.OccupantAt(x + 5, y + 10));
     }
 
-    [Fact(DisplayName = "наземный взрыв разбивает фундамент под собой, пуля — нет", Skip = "ждёт С5а: breakSlabs — бой")]
+    [Fact(DisplayName = "наземный взрыв разбивает фундамент под собой, пуля — нет")]
     public void BlastBreaksSlabs()
     {
+        using var yard = Start();
+        var (sim, (x, y)) = (yard.Sim, yard.At);
+        for (var dx = 0; dx < 3; dx++)
+            sim.Lay(Foundation, x + 4 + dx, y + 10);
+        bool Slab(int dx) => sim.IsPaved(Foundation, x + dx, y + 10);
+        // breakSlabs(x, y, size) — взрыв в бою размером size: здесь его даёт авария без урона радиусом size.
+        Blast(sim, x + 5.5, y + 10.5, 0.2);
+        Assert.True(Slab(5));
+        Blast(sim, x + 5.5, y + 10.5, 1);
+        Assert.False(Slab(5));
+        Assert.True(Slab(4));
+        Blast(sim, x + 5, y + 10.5, 3);
+        Assert.False(Slab(4));
+        Assert.False(Slab(6));
     }
 
-    [Fact(DisplayName = "взрыв в бою разбивает фундамент вокруг себя, дальние плиты целы", Skip = "ждёт С5а: Burst — бой")]
+    /// <summary>Наземный взрыв размером size в (x, y): авария без урона (Burst), которую разберёт ближайший бой.</summary>
+    private static void Blast(Sim sim, double x, double y, double size)
+    {
+        var burst = sim.World.Spawn();
+        sim.Add(burst, Names.Position.Name);
+        sim.Set(burst, "Position.x", x);
+        sim.Set(burst, "Position.y", y);
+        sim.Add(burst, Names.Burst.Name);
+        sim.Set(burst, "Burst.radius", size);
+        sim.Advance();
+    }
+
+    [Fact(DisplayName = "взрыв в бою разбивает фундамент вокруг себя, дальние плиты целы")]
     public void BurstBreaksSlabs()
     {
+        using var yard = Start();
+        var (sim, (x, y)) = (yard.Sim, yard.At);
+        for (var dx = 0; dx < 5; dx++)
+            sim.Lay(Foundation, x + 3 + dx, y + 10);
+        // Авария радиусом 2 в середине полосы: плиты, чьи центры ближе тайла, уходят, дальние остаются.
+        Blast(sim, x + 5.5, y + 10.5, 2);
+        Assert.Equal([true, false, false, false, true], new[] { 3, 4, 5, 6, 7 }.Select(dx => sim.IsPaved(Foundation, x + dx, y + 10)));
     }
 
     [Fact(DisplayName = "MCV разворачивается на фундаменте, лежащем на песке")]

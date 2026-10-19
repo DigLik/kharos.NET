@@ -85,9 +85,37 @@ public sealed class ReactorTests
         Assert.Equal(Tables.Buildings["reactor"].Inventory!.Value - 1, wanted[0].Amount);
     }
 
-    [Fact(DisplayName = "разрушенный реактор с топливом взрывается и бьёт всех вокруг, своих тоже", Skip = "ждёт С5а: гибель (Doomed) и урон взрыва (Burst)")]
+    [Fact(DisplayName = "разрушенный реактор с топливом взрывается и бьёт всех вокруг, своих тоже")]
     public void ReactorExplodes()
     {
+        var (sim, x, y, reactor, _) = Base(2);
+        using var _sim = sim;
+        var (radius, damage) = (Tables.Buildings["reactor"].Meltdown!.Radius, Tables.Buildings["reactor"].Meltdown!.Damage);
+        sim.Advance();
+        // Свой генератор вплотную и чужой юнит рядом, а дальняя стена — за радиусом взрыва. Генератор — под реактором, а
+        // не справа, как в TS: там его основание легло бы на радар (правка здания место проверяет); от центра реактора
+        // до края — те же полтора тайла.
+        var own = Scene.Place(sim, "generator", x + 4, y + 5, 1);
+        var enemy = Scene.Spawn(sim, "infantry", 2, x + 3, y + 3);
+        var far = Scene.Place(sim, "wall", x + 5 + (int)radius + 3, y + 3, 1);
+        Doom(sim, reactor);
+        sim.Advance();
+        Assert.False(sim.Has(reactor, Names.Building.Name));
+        // Топливо сгорело в аварии, а не упало на землю.
+        Assert.Single(sim.With(Names.Burst.Name));
+        sim.Advance();
+        Assert.Empty(sim.With(Names.Burst.Name));
+        Assert.False(sim.Has(enemy, Names.Health.Name));
+        var hp = Tables.Buildings["generator"].Hp ?? Tables.Buildings["generator"].Cost * 2;
+        Assert.True(sim.HealthOf(own) < 1 - damage * 0.3 / hp);
+        Assert.Equal(1, sim.HealthOf(far));
+    }
+
+    /// <summary>Обречённый: погибнет в ближайшем бою (Doomed.left = 1).</summary>
+    private static void Doom(Sim sim, uint entity)
+    {
+        sim.Add(entity, Names.Doomed.Name);
+        sim.Set(entity, "Doomed.left", 1);
     }
 
     [Fact(DisplayName = "реактор с топливом, добитый перегрузом, тоже взрывается")]
@@ -105,9 +133,16 @@ public sealed class ReactorTests
         Assert.Single(sim.With(Names.Burst.Name));
     }
 
-    [Fact(DisplayName = "пустой реактор при разрушении не взрывается", Skip = "ждёт С5а: гибель (Doomed)")]
+    [Fact(DisplayName = "пустой реактор при разрушении не взрывается")]
     public void EmptyReactorDoesNotExplode()
     {
+        var (sim, x, y, reactor, _) = Base();
+        using var _sim = sim;
+        var own = Scene.Place(sim, "generator", x + 4, y + 5, 1);
+        Doom(sim, reactor);
+        sim.Seconds(0.5);
+        Assert.False(sim.Has(reactor, Names.Building.Name));
+        Assert.Equal(1, sim.HealthOf(own));
     }
 
     [Fact(DisplayName = "реактор не улучшают, а без дерева технологий — открыт; с деревом нужен «Атом»")]
