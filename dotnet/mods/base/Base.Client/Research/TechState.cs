@@ -33,8 +33,8 @@ internal sealed record TechState(IReadOnlyList<TopicView> Topics, IReadOnlyList<
 
 /// <summary>
 /// Чтение науки из реплики: Science на сущности своего счёта (@net owner) — открытые темы, план и прогресс; лаборатории —
-/// свои здания с флагом researches и их Research. Поле lack у Research — строка мира, клиенту она недоступна, поэтому
-/// «чего не хватает» выводится из того, что клиент видит: выключена, нет кредитов, нужно сырьё, иначе — энергия.
+/// свои здания с флагом researches и их Research. Чего не хватает — числом хоста (Research.cause и good, <see cref="LabLack"/>):
+/// энергия, кредиты, груз, выключена; простой (idle) не считается, как в TS.
 /// </summary>
 internal static class TechReader
 {
@@ -64,7 +64,7 @@ internal static class TechReader
             speed += rate;
             if (rate > 0)
                 working++;
-            else if (current is not null && Lack(c, s, entity, account.Credits, currentPrice!) is { } lack)
+            if (Lack(c, s, lab) is { } lack and not "idle")
                 lackKinds[lack] = lackKinds.GetValueOrDefault(lack) + 1;
         }
 
@@ -89,14 +89,13 @@ internal static class TechReader
         return new TechState(topics, plan, current, new LabsView(labs, working, Math.Round(speed * 100) / 100, [.. lackKinds.Select(pair => (pair.Key, pair.Value))]), left);
     }
 
-    /// <summary>Чего ждёт стоящая лаборатория: «off», «credits», груз темы или «power».</summary>
-    private static string? Lack(ClientContext c, BaseState s, uint lab, double credits, TopicPrice price)
+    /// <summary>Почему лаборатория стоит или замедлилась (LabLack): «idle», «off», «power», «credits», груз; работает — null.</summary>
+    public static string? Lack(ClientContext c, BaseState s, ComponentValues lab)
     {
-        if (c.Has(lab, s.P.Off))
-            return "off";
-        if (credits < 1 && price.Cost > 0)
-            return "credits";
-        return price.Materials.Count > 0 ? price.Materials[0].Good : "power";
+        var research = s.P.Research;
+        var cause = research.Find("cause") is { } field ? (int)lab.Number(field) : LabLack.None;
+        var good = research.Find("good") is { } goodField && (int)lab.Number(goodField) is var proto and >= 0 && c.ProtoPath(proto) is { } path ? path[(path.IndexOf('/') + 1)..] : null;
+        return LabLack.Name(cause, good);
     }
 
     private readonly record struct Held(ComponentValues Science, double Credits);

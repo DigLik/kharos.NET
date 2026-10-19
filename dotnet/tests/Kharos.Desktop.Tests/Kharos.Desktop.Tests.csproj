@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CetCompat>false</CetCompat>
+    <!-- Десктоп собирается автономным (NativeAOT); тесты ссылаются на него как на библиотеку. -->
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Оболочка десктопа с записью роликов (пакет З): скрытое окно, кадры в PNG и звук в WAV. -->
+    <ProjectReference Include="..\..\apps\Kharos.Desktop\Kharos.Desktop.csproj" />
+    <ProjectReference Include="..\..\mods\hello\Hello.Client\Hello.Client.csproj" ReferenceOutputAssembly="false" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

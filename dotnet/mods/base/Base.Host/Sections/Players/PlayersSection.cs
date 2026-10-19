@@ -40,6 +40,7 @@ internal static class PlayersSection
         mod.On("player_online", Presence.OnOnline);
         mod.On("player_left", Presence.OnLeft);
         mod.On("player_respawn", Defeat.OnRespawn);
+        Chat.Setup(mod);
         Spawning.Sandbox = Sandbox.Spawn;
         // Здание сменило хозяина в редакторе — сети пересчитываются (resetZones в setOwner).
         Edits.OwnersChanged = Construction.Zones.Reset;

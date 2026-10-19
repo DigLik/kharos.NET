@@ -8,8 +8,7 @@ using Tables = Kharos.Base.Tests.Kernel.Data;
 namespace Kharos.Base.Tests.Trade;
 
 /// <summary>
-/// Корабли с подарками (packages/tests/ferry.test.ts). Тесты хоста (чат /give) и панели космопорта клиента ждут своих
-/// разделов (Skip); весть о корабле у нас — сигналы ferry обеим сторонам.
+/// Корабли с подарками (packages/tests/ferry.test.ts). Панели космопорта клиента ждут своего раздела (Skip); чат /give — команда мода (Н6-7); весть о корабле у нас — сигналы ferry обеим сторонам.
 /// </summary>
 public sealed class FerryTests
 {
@@ -171,9 +170,41 @@ public sealed class FerryTests
         Assert.True(loaded.TransferOf(port).Done);
     }
 
-    [Fact(DisplayName = "/give переводит деньги союзнику сразу, а чужим и в долг — отказывает", Skip = "ждёт Н6: команда чата хоста /give — не приказ мода (союзы /ally — приказы ally раздела игроков)")]
+    [Fact(DisplayName = "/give переводит деньги союзнику сразу, а чужим и в долг — отказывает")]
     public void GiveCommandTransfersMoney()
     {
+        var (sim, _, _) = Make([], []);
+        using var _sim = sim;
+        // Команда чата: хост (сессия без подключений) находит игрока и шлёт приказ мода, ответ — сигнал chat.reply.
+        var session = new Kharos.Host.HostSession(sim.Host);
+        var (first, second) = (sim.Host.Roster.Resolve("a", "Вася").Record.Id, sim.Host.Roster.Resolve("b", "Петя").Record.Id);
+        Assert.Equal((1u, 2u), (first, second));
+        sim.SetCredits(1, 1000);
+        sim.TakeSignals();
+
+        List<(uint To, string Key)> Give(uint from, string text)
+        {
+            session.Command(text, new Kharos.Host.Caller(from, false, (string _) => { }));
+            sim.Seconds(0.1);
+            return [.. sim.TakeSignals(Kharos.Host.ChatWire.ReplySignal)
+                .Select(signal => (signal.To is [var to, ..] ? to : 0u, Kharos.Host.ChatWire.ReadText(signal.Payload)!.Key))];
+        }
+
+        Assert.Equal([(1u, "giveNoAlly")], Give(1, "give Петя 300"));
+        sim.Ally(1, 2);
+        var before = (sim.Credits(1), sim.Credits(2));
+
+        Assert.Equal([(1u, "giveSent"), (2u, "giveGot")], Give(1, "give Петя 300"));
+        // Деньги пришли сразу, а не кораблём; доход главного здания за доли секунды не в счёт.
+        Assert.InRange(sim.Credits(1), before.Item1 - 300, before.Item1 - 300 + 5);
+        Assert.InRange(sim.Credits(2), before.Item2 + 300, before.Item2 + 300 + 5);
+        var after = (sim.Credits(1), sim.Credits(2));
+        // Дробные кредиты, перевод себе и больше, чем есть, — не перевод.
+        Assert.Equal([(1u, "usage")], Give(1, "give Петя 0.5"));
+        Assert.Equal([(1u, "giveSelf")], Give(1, "give Вася 10"));
+        Assert.Equal([(1u, "giveShort")], Give(1, "give Петя 999999"));
+        Assert.InRange(sim.Credits(1), after.Item1, after.Item1 + 5);
+        Assert.InRange(sim.Credits(2), after.Item2, after.Item2 + 5);
     }
 
     [Fact(DisplayName = "о корабле с подарком весть идёт обеим сторонам: вышел — и прибыл")]
@@ -206,19 +237,4 @@ public sealed class FerryTests
         [.. sim.TakeSignals(FerrySignal.Name).Select(signal => (MemoryPackSerializer.Deserialize<FerrySignal>(signal.Payload)!.Kind, signal.To![0]))];
 
     private static double TradeSeconds => global::Base.Shared.Rules.TradeRules.SellSeconds;
-
-    [Fact(DisplayName = "панель космопорта: подарок союзнику набирается грузом и деньгами и уходит кораблём", Skip = "ждёт Н6: панель космопорта клиента (commandsOf)")]
-    public void PortPanelBuildsTheGift()
-    {
-    }
-
-    [Fact(DisplayName = "космопорт занят или союзников нет: подарок не начать", Skip = "ждёт Н6: панель космопорта клиента (commandsOf)")]
-    public void PortPanelBlocksWhenBusyOrAlone()
-    {
-    }
-
-    [Fact(DisplayName = "панель подарка не обещает взять больше вместимости корабля", Skip = "ждёт Н6: панель космопорта клиента (commandsOf)")]
-    public void GiftPanelRespectsShipCapacity()
-    {
-    }
 }

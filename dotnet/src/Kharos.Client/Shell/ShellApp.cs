@@ -57,6 +57,18 @@ public interface IMenuBackground : IDisposable
     /// <summary>Кадр фона; null — фона пока нет (ровный цвет).</summary>
     RenderFrame? Step(in ClientInput input);
 
+    /// <summary>Есть ли у фона кадр с ресурсами (последний <see cref="Step"/> вернул его): тогда его атлас и скин — не пустые.</summary>
+    bool Ready { get; }
+
+    /// <summary>Номер слайда: растёт, когда фон завёл новую партию (её ресурсы заменили прежние у рендера).</summary>
+    ulong Generation { get; }
+
+    /// <summary>Затемнение поверх фона под меню, 0..1 (слайд собирается и сменяется).</summary>
+    float Veil { get; }
+
+    /// <summary>Партия начинается: фон отпускает партию и хост, к меню начнётся заново.</summary>
+    void Suspend();
+
     /// <summary>Ресурсы фона рендеру (как <see cref="ClientGame.Upload"/>).</summary>
     void Upload(Renderer renderer);
 }
@@ -103,7 +115,8 @@ public sealed class ShellApp : IDisposable
     private double _slideAt = double.NegativeInfinity;
     private int _previewUploaded = -1;
     private Renderer? _menuRenderer;
-    private bool _cameraRestored;
+    private bool _cameraRestored, _backgroundUploaded;
+    private ulong _backgroundGeneration;
     private IReadOnlyList<string> _hits = [];
 
     public ShellApp(ShellAppOptions options)
@@ -121,6 +134,7 @@ public sealed class ShellApp : IDisposable
         Settings = new SettingsWindow(Prefs, Audio, _words);
         Menu = new Menu(_forms, _words, Slots, Prefs, Settings, Start);
         Chat = new ChatBox();
+        Editor = new EditorShell(Slots);
     }
 
     public IStorage Storage { get; }
@@ -129,6 +143,9 @@ public sealed class ShellApp : IDisposable
     public SaveSlots Slots { get; }
     public Menu Menu { get; }
     public ChatBox Chat { get; }
+
+    /// <summary>Режим редактора: право, полоса режима, сохранение (Shell/Editor*).</summary>
+    public EditorShell Editor { get; }
     public SettingsWindow Settings { get; }
 
     /// <summary>Интерфейс меню (у партии — свой, <see cref="ClientGame.Gui"/>).</summary>
@@ -189,6 +206,7 @@ public sealed class ShellApp : IDisposable
         Prefs.RememberLast(launch, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         (Paused, SettingsOpen, _password, _cameraRestored) = (false, false, "", false);
         Chat.Close();
+        Background?.Suspend();
         _options.Log?.Invoke($"оболочка: запуск {launch}");
         Session = _options.Launcher.Start(launch);
         if (_options.Audio is { } audio)
@@ -265,10 +283,17 @@ public sealed class ShellApp : IDisposable
             _menuRenderer = null;
             return;
         }
-        if (Background is { } background && Session is null)
-            background.Upload(renderer);
-        if (_menuRenderer != renderer)
+        if (Background is { Ready: true } background && Session is null)
         {
+            // Фон меню — настоящая партия: её атлас, скин и земля уже у рендера; меню остаётся схема новой игры.
+            background.Upload(renderer);
+            if (!_backgroundUploaded || _menuRenderer != renderer || _backgroundGeneration != background.Generation)
+                _previewUploaded = -1;
+            (_backgroundUploaded, _menuRenderer, _backgroundGeneration) = (true, renderer, background.Generation);
+        }
+        else if (_menuRenderer != renderer || _backgroundUploaded)
+        {
+            _backgroundUploaded = false;
             renderer.SetAtlas([0, 0, 0, 0], 1, 1);
             renderer.SetSkin(Skins.Pixels(), Skins.Width, Skins.Height);
             renderer.SetFog([0], 1, 1);
@@ -292,6 +317,16 @@ public sealed class ShellApp : IDisposable
         BeginGui(input);
         if (Background is null || frame == _frame)
             _gui.Box(new Style { Id = "menu:backdrop", Anchor = new Anchor(Left: 0, Right: 0, Top: 0, Bottom: 0), Background = Colors.Backdrop, Passive = true });
+        else if (Background.Veil > 0.01f)
+        {
+            // Ступенями по 1/16: плавнее не разглядеть.
+            var alpha = MathF.Round(Background.Veil * 16) / 16;
+            var night = Colors.Backdrop;
+            _gui.Box(new Style
+            {
+                Id = "menu:veil", Anchor = new Anchor(Left: 0, Right: 0, Top: 0, Bottom: 0), Background = night with { A = (byte)MathF.Round(alpha * 255) }, Passive = true,
+            });
+        }
         Menu.Draw(input.Hits);
         FinishGui(frame);
         return frame;
@@ -457,11 +492,14 @@ public sealed class ShellApp : IDisposable
             if (Session.Launch is SlotLaunch slot && Slots.LoadCamera(slot.Slot.Id) is { } camera)
                 scene.Camera = new CameraState(camera.X, camera.Y, camera.Zoom);
         }
+        // Меню, открытое просьбой мода (Esc, когда в игре отменять нечего), в этом кадре не рисуется: тот же Esc закрыл бы его.
+        var opened = false;
         foreach (var (action, arg) in game.ShellRequests)
         {
             switch (action)
             {
                 case ClientAbi.ShellActionMenu:
+                    opened |= !Paused;
                     Pause(true);
                     break;
                 case ClientAbi.ShellActionChat:
@@ -472,16 +510,22 @@ public sealed class ShellApp : IDisposable
                     Pause(true);
                     SettingsOpen = true;
                     break;
+                case ClientAbi.ShellActionRespawn:
+                    game.Respawn();
+                    break;
             }
         }
         game.ShellRequests.Clear();
         Chat.Take(game.Chat, scene.Gui.Now);
         if (!Paused)
         {
+            // Полоса редактора (право, сохранение, выход) — под чатом и меню паузы; выход — после кадра, как из меню паузы.
+            if (Editor.Overlay(scene.Gui, forms, words, Session, game))
+                _leaveRequested = true;
             var names = game.Players.Select(player => player.Name).ToList();
             Chat.Draw(scene.Gui, words, game.Commands, names, game.Admin, game.Replica.Player, game.TextOf, game.Say, 12, 12);
         }
-        else
+        else if (!opened)
             PauseMenu(scene.Gui, forms, words);
     }
 

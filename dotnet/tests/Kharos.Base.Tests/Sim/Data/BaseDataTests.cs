@@ -113,7 +113,9 @@ public sealed class BaseDataTests
                 ("units?", new ListOf(new OneOf(Names("units")))),
                 ("spawn?", Of(("apart", Number), ("tries", Number), ("area", Number), ("rock", Number), ("margin", Number), ("radius", Number), ("slots", Number))),
                 ("remember?", new ListOf(Text)),
-                ("client?", new Shape([("camera", Text), ("controls", new ListOf(Text)), ("ui", new ListOf(Text)), ("atmosphere", new ListOf(Text)), ("effects", new ListOf(Text))], ["camera", "controls", "ui", "atmosphere", "effects"])),
+                ("client?", new Shape([("camera", Text), ("controls", new ListOf(Text)), ("ui", new ListOf(Text)), ("atmosphere", new ListOf(Text)), ("effects", new ListOf(Text)), ("silent", Boolean)], ["camera", "controls", "ui", "atmosphere", "effects", "silent"])),
+                ("scene?", Text),
+                ("rules?", new Shape([("unitAmmo", Boolean)], ["unitAmmo"])),
             ],
             ["lands"] =
             [

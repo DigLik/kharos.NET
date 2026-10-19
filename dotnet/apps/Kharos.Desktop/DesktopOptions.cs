@@ -16,22 +16,29 @@ public sealed record ShotOptions(string Path, int Frames, (float X, float Y)? Po
 /// KHAROS_SERVER=ws://хост:порт — играть на сервере вместо одиночной партии, KHAROS_NAME — ник, KHAROS_PASSWORD — пароль сервера.
 /// </summary>
 public sealed record DesktopOptions(IReadOnlyList<string> ModRoots, string? Game, bool Audio, float? Scale, ShotOptions? Shot,
-    string? Server = null, string? Name = null, string? Password = null)
+    string? Server = null, string? Name = null, string? Password = null, RecordOptions? Record = null)
 {
     public static DesktopOptions FromEnvironment()
     {
-        var shot = Env("KHAROS_SHOT") is { } path
+        var record = RecordOptions.FromEnvironment();
+        var shot = record is not null
+            // Запись идёт тем же скрытым окном, что и снимок: сценка и час те же, часы замороженные (шаг кадра ведёт запись).
+            ? new ShotOptions(record.Path, record.SkipFrames + record.Frames, null, (record.Width, record.Height), Env("KHAROS_SHOT_SCENE"), Hour(Env("KHAROS_SHOT_HOUR")), true)
+            : Env("KHAROS_SHOT") is { } path
             ? new ShotOptions(Path.GetFullPath(path), Int(Env("KHAROS_SHOT_FRAMES")) ?? 60, Pointer(Env("KHAROS_SHOT_POINTER")), Size(Env("KHAROS_SHOT_SIZE")),
                 Env("KHAROS_SHOT_SCENE"), Hour(Env("KHAROS_SHOT_HOUR")), string.Equals(Env("KHAROS_CLOCK"), "fixed", StringComparison.OrdinalIgnoreCase))
             : null;
         return new DesktopOptions(FindModRoots(), Env("KHAROS_GAME"), !string.Equals(Env("KHAROS_AUDIO"), "off", StringComparison.OrdinalIgnoreCase),
-            Float(Env("KHAROS_SCALE")), shot, Env("KHAROS_SERVER"), Env("KHAROS_NAME"), Env("KHAROS_PASSWORD"));
+            Float(Env("KHAROS_SCALE")) ?? record?.Ratio, shot, Env("KHAROS_SERVER"), Env("KHAROS_NAME"), Env("KHAROS_PASSWORD"), record);
     }
 
-    /// <summary>KHAROS_MODS; иначе папка mods рядом с программой, а из репозитория — dotnet/mods выше по дереву.</summary>
-    private static List<string> FindModRoots()
+    /// <summary>
+    /// KHAROS_MODS; иначе папка mods рядом с программой, а из репозитория — dotnet/mods выше по дереву. Значения «wasm» и
+    /// «clr» — это режим модов у тестов (Sim.DefaultMode), а не папки: с ними поиск идёт как без переменной.
+    /// </summary>
+    internal static List<string> FindModRoots()
     {
-        if (Env("KHAROS_MODS") is { } list)
+        if (Env("KHAROS_MODS") is { } list && !list.Equals("wasm", StringComparison.OrdinalIgnoreCase) && !list.Equals("clr", StringComparison.OrdinalIgnoreCase))
             return [.. list.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(Path.GetFullPath)];
         foreach (var start in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
         {

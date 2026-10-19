@@ -1,5 +1,7 @@
 using Base.Host.Kernel;
 using Base.Shared.Orders;
+using Base.Shared.Rules;
+using Base.Host.Sections.Construction;
 using Kharos.Mod.Sdk;
 
 namespace Base.Host.Sections.Kernel;
@@ -134,6 +136,7 @@ internal static class Edits
             return true;
         });
         Commands.Handle<EditStartOrder>(EditStartOrder.Name, (call, _, edit) => edit.Player != 0 && Spawning.StartKit(call, edit.Player, edit.X, edit.Y).Count > 0);
+        Commands.Handle<EditPaveOrder>(EditPaveOrder.Name, Pave);
     }
 
     /// <summary>Итог правки: не вышла — отказ с ключом.</summary>
@@ -329,6 +332,37 @@ internal static class Edits
             var left = edit.Left ?? ReserveLeft(call, x, y);
             DropDeposit(call, x, y);
             AddDeposit(call, x, y, kind >= 0 ? kind : item.Fields[0], left);
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Покрытие сразу готовым (edit.pave): дорога — где угодно, кроме гор и зданий, фундамент — на скале и песке (и под
+    /// зданиями); у подножия обрыва — нет. Kind null — снять готовое. Работы над покрытием на тайле не трогаются.
+    /// </summary>
+    private static bool Pave(Call call, uint player, EditPaveOrder edit)
+    {
+        if (edit.Kind is { } kind && !PaveRules.Known(kind))
+            return false;
+        if (edit.Kind is not null && edit.Player != 0)
+            Accounts.Ensure(call, edit.Player);
+        for (var i = 0; i + 1 < edit.Tiles.Length && i < PaveRules.Limit * 2; i += 2)
+        {
+            var (x, y) = (edit.Tiles[i], edit.Tiles[i + 1]);
+            if (!Placement.InBounds(x, y))
+                continue;
+            if (edit.Kind is not { } laid)
+            {
+                if (Paving.Laid(x, y) != PaveRules.None)
+                    Paving.Lay(call, x, y, PaveRules.None);
+                continue;
+            }
+            var terrain = Paving.Terrain(x, y);
+            if (laid == PaveRules.Foundation ? terrain is not (1 or 2) : terrain == 3)
+                continue;
+            if ((Tools.Tile(x, y) & TileFlags.CliffFoot) != 0 || laid == PaveRules.Road && Tools.Occupant(x, y) != 0)
+                continue;
+            Paving.Lay(call, x, y, PaveRules.Code(laid, edit.Player));
         }
         return true;
     }

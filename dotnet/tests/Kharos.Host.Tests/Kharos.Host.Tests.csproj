@@ -12,6 +12,8 @@
     <ProjectReference Include="..\..\src\Kharos.Protocol\Kharos.Protocol.csproj" />
     <!-- DetMath для ходовой hello (Wheels.cs) — та же, что в моде. -->
     <ProjectReference Include="..\..\src\Kharos.Mod.Sdk\Kharos.Mod.Sdk.csproj" />
+    <!-- Чат с модом base: партия Sim поверх HostSession (ChatTests), приказы мода — Base.Shared. -->
+    <ProjectReference Include="..\Kharos.Base.Scenario\Kharos.Base.Scenario.csproj" />
     <PackageReference Include="MemoryPack" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />

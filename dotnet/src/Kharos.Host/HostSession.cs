@@ -1,3 +1,4 @@
+using Kharos.Content;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -152,6 +153,8 @@ public sealed class HostSession
     private readonly List<Connection> _connections = [];
     private readonly Dictionary<string, HostCommand> _commands = new(StringComparer.Ordinal);
     private readonly HashSet<uint> _hidden = [];
+    private readonly List<(uint Player, Caller Caller, ulong Tick)> _awaiting = [];
+    private string[]? _unitTypes;
     private readonly List<uint> _alive = [];
     private readonly Dictionary<uint, bool[]> _visible = [];
     private readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -163,6 +166,7 @@ public sealed class HostSession
         Options = options ?? new HostSessionOptions();
         Filter = player => new VisionView(Host, player);
         AddBuiltins();
+        AddDeclared();
     }
 
     public Host Host { get; }
@@ -284,6 +288,11 @@ public sealed class HostSession
         foreach (var signal in delta.Signals)
             if (signal.Name == SaySignal && PlayerRoster.CleanChat(Encoding.UTF8.GetString(signal.Payload)) is { Length: > 0 } text)
                 Say(text);
+            else if (signal.Name == ChatWire.ReplySignal)
+                DeliverReply(signal);
+            else if (signal.Name == ChatWire.AnnounceSignal)
+                DeliverAnnounce(signal);
+        _awaiting.RemoveAll(item => item.Tick < Host.Tick);
         Deferred = 0;
         if (_connections.Count == 0)
             return;
@@ -396,6 +405,160 @@ public sealed class HostSession
         _commands[command.Name] = command;
         foreach (var connection in _connections)
             SendCommands(connection);
+    }
+
+    // ------------------------------------------------------------------ команды модов (Н6-7)
+
+    /// <summary>Виды юнитов партии (ключи data/units.json) — для аргумента «unit» и его дополнения.</summary>
+    private string[] UnitTypes()
+    {
+        if (_unitTypes is not null)
+            return _unitTypes;
+        try
+        {
+            if (Host.Content.DataBytes("units") is { } bytes)
+            {
+                using var document = System.Text.Json.JsonDocument.Parse(bytes);
+                return _unitTypes = [.. document.RootElement.EnumerateObject().Select(property => property.Name)];
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+        }
+        return _unitTypes = [];
+    }
+
+    /// <summary>Команды из mod.json (commands): встроенные хоста главнее одноимённых, у модов позднейший главнее.</summary>
+    private void AddDeclared()
+    {
+        var builtin = new HashSet<string>(_commands.Keys, StringComparer.Ordinal);
+        foreach (var package in Host.Content.Mods)
+            foreach (var declaration in package.Commands)
+            {
+                if (builtin.Contains(declaration.Name))
+                    continue;
+                var declared = declaration;
+                var choices = new IReadOnlyList<string>?[declared.Args.Count];
+                var any = false;
+                for (var i = 0; i < choices.Length; i++)
+                {
+                    choices[i] = declared.Choices is { } given && i < given.Count ? given[i] : null;
+                    if (choices[i] is null && ArgKind(declared.Args[i]) == ArgKinds.Unit)
+                        choices[i] = UnitTypes();
+                    any |= choices[i] is not null;
+                }
+                _commands[declared.Name] = new HostCommand
+                {
+                    Name = declared.Name, Args = declared.Args, Help = declared.Help, Admin = declared.Admin, Game = declared.Game,
+                    Choices = any ? choices : null,
+                    Run = call => Dispatch(declared, call),
+                };
+            }
+    }
+
+    private enum ArgKinds { Word, Player, PlayerOrAll, Unit, Text }
+
+    private static ArgKinds ArgKind(string spec) => spec[1..^1].ToLowerInvariant() switch
+    {
+        "player" => ArgKinds.Player,
+        "player|all" or "all|player" => ArgKinds.PlayerOrAll,
+        "unit" => ArgKinds.Unit,
+        "text" or "action" => ArgKinds.Text,
+        _ => ArgKinds.Word,
+    };
+
+    /// <summary>
+    /// Набранная команда мода → приказ мода с ChatCall: слова и номера найденных игроков. Нет обязательного слова,
+    /// игрока или вида юнита — ответ автору, приказа нет.
+    /// </summary>
+    private void Dispatch(ChatCommandDeclaration declaration, CommandCall call)
+    {
+        var caller = call.Caller;
+        var usage = $"/{string.Join(' ', [declaration.Name, .. declaration.Args])}";
+        var words = new List<(string, uint)>();
+        for (var i = 0; i < declaration.Args.Count; i++)
+        {
+            var spec = declaration.Args[i];
+            if (i >= call.Args.Count)
+            {
+                if (spec[0] == '<')
+                {
+                    caller.Reply("usage", ("command", usage));
+                    return;
+                }
+                break;
+            }
+            var word = call.Args[i];
+            uint player = 0;
+            switch (ArgKind(spec))
+            {
+                case ArgKinds.Text:
+                    words.Add((call.Rest(i), 0));
+                    i = declaration.Args.Count;
+                    continue;
+                case ArgKinds.PlayerOrAll when string.Equals(word, "all", StringComparison.OrdinalIgnoreCase):
+                    word = "all";
+                    break;
+                case ArgKinds.Player or ArgKinds.PlayerOrAll:
+                    if (Host.Roster.FindPlayer(word) is not { } who || (_hidden.Contains(who) && !caller.Admin))
+                    {
+                        caller.Reply("noPlayer", ("name", word));
+                        return;
+                    }
+                    player = who;
+                    break;
+                case ArgKinds.Unit:
+                    word = word.ToLowerInvariant();
+                    if (Array.IndexOf(UnitTypes(), word) < 0)
+                    {
+                        caller.Reply("unitTypes", ("list", string.Join(", ", UnitTypes())));
+                        return;
+                    }
+                    break;
+            }
+            words.Add((word, player));
+        }
+        if (!Host.HasOrder(declaration.Order))
+        {
+            caller.Reply("noCommand", ("name", declaration.Name));
+            return;
+        }
+        var rights = caller.Connection?.Rights ?? (caller.Admin ? OrderRights.Admin : OrderRights.None);
+        var author = caller.Player ?? 0;
+        if (caller.Connection is null)
+            _awaiting.Add((author, caller, Host.Tick));
+        Host.Send(author, declaration.Order, ChatWire.Call(words, call.Rest(0)), rights);
+    }
+
+    /// <summary>Ответ мода автору: консоли и тестам — в их ответ, игроку — сообщением хоста только ему.</summary>
+    private void DeliverReply(Signal signal)
+    {
+        if (signal.To is not [var author, ..] || ChatWire.ReadText(signal.Payload) is not { } text)
+            return;
+        text = Named(text);
+        var waiting = _awaiting.Where(item => item.Player == author).Select(item => item.Caller).Distinct().ToList();
+        if (waiting.Count > 0)
+            foreach (var caller in waiting)
+                caller.Reply(text);
+        else if (author != 0)
+            Tell(author, text);
+    }
+
+    /// <summary>Подстановка «player» (номер) в сообщении мода получает рядом «name» — ник по списку игроков: мод ников не знает.</summary>
+    private HostText Named(HostText text)
+    {
+        var args = text.Named();
+        if (args.ContainsKey("name") || !args.TryGetValue("player", out var number) || !uint.TryParse(number, out var player))
+            return text;
+        return new HostText(text.Key, [.. text.Args, "name", Host.Roster.NameOf(player)]);
+    }
+
+    /// <summary>Весть мода об игроке всем (поражение, ядерный пуск): скрытых администраторов не объявляют.</summary>
+    private void DeliverAnnounce(Signal signal)
+    {
+        if (ChatWire.ReadAnnounce(signal.Payload) is not { } item || (item.Flags & ChatWire.RemoteOnly) != 0 && Options.Local || _hidden.Contains(item.Player))
+            return;
+        Announce(item.Player, Named(item.Text));
     }
 
     // ------------------------------------------------------------------ вход и выход

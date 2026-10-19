@@ -155,6 +155,18 @@ internal sealed class Minimap(BaseState state)
                     continue;
                 Dot(ui, y(my) - 1.5 * k, x(mx) - 1.5 * k, 3 * k, 3 * k, Missile);
             }
+        // Уведомления (раздел Alerts, c.Shared): мигающее кольцо там, где напали, заметили врага или нашли месторождение.
+        if (c.Shared.TryGetValue(AlertsSection.ListKey, out var listed) && listed is Alert[] alerts
+            && c.Shared.TryGetValue(AlertsSection.ClockKey, out var clock) && clock is double now)
+            foreach (var alert in alerts)
+            {
+                var age = now - alert.At;
+                if (age > AlertWatch.Seconds)
+                    continue;
+                var pulse = age * 2 % 1;
+                var tint = alert.Kind is "attacked" or "nuke" ? Foe : alert.Kind == "ping" ? Ally : alert.Kind is "found" or "intercepted" ? Color.Hex(0x8fe0a8) : Color.Hex(0xffd27a);
+                Ring(ui, x(alert.X), y(alert.Y), (3 + pulse * 12) * k, line, tint.Faded((float)(1 - pulse)));
+            }
     }
 
     /// <summary>Таблицы base (ставит HUD): радиус взрыва боеголовки.</summary>

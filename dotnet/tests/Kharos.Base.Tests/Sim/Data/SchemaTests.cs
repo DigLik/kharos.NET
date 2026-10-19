@@ -25,9 +25,9 @@ public sealed class SchemaTests
         Assert.Equal(
             ["Position", "Facing", "Owner", "Proto", "Sight", "Footprint", "Body", "Mover", "Path", "Mount", "Team", "Sighting", "Reveal"],
             schema.Components.Take(Builtin.Count).Select(c => c.Name));
-        // 50 компонентов мода: 54 компонента TS без Position, Owner, Path (движок), Turret, Attached, Carrier (Mount и
-        // Proto), Glare (Reveal), Ghost (клиент), плюс Carry, Limits, Science, Diplomacy.
-        Assert.Equal(Builtin.Count + 50, schema.Count);
+        // 52 компонента мода: 54 компонента TS без Position, Owner, Path (движок), Turret, Attached, Carrier (Mount и
+        // Proto), Glare (Reveal), Ghost (клиент), плюс Carry, Limits, Science, Diplomacy и энергосети для клиента Grid, Grids.
+        Assert.Equal(Builtin.Count + 52, schema.Count);
         Assert.Equal(14, Content.Value.Mods.Single().Schema.Count);
         foreach (var gone in (string[])["Drive", "Turret", "Attached", "Carrier", "Glare", "Ghost", "Inventory"])
             Assert.Null(schema.Find(gone));
@@ -129,7 +129,7 @@ public sealed class SchemaTests
         host.Join(1);
         BaseGame.Run(host, 20);
         Assert.Empty(host.Errors);
-        Assert.Equal(Builtin.Count + 50 + 1, host.World.Schema.Count);
+        Assert.Equal(Builtin.Count + 52 + 1, host.World.Schema.Count);
         Assert.NotNull(host.Layers.Find("deposits"));
         Assert.NotNull(host.Layers.Find("traces"));
         // Стартового набора у партии test нет: у вошедшего — только сущность счёта (ядро Б1), без места на карте.

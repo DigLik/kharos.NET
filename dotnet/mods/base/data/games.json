@@ -90,5 +90,28 @@
         "weather"
       ]
     }
+    },
+  "showcase": {
+    "about": "Фон главного меню (sim-ts/showcase.ts): сценка на крошечной карте 128² (SHOWCASE_SIZE) без тумана, без стартового набора и патронов юнитов; камера-режиссёр, без звуков мира. Имя сценки — поле scene (настройки партии его переопределяют).",
+    "title": "Витрина",
+    "size": 128,
+    "fog": false,
+    "land": "default",
+    "start": false,
+    "sandbox": true,
+    "scene": "battle",
+    "rules": {
+      "unitAmmo": false
+    },
+    "client": {
+      "camera": "director",
+      "silent": true,
+      "atmosphere": [
+        "weather"
+      ],
+      "effects": [
+        "traces"
+      ]
+    }
   }
 }

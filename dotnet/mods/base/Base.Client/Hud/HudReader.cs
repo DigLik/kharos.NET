@@ -55,6 +55,9 @@ internal sealed class HudParts(ClientContext c)
     public ComponentRef? Mark => _mark ??= Get("Mark");
     public ComponentRef? Missile => _missile ??= Get("Missile");
     public ComponentRef? Sight => _sight ??= Get("Sight");
+    public ComponentRef? Grid => _grid ??= Get("Grid");
+    public ComponentRef? Grids => _grids ??= Get("Grids");
+    private ComponentRef? _grid, _grids;
 
     private ComponentRef? _unit, _building, _site, _health, _stock, _wanted, _hauler, _carry, _tactics, _magazine, _producer, _converting, _deploys,
         _assembly, _off, _busy, _accumulator, _reactor, _upgrade, _research, _science, _silo, _interceptor, _shield, _player, _team, _mount, _doomed,
@@ -97,8 +100,8 @@ internal sealed class HudParts(ClientContext c)
 
 /// <summary>
 /// Собирает <see cref="HudState"/> из реплики и выделения — перенос readHud из game/hud.ts. Хост клиенту запросов не
-/// отвечает, поэтому всё считается здесь по компонентам и данным (BaseTables): энергия — одной сетью по своим готовым
-/// зданиям (TS делит по сетям), запас — по хранилищам.
+/// отвечает, поэтому всё считается здесь по компонентам и данным (BaseTables): энергия — по сетям, что хост пишет в Grids
+/// и Grid (GridWire), запас — по хранилищам.
 /// </summary>
 internal sealed class HudReader
 {
@@ -304,6 +307,29 @@ internal sealed class HudReader
         return (grid, income, crowd);
     }
 
+    /// <summary>Сети своего игрока, как их посчитал хост (Grids на сущности счёта, GridWire); до первой записи — null.</summary>
+    private List<GridWire.Net>? _nets;
+
+    private List<GridWire.Net>? Nets()
+    {
+        var account = AccountEntity();
+        return account != 0 && _p.Grids is { } grids && Get(account, grids) is { } values ? GridWire.Unpack(values.Bytes(grids["nets"])) : null;
+    }
+
+    /// <summary>Номер сети здания среди сетей хозяина с 1 (Grid.net; чужому — 0).</summary>
+    private int NetOf(uint entity) => (int)HudParts.Num(Get(entity, _p.Grid), _p.Grid, "net");
+
+    /// <summary>Хозяйство сети для HUD (gridState): выработка — вниз до десятых, спрос — вверх.</summary>
+    private static GridState GridOf(GridWire.Net net) => new(
+        Math.Floor(net.Produced * 10) / 10,
+        Math.Ceiling(net.Demand * 10) / 10,
+        Math.Ceiling(net.Peak * 10) / 10,
+        Math.Round(net.Stored * 100, MidpointRounding.AwayFromZero) / 100,
+        net.Overload);
+
+    /// <summary>Сеть своего здания для HUD; не в сети или сетей ещё нет — null.</summary>
+    private GridState? GridOf(uint entity) => _nets is { } nets && NetOf(entity) is var net && net >= 1 && net <= nets.Count ? GridOf(nets[net - 1]) : null;
+
     /// <summary>Состояние HUD на этот кадр; selection — выделенные, players — ростер с союзами.</summary>
     public HudState Read(uint[] selection, HudModes modes)
     {
@@ -323,8 +349,21 @@ internal sealed class HudReader
             foreach (var entity in c.Each(building, _p.Owner!))
                 if (c.Mine(entity) && !Has(entity, _p.Site))
                     own.Add(entity);
-        var (grid, income, crowd) = Economy(credits, own);
-        state.Grid = own.Count > 0 ? grid : null;
+        // Энергия — по сетям хоста (zoneEconomies): без выбора на полосе — первая сеть (с главным зданием), кнопки стройки
+        // считают тесноту по ней же. Пока хост сетей не прислал — одной сетью по своим зданиям.
+        _nets = Nets();
+        double income, crowd;
+        if (_nets is { } nets)
+        {
+            state.Grid = nets.Count > 0 ? GridOf(nets[0]) : null;
+            income = nets.Sum(net => net.Income);
+            crowd = nets.Count > 0 ? nets[0].Crowd : 0;
+        }
+        else
+        {
+            (var grid, income, crowd) = Economy(credits, own);
+            state.Grid = own.Count > 0 ? grid : null;
+        }
         state.Income = Round(income);
         var stock = new Dictionary<string, double>();
         double capacity = 0;
@@ -374,6 +413,7 @@ internal sealed class HudReader
         int bound = 0, busy = 0;
         var gift = new List<uint>();
         var mine = 0;
+        var gridPicked = false;
         foreach (var entity in selection)
         {
             if (!c.Alive(entity))
@@ -381,6 +421,14 @@ internal sealed class HudReader
             var mineEntity = c.Mine(entity);
             if (mineEntity)
                 mine++;
+            // Полоса показывает сеть первого выбранного своего здания (gridIndex).
+            if (mineEntity && !gridPicked && GridOf(entity) is { } picked)
+            {
+                state.Grid = picked;
+                gridPicked = true;
+            }
+            if (Ready(entity) && ((int)HudParts.Num(Get(entity, _p.Grid), _p.Grid, "state") & GridWire.Starved) != 0)
+                state.Starved = true;
             var unitType = UnitType(entity);
             if (unitType is not null)
             {
@@ -525,7 +573,7 @@ internal sealed class HudReader
         if (spec.Extract && c.Pose(entity) is { } at && KnownReserve.Spot(c, _deposits, at.X + 0.5, at.Y + 0.5) is { } spot)
             state.Deposit = (spot.Kind, Math.Floor(spot.Left ?? 0));
         if (((spec.Power ?? 0) > 0 || spec.Battery is not null) && mine && ready)
-            state.Power = state.Grid;
+            state.Power = _nets is null ? state.Grid : GridOf(entity);
         if (spec.Battery is { } battery && Get(entity, _p.Accumulator) is { } cell)
             state.Battery = (Math.Floor(HudParts.Num(cell, _p.Accumulator, "charge")), battery.Capacity, Round(HudParts.Num(cell, _p.Accumulator, "flow")));
         // Буфер производителя — не склад: показываем его, только пока там лежат материалы заказа.
@@ -593,8 +641,9 @@ internal sealed class HudReader
         {
             var running = Get(entity, _p.Research);
             var lab = state.Research ?? new LabState(0, 0, null, topic, topic is null ? 0 : Round(progress.GetValueOrDefault(topic)));
-            var lack = HudParts.Str(running, _p.Research, "lack");
-            state.Research = lab with { Labs = lab.Labs + 1, Speed = Round(lab.Speed + HudParts.Num(running, _p.Research, "speed")), Lack = lab.Lack ?? (lack.Length > 0 ? lack : null) };
+            // Чего не хватает — числом (Research.cause, good): строку мира lack клиент не читает.
+            var lack = LabLack.Name((int)HudParts.Num(running, _p.Research, "cause"), NameOfGood((int)HudParts.Num(running, _p.Research, "good", -1)));
+            state.Research = lab with { Labs = lab.Labs + 1, Speed = Round(lab.Speed + HudParts.Num(running, _p.Research, "speed")), Lack = lab.Lack ?? lack };
         }
         if (state.Silo is null && spec.Warhead is { } warhead && ready && mine && Get(entity, _p.Silo) is { } silo)
         {

@@ -27,6 +27,7 @@
     <Project Path="tests/Kharos.Base.Scenario/Kharos.Base.Scenario.csproj" />
     <Project Path="tests/Kharos.Base.Tests/Kharos.Base.Tests.csproj" />
     <Project Path="tests/Kharos.Client.Tests/Kharos.Client.Tests.csproj" />
+    <Project Path="tests/Kharos.Desktop.Tests/Kharos.Desktop.Tests.csproj" />
     <Project Path="tests/Kharos.Engine.Tests/Kharos.Engine.Tests.csproj" />
     <Project Path="tests/Kharos.Gpu.Tests/Kharos.Gpu.Tests.csproj" />
     <Project Path="tests/Kharos.Host.Tests/Kharos.Host.Tests.csproj" />

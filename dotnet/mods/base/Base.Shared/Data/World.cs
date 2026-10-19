@@ -64,6 +64,9 @@ public sealed class GameSpec
     public LandRef? Land { get; set; }
     public bool Start { get; set; } = true;
     public bool Sandbox { get; set; }
+
+    /// <summary>Сценка витрины меню (showcase): имя из Base.Host/Sections/Showcase; нет — обычная партия.</summary>
+    public string? Scene { get; set; }
     public double Credits { get; set; }
     public string[] Units { get; set; } = [];
     public SpawnSpec Spawn { get; set; } = new();
@@ -85,4 +88,7 @@ public sealed class ClientSpec
     public string[] Ui { get; set; } = [];
     public string[] Atmosphere { get; set; } = [];
     public string[] Effects { get; set; } = [];
+
+    /// <summary>Без звуков мира (витрина меню: играет только музыка).</summary>
+    public bool Silent { get; set; }
 }

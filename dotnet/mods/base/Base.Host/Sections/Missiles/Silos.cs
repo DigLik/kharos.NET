@@ -68,7 +68,11 @@ internal static class Silos
         if (Own(call, player, silo) is null || !call.Flag(silo, S.Silo, Refs.R.SiloReady) || !Placement.InBounds(x, y))
             return false;
         if (call.Num(silo, S.Silo, Refs.R.SiloStart, -1) < 0)
+        {
             call.Set(silo, S.Silo).Number(Refs.R.SiloStart, call.Tick);
+            // Весть всем один раз на пуск: кто готовит, без места и цели (наведение заново её не повторяет).
+            call.Commands.Signal(Base.Shared.Orders.ChatCall.AnnounceSignal, Base.Shared.Orders.ChatCall.Announce(player, 0, "nukeLaunch"));
+        }
         call.Set(silo, S.Silo).Number(Refs.R.SiloToX, x + 0.5).Number(Refs.R.SiloToY, y + 0.5);
         Unprotect(call, player);
         return true;

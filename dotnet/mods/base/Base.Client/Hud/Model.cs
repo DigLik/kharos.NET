@@ -16,7 +16,8 @@ internal sealed record GridState(double Produced, double Demand, double Peak, do
 internal sealed record TruckJob(string Kind, IReadOnlyList<string> Buildings, string? Resource = null, double Left = 0);
 
 /// <summary>Строка списка игроков: номер, ник, свой ли, в сети ли, союзник ли, глава его союза (−1 — ни с кем).</summary>
-internal sealed record PlayerRow(uint Player, string Name, bool Own, bool Online, bool Ally, long Head);
+internal sealed record PlayerRow(uint Player, string Name, bool Own, bool Online, bool Ally, long Head, string? Relation = null, bool Safe = false, double Credits = 0,
+    (double X, double Y)? Base = null);
 
 /// <summary>
 /// Что интерфейс игрока показывает прямо сейчас — перенос HudState из game/hud.ts в объёме HUD (К3а). Поля, что ведут
@@ -51,6 +52,13 @@ internal sealed class HudState
     public bool Relief { get; set; }
     public bool Groupable { get; set; }
     public uint[]? Gift { get; set; }
+
+    /// <summary>Космопорт: сделка и подарок кораблём (К3б).</summary>
+    public TradeState? Trade { get; set; }
+
+    /// <summary>Сколько осталось защиты новичка, «м:сс»; пусто — её нет. Поражение игрока (К3б).</summary>
+    public string Protection { get; set; } = "";
+    public bool Defeated { get; set; }
     public (string Kind, double Left)? Deposit { get; set; }
 
     public StoredState? Stored { get; set; }

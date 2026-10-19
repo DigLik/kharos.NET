@@ -33,7 +33,7 @@ internal static class EnergySection
         Order.System(mod, "storeEnergy", new Batteries()).Query(Names.Accumulator.Name).Write(Names.Accumulator.Name);
         Order.System(mod, "openBooks", new Income.OpenBooks());
         Order.System(mod, "earn", new Income.Earn()).Query(Names.Player.Name);
-        Order.System(mod, "closeBooks", new Income.CloseBooks());
+        Order.System(mod, "closeBooks", new Income.CloseBooks()).Table(Names.Grid.Name);
         Commands.Handle<WorkOrder>(WorkOrder.Name, (call, player, order) => Switches.SetWorking(call, player, order.Building, order.On));
 
         // Потребителю энергии при её нехватке — доля, вне сети и выключенному — ноль; остальным — полная скорость.

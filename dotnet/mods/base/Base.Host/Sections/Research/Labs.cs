@@ -152,9 +152,12 @@ internal sealed class Labs : ISystem
     private static void Report(Call call, uint lab, double speed, string lack)
     {
         var rounded = Math.Floor(speed * 100 + 0.5) / 100;
+        // То же числом для клиента (строку мира он не читает): причина и Proto груза.
+        var cause = LabLack.Of(lack);
+        var good = cause == LabLack.Material && Logistics.Cargo.Index(lack) is var index and >= 0 ? Logistics.Cargo.Proto(index) : -1;
         if (!call.Has(lab, R.Research))
-            call.Add(lab, R.Research).Number(R.ResearchSpeed, rounded).Text(R.ResearchLack, lack);
+            call.Add(lab, R.Research).Number(R.ResearchSpeed, rounded).Text(R.ResearchLack, lack).Number(R.ResearchCause, cause).Number(R.ResearchGood, good);
         else if (call.Num(lab, R.Research, R.ResearchSpeed) != rounded || (call.Text(lab, R.Research, R.ResearchLack) ?? "") != lack)
-            call.Set(lab, R.Research).Number(R.ResearchSpeed, rounded).Text(R.ResearchLack, lack);
+            call.Set(lab, R.Research).Number(R.ResearchSpeed, rounded).Text(R.ResearchLack, lack).Number(R.ResearchCause, cause).Number(R.ResearchGood, good);
     }
 }

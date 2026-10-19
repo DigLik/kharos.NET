@@ -24,6 +24,14 @@ internal sealed class Slot
 
     /// <summary>Кредитов на всю цену нет, но нажать можно: стройку оплачивают по ходу.</summary>
     public bool Short { get; set; }
+
+    /// <summary>Новое: игрок ещё не наводил на эту кнопку стройки и не нажимал её, а у раздела — в нём есть такая (Seen).</summary>
+    public bool Fresh { get; set; }
+
+    /// <summary>Что отметить знакомым, когда на кнопку навели или её нажали: вид здания или инструмент протяжки.</summary>
+    public string? Seen { get; set; }
+
+    /// <summary>Сюда ведёт текущий первый шаг новичка (Steps): подсвечено ярче нового.</summary>
     public bool Hint { get; set; }
     public double? Power { get; set; }
     public double? Idle { get; set; }
@@ -59,7 +67,19 @@ internal sealed class GridActions
     public Action<uint?> Deploy { get; init; } = _ => { };
     public Action<string> Open { get; init; } = _ => { };
     public Action<Deal?> Pick { get; init; } = _ => { };
+
+    /// <summary>Набираемый подарок союзнику кораблём (К3б, Panels/Trade).</summary>
+    public Action<FerryDraft?> Draft { get; init; } = _ => { };
     public Action Tech { get; init; } = () => { };
+
+    /// <summary>Текущий первый шаг новичка (<c>c.Shared["steps.current"]</c>); null — подсказывать нечего.</summary>
+    public StepSpec? Step { get; init; }
+
+    /// <summary>Знакома ли игроку кнопка (Seen.Is); по умолчанию — знакома, подсветки «нового» нет.</summary>
+    public Func<string, bool> IsSeen { get; init; } = _ => true;
+
+    /// <summary>Отметить кнопку знакомой (Seen.Mark).</summary>
+    public Action<string> MarkSeen { get; init; } = _ => { };
 }
 
 /// <summary>
@@ -137,7 +157,7 @@ internal static class Commands
             : value.ToString("G14", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>Сетка команд для выбранного: <see cref="Size"/> ячеек, пустые — null.</summary>
-    public static Slot?[] Of(HudState state, string page, GridActions actions, BaseTables tables, Tr t, Deal? deal = null)
+    public static Slot?[] Of(HudState state, string page, GridActions actions, BaseTables tables, Tr t, Deal? deal = null, FerryDraft? ferry = null)
     {
         var slots = new Slot?[Size];
         void Fill(IEnumerable<Slot> items)
@@ -148,6 +168,8 @@ internal static class Commands
         }
         var credits = state.Credits;
         var send = actions.Send;
+        // Куда ведёт текущий первый шаг: его кнопка подсвечена, пока шаг не пройден.
+        var hinted = actions.Step;
 
         if (state.Construction is { } construction)
         {
@@ -163,9 +185,13 @@ internal static class Commands
                 Zones = true,
                 About = AboutOf(tables, option.Building, t),
                 Short = !option.Affordable,
+                Fresh = !actions.IsSeen(option.Building),
+                Seen = option.Building,
+                Hint = hinted?.Building == option.Building,
                 Title = option.Affordable ? null : t("grid.shortCredits"),
                 Run = () =>
                 {
+                    actions.MarkSeen(option.Building);
                     actions.Pave(null);
                     actions.Place(construction.Placing == option.Building ? null : option.Building);
                 },
@@ -181,6 +207,7 @@ internal static class Commands
                 slot.Title = option.Affordable ? t("grid.wallTip") : $"{t("grid.wallTip")}. {t("grid.shortCredits")}";
                 slot.Run = () =>
                 {
+                    actions.MarkSeen(option.Building);
                     actions.Place(null);
                     actions.Pave(active ? null : tool);
                 };
@@ -200,10 +227,16 @@ internal static class Commands
             var pipeTools = PipeTools(tables);
             if (page == "root")
             {
+                // Раздел подсвечен, пока в нём есть кнопка, которую игрок ещё не нажимал.
+                bool Fresh(string name) =>
+                    construction.Options.Any(option => SectionOf(option.Building) == name && !actions.IsSeen(option.Building))
+                    || (name is "paving" or "logistics" && (name == "paving" ? PaveTools : pipeTools).Any(tool => construction.Tools.Contains(tool.Tool) && !actions.IsSeen(tool.Tool)));
                 Slot Section(string name, string? building = null, string? pave = null, int group = 0) => new()
                 {
                     Label = t("grid.sections." + name),
                     Title = t("grid.sectionTips." + name),
+                    Fresh = Fresh(name),
+                    Hint = hinted?.Building is { } wanted && SectionOf(wanted) == name && construction.Options.Any(option => option.Building == wanted),
                     Building = building,
                     Pave = pave,
                     Group = group,
@@ -243,9 +276,12 @@ internal static class Commands
                         // Трубы и колодцы — стройки, их оплачивают по ходу; покрытие и землеройные работы — сразу.
                         Short = piping && credits < cost,
                         Disabled = !piping && credits < cost,
+                        Fresh = !actions.IsSeen(tool),
+                        Seen = tool,
                         Title = t("grid.toolTips." + tool, "bridge", N(PaveRules.BridgeCost), "reach", N(BuildRules.UndergroundReach), "cost", N(cost)),
                         Run = () =>
                         {
+                            actions.MarkSeen(tool);
                             actions.Place(null);
                             actions.Pave(active ? null : tool);
                         },
@@ -278,6 +314,7 @@ internal static class Commands
                 Cost = option.Cost,
                 Materials = option.Materials,
                 Disabled = !option.Affordable || production.Full || option.Missing.Count > 0 || option.Research is not null || option.Capped,
+                Hint = hinted?.Unit == option.Unit,
                 Title = option.Missing.Count > 0 ? t("grid.needs", "list", string.Join(", ", option.Missing.Select(type => t("buildings." + type))))
                     : option.Research is { } research ? t("grid.needsResearch", "name", t("research." + research))
                     : production.Full ? t("grid.queueFull")
@@ -286,7 +323,7 @@ internal static class Commands
                 Run = () => send(new ProduceOrder { Producer = production.Producer, Unit = option.Unit }),
             }));
             if (production.Queue.Count > 0)
-                slots[Cancel] = new Slot
+                slots[state.Trade is not null ? Back : Cancel] = new Slot
                 {
                     Label = t("grid.cancelOrder"),
                     Title = t("grid.cancelOrderTip"),
@@ -305,6 +342,7 @@ internal static class Commands
                     About = conversion.Kind == "deploy" ? t("buildingInfo." + BuildRules.Core) : null,
                     Disabled = !conversion.Possible,
                     Active = conversion.Choosing,
+                    Hint = mcv is not null && hinted?.Deploy == true && !conversion.Traveling,
                     Title = mcv is not null ? t("grid.deployTip") : null,
                     Run = () =>
                     {
@@ -547,6 +585,9 @@ internal static class Commands
                         send(new WorkOrder { Building = building, On = !switchable.On });
                 },
             };
+
+        if (state.Trade is not null)
+            TradePages.Fill(state, page, slots, actions, t, deal, ferry);
 
         if (state.Level is { } level && page == "root" && state.Construction is null)
         {

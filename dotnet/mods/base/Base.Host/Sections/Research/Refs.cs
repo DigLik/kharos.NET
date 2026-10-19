@@ -11,7 +11,7 @@ namespace Base.Host.Sections.Research;
 internal static class R
 {
     public static ComponentRef Research = null!, Upgrade = null!, Off = null!;
-    public static FieldRef ResearchSpeed, ResearchLack, UpgradeProgress, UpgradeScale, SciencePlan, ScienceProgress;
+    public static FieldRef ResearchSpeed, ResearchLack, ResearchCause, ResearchGood, UpgradeProgress, UpgradeScale, SciencePlan, ScienceProgress;
 
     public static void Load(Func<string, ComponentRef> component)
     {
@@ -20,6 +20,8 @@ internal static class R
         Off = component(Names.Off.Name);
         ResearchSpeed = Research[Names.Research.Speed];
         ResearchLack = Research[Names.Research.Lack];
+        ResearchCause = Research[Names.Research.Cause];
+        ResearchGood = Research[Names.Research.Good];
         UpgradeProgress = Upgrade[Names.Upgrade.Progress];
         UpgradeScale = Upgrade[Names.Upgrade.Scale];
         SciencePlan = S.Science[Names.Science.Plan];

@@ -455,6 +455,21 @@ public static class Names
         public const string Left = "left";
     }
 
+    /// <summary>Grid (schema/energy.json).</summary>
+    public static class Grid
+    {
+        public const string Name = "Grid";
+        public const string Net = "net";
+        public const string State = "state";
+    }
+
+    /// <summary>Grids (schema/energy.json).</summary>
+    public static class Grids
+    {
+        public const string Name = "Grids";
+        public const string Nets = "nets";
+    }
+
     /// <summary>Assembly (schema/production.json).</summary>
     public static class Assembly
     {
@@ -532,6 +547,8 @@ public static class Names
         public const string Name = "Research";
         public const string Speed = "speed";
         public const string Lack = "lack";
+        public const string Cause = "cause";
+        public const string Good = "good";
     }
 
     /// <summary>Upgrade (schema/research.json).</summary>

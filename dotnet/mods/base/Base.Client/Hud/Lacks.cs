@@ -191,12 +191,12 @@ internal sealed class Lacks(Fx fx, Paint paint)
         }
     }
 
-    /// <summary>Лаборатория без сырья темы (Research.lack — груз).</summary>
+    /// <summary>Лаборатория без сырья темы (Research.cause = material, good — Proto груза).</summary>
     private void Labs()
     {
         foreach (var entity in fx.C.Each(fx.Research))
-            if (Stands(entity) && fx.C.Get(entity, fx.Research) is { } research)
-                Note(entity, Array.IndexOf(Icons.Goods, fx.Str(research.Number(fx.Research["lack"]))));
+            if (Stands(entity) && fx.C.Get(entity, fx.Research) is { } research && (int)research.Number(fx.Research["cause"]) == Base.Shared.Rules.LabLack.Material)
+                Note(entity, fx.GoodOf((int)research.Number(fx.Research["good"])));
     }
 
     /// <summary>Перехватчик, которому не из чего собрать ракету (interceptorLack = materials).</summary>

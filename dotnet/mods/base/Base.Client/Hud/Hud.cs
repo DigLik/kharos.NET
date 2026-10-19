@@ -21,6 +21,7 @@ internal sealed class Hud(BaseState state)
     private BaseTables? _tables;
     private string _page = "root";
     private Deal? _deal;
+    private FerryDraft? _ferry;
     private string _selectionKey = "";
 
     /// <summary>Последнее состояние и сетка (для тестов и звука нажатий).</summary>
@@ -39,6 +40,8 @@ internal sealed class Hud(BaseState state)
         Tr t = (key, args) => c.Text(key, args);
         var hud = _reader.Read(Shared.Selection(c), HudShared.Read(c));
         hud.Editor = (c.Shell & ShellMode.Editor) != 0;
+        var selection = Shared.Selection(c);
+        PlayersPanel.Of(c).Augment(c, _reader, _parts!, _tables!, hud, selection);
         Last = hud;
 
         // Выбрано другое — страница сетки и набираемый заказ сбрасываются (кроме закладки и протяжки).
@@ -49,9 +52,11 @@ internal sealed class Hud(BaseState state)
             if (hud.Construction is not { Placing: not null } && hud.Construction is not { Paving: not null })
                 _page = "root";
             _deal = null;
+            _ferry = null;
         }
         var actions = Actions(c);
-        var slots = hud.Selected ? Commands.Of(hud, _page, actions, _tables!, t, _deal) : new Slot?[Commands.Size];
+        var slots = hud.Selected ? Commands.Of(hud, _page, actions, _tables!, t, _deal, _ferry) : new Slot?[Commands.Size];
+        c.Shared[PanelsFeed.Key] = Feed(hud, c);
 
         // Снизу вверх: нижняя панель, полоса, подсказки.
         _bar!.Draw(new Bar.Frame(c, hud, slots, _tables!, t, _parts!, _reader.Heads()));
@@ -59,6 +64,30 @@ internal sealed class Hud(BaseState state)
         HoverTip(c, t);
         Keys(c, slots);
     }
+
+    /// <summary>Что HUD отдаёт панелям на кадр: состояние, сделка, подарок, страница и действия поля количества.</summary>
+    private PanelsFeed Feed(HudState hud, ClientContext c) => new()
+    {
+        State = hud,
+        Deal = _deal,
+        Ferry = _ferry,
+        Page = _page,
+        SetAmount = amount =>
+        {
+            if (_deal is { } deal)
+                _deal = deal with { Amount = amount };
+        },
+        Confirm = () =>
+        {
+            if (hud.Trade is { Order: null } trade && _deal is { } deal && TradePages.DealOf(trade, hud.Credits, _page == "buy", deal) is { Amount: >= 1 } view)
+            {
+                Send(c, _page == "buy"
+                    ? new BuyOrder { Port = trade.Port, Resource = view.Resource, Amount = view.Amount }
+                    : new SellOrder { Port = trade.Port, Resource = view.Resource, Amount = view.Amount });
+                _deal = null;
+            }
+        },
+    };
 
     /// <summary>Клавиши сетки команд (T, Y, U, I, G, H, J, K, B, N, M, «,»); R — окно исследований — ловит К4.</summary>
     private static void Keys(ClientContext c, Slot?[] slots)
@@ -108,6 +137,10 @@ internal sealed class Hud(BaseState state)
             _deal = null;
         },
         Pick = deal => _deal = deal,
+        Draft = ferry => _ferry = ferry,
+        Step = c.Shared.TryGetValue(StepsSection.CurrentKey, out var step) ? step as StepSpec : null,
+        IsSeen = key => Seen.Is(c, key),
+        MarkSeen = key => Seen.Mark(c, key),
         Tech = () => HudShared.Set(c, HudShared.Tech, true),
     };
 
@@ -126,6 +159,10 @@ internal sealed class Hud(BaseState state)
             FilterOrder o => (FilterOrder.Name, MemoryPackSerializer.Serialize(o)),
             ReserveOrder o => (ReserveOrder.Name, MemoryPackSerializer.Serialize(o)),
             WantOrder o => (WantOrder.Name, MemoryPackSerializer.Serialize(o)),
+            SellOrder o => (SellOrder.Name, MemoryPackSerializer.Serialize(o)),
+            BuyOrder o => (BuyOrder.Name, MemoryPackSerializer.Serialize(o)),
+            CloseSaleOrder o => (CloseSaleOrder.Name, MemoryPackSerializer.Serialize(o)),
+            FerryOrder o => (FerryOrder.Name, MemoryPackSerializer.Serialize(o)),
             GiftOrder o => (GiftOrder.Name, MemoryPackSerializer.Serialize(o)),
             ScuttleOrder o => (ScuttleOrder.Name, MemoryPackSerializer.Serialize(o)),
             WorkOrder o => (WorkOrder.Name, MemoryPackSerializer.Serialize(o)),

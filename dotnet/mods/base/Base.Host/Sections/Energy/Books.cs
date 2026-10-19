@@ -134,7 +134,7 @@ internal static class Books
     private static bool NeedsCore(string type, BuildingSpec spec) => type != BuildRules.Core && (spec.Income ?? 0) != 0;
 
     /// <summary>Есть ли в сети главное здание.</summary>
-    private static bool HasCore(Call call, Zones.Zone zone)
+    public static bool HasCore(Call call, Zones.Zone zone)
     {
         foreach (var entity in zone.Buildings)
             if (call.BuildingType(entity) == BuildRules.Core)

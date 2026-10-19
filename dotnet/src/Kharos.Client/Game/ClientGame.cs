@@ -200,6 +200,9 @@ public sealed partial class ClientGame : IDisposable
     /// </summary>
     public List<(byte Action, string Arg)> ShellRequests => _shell;
 
+    /// <summary>Просьба мода «начать заново» (ClientAbi.ShellActionRespawn): оболочка отвечает <see cref="Respawn"/>.</summary>
+    public const byte ShellRespawn = ClientAbi.ShellActionRespawn;
+
     /// <summary>
     /// После модов кадра, до сборки кадра рендера: обвязка тестов (Viewer, сверка кадров) ставит камеру и атмосферу
     /// сцены поверх того, что решили моды.

@@ -22,10 +22,11 @@ public sealed class BaseClient : ClientMod
         new SoundsSection(),
         new CameraSection(),
         new HudSection(),
-        new PanelsSection(),
-        new ResearchSection(),
+        // Как в gui/hud.ts: уведомления и «Первые шаги» — под окнами (список игроков, поражение, исследования).
         new AlertsSection(),
         new StepsSection(),
+        new PanelsSection(),
+        new ResearchSection(),
         new EditorSection(),
         new ControlsSection(),
         new EffectsSection(),

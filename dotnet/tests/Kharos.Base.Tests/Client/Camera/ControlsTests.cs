@@ -267,10 +267,11 @@ public sealed class ControlsTests
         viewer.Step(2);
         Assert.True(Selected(viewer) == 0 && viewer.Draws.Rects.Count > 0, "здание не выбрано");
         viewer.Sent.Clear();
-        viewer.ClickWorld(fx + 5.5, fy + 8.5, Kharos.Client.Ui.PointerButtons.Right);
+        // Ниже окна «Первых шагов» справа сверху.
+        viewer.ClickWorld(fx + 5.5, fy + 14.5, Kharos.Client.Ui.PointerButtons.Right);
         viewer.Step(2);
         var rally = Assert.Single(viewer.Sent.Of<RallyOrder>());
-        Assert.Equal((factory, fx + 5, fy + 8), (rally.Building, rally.X, rally.Y));
+        Assert.Equal((factory, fx + 5, fy + 14), (rally.Building, rally.X, rally.Y));
         Assert.Empty(viewer.Sent.Of<PointOrder>());
         Assert.Empty(viewer.Log);
     }

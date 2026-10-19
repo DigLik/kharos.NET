@@ -21,14 +21,21 @@ internal sealed class AudioSection : Section
         client.Signal(DefeatedSignal.Name, events.OnDefeated);
         client.Signal(ShelteredSignal.Name, events.OnSheltered);
         client.Voice(FlightAudio.Voice, FlightAudio.Build().Graph);
-        client.Audio("base.interface", new InterfaceAudio().Update);
-        client.Audio("base.motors", new MotorsAudio().Update);
-        client.Audio("base.machines", new MachinesAudio().Update);
-        client.Audio("base.events", events.Update);
-        client.Audio("base.battle", new Battle(mood, teams).Update);
-        client.Audio("base.ambience", new AmbienceAudio(mood: mood).Update);
-        client.Audio("base.flight", new FlightAudio().Update);
+        client.Audio("base.interface", Unless(new InterfaceAudio().Update));
+        client.Audio("base.motors", Unless(new MotorsAudio().Update));
+        client.Audio("base.machines", Unless(new MachinesAudio().Update));
+        client.Audio("base.events", Unless(events.Update));
+        client.Audio("base.battle", Unless(new Battle(mood, teams).Update));
+        client.Audio("base.ambience", Unless(new AmbienceAudio(mood: mood).Update));
+        client.Audio("base.flight", Unless(new FlightAudio().Update));
     }
+
+    /// <summary>Звуки мира молчат в партии с подачей silent (витрина меню: играет только музыка).</summary>
+    private FrameHandler Unless(FrameHandler handler) => c =>
+    {
+        if (State?.Profile?.Silent != true)
+            handler(c);
+    };
 
     public override void Frame(ClientContext c)
     {

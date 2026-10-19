@@ -24,6 +24,21 @@ public sealed record ComponentDeclaration(
 }
 
 /// <summary>
+/// Команда чата, объявленная модом (Н6-7): хост превращает набранное в приказ Order с полезной нагрузкой ChatCall.
+/// Args — «&lt;обязательный&gt;» и «[необязательный]»; виды по имени: player, player|all, unit, text/action (остаток строки).
+/// Choices — чем клиент дописывает аргументы (null — по виду: unit — видами юнитов).
+/// </summary>
+public sealed record ChatCommandDeclaration(
+    string Mod,
+    string Name,
+    IReadOnlyList<string> Args,
+    bool Admin,
+    bool Game,
+    string Order,
+    string Help,
+    IReadOnlyList<IReadOnlyList<string>?>? Choices);
+
+/// <summary>
 /// Мод (docs/dotnet.md, Р12) — папка: манифест <c>mod.json</c>, данные <c>data/*.json</c>, объявления компонентов
 /// <c>schema/*.json</c> (по файлу на раздел, только хосту: клиент получает схему в приветствии), код хоста
 /// <c>host.wasm</c> и клиента <c>client.wasm</c>. Данные движок читает без запуска кода. Пакет можно собрать и из байтов
@@ -36,6 +51,7 @@ public sealed record ComponentDeclaration(
 ///   "requires": ["core", "?extra"], — раньше этого мода; "?имя" — необязательная зависимость
 ///   "game": "skirmish",             — партия по умолчанию (запись data/games.json), последний мод главнее
 ///   "host": "host.wasm", "client": "client.wasm",
+///   "commands": [{ "name": "give", "args": ["&lt;player&gt;", "&lt;amount&gt;"], "order": "chat.give", "admin": false }],
 ///   "components": { "Drive": { "speed": 0, "move": "", "moving": false, "queue": null }, "Drop": {} }
 /// }
 /// schema/&lt;раздел&gt;.json — то же, что components:
@@ -48,7 +64,7 @@ public sealed record ComponentDeclaration(
 public sealed class ModPackage
 {
     private static readonly HashSet<string> Keys =
-        ["name", "id", "version", "title", "abi", "requires", "game", "host", "client", "components", "about"];
+        ["name", "id", "version", "title", "abi", "requires", "game", "host", "client", "components", "commands", "about"];
 
     public ModPackage(string fallbackName, ReadOnlySpan<byte> manifest, IReadOnlyDictionary<string, byte[]> data, byte[]? hostWasm = null, byte[]? clientWasm = null, string? directory = null, IReadOnlyDictionary<string, byte[]>? schema = null)
     {
@@ -129,7 +145,97 @@ public sealed class ModPackage
             Declare(declarations, "mod.json", components);
         }
         Declarations = declarations;
+        Commands = root.TryGetProperty("commands", out var commands) ? ParseCommands(commands, where) : [];
     }
+
+    /// <summary>
+    /// Команды чата из <c>commands</c> (Н6-7): { "name", "args": ["&lt;player&gt;", "[count]"], "order", "admin", "game", "help",
+    /// "choices": [["a", "b"], null] }. Имя — латиница с цифрами и «_»; обязательные аргументы не идут после необязательных.
+    /// </summary>
+    private List<ChatCommandDeclaration> ParseCommands(JsonElement list, string where)
+    {
+        if (list.ValueKind != JsonValueKind.Array)
+            throw new ContentException($"{where}: commands — список команд");
+        var result = new List<ChatCommandDeclaration>();
+        var known = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var item in list.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+                throw new ContentException($"{where}: commands — список объектов");
+            string? name = null, order = null;
+            var help = "";
+            bool admin = false, game = false;
+            var args = new List<string>();
+            List<IReadOnlyList<string>?>? choices = null;
+            foreach (var property in item.EnumerateObject())
+            {
+                var value = property.Value;
+                var at = $"{where}: commands.{property.Name}";
+                switch (property.Name)
+                {
+                    case "name": name = value.ValueKind == JsonValueKind.String ? value.GetString() : throw new ContentException($"{at} — строка"); break;
+                    case "order": order = value.ValueKind == JsonValueKind.String ? value.GetString() : throw new ContentException($"{at} — строка"); break;
+                    case "help": help = value.ValueKind == JsonValueKind.String ? value.GetString()! : throw new ContentException($"{at} — строка"); break;
+                    case "admin": admin = Flag(value, at); break;
+                    case "game": game = Flag(value, at); break;
+                    case "args":
+                        if (value.ValueKind != JsonValueKind.Array)
+                            throw new ContentException($"{at} — список строк");
+                        foreach (var arg in value.EnumerateArray())
+                            args.Add(arg.ValueKind == JsonValueKind.String ? arg.GetString()! : throw new ContentException($"{at} — список строк"));
+                        break;
+                    case "choices":
+                        if (value.ValueKind != JsonValueKind.Array)
+                            throw new ContentException($"{at} — список списков");
+                        choices = [];
+                        foreach (var each in value.EnumerateArray())
+                        {
+                            if (each.ValueKind == JsonValueKind.Null)
+                            {
+                                choices.Add(null);
+                                continue;
+                            }
+                            if (each.ValueKind != JsonValueKind.Array)
+                                throw new ContentException($"{at} — список списков или null");
+                            choices.Add([.. each.EnumerateArray().Select(word => word.ValueKind == JsonValueKind.String ? word.GetString()! : throw new ContentException($"{at} — только строки"))]);
+                        }
+                        break;
+                    default:
+                        throw new ContentException($"{at}: незнакомое поле (есть name, args, order, admin, game, help, choices)");
+                }
+            }
+            if (string.IsNullOrEmpty(name) || !name.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '_'))
+                throw new ContentException($"{where}: commands — имя команды «{name}» (строчные латинские, цифры, _)");
+            if (!known.Add(name))
+                throw new ContentException($"{where}: команда /{name} объявлена дважды");
+            if (string.IsNullOrEmpty(order))
+                throw new ContentException($"{where}: /{name} — нужен order (приказ мода)");
+            var optional = false;
+            foreach (var arg in args)
+            {
+                var required = arg.Length > 2 && arg[0] == '<' && arg[^1] == '>';
+                if (!required && !(arg.Length > 2 && arg[0] == '[' && arg[^1] == ']'))
+                    throw new ContentException($"{where}: /{name} — аргумент «{arg}» в <…> или […]");
+                if (required && optional)
+                    throw new ContentException($"{where}: /{name} — обязательный аргумент «{arg}» после необязательного");
+                optional |= !required;
+            }
+            if (choices is not null && choices.Count > args.Count)
+                throw new ContentException($"{where}: /{name} — choices длиннее args");
+            result.Add(new ChatCommandDeclaration(Name, name, args, admin, game, order, help, choices));
+        }
+        return result;
+    }
+
+    private static bool Flag(JsonElement value, string at) => value.ValueKind switch
+    {
+        JsonValueKind.True => true,
+        JsonValueKind.False => false,
+        _ => throw new ContentException($"{at} — true или false"),
+    };
+
+    /// <summary>Команды чата мода (<c>commands</c> в mod.json).</summary>
+    public IReadOnlyList<ChatCommandDeclaration> Commands { get; private set; } = [];
 
     /// <summary>Объявления компонентов из объекта «компонент → поля и атрибуты».</summary>
     private void Declare(List<ComponentDeclaration> declarations, string file, JsonElement components)

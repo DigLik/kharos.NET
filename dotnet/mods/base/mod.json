@@ -6,5 +6,12 @@
   "requires": [],
   "game": "skirmish",
   "host": "host.wasm",
-  "client": "client.wasm"
+  "client": "client.wasm",
+  "commands": [
+    { "name": "give", "args": ["<player>", "<amount>"], "game": true, "order": "chat.give" },
+    { "name": "spawn", "args": ["<unit>", "[count]", "[player]"], "admin": true, "order": "chat.spawn" },
+    { "name": "killunits", "args": ["[player|all]"], "admin": true, "order": "chat.killunits" },
+    { "name": "credits", "args": ["<player>", "<amount>"], "admin": true, "order": "chat.credits" },
+    { "name": "heal", "args": ["[player]"], "admin": true, "order": "chat.heal" }
+  ]
 }

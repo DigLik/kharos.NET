@@ -176,7 +176,8 @@ public sealed class BaseClientTests
             Assert.True(Dist(session.At(other), start[other]) < 0.5, $"сущность {other} сдвинулась");
 
         // Щелчок по пустой земле снимает выделение.
-        session.Click(PointerButtons.Left, frame.View.ToScreen(frame.View.X + 14, frame.View.Y - 7));
+        // Левее отряда: справа сверху — окно «Первых шагов».
+        session.Click(PointerButtons.Left, frame.View.ToScreen(frame.View.X - 14, frame.View.Y - 7));
         Assert.Null(session.InfoTitle());
 
         // Рамка вокруг отряда выделяет всех; Escape снимает.

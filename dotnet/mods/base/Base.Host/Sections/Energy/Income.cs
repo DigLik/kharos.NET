@@ -30,11 +30,22 @@ internal static class Income
         public void Run(SystemContext ctx) => Books.Open(ctx.Tick);
     }
 
+    /// <summary>Система closeBooks: энергия для клиента (<see cref="Publish"/>) и конец книг; таблица 0 — у кого Grid.</summary>
     public sealed class CloseBooks : ISystem
     {
-        public void Bind(SystemBinding binding) => Refs.Load(binding.Component);
+        public void Bind(SystemBinding binding)
+        {
+            Refs.Load(binding.Component);
+            Publish.Load(binding.Component);
+        }
 
-        public void Run(SystemContext ctx) => Books.Close();
+        public void Run(SystemContext ctx)
+        {
+            // Клиенту — сети после износа (как powerStates клиента TS после тика): книги заново, раз на всё.
+            Books.Open(ctx.Tick);
+            Publish.Run(Call.Of(ctx), ctx.Table(0).Entities);
+            Books.Close();
+        }
     }
 
     /// <summary>Система earn: по счетам игроков (Player).</summary>

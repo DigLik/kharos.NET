@@ -8,7 +8,7 @@ using static Kharos.Base.Tests.Logistics.LogisticsScene;
 
 namespace Kharos.Base.Tests.Trade;
 
-/// <summary>Передача юнитов союзнику (packages/tests/gift.test.ts). Меню юнитов клиента ждёт Н6 (Skip).</summary>
+/// <summary>Передача юнитов союзнику (packages/tests/gift.test.ts). Меню юнитов — Client/Panels/TradePanelTests.</summary>
 public sealed class GiftTests
 {
     private static Sim Make() => Scene.Create(128, new { protection = 0, techTree = false });
@@ -193,15 +193,5 @@ public sealed class GiftTests
         sim.Send(1, new GiftOrder { Units = [ours], To = 2 });
         sim.Seconds(0.2);
         Assert.Empty(sim.TakeSignals(GiftSignal.Name));
-    }
-
-    [Fact(DisplayName = "меню юнитов: «Отдать союзнику» ведёт к списку союзников, и клик по имени отдаёт выбранных", Skip = "ждёт Н6: меню юнитов клиента (commandsOf)")]
-    public void UnitMenuLeadsToTheAllyList()
-    {
-    }
-
-    [Fact(DisplayName = "меню юнитов: без выбранных юнитов отдавать нечего, а без союзников — некому", Skip = "ждёт Н6: меню юнитов клиента (commandsOf)")]
-    public void UnitMenuHasNothingToGiveWithoutSelectionOrAllies()
-    {
     }
 }

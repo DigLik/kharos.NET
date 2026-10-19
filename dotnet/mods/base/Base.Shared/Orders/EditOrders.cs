@@ -202,3 +202,40 @@ public sealed partial class EditStartOrder
     public int X { get; set; }
     public int Y { get; set; }
 }
+
+/// <summary>
+/// edit.pave: покрытие сразу готовым, без строителей и денег (кисть «Покрытие» редактора): Kind — road или foundation
+/// игрока Player, null — снять; тайлы x, y подряд. Куда нельзя (фундамент не на скале и не на песке, дорога на горе или
+/// под зданием, у подножия обрыва) — не кладётся.
+/// </summary>
+[MemoryPackable]
+public sealed partial class EditPaveOrder
+{
+    public const string Name = "edit.pave";
+    public int[] Tiles { get; set; } = [];
+    public string? Kind { get; set; }
+    public uint Player { get; set; }
+}
+
+/// <summary>
+/// Кисть мода в редакторе (точка расширения Н6-3, data/editor.json → brushes): щелчок или протяжка кистью шлёт приказ
+/// мода из записи кисти с этим payload. Приказ объявляет и разбирает сам мод; право редактора у приказа — его забота
+/// (OrderRights.Editor в обработчике).
+/// </summary>
+[MemoryPackable]
+public sealed partial class EditBrushCall
+{
+    /// <summary>Номер кисти — ключ записи в data/editor.json.</summary>
+    public string Brush { get; set; } = "";
+
+    /// <summary>Выбранный вариант кисти (ключ из options); нет вариантов — null.</summary>
+    public string? Option { get; set; }
+
+    /// <summary>Тайл под указателем и размер кисти.</summary>
+    public int X { get; set; }
+    public int Y { get; set; }
+    public int Size { get; set; }
+
+    /// <summary>Игрок, выбранный в панели (0 — ничьё).</summary>
+    public uint Player { get; set; }
+}

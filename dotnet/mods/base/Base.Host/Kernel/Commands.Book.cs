@@ -235,5 +235,6 @@ internal static partial class Commands
         Add<EditCameraOrder>(EditCameraOrder.Name, "Б1", E);
         Add<EditAddPlayerOrder>(EditAddPlayerOrder.Name, "Б1", E);
         Add<EditStartOrder>(EditStartOrder.Name, "Б1", E);
+        Add<EditPaveOrder>(EditPaveOrder.Name, "Б1", E);
     }
 }

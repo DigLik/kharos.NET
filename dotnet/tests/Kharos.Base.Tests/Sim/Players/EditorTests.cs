@@ -10,8 +10,8 @@ namespace Kharos.Base.Tests.Players;
 
 /// <summary>
 /// Редактор карты (packages/tests/editor.test.ts): правки edit.* с правом редактора — земля, здания, юниты, месторождения,
-/// деньги, камера. Что в TS — выбор мышью в редакторе (entityAt, entitiesIn, depositUnder, призрак Ghost), — клиент
-/// редактора (Н6): здесь то же проверяется по миру.
+/// деньги, камера. Что в TS — выбор мышью в редакторе (entityAt, entitiesIn, depositUnder), — клиент редактора (Н6):
+/// здесь то же проверяется по миру; призрак юнита — Client/Editor/EditorPanelTests.
 /// </summary>
 public sealed class EditorTests
 {
@@ -171,12 +171,6 @@ public sealed class EditorTests
         // На песок не кладётся.
         sim.Paint(30, 30, 3, new Brush { Terrain = (int)TerrainType.Sand });
         Assert.False(PutDeposit(sim, 29, 29, "metal", 100));
-    }
-
-    [Fact(DisplayName = "призрак юнита не выбирается, краснеет там, где не встать, и не в счёт мира",
-        Skip = "ждёт Н6: призрак юнита (Ghost) — сущность клиента редактора, в мире хоста его нет")]
-    public void GhostIsNotInTheWorld()
-    {
     }
 
     [Fact(DisplayName = "юниты и здания тащатся вместе: всё или ничего, друг другу не мешают")]

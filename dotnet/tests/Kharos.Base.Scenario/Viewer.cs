@@ -169,6 +169,10 @@ public sealed class Viewer : IDisposable
         _records.Clear();
         var frame = Game.Step((input ?? Input) with { Time = Time });
         Frames++;
+        // Зритель — оболочка тестов: просьбу мода начать заново исполняет, как ShellApp (остальные просьбы — тестам).
+        if (Game.ShellRequests.RemoveAll(request => request.Action == ClientGame.ShellRespawn) is var respawns and > 0)
+            for (var i = 0; i < respawns; i++)
+                Game.Respawn();
         Draws = ViewerDraws.Of(_records, Game.Scene);
         Sounds.Take(_records, Frames);
         if (Engine is not null)

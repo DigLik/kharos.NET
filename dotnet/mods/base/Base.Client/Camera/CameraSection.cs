@@ -3,15 +3,15 @@ using Kharos.Mod.Sdk.Client;
 namespace Base.Client;
 
 /// <summary>
-/// Раздел Camera: камера партии по подаче (client.camera: rts или follow) и тряска от взрывов. Движение — Cameras.cs
+/// Раздел Camera: камера партии по подаче (client.camera: rts, follow или director — режиссёр витрины меню, Director.cs) и тряска от взрывов. Движение — Cameras.cs
 /// (<see cref="CameraMotion"/>), тряска — Shake.cs: другие разделы просят её через <see cref="CameraShake.Add"/>, а сдвиг
 /// кладётся поверх камеры на кадр и снимается в начале следующего, так что камера под тряской не уползает.
-/// TODO(В): Camera/Director.cs (режиссёр витрины меню).
 /// </summary>
 internal sealed class CameraSection : Section
 {
     private RtsCamera _rts = null!;
     private FollowCamera _follow = null!;
+    private Director _director = null!;
     private readonly Shake _shake = new();
     private (double X, double Y) _shift;
 
@@ -22,6 +22,7 @@ internal sealed class CameraSection : Section
         base.Load(state);
         _rts = new RtsCamera(state);
         _follow = new FollowCamera();
+        _director = new Director(state);
     }
 
     public override void Frame(ClientContext c)
@@ -35,6 +36,7 @@ internal sealed class CameraSection : Section
         {
             case "rts": _rts.Update(c); break;
             case "follow": _follow.Update(c); break;
+            case "director": _director.Update(c); break;
             default: return;
         }
         if (c.Shared.Remove(CameraShake.ShakeKey, out var held) && held is double amount)

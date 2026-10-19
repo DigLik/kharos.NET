@@ -87,6 +87,8 @@ internal sealed class Watch : ISystem
             state.Defeated.Add(player);
             changed = true;
             ctx.Commands.Signal(DefeatedSignal.Name, MemoryPack.MemoryPackSerializer.Serialize(new DefeatedSignal { Player = player }));
+            // Весть в чат один раз на поражение; локальной игре не нужна — игрок один.
+            ctx.Commands.Signal(Base.Shared.Orders.ChatCall.AnnounceSignal, Base.Shared.Orders.ChatCall.Announce(player, Base.Shared.Orders.ChatCall.RemoteOnly, "defeated"));
         }
         if (!sheltered.SequenceEqual(state.Sheltered))
         {

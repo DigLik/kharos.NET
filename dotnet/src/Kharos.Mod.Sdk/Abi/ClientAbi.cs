@@ -101,7 +101,8 @@
 // Движку и оболочке (v2):
 //   0x51 Prefs key:str len:u32 bytes — запись настройки мода (ключ — свой у мода; читается инструментом Prefs);
 //        len 0 — стереть
-//   0x52 Shell action:u8 (ShellAction*) arg:str — просьба к оболочке: 1 в меню, 2 открыть чат с текстом arg, 3 настройки
+//   0x52 Shell action:u8 (ShellAction*) arg:str — просьба к оболочке: 1 в меню, 2 открыть чат с текстом arg, 3 настройки,
+//        4 начать заново (оболочка зовёт ClientGame.Respawn: хост шлёт модам событие player_respawn; дополнение v2)
 // Камера и атмосфера (SDK пишет Camera после обработчиков камеры и в конце кадра; рисунки поверх мира берут толщину
 // по камере на момент записи): 0x60 Camera x y zoom:f64 · 0x61 Atmosphere mask:u8 (1 light, 2 wind, 4 precipitation)
 //   [light:f32] [windX windY:f32] [precipitation:f32] · 0x62 Palette 12 × u32 0xRRGGBB (своя, чужая, союзная, ничья ×
@@ -158,7 +159,7 @@ internal static class ClientAbi
     public const byte PaintVariant = 1, PaintFrame = 2, PaintBuilt = 4, PaintDim = 8, PaintHide = 16;
 
     // Shell: просьбы к оболочке.
-    public const byte ShellActionMenu = 1, ShellActionChat = 2, ShellActionSettings = 3;
+    public const byte ShellActionMenu = 1, ShellActionChat = 2, ShellActionSettings = 3, ShellActionRespawn = 4;
 
     // Стиль узла: биты маски.
     public const uint StyleId = 1 << 0, StyleDirection = 1 << 1, StyleSelf = 1 << 2, StyleGap = 1 << 3, StylePadding = 1 << 4,

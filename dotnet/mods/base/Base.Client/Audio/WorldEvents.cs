@@ -1,3 +1,4 @@
+using Base.Shared.Rules;
 using Base.Shared.Signals;
 using Kharos.Mod.Sdk;
 using Kharos.Mod.Sdk.Client;
@@ -13,8 +14,8 @@ namespace Base.Client.Audio;
 /// космопорта, рубильник, кузов полон или пуст, месторождение выработано, капитуляция. И уведомления игроку: машина
 /// готова, изучено, улучшено, боеголовка готова, награда, груз доставлен, подарок, защита новичка кончилась, отсчёт до
 /// удара, поражение.
-/// Чего реплика не даёт, того здесь нет: перегруз сети и сгоревшая станция (зоны энергии считает хост), чат (его звонит
-/// оболочка). Покрытие — по слою paving, пока он читается.
+/// Перегруз сети и сгоревшая станция — по Grid.state (сети считает хост, GridWire). Чата здесь нет (его звонит оболочка).
+/// Покрытие — по слою paving, пока он читается.
 /// </summary>
 internal sealed class WorldEvents(Mood mood, Teams teams, Func<LayerRef?> paving)
 {
@@ -96,8 +97,13 @@ internal sealed class WorldEvents(Mood mood, Teams teams, Func<LayerRef?> paving
 
     private ComponentRef? _footprint, _silo, _reveal, _chaser, _mark, _shield, _gate, _site, _building, _converting, _unit, _drop, _pave, _trade,
         _transfer, _owner, _doom, _deposit, _off, _hauler, _scanner, _producer, _player, _science, _reactor, _accumulator, _repair, _beam, _mount, _batch,
-        _missile;
+        _missile, _grid, _health;
     private KindData? _data;
+
+    // Перегруз: перегруженные станции (место, доля прочности) — сгоревшая пропадает с прочностью у нуля; своя сеть
+    // перегружена — сигнал brownout при начале.
+    private Dictionary<uint, (double X, double Y, double Health)> _burning = [];
+    private bool _overloaded;
     private uint? _strikeId;
 
     public void OnDefeated(ClientContext c, HostSignal signal)
@@ -151,6 +157,8 @@ internal sealed class WorldEvents(Mood mood, Teams teams, Func<LayerRef?> paving
         _mount = c.Component("Mount");
         _batch = c.Component("Batch");
         _missile = c.Component("Missile");
+        _grid = c.Component("Grid");
+        _health = c.Component("Health");
         _data = KindData.Read(c);
     }
 
@@ -556,6 +564,21 @@ internal sealed class WorldEvents(Mood mood, Teams teams, Func<LayerRef?> paving
         }
         _spent = nextSpent;
 
+        // Станция сгорела от перегруза: пропала без взрыва, с прочностью на нуле.
+        var nextBurning = new Dictionary<uint, (double X, double Y, double Health)>();
+        foreach (var entity in c.Each(_grid!, _health!))
+        {
+            if (((int)N(c, entity, _grid!, "state", 0) & GridWire.Overload) == 0 || Center(c, entity) is not { } at || c.Get(entity, _health!) is not { } health)
+                continue;
+            var max = health.Number(_health!["max"]);
+            nextBurning[entity] = (at.X, at.Y, max > 0 ? health.Number(_health["value"]) / max : health.Number(_health["value"]));
+        }
+        if (!fresh)
+            foreach (var (entity, before) in _burning)
+                if (!c.Alive(entity) && before.Health < 0.05)
+                    Play(c, "collapse", before.X, before.Y);
+        _burning = nextBurning;
+
         // Рубильник: здание выключили или включили.
         var switchedOff = new HashSet<uint>(c.Each(_off!));
         var nextSwitched = new Dictionary<uint, bool>();
@@ -698,6 +721,19 @@ internal sealed class WorldEvents(Mood mood, Teams teams, Func<LayerRef?> paving
         _sums.Clear();
         var tick = c.Tick + c.Alpha;
 
+        // Перегруз: трещат перегруженные станции; своя сеть только что перегрузилась — сигнал.
+        var overload = false;
+        foreach (var entity in c.Each(_grid!))
+        {
+            if (((int)N(c, entity, _grid!, "state", 0) & GridWire.Overload) == 0 || Center(c, entity) is not { } at)
+                continue;
+            Add(c, "overload", at);
+            if (c.Mine(entity))
+                overload = true;
+        }
+        if (_clock >= _settled && overload && !_overloaded)
+            Notice(c, "brownout");
+        _overloaded = overload;
         foreach (var entity in c.Each(_reactor!))
             if (N(c, entity, _reactor!, "left", 0) > 0)
                 Add(c, "reactor", Center(c, entity));

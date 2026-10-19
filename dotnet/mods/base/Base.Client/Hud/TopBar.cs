@@ -38,6 +38,12 @@ internal static class TopBar
                     ui.Text(t("hud.perSecond", "amount", Commands.N(state.Income)), new TextStyle { Color = Good });
             });
             ui.Tip("credits", t("common.credits"));
+            // Срок защиты новичка — рядом с кредитами (topBar в gui/hud.ts); его ставит раздел Panels (PlayersPanel.Augment).
+            if (state.Protection.Length > 0)
+            {
+                ui.Box(new Style { Id = "protection" }, () => ui.Text(t("hud.protection", "left", state.Protection), new TextStyle { Color = Good }));
+                ui.Tip("protection", t("hud.protectionTip"));
+            }
         }
         void Grid()
         {
@@ -79,7 +85,9 @@ internal static class TopBar
             if (!state.Editor)
             {
                 var open = c.Shared.TryGetValue(HudShared.Tech, out var value) && value is true;
-                if (ui.Button("research", Style.Button with { Padding = (2, 10), Height = 30 }, () =>
+                // Подсказка «Первых шагов»: следующий шаг — исследовать тему (pulse в gui/hud.ts).
+                var hint = c.Shared.TryGetValue(StepsSection.CurrentKey, out var step) && step is StepSpec { Research: not null };
+                if (ui.Button("research", Style.Button with { Padding = (2, 10), Height = 30, Outline = hint ? Bar.Pulse(ui, 90, 169, 255, 1, 0.3, 1) : null }, () =>
                 {
                     ui.Text(t("tech.button"), Shadowed());
                     // Ход ведущейся темы отдаёт окно исследований (К4); до его первого кадра — своё чтение науки.

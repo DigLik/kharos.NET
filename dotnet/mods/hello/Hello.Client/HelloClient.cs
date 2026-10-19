@@ -36,13 +36,25 @@ public sealed class HelloClient : ClientMod
         client.Effects("hello.trails", Trails);
         client.Atmosphere("hello.weather", c =>
         {
+            if (!_active)
+                return;
             c.Atmosphere.Light = 1;
             c.Atmosphere.WindX = 0.6f;
             c.Atmosphere.WindY = 0.2f;
         });
     }
 
-    public override void Load(LoadContext ctx) => _drive = ctx.Component("Drive");
+    /// <summary>
+    /// Идёт ли своя партия (hello или никакая — стенды тестов). В чужой (skirmish мода base рядом в dotnet/mods) камера,
+    /// HUD, выбор, колея и погода мода молчат: интерфейсы двух модов не смешиваются.
+    /// </summary>
+    private bool _active = true;
+
+    public override void Load(LoadContext ctx)
+    {
+        _drive = ctx.Component("Drive");
+        _active = ctx.Game is "" or "hello";
+    }
 
     /// <summary>Ровер: колёса, корпус и кабина цветом стороны, фары; 64 направления × 2 фазы хода.</summary>
     public static LookSpec Rover => new(DrawRover)
@@ -117,6 +129,8 @@ public sealed class HelloClient : ClientMod
     /// <summary>Камера: в первом кадре — к своим юнитам; стрелки и WASD — сдвиг, колесо — масштаб.</summary>
     private void Camera(ClientContext c)
     {
+        if (!_active)
+            return;
         var camera = c.Camera;
         if (!_centered)
         {
@@ -143,6 +157,8 @@ public sealed class HelloClient : ClientMod
     /// <summary>HUD: счёт юнитов, мини-карта, кнопка «ещё пять» (приказ hello.spawn у центра камеры) со звуком.</summary>
     private void Hud(ClientContext c)
     {
+        if (!_active)
+            return;
         var ui = c.Ui;
         _units = c.Each(_drive).Length;
         if (_rover < 0)
@@ -179,8 +195,10 @@ public sealed class HelloClient : ClientMod
     }
 
     /// <summary>Отметка юнита под указателем (инструмент Pick) — кольцо поверх мира.</summary>
-    private static void Pick(ClientContext c)
+    private void Pick(ClientContext c)
     {
+        if (!_active)
+            return;
         if (!c.Input.Inside || c.Input.OverUi || c.Pick(c.Input.WorldX, c.Input.WorldY) is not { } entity || c.Pose(entity) is not { } pose)
             return;
         c.Draw.Circle(pose.X, pose.Y, 0.8, c.Mine(entity) ? 0x5aa9ffu : 0xff6b5au, width: 2, alpha: 0.9f);
@@ -189,6 +207,8 @@ public sealed class HelloClient : ClientMod
     /// <summary>Колея: свой юнит, проехав полтайла, оставляет след под каждым бортом; из-под колёс — пыль.</summary>
     private void Trails(ClientContext c)
     {
+        if (!_active)
+            return;
         var units = c.Each(_drive);
         var poses = new (double X, double Y, double Angle)[units.Length];
         c.Poses(units, poses);

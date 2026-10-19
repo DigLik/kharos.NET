@@ -29,12 +29,16 @@ namespace Kharos.Desktop;
 /// игрока), он же идёт в <c>View.Scale</c>. Хранилище игрока — файлы в профиле (настройки, слоты, громкости, настройки
 /// модов). KHAROS_SERVER и KHAROS_GAME начинают партию сразу, мимо меню. KHAROS_SHOT вместо игры снимает кадр в PNG с
 /// невидимым окном и выходит: без KHAROS_SHOT_SCENE — партия, KHAROS_SHOT_SCENE=menu (menu:new, menu:saves,
-/// menu:network, menu:settings, menu:about) — экран меню; сценки витрины придут с пакетом В, до него — партия.
+/// menu:network, menu:settings, menu:about) — экран меню; имя сценки витрины (mining, construction, defense, battle, armor,
+/// infantry, air) — эта сценка за главным меню; editor — редактор нового мира (слот только в памяти).
 /// KHAROS_SHOT_HOUR — час начала (настройка партии weather.startHour, сутки стоят).
 /// </summary>
 public static class Shell
 {
     private const double ShotFrameSeconds = 1.0 / 60;
+
+    /// <summary>Проверка тестов: вызывается каждый кадр записи после шага оболочки.</summary>
+    internal static Action<ShellApp>? Probe { get; set; }
 
     /// <summary>Сколько ждать партию снимка, прежде чем сдаться.</summary>
     private static readonly TimeSpan ShotTimeout = TimeSpan.FromMinutes(3);
@@ -76,7 +80,9 @@ public static class Shell
 
         AudioEngine? audio = null;
         OpenAlOutput? output = null;
-        if (options.Audio)
+        if (options.Record is not null)
+            audio = options.Audio ? RecordSession.CreateAudio() : null; // запись: звук без устройства, его рендерит запись
+        else if (options.Audio)
         {
             audio = new AudioEngine();
             output = OpenAlOutput.TryOpen(audio, out var audioError);
@@ -100,13 +106,16 @@ public static class Shell
         app.OnFullscreen = on => window.WindowState = on ? WindowState.Fullscreen : WindowState.Normal;
         app.Menu.OpenUrl = OpenUrl;
         app.Menu.ExportFile = ExportFile;
+        app.Background = ShowcaseFor(options, launcher);
+        app.Recording = options.Record is not null;
         if (shot is null && prefs.Fullscreen)
             window.WindowState = WindowState.Fullscreen;
         try
         {
             if (!Begin(options, app))
                 return 1;
-            return Loop(options, window, input, renderer, app);
+            using var recorder = options.Record is { } record ? new RecordSession(record, audio) : null;
+            return Loop(options, window, input, renderer, app, recorder);
         }
         finally
         {
@@ -131,8 +140,20 @@ public static class Shell
             DesktopLog.Write($"снимок: меню, экран {screen}");
             return true;
         }
-        if (shot?.Scene is { } other)
-            DesktopLog.Write($"снимок: сценки витрины «{other}» пока нет (пакет В) — снимается партия");
+        if (shot?.Scene is { } other && ShowcaseBackground.IsScene(other))
+        {
+            DesktopLog.Write($"снимок: сценка витрины «{other}» за главным меню");
+            return true;
+        }
+        if (shot?.Scene is { } edit && string.Equals(edit, "editor", StringComparison.OrdinalIgnoreCase))
+        {
+            // Снимок редактора: мир нового слота, который живёт только в памяти (на диск слот не пишется).
+            app.Start(new EditorLaunch(new SaveSlot("shot-editor", "editor", 0, 0, 0, 128, null, 1)));
+            DesktopLog.Write("снимок: редактор нового мира");
+            return true;
+        }
+        if (shot?.Scene is { } unknown)
+            DesktopLog.Write($"снимок: нет сценки «{unknown}» — снимается партия");
         if (options.Game is not null || shot is not null)
         {
             var settings = shot?.Hour is { } hour
@@ -144,6 +165,13 @@ public static class Shell
         }
         return true;
     }
+
+    /// <summary>Фон меню — витрина; в снимке — только когда названа её сценка (KHAROS_SHOT_SCENE), в записи его нет.</summary>
+    private static IMenuBackground? ShowcaseFor(DesktopOptions options, IGameLauncher launcher) =>
+        options.Record is not null ? null
+        : options.Shot is null ? new ShowcaseBackground(launcher)
+        : options.Shot.Scene is { } scene && ShowcaseBackground.IsScene(scene) ? new ShowcaseBackground(launcher) { Forced = scene.ToLowerInvariant(), Hour = options.Shot.Hour }
+        : null;
 
     /// <summary>Экран меню снимка: «menu», «menu:new» и т. д.; не меню — null.</summary>
     internal static MenuScreen? MenuScene(string scene) => scene.ToLowerInvariant() switch
@@ -157,7 +185,7 @@ public static class Shell
         _ => null,
     };
 
-    private static int Loop(DesktopOptions options, IWindow window, InputMap input, Renderer renderer, ShellApp app)
+    private static int Loop(DesktopOptions options, IWindow window, InputMap input, Renderer renderer, ShellApp app, RecordSession? recorder)
     {
         var clock = Stopwatch.StartNew();
         var shot = options.Shot;
@@ -182,12 +210,20 @@ public static class Shell
                 input.PlacePointer(at.X / toLogical, at.Y / toLogical);
 
             // Снимок: партия считается от готовности (хост поднимается в своём потоке), меню — сразу.
-            var waiting = app.Session is { State: SessionState.Connecting };
+            var waiting = app.Session is { State: SessionState.Connecting } || (shot is not null && app.Background is { Ready: false });
             renderer.Resize(buffer.X, buffer.Y);
-            var time = shot is { FixedClock: true } ? frames * ShotFrameSeconds : clock.Elapsed.TotalSeconds;
+            if (recorder is not null && !waiting)
+                recorder.Before(app, frames);
+            var time = shot is { FixedClock: true } ? frames * (options.Record is { } rec ? 1.0 / rec.Fps : ShotFrameSeconds) : clock.Elapsed.TotalSeconds;
             var frame = app.Step(input.Take(time, buffer.X / scale, buffer.Y / scale, scale, toLogical));
             app.Upload(renderer);
             renderer.Render(frame);
+            Probe?.Invoke(app);
+            if (recorder is not null && !waiting && recorder.After(renderer, frames))
+            {
+                recorder.Finish();
+                return 0;
+            }
             if (!waiting)
                 frames++;
 
@@ -198,20 +234,23 @@ public static class Shell
                     DesktopLog.Write($"снимок: партия не состоялась: {failed.Error}");
                     return 1;
                 }
-                if (frames >= shot.Frames)
+                if (recorder is null && frames >= shot.Frames)
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(shot.Path) ?? ".");
                     renderer.SavePng(shot.Path);
                     ReportShot(app, frames, buffer);
                     return 0;
                 }
-                if (clock.Elapsed > ShotTimeout)
+                if (clock.Elapsed > ShotTimeout && (recorder is null || waiting))
                 {
                     DesktopLog.Write("снимок: партия не поднялась за отведённое время");
                     return 1;
                 }
                 // Хост идёт по часам, а не по кадрам: без паузы 60 кадров пролетели бы за миг игры.
-                var wait = frames * ShotFrameSeconds - clock.Elapsed.TotalSeconds;
+                var wait = frames * (recorder is { } paced ? 1.0 / options.Record!.Fps : ShotFrameSeconds) - clock.Elapsed.TotalSeconds;
+                // Запись партии в памяти идёт ручными тиками и не ждёт часов; сетевая — по часам сервера.
+                if (recorder is not null && app.Session is not NetSession)
+                    wait = 0;
                 if (wait > 0 && !waiting)
                     Thread.Sleep(TimeSpan.FromSeconds(wait));
                 else if (waiting)
@@ -296,10 +335,19 @@ internal sealed class DesktopLauncher(DesktopOptions options, Fonts fonts, Audio
 
     public DesktopOptions Options => options;
 
+    /// <summary>
+    /// Партия, когда её не назвали (KHAROS_GAME, слот): партия мода base (skirmish), как «Новая игра» в TS; без base —
+    /// game последнего мода. Пример hello, что лежит рядом в dotnet/mods, так не перехватывает меню.
+    /// </summary>
+    public string? DefaultGame => options.Game ?? Content.Mods.LastOrDefault(mod => mod.Name == BaseMod && mod.Game is not null)?.Game ?? Content.DefaultGame;
+
+    private const string BaseMod = "base";
+
     public IGameSession Start(Launch launch) => launch switch
     {
         ServerLaunch server => new NetSession(this, server),
         SlotLaunch or GameLaunch => new LocalSession(this, launch, new SaveSlots(storage)),
+        EditorLaunch editor => new EditorSession(this, editor, new SaveSlots(storage)),
         _ => throw new ArgumentException($"не знаю, как начать {launch}"),
     };
 }
@@ -331,12 +379,12 @@ internal sealed class LocalSession : IGameSession
             // Сохранённый мир помнит свои настройки; новый — по настройкам слота.
             var hostOptions = new HostOptions
             {
-                Game = game ?? launcher.Options.Game,
+                Game = game ?? launcher.DefaultGame,
                 Settings = save is null && settings is not null ? JsonDocument.Parse(settings).RootElement.Clone() : null,
                 Seed = seed,
                 Log = DesktopLog.Write,
             };
-            return LocalGame.Start(() => save is null ? new HostGame(content, hostOptions) : HostGame.Load(content, save, hostOptions));
+            return LocalGame.Start(() => save is null ? new HostGame(content, hostOptions) : HostGame.Load(content, save, hostOptions), manual: launcher.Options.Record is not null);
         });
     }
 
@@ -347,6 +395,12 @@ internal sealed class LocalSession : IGameSession
     public bool WrongPassword => false;
     public ClientGame? Game { get; private set; }
     public long Ticks => _local?.Ticks ?? 0;
+
+    /// <summary>Длина тика хоста, мс (запись роликов).</summary>
+    public double StepMs => _local?.Step.TotalMilliseconds ?? 50;
+
+    /// <summary>Запись роликов: довести хост до тика (ручной ход).</summary>
+    public void Advance(long ticks) => _local?.Advance(ticks);
 
     public void Poll()
     {

@@ -33,6 +33,15 @@ public sealed class HelloMod : Mod
     /// <summary>Сколько юнитов у вошедшего игрока.</summary>
     public int Start { get; private set; } = 3;
 
+    /// <summary>Своя партия мода (data/games.json).</summary>
+    public const string OwnGame = "hello";
+
+    /// <summary>
+    /// Идёт ли своя партия: hello или никакая (стенды тестов). В чужой (skirmish мода base, что лежит рядом в dotnet/mods)
+    /// системы и события мода молчат: его Unit и Position — общие с base, ходовая и край карты трогали бы чужие юниты.
+    /// </summary>
+    public bool Active { get; private set; } = true;
+
     private ComponentRef _position = null!;
     private ComponentRef _facing = null!;
     private ComponentRef _owner = null!;
@@ -64,7 +73,7 @@ public sealed class HelloMod : Mod
             .Table("Position", "Unit")
             .Before("drive");
         // Н5: система без кадра — одна пишущая таблица: юниты не уходят за край карты.
-        mod.System("hello.wrap", new WrapSystem())
+        mod.System("hello.wrap", new WrapSystem(this))
             .WriteTable("Position", "Unit")
             .After("crowd");
         mod.On("hello.arrived", OnArrived);
@@ -96,6 +105,7 @@ public sealed class HelloMod : Mod
 
     public override void Load(LoadContext ctx)
     {
+        Active = ctx.Game is "" or OwnGame;
         if (ctx.TryData("hello", out var json))
         {
             var reader = new Utf8JsonReader(json);
@@ -186,11 +196,17 @@ public sealed class HelloMod : Mod
     }
 
     /// <summary>Доехал: сигнал клиентам с тем же payload (entity:u32, x:f64, y:f64).</summary>
-    private static void OnArrived(EventContext ctx) => ctx.Commands.Signal("hello.beep"u8, ctx.Payload);
+    private void OnArrived(EventContext ctx)
+    {
+        if (Active)
+            ctx.Commands.Signal("hello.beep"u8, ctx.Payload);
+    }
 
     /// <summary>Игрок вошёл (payload — u32): юниты у его дома — первый в центре, остальные по кругу в 24 тайла.</summary>
     private void OnJoined(EventContext ctx)
     {
+        if (!Active)
+            return;
         var player = BinaryPrimitives.ReadUInt32LittleEndian(ctx.Payload);
         var (x, y) = player <= 1 ? (0.0, 0.0) : (DetMath.Cos((player - 2) * Math.PI / 3) * 24, DetMath.Sin((player - 2) * Math.PI / 3) * 24);
         for (var k = 0; k < Start; k++)
@@ -382,6 +398,8 @@ public sealed class HelloMod : Mod
 
         public void Run(SystemContext ctx)
         {
+            if (!mod.Active)
+                return;
             var arrivals = new EmitArrivals(ctx.Commands);
             Wheels.Drive(
                 ctx.Column(_x), ctx.Column(_y), ctx.Column(_facing),
@@ -404,7 +422,7 @@ public sealed class HelloMod : Mod
 
         public void Run(SystemContext ctx)
         {
-            if (ctx.Count > 1)
+            if (mod.Active && ctx.Count > 1)
                 Tools.Separate(ctx.Column(_x), ctx.Column(_y), ctx.Column(_radius), default, mod.Crowd);
         }
     }
@@ -430,6 +448,8 @@ public sealed class HelloMod : Mod
 
         public void Run(SystemContext ctx)
         {
+            if (!mod.Active)
+                return;
             var leaders = ctx.Table(0);
             var x = leaders.Column(_x);
             var y = leaders.Column(_y);
@@ -455,7 +475,7 @@ public sealed class HelloMod : Mod
     }
 
     /// <summary>Край карты (±255,5): пишущая таблица Position+Unit — что не двигалось, в мир не отмечается.</summary>
-    private sealed class WrapSystem : ISystem
+    private sealed class WrapSystem(HelloMod mod) : ISystem
     {
         private const double Edge = 255.5;
         private Column _x, _y;
@@ -468,6 +488,8 @@ public sealed class HelloMod : Mod
 
         public void Run(SystemContext ctx)
         {
+            if (!mod.Active)
+                return;
             var units = ctx.Table(0);
             foreach (var column in new[] { _x, _y })
             {

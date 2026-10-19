@@ -285,6 +285,7 @@ public sealed class Menu
         var game = Game;
         var preset = Array.FindIndex(Presets, option => SameChanges(Changes(game.Generator), option.Changes));
         var start = false;
+        var toEditor = false;
         var back = _forms.Window("menu:new", _words["menu.newGame"], width, () =>
         {
             void Fields() => gui.Box(new Style { Direction = Direction.Column, Align = Align.Stretch, Gap = 10, Width = form }, () =>
@@ -360,6 +361,8 @@ public sealed class Menu
             });
         }, Place(gui), _words["common.back"], () =>
         {
+            if (_forms.Button("menu:new:editor", _words["menu.toEditor"]))
+                toEditor = true;
             if (_forms.Button("menu:new:start", _words["menu.start"], primary: true))
                 start = true;
         });
@@ -367,16 +370,18 @@ public sealed class Menu
             Home();
         else if (start)
             StartNew();
+        else if (toEditor)
+            StartNew(editor: true);
     }
 
-    /// <summary>Заводит слот новой игры и начинает её.</summary>
-    private void StartNew()
+    /// <summary>Заводит слот новой игры и начинает её; editor — открывает его мир в редакторе (Shell/Editor*).</summary>
+    private void StartNew(bool editor = false)
     {
         var game = Game;
         var name = string.IsNullOrWhiteSpace(game.Name) ? _words.T("menu.gameName", ("number", _saves.Count + 1)) : game.Name.Trim();
         var slot = _slots.Create(name, game.Size, game.Generator.Seed, settings: SettingsOf(game));
         Refresh();
-        Play(new SlotLaunch(slot));
+        Play(editor ? new EditorLaunch(slot) : new SlotLaunch(slot));
     }
 
     /// <summary>Настройки нового мира поверх записи партии: сторона, местность (все поля генератора с зерном), погода.</summary>
@@ -484,6 +489,8 @@ public sealed class Menu
                 else
                     _importPath = "";
             }
+            if (_importPath is { Length: > 0 } editPath && _forms.Button("menu:saves:editor", _words["menu.fileToEditor"], tip: _words["menu.fileToEditorTip"]))
+                Play(new EditorLaunch(editPath.Trim().Trim('"')));
             if (_forms.Button("menu:saves:new", _words["menu.newWorld"], primary: _saves.Count == 0))
                 Open(MenuScreen.New);
         });
@@ -548,7 +555,8 @@ public sealed class Menu
             {
                 if (_forms.Button($"{id}:play", _words["common.play"], primary: true))
                     Play(new SlotLaunch(slot));
-                // TODO(Р): «Редактор» у слота — вход в редактор из меню (Shell/Editor*).
+                if (_forms.Button($"{id}:editor", _words["menu.editor"], tip: _words["menu.editorTip"]))
+                    Play(new EditorLaunch(slot));
                 if (_forms.Button($"{id}:rename", _words["menu.rename"]))
                     _renaming = (slot.Id, slot.Name);
                 if (_forms.Button($"{id}:file", _words["menu.file"], tip: _words["menu.fileTip"]))

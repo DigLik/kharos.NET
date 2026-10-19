@@ -9,6 +9,8 @@ namespace Base.Client;
 /// (метка на карте); постановка (Controls/Placing.cs: призрак здания, протяжка покрытия, точка сбора правой кнопкой,
 /// границы зон) — пока включён режим из <see cref="Modes"/>, она держит мышь и выделение с приказами молчат; затем выделение
 /// (Controls/SelectControl.cs: рамка, двойной щелчок, группы, отметки) и приказы правой кнопкой (Controls/OrderControl.cs).
+/// Esc, когда отменять нечего (ни протяжки, ни режима, ни выделения, ни открытого окна), просит оболочку открыть меню
+/// игры (controls.ts: onMenu); F10 оболочки остаётся запасной клавишей.
 /// </summary>
 internal sealed class ControlsSection : Section
 {
@@ -16,7 +18,14 @@ internal sealed class ControlsSection : Section
     private OrderControl _orders = null!;
     private PlacementControl _placing = null!;
 
-    public override void Setup(ClientBuilder client) => client.Controls("base.controls", Frame);
+    /// <summary>Было ли в начале кадра открыто окно, которое Esc закрывает само (исследования): окна рисуются раньше управления.</summary>
+    private bool _window;
+
+    public override void Setup(ClientBuilder client)
+    {
+        client.Camera("base.controls.windows", c => _window = c.Shared.TryGetValue(ResearchSection.OpenKey, out var open) && open is true);
+        client.Controls("base.controls", Frame);
+    }
 
     public override void Load(BaseState state)
     {
@@ -29,7 +38,8 @@ internal sealed class ControlsSection : Section
 
     public override void Frame(ClientContext c)
     {
-        if (Profile is null)
+        // В редакторе мышь и клавиши — у его панели (Editor/EditorMouse.cs).
+        if (Profile is null || c.Shared.TryGetValue(EditorModel.OpenKey, out var editor) && editor is true)
             return;
         var input = c.Input;
         // Alt+щелчок — метка союзникам, а не выделение и не постановка.
@@ -40,8 +50,13 @@ internal sealed class ControlsSection : Section
                 _select.Update(c, false);
             return;
         }
+        // Esc нечего отменять — меню игры (до выделения: оно Esc снимает).
+        var menu = input.Hits.Contains("escape") && !_window && (c.Shell & (ShellMode.Menu | ShellMode.Editor)) == 0 && !Modes.Active(c)
+            && Shared.Selection(c).Length == 0 && !input.Down(PointerButton.Left);
         // Пока выбирают место, выделение только рисуется (кольца видны), а мышь и клавиши достаются постановке.
         var busy = _placing.Update(c);
+        if (menu)
+            c.Ask(ShellAction.Menu);
         if (Profile.Controls.Contains("select"))
             _select.Update(c, !busy);
         if (!busy && Profile.Controls.Contains("orders"))

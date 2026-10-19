@@ -1,3 +1,4 @@
+using Base.Shared;
 using Base.Shared.Data;
 using Base.Shared.Rules;
 using Kharos.Mod.Sdk;
@@ -5,29 +6,24 @@ using Kharos.Mod.Sdk;
 namespace Base.Client;
 
 /// <summary>
-/// Энергия на реплике клиента (income.ts: powerStates, loadedPlants) — по игроку целиком: сети зон клиент не знает,
-/// поэтому все свои готовые здания игрока считаются одной сетью. Перегруз — у станций, нехватка — у включённых
-/// потребителей; станции под нагрузкой — ближайшие к середине потребителей, сколько нужно на спрос. Пересчёт раз в тик
-/// (и раз в полсекунды, пока партия стоит).
+/// Энергия на реплике клиента (income.ts: powerStates, loadedPlants) — как её посчитал хост по сетям зон: компонент Grid
+/// у здания сети (<see cref="GridWire"/>; биты состояния видит каждый, как в TS). Перегруз — у станций, нехватка — у
+/// включённых потребителей; станции под нагрузкой — их анимация «в работе». Пересчёт раз в тик (и раз в полсекунды,
+/// пока партия стоит).
 /// </summary>
 internal sealed class Economy(Fx fx, Paint paint)
 {
     public const int Overload = 1, Starved = 2;
 
     private double _tick = double.NaN, _time = double.NegativeInfinity;
+    private ComponentRef? _grid;
+    private bool _bound;
 
     /// <summary>Здания с бедой энергии: <see cref="Overload"/> или <see cref="Starved"/>.</summary>
     public Dictionary<uint, int> States { get; } = [];
 
     /// <summary>Станции под нагрузкой: их анимация — «в работе».</summary>
     public HashSet<uint> Loaded { get; } = [];
-
-    private sealed class Book
-    {
-        public double Produced, Demand, Peak, Spare, Stored, Crowd, X, Y;
-        public int Consumers;
-        public readonly List<(uint Entity, double Power, double Output, double X, double Y)> Members = [];
-    }
 
     public void Update()
     {
@@ -38,85 +34,33 @@ internal sealed class Economy(Fx fx, Paint paint)
         _time = c.Time;
         States.Clear();
         Loaded.Clear();
-        var books = new SortedDictionary<uint, Book>();
-        foreach (var entity in c.Each(fx.Building, fx.Owner, fx.Position))
+        if (!_bound)
         {
-            if (c.Has(entity, fx.Site) || fx.BuildingOf(entity) is not { } kind || c.Pose(entity) is not { } at)
-                continue;
-            var owner = fx.OwnerOf(entity);
-            if (owner == 0)
-                continue;
-            if (!books.TryGetValue(owner, out var book))
-                books[owner] = book = new Book();
-            var spec = kind.Spec;
-            if (spec.Battery is { } battery && c.Get(entity, fx.Accumulator) is { } accumulator)
+            _bound = true;
+            try
             {
-                var flow = accumulator.Number(fx.Accumulator["flow"]);
-                if (flow > 0)
-                    book.Stored += flow;
-                book.Spare += Math.Max(0, Math.Min(battery.Rate - Math.Max(0, flow), accumulator.Number(fx.Accumulator["charge"]) / fx.Step));
+                _grid = c.Component(Names.Grid.Name);
             }
-            var power = PowerAt(entity, spec);
-            if (power == 0 || (power < 0 && paint.SwitchedOff(entity)))
-                continue;
-            var (cx, cy) = (at.X + spec.Width / 2, at.Y + spec.Height / 2);
-            if (power > 0)
+            catch (Exception)
             {
-                var output = power * Health(entity);
-                book.Produced += output;
-                book.Members.Add((entity, power, output, cx, cy));
-                continue;
-            }
-            var norms = spec.Crowding ? ++book.Crowd : 1;
-            book.Peak -= power * norms;
-            book.Demand -= (PowerRules.AlwaysBusy(spec) || c.Has(entity, fx.Busy) ? power : PowerRules.IdlePower(power)) * norms;
-            book.Members.Add((entity, power, 0, cx, cy));
-            book.X += cx;
-            book.Y += cy;
-            book.Consumers++;
-        }
-        foreach (var book in books.Values)
-        {
-            book.Produced += book.Stored;
-            var overloaded = PowerRules.OverloadOf(book.Produced, book.Peak, book.Spare) > 0;
-            var shortage = book.Demand > book.Produced;
-            foreach (var member in book.Members)
-            {
-                if (member.Power > 0 && overloaded)
-                    States[member.Entity] = Overload;
-                else if (member.Power < 0 && shortage)
-                    States[member.Entity] = Starved;
-            }
-            var need = book.Demand - book.Stored;
-            if (need <= 1e-9 || book.Consumers == 0)
-                continue;
-            var (x, y) = (book.X / book.Consumers, book.Y / book.Consumers);
-            var plants = book.Members.Where(member => member.Power > 0).ToList();
-            plants.Sort((a, b) =>
-            {
-                var order = Fx.Hypot(a.X - x, a.Y - y).CompareTo(Fx.Hypot(b.X - x, b.Y - y));
-                return order != 0 ? order : a.Entity.CompareTo(b.Entity);
-            });
-            foreach (var plant in plants)
-            {
-                if (need <= 1e-9)
-                    break;
-                Loaded.Add(plant.Entity);
-                need -= plant.Output;
+                _grid = null;
             }
         }
-    }
-
-    private double Health(uint entity) =>
-        fx.C.Get(entity, fx.Health) is { } health && health.Number(fx.Health["max"]) > 0 ? health.Number(fx.Health["value"]) / health.Number(fx.Health["max"]) : 1;
-
-    /// <summary>Сколько даёт (с уровнем) или просит здание (powerAt); реактор — только пока горит.</summary>
-    private double PowerAt(uint entity, BuildingSpec spec)
-    {
-        var power = spec.Power ?? 0;
-        if (spec.Burns is not null && !(fx.Num(entity, fx.Reactor, "left") > 0 && !fx.C.Has(entity, fx.Off)))
-            return 0;
-        return power > 0 || (spec.Scan ?? 0) != 0 ? power * BuildRules.LevelFactor(fx.Num(entity, fx.Building, "level", 1)) : power;
+        if (_grid is not { } grid)
+            return;
+        var field = grid[Names.Grid.State];
+        foreach (var entity in c.Each(grid, fx.Building))
+        {
+            if (c.Has(entity, fx.Site) || c.Get(entity, grid) is not { } values)
+                continue;
+            var state = (int)values.Number(field);
+            if ((state & GridWire.Overload) != 0)
+                States[entity] = Overload;
+            else if ((state & GridWire.Starved) != 0 && !paint.SwitchedOff(entity))
+                States[entity] = Starved;
+            if ((state & GridWire.Loaded) != 0)
+                Loaded.Add(entity);
+        }
     }
 }
 

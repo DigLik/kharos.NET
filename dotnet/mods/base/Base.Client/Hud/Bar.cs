@@ -129,7 +129,9 @@ internal sealed class Bar(BaseState state, Minimap minimap)
                         var picture = Picture(c, slot);
                         var keyColor = slot.Disabled ? Muted : Gold;
                         // Отступы — как у кнопки страницы: с картинкой она стоит почти у рамки, без неё текст отходит на 8.
-                        var click = ui.Button(id, Style.Button with { Width = cellWidth, Height = cellHeight, Padding = (0, 6, 0, picture >= 0 ? 4 : 8), Gap = 6, Justify = Align.Start }, () =>
+                        // Подсказка «Первых шагов» — огнями команды раз в секунду, новое — золотом раз в 1,6 с (pulse в gui/bar.ts).
+                        var outline = slot.Hint && !slot.Disabled ? Pulse(ui, 90, 169, 255, 1, 0.3, 1) : slot.Fresh && !slot.Disabled ? Pulse(ui, 240, 201, 90, 1.6, 0.2, 0.95) : (Color?)null;
+                        var click = ui.Button(id, Style.Button with { Width = cellWidth, Height = cellHeight, Padding = (0, 6, 0, picture >= 0 ? 4 : 8), Gap = 6, Justify = Align.Start, Outline = outline }, () =>
                         {
                             if (picture >= 0)
                                 ui.Box(new Style { Direction = Direction.Stack }, () =>
@@ -176,6 +178,9 @@ internal sealed class Bar(BaseState state, Minimap minimap)
                         // Курсор на кнопке здания или трубы — на карте видны границы зон строительства.
                         if (slot.Zones && ui.Hovered(id))
                             zones = true;
+                        // Новое под указателем становится знакомым: подсветка с него уходит, а с раздела — когда знакомо всё в нём.
+                        if (slot.Fresh && slot.Seen is { } seen && ui.Hovered(id))
+                            Seen.Mark(c, seen);
                         if (click is { Button: not 2 })
                             slot.Run();
                     }
@@ -185,6 +190,14 @@ internal sealed class Bar(BaseState state, Minimap minimap)
             c.Shared[Modes.ZonesHoverKey] = true;
         else
             c.Shared.Remove(Modes.ZonesHoverKey);
+    }
+
+    /// <summary>Пульс обводки ячейки: доля от low до high по косинусу с периодом period секунд, восемь ступеней.</summary>
+    internal static Color Pulse(Ui ui, byte r, byte g, byte b, double period, double low, double high)
+    {
+        var phase = ui.Now % period / period;
+        var level = Math.Round((low + (high - low) * (0.5 - 0.5 * Math.Cos(phase * Math.PI * 2))) * 8, MidpointRounding.AwayFromZero) / 8;
+        return new Color(r, g, b, Ui.Byte((float)(level * 255)));
     }
 
     /// <summary>
