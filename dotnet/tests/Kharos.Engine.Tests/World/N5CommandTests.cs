@@ -85,6 +85,21 @@ public sealed class N5CommandTests
     }
 
     [Fact]
+    public void LandCommandEncodesBiomeAsLandStoresIt()
+    {
+        var land = new Land(new GeneratorConfig { Seed = 3, Blank = true }, LandArea.Of(-64, -64, 64, 64));
+        var commands = new CommandBuffer(_world);
+        // Биом в команде — номер 0..3, BiomeAt читает его из двух старших битов тайла.
+        foreach (var biome in new[] { Biome.Erg, Biome.SaltFlats, Biome.RedWastes, Biome.Marsh })
+            commands.LandTile(2 + (int)biome, 5, new TileEdit(TerrainType.Sand, (byte)biome, 0, false));
+        commands.LandPeak(10, 10, (byte)Biome.RedWastes, 10.5, 10.5, 1);
+        Commands.Apply(_world, commands.Written, _events, _signals, new CommandScope(null, land));
+        foreach (var biome in new[] { Biome.Erg, Biome.SaltFlats, Biome.RedWastes, Biome.Marsh })
+            Assert.Equal(biome, land.BiomeAt(2 + (int)biome + 0.5, 5.5));
+        Assert.Equal(Biome.RedWastes, land.BiomeAt(10.5, 10.5));
+    }
+
+    [Fact]
     public void AddressedSignalsKeepRecipients()
     {
         var commands = new CommandBuffer(_world);

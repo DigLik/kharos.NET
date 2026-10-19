@@ -8,7 +8,7 @@ namespace Base.Host.Sections.Mining;
 /// Дропы (drops.ts) — груз, брошенный на землю: что лежало на складе разрушенного или разобранного здания, в кузове
 /// погибшей машины, на отменённой стройке. Это склад без здания на одном тайле и без хозяина (Drop, Position, Stock):
 /// подобрать его может любой грузовик, а свободные везут его в хранилище, руду — на переработку (раздел Logistics).
-/// Пустой дроп исчезает (<see cref="Sweep"/>), а стройка или развёрнутый MCV поверх дропа его уничтожают
+/// Пустой дроп исчезает в конце haul (раздел Logistics), а стройка или развёрнутый MCV поверх дропа его уничтожают
 /// (<see cref="Clear"/>). Другие разделы бросают груз через <see cref="DropCargo"/> и <see cref="Items"/>.
 /// </summary>
 internal static class Drops
@@ -100,26 +100,5 @@ internal static class Drops
     {
         var (px, py) = call.At(drop);
         return px >= x && px < x + w && py >= y && py < y + h;
-    }
-
-    /// <summary>Раз в тик: пустые дропы исчезают (sweepDrops). В TS это конец системы haul; здесь — своя система после refine.</summary>
-    public sealed class Sweep : ISystem
-    {
-        private Column[] _goods = [];
-
-        public void Bind(SystemBinding binding) =>
-            _goods = [.. Goods.All.Select(good => binding.Column(Names.Stock.Name, good))];
-
-        public void Run(SystemContext ctx)
-        {
-            for (var row = 0; row < ctx.Count; row++)
-            {
-                var load = 0.0;
-                foreach (var good in _goods)
-                    load += ctx.Column(good)[row];
-                if (load <= Stocks.Epsilon)
-                    ctx.Commands.Destroy(ctx.Entities[row]);
-            }
-        }
     }
 }

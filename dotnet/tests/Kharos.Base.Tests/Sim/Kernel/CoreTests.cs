@@ -17,6 +17,16 @@ public sealed class CoreTests
 
     private static double BuildTime(string unit) => Data.Units[unit].BuildTime;
 
+    [Fact(DisplayName = "земля настройкой партии — объект: остальные настройки партии не теряются")]
+    public void InlineLandKeepsOtherGameSettings()
+    {
+        SkipUnlessAvailable();
+        using var sim = Sim.Create(new SimOptions { Size = 64, Land = new { blank = true }, Settings = new { credits = 777.0, units = new[] { "mcv" } } });
+        sim.Edit(new EditStartOrder { Player = 1, X = 32, Y = 32 });
+        Assert.Equal(777, sim.Credits(1));
+        Assert.Single(UnitsOf(sim, "mcv"));
+    }
+
     [Fact(DisplayName = "игрок появляется с кредитами")]
     public void PlayerStartsWithCredits()
     {

@@ -279,7 +279,8 @@ public static class Commands
                             if (terrain >= (byte)TerrainType.Mountain || biome > (byte)Biome.Marsh || tier > TileFormat.MaxTier || dunes > (byte)Dunes.Many || (flags & ~ModAbi.LandCliff) != 0)
                                 throw new CommandException($"Land: тайл ({terrain}, {biome}, {tier}, {flags}, {dunes}) не той формы", start);
                             if (apply)
-                                land.SetTile(x, y, new TileEdit((TerrainType)terrain, biome, tier, (flags & ModAbi.LandCliff) != 0, (Dunes)dunes));
+                                // Биом в команде — номер 0..3; тайл хранит его в двух старших битах (TileFormat), примесь соседнего — в младших.
+                                land.SetTile(x, y, new TileEdit((TerrainType)terrain, (byte)(biome << 6), tier, (flags & ModAbi.LandCliff) != 0, (Dunes)dunes));
                             break;
                         }
                         case ModAbi.LandPeak:
@@ -289,7 +290,7 @@ public static class Commands
                             if (biome > (byte)Biome.Marsh || !double.IsFinite(px) || !double.IsFinite(py) || !(radius > 0 && radius <= TileFormat.PeakRadiusScale))
                                 throw new CommandException("Land: вершина не той формы", start);
                             if (apply)
-                                land.SetPeakTile(x, y, biome, px, py, radius);
+                                land.SetPeakTile(x, y, (byte)(biome << 6), px, py, radius);
                             break;
                         }
                         default:

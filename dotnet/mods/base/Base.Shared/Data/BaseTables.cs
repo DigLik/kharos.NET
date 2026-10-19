@@ -26,6 +26,7 @@ namespace Base.Shared.Data;
 [JsonSerializable(typeof(Dictionary<string, ChassisSpec>))]
 [JsonSerializable(typeof(Dictionary<string, GameSpec>))]
 [JsonSerializable(typeof(Dictionary<string, LandSpec>))]
+[JsonSerializable(typeof(LandSpec))]
 public sealed partial class BaseJson : JsonSerializerContext;
 
 /// <summary>

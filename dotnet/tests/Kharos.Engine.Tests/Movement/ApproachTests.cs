@@ -3,7 +3,10 @@ using Kharos.Engine.Terrain;
 
 namespace Kharos.Engine.Tests.Movement;
 
-/// <summary>approach.test.ts и unreachable.test.ts: подъезд на длину луча (Navigation.Approach, инструмент Stand).</summary>
+/// <summary>
+/// approach.test.ts: подъезд на длину луча (Navigation.Approach, инструмент Stand). Норма подъезда грузовиков (seekBeam) и
+/// unreachable.test.ts — в логистике мода: Kharos.Base.Tests/Sim/Logistics.
+/// </summary>
 public sealed class ApproachTests
 {
     private static readonly GeneratorConfig Blank = GeneratorConfig.Default with { Blank = true };
@@ -34,26 +37,6 @@ public sealed class ApproachTests
         var truck = world.Spawn("truck", 1, -10, 1);
         Assert.Equal(Navigation.StandResult.Found, world.Nav.Approach(truck, 0, 0, 2, 2, 0, 2, out var plan));
         Assert.False(plan.GoalX == -1 && plan.GoalY is >= 0 and <= 3);
-    }
-
-    [Fact(DisplayName = "подъезд к зданию за кольцом труб не съедает тик: за тик грузовики осматривают не больше нормы", Skip = "ждёт С2b: seekBeam и промахи грузовиков — в логистике мода; норма — в тесте инструмента Stand")]
-    public void SeekQuota()
-    {
-    }
-
-    [Fact(DisplayName = "к обнесённой стеной переработке не подъехать: грузовик бросает рейс, руда ложится на землю, завод отмечен", Skip = "ждёт С2b")]
-    public void WalledSmelter()
-    {
-    }
-
-    [Fact(DisplayName = "руда с недоступного завода едет на другой, куда подъехать можно", Skip = "ждёт С2b")]
-    public void OtherSmelter()
-    {
-    }
-
-    [Fact(DisplayName = "запертый грузовик отмечается сам, а здание, к которому он ехал, — нет; груз остаётся в кузове", Skip = "ждёт С2b")]
-    public void TrappedTruck()
-    {
     }
 
     [Fact(DisplayName = "подъезд к обнесённому стеной зданию не находится, а запертый юнит не находит его ни к чему")]

@@ -46,3 +46,35 @@ public sealed class LayerRecord
     public bool Remember { get; set; }
     public bool Allies { get; set; }
 }
+
+/// <summary>Земля партии (games.json, настройка land): имя записи lands.json или готовая запись прямо в настройке.</summary>
+[System.Text.Json.Serialization.JsonConverter(typeof(LandRefConverter))]
+public sealed class LandRef
+{
+    /// <summary>Имя записи lands.json; у встроенной записи — null.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>Запись, заданная объектом; у именованной — null.</summary>
+    public LandSpec? Inline { get; init; }
+}
+
+/// <summary>Читает и пишет land строкой (имя) или объектом (запись).</summary>
+public sealed class LandRefConverter : System.Text.Json.Serialization.JsonConverter<LandRef>
+{
+    public override LandRef? Read(ref System.Text.Json.Utf8JsonReader reader, Type type, System.Text.Json.JsonSerializerOptions options) =>
+        reader.TokenType switch
+        {
+            System.Text.Json.JsonTokenType.String => new LandRef { Name = reader.GetString() },
+            System.Text.Json.JsonTokenType.StartObject => new LandRef { Inline = System.Text.Json.JsonSerializer.Deserialize(ref reader, BaseJson.Default.LandSpec) },
+            System.Text.Json.JsonTokenType.Null => null,
+            _ => throw new System.Text.Json.JsonException("land: имя записи или объект"),
+        };
+
+    public override void Write(System.Text.Json.Utf8JsonWriter writer, LandRef value, System.Text.Json.JsonSerializerOptions options)
+    {
+        if (value.Inline is { } inline)
+            System.Text.Json.JsonSerializer.Serialize(writer, inline, BaseJson.Default.LandSpec);
+        else
+            writer.WriteStringValue(value.Name);
+    }
+}

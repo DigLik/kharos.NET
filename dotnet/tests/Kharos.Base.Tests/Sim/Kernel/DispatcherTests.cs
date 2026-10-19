@@ -26,10 +26,10 @@ public sealed class DispatcherTests
     public void OrderWithoutSectionHandlerIsRefusedWithItsPackage()
     {
         using var sim = Create(64);
-        sim.Send(1, new WorkOrder());
-        sim.Send(1, new ReserveOrder());
+        sim.Send(1, new ResearchOrder());
+        sim.Send(1, new LaunchOrder());
         sim.Advance();
-        Assert.Equal(["work: ждёт С3", "reserve: ждёт С2b"], Reasons(sim));
+        Assert.Equal(["research: ждёт С6", "launch: ждёт С7"], Reasons(sim));
     }
 
     [Fact]

@@ -23,9 +23,10 @@
     <NoWarn>$(NoWarn);IL2104;IL3053;IL3000;IL3002</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Игра base рядом с программой: mod.json, data/*.json и wasm (после tools/build-mods.ps1); hello и исходники не берутся. -->
+    <!-- Игра base рядом с программой: mod.json, data/*.json, schema/*.json и wasm (после tools/build-mods.ps1); hello и исходники не берутся. -->
     <None Include="..\..\mods\base\mod.json;..\..\mods\base\*.wasm" Link="mods\base\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\mods\base\data\*.json" Link="mods\base\data\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\mods\base\schema\*.json" Link="mods\base\schema\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Kharos.Host\Kharos.Host.csproj" />

@@ -32,8 +32,8 @@ internal static class Earthworks
         var terrain = (int)Tools.Layer(land, 0, 0, x, y);
         var biome = (byte)Tools.Layer(land, 0, 1, x, y);
         var relief = (int)Tools.Layer(land, 0, 3, x, y);
-        // Биом — в старших битах байта, если он упакован с примесью соседнего (как в правках редактора).
-        return (terrain, biome > 4 ? (byte)(biome >> 6) : biome, relief);
+        // Биом хранится в двух старших битах байта (младшие — примесь соседнего).
+        return (terrain, (byte)(biome >> 6), relief);
     }
 
     /// <summary>Ярус тайла; у гор — −1.</summary>

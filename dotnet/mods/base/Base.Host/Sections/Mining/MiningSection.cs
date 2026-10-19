@@ -11,7 +11,7 @@ namespace Base.Host.Sections.Mining;
 /// Раздел Mining (С2а). Добыча: месторождения (слой deposits: генератор при начале партии, смена выработанных), шахты
 /// (<see cref="Mines"/>), переработка руды (<see cref="Refining"/>), склады (<see cref="Stocks"/>) и ящики с грузом на
 /// земле (<see cref="Drops"/>). Системы: refine и renewDeposits — места в тике по <see cref="Order.Tick"/>; extract
-/// (в TS — начало haul) и sweepDrops (его конец) — свои, сразу после refine, до движения.
+/// (в TS — начало haul) — своя, сразу после refine, до движения; пустые дропы убирает haul (раздел Logistics), как в TS.
 /// <para>
 /// Общее для других разделов: <see cref="Stocks"/> (put, take, roomFor), <see cref="Drops"/> (dropItems, dropCargo,
 /// clearDrops), <see cref="Deposits"/> (depositAt, reserveLeft, takeReserve, hasMine), <see cref="Refining.Supply"/> (энергия
@@ -29,8 +29,9 @@ internal static class MiningSection
         Order.System(mod, "renewDeposits", new Renewal.RenewDeposits()).Query(Names.Deposit.Name, Names.Position.Name).Write(Names.Deposit.Name);
         mod.System("mining/extract", new Mines.Extract())
             .Query(Names.Building.Name, Names.Proto.Name, Names.Position.Name).Without(Names.Site.Name).After("refine").Before("engine.paths");
-        mod.System("mining/sweepDrops", new Drops.Sweep()).Query(Names.Drop.Name, Names.Stock.Name).After("refine").Before("engine.paths");
         mod.Order(EditDropOrder.Name, EditDrop);
+        // Стройка и разбор бросают груз сущности на землю через этот раздел.
+        Construction.Hooks.DropCargo = Drops.DropCargo;
         Queries(mod);
     }
 

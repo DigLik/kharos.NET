@@ -1,4 +1,6 @@
 using Base.Shared;
+using Base.Shared.Orders;
+using Kharos.Base.Tests.Construction;
 using Kharos.Base.Tests.Kernel;
 using Tables = Kharos.Base.Tests.Kernel.Data;
 using static Kharos.Base.Tests.Mining.MiningScene;
@@ -7,33 +9,92 @@ namespace Kharos.Base.Tests.Mining;
 
 /// <summary>
 /// Дропы (packages/tests/drops.test.ts): груз, брошенный на землю. Бросает его раздел Mining (Drops.Items, DropCargo);
-/// разбор, стройка поверх и вывоз грузовиками ждут С1 и С2b (Skip).
+/// вывозят грузовики (раздел Logistics); закупка с орбиты ждёт С2d (Skip).
 /// </summary>
 public sealed class DropsTests
 {
-    [Fact(DisplayName = "разобранное хранилище бросает груз на землю, свободный грузовик отвозит его в другое хранилище", Skip = "ждёт С1: разбор (demolish) и С2b: логистика (свободный грузовик отвозит дроп)")]
+    [Fact(DisplayName = "разобранное хранилище бросает груз на землю, свободный грузовик отвозит его в другое хранилище")]
     public void DemolishedStoreDropsCargoAndHaulerCarriesItAway()
     {
+        var (sim, buildings, _, x, y) = Logistics.LogisticsScene.Row(["metalYard", "metalYard"]);
+        using var _sim = sim;
+        var (gone, kept) = (buildings[0], buildings[1]);
+        var builder = Logistics.LogisticsScene.Spawn(sim, "builder", 1, x + 13, y + 4);
+        sim.SetStock(gone, "metal", 50);
+        sim.Send(1, new DemolishOrder { Building = gone, Builders = [builder] });
+        Assert.True(sim.Until(() => !sim.Alive(gone), 120));
+        var drop = Assert.Single(sim.Drops());
+        Assert.Equal(50, sim.Stock(drop, "metal"));
+        Assert.True(sim.Until(() => sim.Stock(kept, "metal") >= 50, 120));
+        // Пустой дроп исчезает.
+        sim.Advance();
+        Assert.Empty(sim.Drops());
     }
 
-    [Fact(DisplayName = "стройка поверх дропа его уничтожает", Skip = "ждёт С1: стройка (build, clearDrops на площадке)")]
+
+    [Fact(DisplayName = "стройка поверх дропа его уничтожает")]
     public void BuildingOverDropDestroysIt()
     {
+        using var yard = Yard.Start();
+        var (sim, site) = (yard.Sim, yard.Site);
+        Assert.NotEqual(0u, sim.DropItems(site.X + 1, site.Y, ("metal", 10)));
+        Assert.Single(sim.Drops());
+        sim.Send(1, new BuildOrder { Building = "generator", X = site.X, Y = site.Y, Builders = [.. yard.Builders] });
+        sim.Seconds(30);
+        Assert.Empty(sim.Drops());
     }
 
-    [Fact(DisplayName = "за дропом вне своих зон свободный грузовик сам не едет", Skip = "ждёт С2b: логистика (свободный грузовик, зоны)")]
+    [Fact(DisplayName = "разобранное хранилище бросает свой груз на землю (вывоз грузовиком ждёт С2b)")]
+    public void DemolishedStoreDropsItsCargo()
+    {
+        using var yard = Yard.Start();
+        var (sim, site) = (yard.Sim, yard.Site);
+        var store = sim.PutBuilding("metalYard", site.X, site.Y, 1);
+        sim.SetStock(store, "metal", 50);
+        sim.Send(1, new DemolishOrder { Building = store, Builders = [.. yard.Builders] });
+        sim.Seconds(60);
+        Assert.False(sim.Alive(store));
+        var drop = Assert.Single(sim.Drops());
+        Assert.Equal(50, sim.Stock(drop, "metal"));
+    }
+    [Fact(DisplayName = "за дропом вне своих зон свободный грузовик сам не едет")]
     public void IdleHaulerIgnoresDropOutsideZones()
     {
+        var (sim, _, truck, x, y) = Logistics.LogisticsScene.Row(["metalYard"]);
+        using var _sim = sim;
+        var drop = sim.DropItems(x + 400, y, ("metal", 10));
+        var start = sim.At(truck);
+        sim.Seconds(5);
+        Assert.Equal(10, sim.Stock(drop, "metal"));
+        Assert.Equal(start, sim.At(truck));
     }
 
-    [Fact(DisplayName = "посланный за дропом грузовик вывозит его весь, сколько бы рейсов ни понадобилось, и освобождается", Skip = "ждёт С2b: логистика (приказ pickup)")]
+    [Fact(DisplayName = "посланный за дропом грузовик вывозит его весь, сколько бы рейсов ни понадобилось, и освобождается")]
     public void SentHaulerClearsWholeDrop()
     {
+        var (sim, buildings, truck, x, y) = Logistics.LogisticsScene.Row(["metalYard"]);
+        using var _sim = sim;
+        var store = buildings[0];
+        var capacity = Tables.Units["truck"].Inventory!.Value;
+        var drop = sim.DropItems(x + 60, y, ("metal", capacity * 2));
+        sim.Send(1, new PickupOrder { Units = [truck], Drop = drop });
+        Assert.True(sim.Until(() => !sim.Alive(drop), 600));
+        Assert.True(sim.Until(() => sim.Stock(store, "metal") >= capacity * 2, 120));
+        Assert.True(sim.Until(() => sim.Hauler(truck).Pickup == 0, 10));
     }
 
-    [Fact(DisplayName = "груз с дропа, которому негде лежать, грузовик не берёт и ждёт; фильтр, не пускающий ничего с дропа, снимает приказ", Skip = "ждёт С2b: логистика (pickup, filter)")]
+    [Fact(DisplayName = "груз с дропа, которому негде лежать, грузовик не берёт и ждёт; фильтр, не пускающий ничего с дропа, снимает приказ")]
     public void HaulerWaitsWhenDropHasNowhereToGo()
     {
+        var (sim, _, truck, x, y) = Logistics.LogisticsScene.Row(["metalYard"]);
+        using var _sim = sim;
+        var drop = sim.DropItems(x + 20, y, ("fuel", 3));
+        sim.Send(1, new PickupOrder { Units = [truck], Drop = drop });
+        sim.Seconds(30);
+        Assert.Equal(3, sim.Stock(drop, "fuel"));
+        Assert.Equal(drop, sim.Hauler(truck).Pickup);
+        sim.Send(1, new FilterOrder { Units = [truck], Goods = ["metal"] });
+        Assert.True(sim.Until(() => sim.Hauler(truck).Pickup == 0, 10));
     }
 
     [Fact(DisplayName = "груз падает к уже лежащему дропу того же тайла")]

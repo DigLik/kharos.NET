@@ -1,4 +1,5 @@
 using Base.Shared;
+using Base.Shared.Orders;
 using Base.Shared.Queries;
 using Kharos.Base.Tests.Kernel;
 using Tables = Kharos.Base.Tests.Kernel.Data;
@@ -7,8 +8,8 @@ using static Kharos.Base.Tests.Mining.MiningScene;
 namespace Kharos.Base.Tests.Mining;
 
 /// <summary>
-/// Добыча (packages/tests/mining.test.ts): месторождения из сида, шахты, переработка. Что идёт через грузовиков, стройку и
-/// торговлю, ждёт своих разделов (Skip) — механику добычи без них проверяют свои тесты в конце файла.
+/// Добыча (packages/tests/mining.test.ts): месторождения из сида, шахты, переработка, вывоз руды грузовиками (раздел
+/// Logistics). Что идёт через торговлю, ждёт своего раздела (Skip); механику добычи без грузовиков проверяют свои тесты в конце файла.
 /// </summary>
 public sealed class MiningTests
 {
@@ -85,19 +86,111 @@ public sealed class MiningTests
     {
     }
 
-    [Fact(DisplayName = "шахта копит руду; привязанный грузовик возит её на переработку, а без неё руду не берёт", Skip = "ждёт С2b: логистика (haul, грузовики, луч, диспетчер зон)")]
+    [Fact(DisplayName = "шахта копит руду; привязанный грузовик возит её на переработку, а без неё руду не берёт")]
     public void BoundHaulerCarriesOreToRefinery()
     {
+        var (sim, spot, mine, core, truck) = HaulBase();
+        using var _sim = sim;
+        var rate = Tables.All.Deposits["metal"].Rate;
+        double Cargo() => sim.Stock(truck, "metalOre");
+        // Без грузовика шахта добывает руду в свой склад.
+        sim.Seconds(5);
+        Close(rate * 5, sim.Stock(mine, "metalOre"), 2);
+        Close(spot.Reserve - sim.Stock(mine, "metalOre"), sim.ReserveLeft(spot.X, spot.Y), 2);
+        Assert.Equal(0u, sim.Hauler(truck).Mine);
+        // Чужой грузовик к шахте не привязать.
+        var stranger = sim.PutUnit("truck", 2, spot.X - 1 + 0.5, spot.Y + 1 + 0.5);
+        sim.Send(2, new HaulOrder { Units = [stranger], Mine = mine });
+        sim.Send(1, new HaulOrder { Units = [truck, stranger], Mine = mine });
+        sim.Advance();
+        Assert.Equal(0u, sim.Hauler(stranger).Mine);
+        sim.Erase(stranger);
+
+        // Переработки нет — руду некуда везти, и грузовик её не берёт.
+        sim.Seconds(5);
+        Assert.Equal(0, Cargo());
+        Assert.Equal(0u, sim.Hauler(truck).From);
+        var refinery = HaulRefinery(sim, spot);
+        // Появилась переработка: грузовик подъезжает на длину своего луча и выкачивает добытое.
+        Assert.True(sim.Until(() => sim.Hauler(truck).Loading, 120));
+        Assert.True(sim.Gap(mine, truck) <= sim.Num(truck, "Beam.radius"));
+        Assert.Equal([new BeamLink(mine, true, "metalOre")], sim.Links(truck));
+        Assert.True(sim.Until(() => sim.Stock(mine, "metalOre") < 0.1, 120));
+        // Дальше грузится по мере добычи.
+        var loaded = Cargo();
+        sim.Seconds(10);
+        Close(loaded + rate * 10, Cargo(), 0);
+
+        // Полный кузов уезжает на переработку и становится металлом; руду в хранилища не кладут.
+        Assert.True(sim.Until(() => sim.Hauler(truck).Full, 120));
+        Assert.Equal(TruckCapacity, Cargo());
+        Assert.True(sim.Until(() => !sim.Hauler(truck).Full, 120));
+        Assert.Equal(0, sim.Stock(core, "metalOre"));
+        Close(TruckCapacity, sim.Stock(refinery, "metal") + sim.Stock(refinery, "metalOre"), 2);
+        Assert.True(sim.Until(() => sim.Stock(refinery, "metal") > 15, 120));
+        // Готовое копится у завода: заявок на него нет, а сам грузовик возит только руду.
+        sim.Seconds(10);
+        Assert.Empty(StockOf(sim, 1).Items);
+
+        // Приказ идти снимает грузовик с шахты. Дальше он свободен: накопленное в шахте диспетчер велит ему увезти.
+        sim.Send(1, new MoveOrder { Units = [truck], X = spot.X - 3, Y = spot.Y });
+        sim.Seconds(1);
+        Assert.Equal(0u, sim.Hauler(truck).Mine);
+        sim.SetStock(mine, "metalOre", Tables.Buildings["mine"].Inventory!.Value);
+        Assert.True(sim.Until(() => sim.Hauler(truck).From == mine, 120));
+
+        // Сохранение помнит и руду, и груз, и запас.
+        using (var copy = sim.ThroughSave())
+        {
+            Assert.Equal(sim.ReserveLeft(spot.X, spot.Y), copy.ReserveLeft(spot.X, spot.Y));
+            Assert.Equal(Cargo(), copy.Stock(truck, "metalOre"));
+            Assert.Equal(sim.Stock(refinery, "metal"), copy.Stock(refinery, "metal"));
+            Assert.Equal(sim.Stock(mine, "metalOre"), copy.Stock(mine, "metalOre"));
+            Assert.Equivalent(sim.Hauler(truck), copy.Hauler(truck), strict: true);
+        }
+
+        // Полная шахта, которую некому вывезти, не добывает.
+        sim.Erase(truck);
+        sim.SetStock(mine, "metalOre", Tables.Buildings["mine"].Inventory!.Value);
+        var left = sim.ReserveLeft(spot.X, spot.Y);
+        sim.Seconds(5);
+        Assert.Equal(left, sim.ReserveLeft(spot.X, spot.Y));
     }
 
-    [Fact(DisplayName = "без переработки руда копится в шахте, а грузовик её не берёт: металла не появляется нигде", Skip = "ждёт С2b: логистика (приказ haul, грузовики)")]
+    [Fact(DisplayName = "без переработки руда копится в шахте, а грузовик её не берёт: металла не появляется нигде")]
     public void OreStaysInMineWithoutRefinery()
     {
+        var (sim, spot, mine, _, truck) = HaulBase();
+        using var _sim = sim;
+        sim.Send(1, new HaulOrder { Units = [truck], Mine = mine });
+        sim.Seconds(30);
+        Assert.Empty(StockOf(sim, 1).Items);
+        Assert.Equal(0, sim.Stock(truck, "metalOre"));
+        Assert.True(sim.Stock(mine, "metalOre") > Math.Min(Tables.All.Deposits["metal"].Rate * 25, Tables.Buildings["mine"].Inventory!.Value - 1));
+        Assert.True(sim.ReserveLeft(spot.X, spot.Y) > 0);
     }
 
-    [Fact(DisplayName = "очередей нет: несколько грузовиков выкачивают шахту одновременно", Skip = "ждёт С2b: логистика (haul, луч грузовика)")]
+    [Fact(DisplayName = "очередей нет: несколько грузовиков выкачивают шахту одновременно")]
     public void NoQueuesSeveralHaulersDrainMine()
     {
+        var (sim, spot, mine, _, truck) = HaulBase();
+        using var _sim = sim;
+        var refinery = HaulRefinery(sim, spot);
+        var second = sim.PutUnit("truck", 1, spot.X - 1 + 0.5, spot.Y + 1 + 0.5);
+        sim.SetStock(mine, "metalOre", Tables.Buildings["mine"].Inventory!.Value);
+        sim.Send(1, new HaulOrder { Units = [truck, second], Mine = mine });
+        // Руду грузовикам даёт только шахта: прибавилось у обоих в один тик — качали одновременно.
+        var both = 0;
+        for (var i = 0; i < Sim.TicksIn(20); i++)
+        {
+            var before = (sim.Stock(truck, "metalOre"), sim.Stock(second, "metalOre"));
+            sim.Advance();
+            if (sim.Stock(truck, "metalOre") > before.Item1 && sim.Stock(second, "metalOre") > before.Item2)
+                both++;
+        }
+        Assert.True(both > 0);
+        // В шахте было на два кузова: оба доехали до переработки и стали металлом.
+        Assert.True(sim.Until(() => sim.Stock(refinery, "metal") + sim.Stock(refinery, "metalOre") >= 2 * TruckCapacity - 1e-6, 200));
     }
 
     [Fact(DisplayName = "переработка берёт 1,5 руды в секунду и отдаёт металл один к одному")]
@@ -129,24 +222,88 @@ public sealed class MiningTests
         Assert.Equal(sim.Num(refinery, "Stock.capacity") - 25, sim.Stock(refinery, "metal"));
     }
 
-    [Fact(DisplayName = "хранилище конечно: грузовик берёт столько, сколько влезет, остальное — когда появится место; запас — по всем хранилищам", Skip = "ждёт С2b: логистика (грузовик, хранилища, запас по всем хранилищам)")]
+    [Fact(DisplayName = "хранилище конечно: грузовик берёт столько, сколько влезет, остальное — когда появится место; запас — по всем хранилищам")]
     public void StorageIsFinite()
     {
+        var (sim, spot, mine, _, truck) = HaulBase();
+        using var _sim = sim;
+        var refinery = HaulRefinery(sim, spot);
+        // Руда шахты тут не при чём: у завода уже лежит готовый металл, а в кузове шахты — нет.
+        sim.Erase(mine);
+        var first = Logistics.LogisticsScene.Place(sim, "metalYard", spot.X + 5, spot.Y + 5);
+        var capacity = Tables.Buildings["metalYard"].Inventory!.Value;
+        sim.SetStock(first, "metal", capacity - 5);
+        sim.SetStock(refinery, "metal", TruckCapacity);
+
+        // В склад влезает только пять единиц: столько грузовик и увозит, остальное остаётся у завода.
+        Assert.True(sim.Until(() => sim.Stock(first, "metal") >= capacity - 1e-6, 120));
+        sim.Seconds(10);
+        Close(capacity, sim.Stock(first, "metal"), 2);
+        Assert.Equal(0, sim.Stock(truck, "metal"));
+        Close(TruckCapacity - 5, sim.Stock(refinery, "metal"), 2);
+
+        // Новое хранилище — грузовик увозит туда остаток.
+        var second = Logistics.LogisticsScene.Place(sim, "metalYard", spot.X + 9, spot.Y + 5);
+        Assert.True(sim.Until(() => sim.Stock(second, "metal") >= TruckCapacity - 5 - 1e-6, 120));
+        Assert.False(sim.Hauler(truck).Full);
+        Assert.Equal(capacity * 2, StockOf(sim, 1).Capacity);
     }
 
-    [Fact(DisplayName = "космопорт продаёт по заявке: диспетчер шлёт свободные грузовики свезти товар из хранилищ, потом приходят кредиты", Skip = "ждёт С2b: логистика (диспетчер, грузовики) и С2d: торговля (sell, closeSale)")]
+    [Fact(DisplayName = "космопорт продаёт по заявке: диспетчер шлёт свободные грузовики свезти товар из хранилищ, потом приходят кредиты", Skip = "ждёт С2d: торговля (sell, closeSale)")]
     public void SpaceportSellsByOrder()
     {
     }
 
-    [Fact(DisplayName = "здания можно ставить вплотную к шахте, а выработанное месторождение освобождает грузовик", Skip = "ждёт С1: стройка (canBuild) и С2b: логистика (haul)")]
+    [Fact(DisplayName = "здания можно ставить вплотную к шахте, а выработанное месторождение освобождает грузовик")]
     public void BuildNextToMineAndSpentDepositFreesHauler()
     {
+        var (sim, spot, mine, _, truck) = HaulBase();
+        using var _sim = sim;
+        sim.SetCredits(1, 1000);
+        HaulRefinery(sim, spot);
+        // Вплотную к шахте строить можно: место для грузовика под ней не нужно.
+        Assert.True(sim.CanBuild(1, "metalYard", spot.X, spot.Y + 2));
+        Logistics.LogisticsScene.Place(sim, "metalYard", spot.X + 5, spot.Y + 5);
+
+        sim.Send(1, new HaulOrder { Units = [truck], Mine = mine });
+        Assert.True(sim.Until(() => sim.Hauler(truck).Loading, 120));
+        // Даём грузовику набрать груз, потом вырабатываем месторождение.
+        sim.Seconds(15);
+        foreach (var deposit in sim.With(Names.Deposit.Name))
+            sim.Set(deposit, "Deposit.mined", spot.Reserve - 1);
+        Assert.True(sim.Until(() => sim.ReserveLeft(spot.X, spot.Y) == 0, 120));
+        // Довёз остаток до переработки и освободился.
+        Assert.True(sim.Until(() => sim.Hauler(truck).Mine == 0 && sim.Stock(truck, "metalOre") == 0, 120));
+        // Переработанный металл свободный грузовик свозит в хранилище.
+        Assert.True(sim.Until(() => StockOf(sim, 1).Items.GetValueOrDefault("metal") > 1, 120));
+        Assert.False(sim.CanBuild(1, "mine", spot.X, spot.Y));
     }
 
-    [Fact(DisplayName = "стройке в зоне без нужного груза его везут из другой своей зоны: металл из плавильни за пределами базы", Skip = "ждёт С1: стройка (площадка, зоны) и С2b: логистика (fetchMaterials)")]
+    [Fact(DisplayName = "стройке в зоне без нужного груза его везут из другой своей зоны: металл из плавильни за пределами базы")]
     public void SiteWithoutCargoGetsItFromAnotherZone()
     {
+        var (sim, spot, _, core, _) = HaulBase();
+        using var _sim = sim;
+        // Плавильня с готовым металлом — далеко, в своей зоне: труб к базе нет.
+        var smelter = Logistics.LogisticsScene.Place(sim, "smelter", spot.X + 30, spot.Y);
+        sim.SetStock(smelter, "metal", 30);
+        // Стройка космопорта у главного здания ждёт металл: площадка прямо в мир, как в TS.
+        var site = sim.World.Spawn();
+        sim.Add(site, Names.Position.Name);
+        sim.Set(site, "Position.x", spot.X + 9);
+        sim.Set(site, "Position.y", spot.Y);
+        sim.Add(site, Names.Site.Name);
+        sim.Add(site, Names.Owner.Name);
+        sim.Set(site, "Owner.player", 1);
+        sim.Add(site, Names.Proto.Name);
+        sim.Set(site, "Proto.id", Scene.Proto(sim, "buildings/spaceport"));
+        sim.Add(site, Names.Stock.Name);
+        sim.Set(site, "Stock.capacity", 20);
+        sim.Add(site, Names.Limits.Name);
+        sim.Set(site, "Limits.metal", 20);
+        Assert.DoesNotContain(sim.Zones(1), zone => zone.Buildings.Contains(core) && zone.Buildings.Contains(smelter));
+        Assert.True(sim.Until(() => sim.Stock(site, "metal") >= 20 - 1e-6, 300));
+        Assert.True(sim.Stock(smelter, "metal") < 30);
     }
 
     [Fact(DisplayName = "шахта копит руду в свой склад со скоростью вида, а запас месторождения убывает")]
@@ -229,5 +386,64 @@ public sealed class MiningTests
         // Лишнее по accepts (кремний) заводом не трогается и склада не занимает при расчёте места: металл идёт, пока есть предел.
         Assert.Equal(5, sim.Stock(refinery, "silicon"));
         Assert.True(sim.Stock(refinery, "metal") > 0);
+    }
+
+    // ===== Грузовики (раздел Logistics) =====
+
+    /// <summary>Сколько помещается в грузовик (TRUCK_CAPACITY).</summary>
+    private static double TruckCapacity => Tables.Units["truck"].Inventory!.Value;
+
+    /// <summary>База у месторождения металла: шахта, главное здание справа от неё и грузовик игрока 1 (base в mining.test.ts).</summary>
+    private static (Sim Sim, DepositSpot Spot, uint Mine, uint Core, uint Truck) HaulBase()
+    {
+        var sim = Create();
+        var navigation = sim.Host.Tools.Navigation!;
+        (int X, int Y)[] around = [(0, 2), (1, 2), (6, 3), (-1, 0), (-1, 1), (-1, 2), (2, 2), (3, 1)];
+        for (var cellY = -6; cellY < 6; cellY++)
+            for (var cellX = -6; cellX < 6; cellX++)
+            {
+                var spot = sim.DepositIn(cellX, cellY);
+                if (spot is not { Kind: "metal" } || !Scene.CanPlace(sim, "command", spot.X + 5, spot.Y))
+                    continue;
+                // Место под грузовики вокруг шахты и под главным зданием должно быть проходимо.
+                if (!around.All(at => navigation.IsWalkable(spot.X + at.X, spot.Y + at.Y)) || !Scene.CanPlace(sim, "spaceport", spot.X + 9, spot.Y))
+                    continue;
+                // И места под переработку, хранилища и дальнюю плавильню, которые тесты ставят рядом.
+                if (!Scene.Rock(sim, spot.X + 12, spot.Y, 4, 5) || !Scene.Rock(sim, spot.X + 5, spot.Y + 5, 7, 3) || !Scene.Rock(sim, spot.X + 30, spot.Y, 3, 3))
+                    continue;
+                var mine = MineAt(sim, spot);
+                var core = sim.PutBuilding("command", spot.X + 5, spot.Y, 1);
+                var truck = sim.PutUnit("truck", 1, spot.X - 1 + 0.5, spot.Y + 0.5);
+                return (sim, spot, mine, core, truck);
+            }
+        throw new InvalidOperationException("В мире не нашлось места под базу у месторождения");
+    }
+
+    /// <summary>Переработка с электростанцией, соединённые трубой (refineryAt).</summary>
+    private static uint HaulRefinery(Sim sim, DepositSpot spot)
+    {
+        var refinery = Logistics.LogisticsScene.Place(sim, "smelter", spot.X + 12, spot.Y + 2);
+        Logistics.LogisticsScene.Place(sim, "generator", spot.X + 14, spot.Y);
+        Logistics.LogisticsScene.Place(sim, "pipe", spot.X + 15, spot.Y + 2);
+        return refinery;
+    }
+
+    /// <summary>Запас игрока по хранилищам всех его зон (stockOf): готовое и вместимость.</summary>
+    private static (Dictionary<string, double> Items, double Capacity) StockOf(Sim sim, uint player)
+    {
+        var items = new Dictionary<string, double>();
+        var capacity = 0.0;
+        var wares = Tables.All.Resources.Keys.Concat(Tables.All.Products.Keys).ToList();
+        foreach (var zone in sim.Zones(player))
+            foreach (var entity in zone.Buildings)
+            {
+                if (!sim.Has(entity, Names.Stock.Name) || Scene.TypeOf(sim, entity) is not { } type || !Tables.Buildings.TryGetValue(type, out var spec) || !spec.Stores)
+                    continue;
+                foreach (var ware in wares)
+                    if (sim.Stock(entity, ware) is var amount and > 0)
+                        items[ware] = items.GetValueOrDefault(ware) + amount;
+                capacity += sim.Num(entity, "Stock.capacity");
+            }
+        return (items, capacity);
     }
 }

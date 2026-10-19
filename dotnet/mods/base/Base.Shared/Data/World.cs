@@ -61,7 +61,7 @@ public sealed class GameSpec
     public string? Title { get; set; }
     public int? Size { get; set; }
     public bool Fog { get; set; } = true;
-    public string? Land { get; set; }
+    public LandRef? Land { get; set; }
     public bool Start { get; set; } = true;
     public bool Sandbox { get; set; }
     public double Credits { get; set; }

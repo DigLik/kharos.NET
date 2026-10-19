@@ -102,9 +102,21 @@ public sealed class RallyTests
         Assert.False(goal.Item1 >= spot.X && goal.Item1 < spot.X + 3 && goal.Item2 >= spot.Y && goal.Item2 < spot.Y + 3);
     }
 
-    [Fact(DisplayName = "производитель вне зоны энергии, которому она нужна, не производит", Skip = "ждёт С3: энергия зон (powerSupply)")]
+    [Fact(DisplayName = "производитель вне зоны энергии, которому она нужна, не производит")]
     public void ProducerOutsidePowerZoneStands()
     {
+        var (sim, spot, _) = Base();
+        using var _sim = sim;
+        (int X, int Y)? far = null;
+        for (var y = spot.Y - 60; y < spot.Y + 60 && far is null; y++)
+            for (var x = spot.X + 40; x < spot.X + 100 && far is null; x++)
+                if (Fits(sim, "barracks", x, y, 3, 2))
+                    far = (x, y);
+        var barracks = Place(sim, "barracks", far!.Value.X, far.Value.Y, 1);
+        SetQueue(sim, barracks, "infantry");
+        Assert.Equal(0u, Produced(sim, Data.Units["infantry"].BuildTime + 2));
+        Assert.Equal(["infantry"], Queue(sim, barracks));
+        Assert.Equal(0, sim.Num(barracks, "Producer.progress"));
     }
 
     [Fact(DisplayName = "здание под разбором не производит, хотя очередь у него остаётся")]

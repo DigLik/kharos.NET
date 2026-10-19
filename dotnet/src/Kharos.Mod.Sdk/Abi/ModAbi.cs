@@ -125,7 +125,7 @@ internal static class ModAbi
     public const byte OpLayer = 0x08;
     /// <summary>layer:varint owner:varint mode:u8 x:f64 y:f64, у ItemPush — count:u8 field:f64×count.</summary>
     public const byte OpItem = 0x09;
-    /// <summary>kind:u8 x:sint y:sint; LandTile — terrain:u8 biome:u8 tier:u8 flags:u8 dunes:u8; LandPeak — biome:u8 px:f64 py:f64 radius:f64.</summary>
+    /// <summary>kind:u8 x:sint y:sint; LandTile — terrain:u8 biome:u8 (номер 0..3, не упакованный байт) tier:u8 flags:u8 dunes:u8; LandPeak — biome:u8 (номер) px:f64 py:f64 radius:f64.</summary>
     public const byte OpLand = 0x0A;
     /// <summary>name:str payload:bytes count:varint player:varint×count — сигнал этим игрокам.</summary>
     public const byte OpSignalTo = 0x0B;

@@ -18,8 +18,8 @@
     <NoWarn>$(NoWarn);IL2104;IL3053;IL3000;IL3002</NoWarn>
   </PropertyGroup>
   <ItemGroup>
-    <!-- Моды рядом с программой: mod.json, data/*.json и wasm (после tools/build-mods.ps1); исходники и сборки не берутся. -->
-    <ModFile Include="..\..\mods\*\mod.json;..\..\mods\*\*.wasm;..\..\mods\*\data\*.json" />
+    <!-- Моды рядом с программой: mod.json, data/*.json, schema/*.json (компоненты — без них хосту base нечего объявлять) и wasm (после tools/build-mods.ps1); исходники и сборки не берутся. -->
+    <ModFile Include="..\..\mods\*\mod.json;..\..\mods\*\*.wasm;..\..\mods\*\data\*.json;..\..\mods\*\schema\*.json" />
     <None Include="@(ModFile)" Link="mods\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>

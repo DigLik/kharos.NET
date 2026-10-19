@@ -410,8 +410,8 @@ internal static class Edits
             Tools.Layer(land, 0, channel, x, y, 1, 1, values);
             bytes[channel] = (byte)values[0];
         }
-        // Биом в старших битах байта (основной), если он упакован с примесью соседнего.
-        var biome = bytes[1] > 4 ? (byte)(bytes[1] >> 6) : bytes[1];
+        // Биом хранится в двух старших битах байта (младшие — примесь соседнего).
+        var biome = (byte)(bytes[1] >> 6);
         return (bytes[0], biome, bytes[2], bytes[3]);
     }
 
