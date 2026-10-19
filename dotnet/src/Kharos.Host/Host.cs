@@ -708,6 +708,7 @@ public sealed class Host : IDisposable
         Land = Land?.Config,
         Components = Protocol.Welcome.Describe(World.Schema, Format),
         Layers = [.. Layers.Specs],
+        Settings = Settings ?? [],
     };
 
     /// <summary>Компоненты памяти зрителя: из настроек или списка remember партии.</summary>

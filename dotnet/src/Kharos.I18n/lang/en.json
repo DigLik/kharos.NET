@@ -450,5 +450,19 @@
     "lost": "Connection to the server was lost",
     "cannotConnect": "Could not connect to server {url}",
     "insecure": "The page is open over https while the server uses insecure ws://, and the browser blocks such a connection. Allow it: the icon to the left of the address → “Site settings” → “Insecure content” → “Allow”, then reload the tab. Or connect to the server over wss://."
+  },
+  "settings": {
+    "video": "Display",
+    "fullscreen": "Fullscreen",
+    "vsync": "Vertical sync",
+    "uiScale": "Interface scale",
+    "auto": "auto",
+    "keys": "Keys",
+    "keyFullscreen": "Fullscreen",
+    "keyMenu": "Menu",
+    "keyChat": "Chat",
+    "pressKey": "press a key…",
+    "filePath": "Save file path",
+    "fileSaved": "File saved: {path}"
   }
 }

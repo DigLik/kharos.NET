@@ -43,7 +43,7 @@ public record struct ClientInput()
     /// </summary>
     public IReadOnlyList<(string Id, string Value)> Edits { get; set; } = [];
 
-    /// <summary>Режим оболочки (ABI 2): ClientAbi.Shell* — меню поверх партии, редактор, запись. TODO(Д4): ставит оболочка.</summary>
+    /// <summary>Режим оболочки (ABI 2): ClientAbi.Shell* — меню поверх партии, редактор, запись; ставит оболочка (Shell.ShellApp.ShellFlags).</summary>
     public byte Shell { get; set; }
 
     /// <summary>Что из этого берёт интерфейс.</summary>

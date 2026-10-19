@@ -38,7 +38,10 @@ public sealed class BaseClientTests
         SelectUnit(session, mcv);
         Assert.Equal("MCV", session.InfoTitle());
         Assert.Contains("Развернуть", session.Texts());
-        session.Click(PointerButtons.Left, session.CenterOf("cell:1"));
+        // «Развернуть» (ячейка 8, как в TS) включает выбор места; щелчок по месту MCV — он разворачивается там.
+        session.Click(PointerButtons.Left, session.CenterOf("cell:8"));
+        var (mx, my) = session.At(mcv);
+        session.Click(PointerButtons.Left, session.Game.Frame.View.ToScreen((float)mx, (float)my));
         session.Until(_ => session.Mine("Building").Count == 1, "главное здание на месте MCV");
         var building = session.Mine("Building").Single();
         // Здание стоит по левому верхнему тайлу: щелчок — в середину основания.
@@ -50,7 +53,11 @@ public sealed class BaseClientTests
 
     /// <summary>Кредиты, как их показывает панель (число в верхней полосе).</summary>
     private static int ShownCredits(BaseSession session) =>
-        session.Texts().Where(text => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out _)).Select(int.Parse).FirstOrDefault();
+        session.Game.Gui.Roots.Where(root => root.Style.Id == "top").SelectMany(Leaves).Where(text => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out _)).Select(int.Parse).FirstOrDefault();
+
+    /// <summary>Тексты узла и его потомков по порядку.</summary>
+    private static IEnumerable<string> Leaves(Node node) =>
+        node.Kind == LeafKind.Text ? [node.Text] : node.Children.SelectMany(Leaves);
 
     // ===== На обвязке Viewer (docs/dotnet-n6.md, Н6.3): хост сценария Sim и клиент в режиме CLR, часы — свои =====
 
@@ -128,7 +135,7 @@ public sealed class BaseClientTests
         // HUD: кредиты со своего счёта, часы (начало мира — 9 утра), меню, подсказка по управлению.
         var texts = viewer.Ui.Texts();
         Assert.Equal(1500, sim.Credits(1));
-        Assert.Equal(1500, texts.Where(text => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out _)).Select(int.Parse).FirstOrDefault());
+        Assert.StartsWith("1500", viewer.Ui.Text("credits"));
         Assert.Contains(texts, text => System.Text.RegularExpressions.Regex.IsMatch(text, @"^\d\d:\d\d$"));
         Assert.Contains("Меню", texts);
         Assert.Contains("Ничего не выбрано.", texts);
@@ -155,7 +162,7 @@ public sealed class BaseClientTests
         // Щелчок по багги выделяет её; панель показывает название и параметры.
         SelectUnit(session, buggies[0]);
         Assert.Equal("Багги", session.InfoTitle());
-        Assert.Contains("Прочность 150 · Скорость 6 · Обзор 11", session.Texts());
+        Assert.Contains(session.Texts(), text => text.StartsWith("Прочность 150 · Скорость 6 · Обзор 11", StringComparison.Ordinal));
 
         // Правый щелчок — приказ точкой: едет только выбранная, остальные стоят. Shift — следующий приказ встаёт в
         // очередь едущей багги; доехав, она берёт его сама (followOrders; свободный юнит взял бы его сразу, как в TS).
@@ -179,12 +186,12 @@ public sealed class BaseClientTests
             session.Drag(frame.View.ToScreen((float)now.Min(p => p.X) - 1, (float)now.Min(p => p.Y) - 1), frame.View.ToScreen((float)now.Max(p => p.X) + 1, (float)now.Max(p => p.Y) + 1));
         }
         Box();
-        Assert.Equal("MCV, Багги ×2, Пехотинец ×3", session.InfoTitle());
+        Assert.Equal("MCV, Пехотинец ×3, Багги ×2", session.InfoTitle());
         session.Step(session.Input with { Hits = ["escape"] });
         session.Step();
         Assert.Null(session.InfoTitle());
         Box();
-        Assert.Equal("MCV, Багги ×2, Пехотинец ×3", session.InfoTitle());
+        Assert.Equal("MCV, Пехотинец ×3, Багги ×2", session.InfoTitle());
 
         // Остановить: приказы и пути сняты.
         session.Step(session.Input with { Hits = ["x"], Keys = ["x"] });
@@ -212,7 +219,7 @@ public sealed class BaseClientTests
         Assert.Contains("Грузовик", session.Texts());
         Assert.Contains("T", session.Texts());
         Assert.Contains("Правый щелчок по карте — точка сбора готовых", session.Texts());
-        Assert.Equal(3, Enumerable.Range(1, 12).Count(i => session.Game.Gui.RectOf("cell:" + i) is not null));
+        Assert.Equal(3, Enumerable.Range(0, 12).Count(i => session.Game.Gui.RectOf("cell:" + i) is not null));
         var grid = session.Game.Gui.RectOf("commands")!.Value;
         Assert.Equal((4 * 132 + 3 * 4, 140), (grid.W, grid.H));
         // Награда за разворот базы (rewards.json) уже на счёте: стартовых 1500 не меньше.
@@ -221,27 +228,27 @@ public sealed class BaseClientTests
         Assert.Equal(before, ShownCredits(session));
 
         // Щелчок по кнопке: 120 кредитов списаны, заказ в производстве (полоса и очередь в панели).
-        session.Click(PointerButtons.Left, session.CenterOf("cell:1"));
+        session.Click(PointerButtons.Left, session.CenterOf("cell:0"));
         session.Until(_ => session.Credits() <= before - 120, "кредиты списаны за строителя");
         session.Step();
         Assert.Contains(session.Texts(), text => text == "Главное здание");
-        Assert.NotNull(session.Game.Gui.RectOf("queue:1"));
+        Assert.NotNull(session.Game.Gui.RectOf("queue:0"));
         Assert.Equal(building, session.Mine("Producer").Single());
 
         // Хост делает юнит за 5 секунд игры: он выходит у здания и появляется в мире и на экране.
         session.Until(_ => session.Of("units/builder").Count == 1, "строитель из главного здания");
-        Assert.Null(session.Game.Gui.RectOf("queue:1"));
+        Assert.Null(session.Game.Gui.RectOf("queue:0"));
         Assert.Empty(session.Game.Errors);
         Assert.Null(session.Local.Failure);
 
-        // Горячая клавиша T заказывает ещё одного, правый щелчок по кнопке отменяет последний заказ и возвращает кредиты.
+        // Горячая клавиша T заказывает ещё одного, «Отменить заказ» (ячейка 9, как в TS) отменяет последний заказ и возвращает кредиты.
         var now = session.Credits();
         session.Step(session.Input with { Hits = ["t"], Keys = ["t"] });
         session.Step();
         session.Until(_ => session.Credits() <= now - 120, "кредиты списаны горячей клавишей");
         var spent = session.Credits();
-        session.Click(PointerButtons.Right, session.CenterOf("cell:1"));
-        session.Until(_ => session.Credits() >= spent + 120, "заказ отменён правым щелчком, кредиты вернулись");
+        session.Click(PointerButtons.Left, session.CenterOf("cell:9"));
+        session.Until(_ => session.Credits() >= spent + 120, "заказ отменён, кредиты вернулись");
         Assert.Single(session.Of("units/builder"));
 
         // Правый щелчок по земле — точка сбора здания.
@@ -304,7 +311,7 @@ public sealed class BaseClientTests
 
         // Развёрнутая база: выделена, в производстве строитель; точка сбора правым щелчком — флажок и пунктир.
         var building = DeployBase(session);
-        session.Click(PointerButtons.Left, session.CenterOf("cell:1"));
+        session.Click(PointerButtons.Left, session.CenterOf("cell:0"));
         var (x, y) = session.At(building);
         session.Click(PointerButtons.Right, session.Game.Frame.View.ToScreen((float)x + 7, (float)y + 7));
         session.Steps(30);
@@ -346,7 +353,7 @@ public sealed class BaseClientTests
         using var session = new BaseSession();
         OnScreen(session);
         DeployBase(session);
-        session.Click(PointerButtons.Left, session.CenterOf("cell:1"));
+        session.Click(PointerButtons.Left, session.CenterOf("cell:0"));
         const int warmup = 30, frames = 240;
         var total = new List<double>();
         var mods = new List<double>();

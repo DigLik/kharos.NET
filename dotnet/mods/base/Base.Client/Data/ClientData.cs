@@ -81,9 +81,12 @@ internal sealed class ClientData
 
     private readonly Dictionary<string, Kind> _kinds = new(StringComparer.Ordinal);
 
+    /// <summary>Дерево технологий: таблицы тем и правила партии (раздел Research).</summary>
+    public ResearchData Research { get; private set; } = null!;
+
     public static ClientData Load(LoadContext ctx)
     {
-        var data = new ClientData();
+        var data = new ClientData { Research = ResearchData.Load(ctx) };
         foreach (var section in Sections)
         {
             if (!ctx.TryData(section, out var bytes))

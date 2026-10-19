@@ -50,11 +50,14 @@ public sealed class HostCommand
     public bool Game { get; init; }
     public bool Console { get; init; }
     public bool Secret { get; init; }
+
+    /// <summary>Чем клиент дописывает аргументы по порядку (виды юнитов); null — ничем.</summary>
+    public IReadOnlyList<IReadOnlyList<string>?>? Choices { get; init; }
     public required Action<CommandCall> Run { get; init; }
 
     public string Usage => $"/{string.Join(' ', [Name, .. Args])}";
 
-    public CommandInfo Info => new(Name, Args, Help, Secret);
+    public CommandInfo Info => new(Name, Args, Help, Secret, Choices);
 }
 
 /// <summary>Разобранная строка: имя команды (в нижнем регистре), слова и Rest(n) — текст после n слов.</summary>

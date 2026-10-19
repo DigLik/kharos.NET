@@ -32,6 +32,7 @@ public readonly record struct MapBounds(int Left, int Top, int Right, int Bottom
 ///      land:u8 [GeneratorConfig: seed:svarint, 24 × f64 по порядку свойств, blank:u8]
 ///      components:varint (name:str fields:varint (name:str kind:u8 default [scale:f64 у числа]))
 ///      layers:varint (name:str scope:u8 channels:varint u8× cell:varint fields:varint (name:str channel:u8) flags:u8)
+///      [settings:blob — JSON настроек партии поверх games.json (HostOptions.Settings); нет — не задавали]
 ///   default: число — f64, флаг — u8, строка — str, байты — ничего
 ///   flags: 1 save, 2 send, 4 remember, 8 allies
 /// </code>
@@ -80,6 +81,12 @@ public sealed class Welcome
 
     public required IReadOnlyList<ComponentInfo> Components { get; init; }
     public IReadOnlyList<LayerSpec> Layers { get; init; } = [];
+
+    /// <summary>
+    /// Настройки партии (UTF-8 JSON поверх записи games.json: size, land, weather…), как их задали хосту; пусто — нет.
+    /// Клиентские моды читают их инструментом Settings.
+    /// </summary>
+    public byte[] Settings { get; init; } = [];
 
     /// <summary>Описание схемы мира с точностью чисел (null — точно).</summary>
     public static List<ComponentInfo> Describe(Schema schema, NetFormat? format = null) =>
@@ -150,6 +157,8 @@ public sealed class Welcome
                 w.Text(name).Byte((byte)channel);
             w.Byte((byte)((layer.Save ? 1 : 0) | (layer.Send ? 2 : 0) | (layer.Remember ? 4 : 0) | (layer.Allies ? 8 : 0)));
         }
+        if (Settings.Length > 0)
+            w.Blob(Settings);
         return w.ToArray();
     }
 
@@ -226,12 +235,13 @@ public sealed class Welcome
                 Allies = (flags & 8) != 0,
             };
         }
+        var settings = r.End ? [] : r.Blob().ToArray();
         if (!r.End)
             throw new FormatException("лишние байты в приветствии");
         return new Welcome
         {
             Version = version, Player = player, Token = token, Name = name, Game = game, Seed = seed, Dt = dt, Tick = tick, Checksum = checksum, Mods = mods,
-            Map = map, Fog = fog, Land = land, Components = components, Layers = layers,
+            Map = map, Fog = fog, Land = land, Components = components, Layers = layers, Settings = settings,
         };
     }
 

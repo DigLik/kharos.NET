@@ -9,7 +9,10 @@ namespace Kharos.Desktop;
 
 /// <summary>
 /// Ввод Silk.NET → <see cref="ClientInput"/> (как Input у пилота): события копятся между кадрами, <see cref="Take"/>
-/// отдаёт кадр и сбрасывает разовое. Касаний Silk.NET (GLFW) не отдаёт, поэтому <c>Touch</c> всегда ложь.
+/// отдаёт кадр и сбрасывает разовое. Клавиши — именами для модов и полей ввода (<see cref="Name"/>: буквы, цифры,
+/// стрелки, Home и End, знаки); Ctrl и Meta (Cmd) — одно и то же «Ctrl» (Ctrl+A, C, X, V в полях ввода); набранный
+/// текст — из событий символов (<see cref="ClientInput.Text"/>), без управляющих знаков. Горячие клавиши оболочки
+/// решает оболочка (ShellApp), а не ввод: поле в фокусе их держит. Касаний Silk.NET (GLFW) не отдаёт.
 /// </summary>
 public sealed class InputMap
 {
@@ -22,20 +25,17 @@ public sealed class InputMap
 
     public bool Focused { get; set; } = true;
 
-    /// <summary>Нажата F11 с прошлого кадра — оболочка переключает полный экран.</summary>
-    public bool ToggleFullscreen { get; set; }
+    /// <summary>Системный буфер обмена первой клавиатуры (после <see cref="Attach"/>); null — нет клавиатуры.</summary>
+    public IClipboard? Clipboard { get; private set; }
 
     public void Attach(IInputContext context)
     {
         foreach (var keyboard in context.Keyboards)
         {
-            keyboard.KeyDown += (_, key, _) => OnKey(key, true);
-            keyboard.KeyUp += (_, key, _) => OnKey(key, false);
-            keyboard.KeyChar += (_, ch) =>
-            {
-                if (!char.IsControl(ch))
-                    _text.Append(ch);
-            };
+            keyboard.KeyDown += (_, key, _) => Key(key, true);
+            keyboard.KeyUp += (_, key, _) => Key(key, false);
+            keyboard.KeyChar += (_, ch) => Char(ch);
+            Clipboard ??= new KeyboardClipboard(keyboard);
         }
         foreach (var mouse in context.Mice)
         {
@@ -49,6 +49,14 @@ public sealed class InputMap
     /// <summary>Указатель на месте в пикселях окна (снимки кадров).</summary>
     public void PlacePointer(float x, float y) => _pointer = new Vector2(x, y);
 
+    /// <summary>Окно потеряло фокус: зажатое отпускается (иначе клавиша «залипнет», пока окно не вернут).</summary>
+    public void ReleaseAll()
+    {
+        _held.Clear();
+        _released |= _down;
+        _down = PointerButtons.None;
+    }
+
     /// <summary>
     /// Ввод кадра. <paramref name="toLogical"/> — логических пикселей на пиксель окна (указатель окна → логический),
     /// width и height — экран в логических пикселях.
@@ -60,7 +68,7 @@ public sealed class InputMap
             Time = time, Width = width, Height = height, Scale = scale,
             Pointer = _pointer is { } p ? (p.X * toLogical, p.Y * toLogical) : null,
             Down = _down, Pressed = _pressed, Released = _released, Wheel = _wheel,
-            Shift = _held.Contains("shift"), Ctrl = _held.Contains("ctrl"), Alt = _held.Contains("alt"),
+            Shift = _held.Contains("shift"), Ctrl = _held.Contains("ctrl") || _held.Contains("meta"), Alt = _held.Contains("alt"),
             Touch = false, Focused = Focused,
             Keys = [.. _held], Hits = [.. _hits], Text = _text.ToString(),
         };
@@ -69,6 +77,29 @@ public sealed class InputMap
         _hits.Clear();
         _text.Clear();
         return input;
+    }
+
+    /// <summary>Клавиша нажата или отпущена: повтор зажатой — не новое нажатие (повтор правки ведёт поле ввода само).</summary>
+    public void Key(SilkKey key, bool down)
+    {
+        if (Name(key) is not { } name)
+            return;
+        if (down)
+        {
+            if (_held.Add(name))
+                _hits.Add(name);
+        }
+        else
+        {
+            _held.Remove(name);
+        }
+    }
+
+    /// <summary>Символ набранного текста: управляющие знаки (Ctrl+буква даёт их на Windows) не текст.</summary>
+    public void Char(char ch)
+    {
+        if (!char.IsControl(ch))
+            _text.Append(ch);
     }
 
     private void OnButton(MouseButton button, bool down)
@@ -89,31 +120,18 @@ public sealed class InputMap
         _down = down ? _down | flag : _down & ~flag;
     }
 
-    private void OnKey(SilkKey key, bool down)
-    {
-        if (key == SilkKey.F11 && down && !_held.Contains("f11"))
-            ToggleFullscreen = true;
-        if (Name(key) is not { } name)
-            return;
-        if (down)
-        {
-            // Повтор зажатой клавиши — не новое нажатие.
-            if (_held.Add(name))
-                _hits.Add(name);
-        }
-        else
-        {
-            _held.Remove(name);
-        }
-    }
-
-    /// <summary>Имя клавиши для модов: буквы и цифры — по месту на клавиатуре, остальное — по смыслу ("left", "escape", "f1").</summary>
+    /// <summary>
+    /// Имя клавиши для модов и полей: буквы и цифры — по месту на клавиатуре (Ctrl+V — «v» при любой раскладке),
+    /// цифры цифровой клавиатуры — как цифры, остальное — по смыслу ("left", "home", "escape", "f1", "/").
+    /// </summary>
     public static string? Name(SilkKey key)
     {
         if (key is >= SilkKey.A and <= SilkKey.Z)
             return ((char)('a' + (key - SilkKey.A))).ToString();
         if (key is >= SilkKey.Number0 and <= SilkKey.Number9)
             return ((char)('0' + (key - SilkKey.Number0))).ToString();
+        if (key is >= SilkKey.Keypad0 and <= SilkKey.Keypad9)
+            return ((char)('0' + (key - SilkKey.Keypad0))).ToString();
         if (key is >= SilkKey.F1 and <= SilkKey.F25)
             return "f" + (key - SilkKey.F1 + 1);
         return key switch
@@ -122,6 +140,11 @@ public sealed class InputMap
             SilkKey.Right => "right",
             SilkKey.Up => "up",
             SilkKey.Down => "down",
+            SilkKey.Home => "home",
+            SilkKey.End => "end",
+            SilkKey.PageUp => "pageup",
+            SilkKey.PageDown => "pagedown",
+            SilkKey.Insert => "insert",
             SilkKey.Space => "space",
             SilkKey.Escape => "escape",
             SilkKey.Enter or SilkKey.KeypadEnter => "enter",
@@ -132,9 +155,48 @@ public sealed class InputMap
             SilkKey.ControlLeft or SilkKey.ControlRight => "ctrl",
             SilkKey.AltLeft or SilkKey.AltRight => "alt",
             SilkKey.SuperLeft or SilkKey.SuperRight => "meta",
-            SilkKey.Minus => "-",
+            SilkKey.Minus or SilkKey.KeypadSubtract => "-",
             SilkKey.Equal => "=",
+            SilkKey.KeypadAdd => "+",
+            SilkKey.KeypadMultiply => "*",
+            SilkKey.Slash or SilkKey.KeypadDivide => "/",
+            SilkKey.BackSlash => "\\",
+            SilkKey.Period => ".",
+            SilkKey.Comma => ",",
+            SilkKey.Semicolon => ";",
+            SilkKey.Apostrophe => "'",
+            SilkKey.LeftBracket => "[",
+            SilkKey.RightBracket => "]",
+            SilkKey.GraveAccent => "`",
             _ => null,
         };
+    }
+}
+
+/// <summary>Системный буфер обмена через клавиатуру GLFW (Ctrl+C, X, V в полях ввода).</summary>
+public sealed class KeyboardClipboard(IKeyboard keyboard) : IClipboard
+{
+    public string Get()
+    {
+        try
+        {
+            return keyboard.ClipboardText ?? "";
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            // В буфере не текст (картинка) — GLFW отказывает: вставлять нечего.
+            return "";
+        }
+    }
+
+    public void Set(string text)
+    {
+        try
+        {
+            keyboard.ClipboardText = text;
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+        }
     }
 }

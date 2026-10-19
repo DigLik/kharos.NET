@@ -47,7 +47,7 @@ public static unsafe class ClientRuntime
             var builder = new ClientBuilder();
             mod.Setup(builder);
             var manifest = builder.ToManifest();
-            var schema = new WorldSchema(info.Components);
+            var schema = new WorldSchema(info.Components, info.Layers);
             var ctx = new LoadContext(info, schema);
             mod.Load(ctx);
             var client = new ClientContext();

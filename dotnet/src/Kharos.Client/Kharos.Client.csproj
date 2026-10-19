@@ -25,5 +25,9 @@
     <EmbeddedResource Include="Fonts\ark-pixel-12px.otf" LogicalName="Kharos.Client.Fonts.ark-pixel-12px.otf" />
     <EmbeddedResource Include="Fonts\ark-pixel-10px.otf" LogicalName="Kharos.Client.Fonts.ark-pixel-10px.otf" />
     <None Include="Fonts\OFL.txt" CopyToOutputDirectory="PreserveNewest" Link="Fonts\OFL.txt" />
+    <!-- Запасной GNU Unifont 18.0.01 (OFL, Fonts/unifont-OFL.txt), как у TS (tools/fonts.py): только знаки
+         U+0250–02FF и U+2000–2BFF, которых нет в Ark Pixel (⚡, ✕, −, ʼ и др.), вырезаны из unifont-0. -->
+    <EmbeddedResource Include="Fonts\unifont-symbols.otf" LogicalName="Kharos.Client.Fonts.unifont-symbols.otf" />
+    <None Include="Fonts\unifont-OFL.txt" CopyToOutputDirectory="PreserveNewest" Link="Fonts\unifont-OFL.txt" />
   </ItemGroup>
 </Project>

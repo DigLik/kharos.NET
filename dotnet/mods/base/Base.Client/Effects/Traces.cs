@@ -61,11 +61,11 @@ internal sealed class Traces(BaseState state)
 
     private static float OpacityAt(ClientContext c, double x, double y) => c.Terrain(x, y, out var info) ? Opacity[info.Terrain & 3] : Opacity[1];
 
-    private static void Lay(ClientContext c, double fromX, double fromY, double toX, double toY, float width, float opacity) =>
-        c.Decal(fromX, fromY, toX, toY, width, Color, opacity, Density, Life);
+    private static void Lay(ClientContext c, double fromX, double fromY, double toX, double toY, float width, float opacity, float life = Life) =>
+        c.Decal(fromX, fromY, toX, toY, width, Color, opacity, Density, life);
 
     /// <summary>Колея или шаги от точки пути from до to одного юнита.</summary>
-    private static void Walk(ClientContext c, Point from, Point to, TraceSpec trace)
+    private static void Walk(ClientContext c, Point from, Point to, TraceSpec trace, float life = Life)
     {
         var width = (float)(trace.Width / 16);
         if (!trace.Legs)
@@ -74,7 +74,7 @@ internal sealed class Traces(BaseState state)
             {
                 double fromX = from.X - Math.Sin(from.Facing) / 16 * side, fromY = from.Y + Math.Cos(from.Facing) / 16 * side;
                 double toX = to.X - Math.Sin(to.Facing) / 16 * side, toY = to.Y + Math.Cos(to.Facing) / 16 * side;
-                Lay(c, fromX, fromY, toX, toY, width, OpacityAt(c, toX, toY));
+                Lay(c, fromX, fromY, toX, toY, width, OpacityAt(c, toX, toY), life);
             }
             return;
         }
@@ -89,7 +89,7 @@ internal sealed class Traces(BaseState state)
             var side = trace.Sides[(from.Foot + step) % trace.Sides.Length];
             var x = from.X + (to.X - from.X) * share + acrossX * side;
             var y = from.Y + (to.Y - from.Y) * share + acrossY * side;
-            Lay(c, x - alongX, y - alongY, x + alongX, y + alongY, width, OpacityAt(c, x, y));
+            Lay(c, x - alongX, y - alongY, x + alongX, y + alongY, width, OpacityAt(c, x, y), life);
             step++;
             to.Foot = from.Foot + step;
         }
@@ -179,5 +179,63 @@ internal sealed class Traces(BaseState state)
             _walkers.Remove(entity);
             _paths.Remove(entity);
         }
+    }
+
+    // ===== Колея со слоя следов движка (К1) =====
+
+    // Точки пути каждого юнита, как их прислал хост, по тикам; какие следы уже разобраны (номер → тик).
+    private readonly Dictionary<uint, List<(double Tick, Point Point)>> _received = [];
+    private readonly Dictionary<uint, double> _known = [];
+    private readonly List<uint> _stale = [];
+
+    /// <summary>
+    /// Колея со слоя следов движка (decalsPass.ts, consume): точки пути (kind track — id, tick, kind, entity, type, facing)
+    /// ставит система движка engine.traces, клиент соединяет соседние по времени точки одного юнита, если они рядом, и
+    /// кладёт колею на остаток её срока. Так видна и колея, оставленная до того, как игрок посмотрел, — как в TS.
+    /// tracks — предметы вида track в кадре, step — длина тика.
+    /// </summary>
+    public void Receive(ClientContext c, IReadOnlyList<(double X, double Y, double[] Fields)> tracks, double step)
+    {
+        _traces ??= Resolve(c);
+        var now = (double)c.Tick;
+        foreach (var (x, y, fields) in tracks)
+        {
+            var id = (uint)fields[0];
+            if (!_known.TryAdd(id, fields[1]))
+                continue;
+            var age = Math.Max(0, (now - fields[1]) * step);
+            if (age >= Life || !_traces.TryGetValue((int)fields[4], out var trace))
+                continue;
+            var point = new Point(x, y, fields[5]);
+            var entity = (uint)fields[3];
+            if (!_received.TryGetValue(entity, out var path))
+                _received[entity] = path = [];
+            var at = path.Count;
+            while (at > 0 && path[at - 1].Tick > fields[1])
+                at--;
+            path.Insert(at, (fields[1], point));
+            var life = (float)(Life - age);
+            if (at > 0 && path[at - 1].Point is var before && Math.Sqrt((x - before.X) * (x - before.X) + (y - before.Y) * (y - before.Y)) <= Link)
+                Walk(c, before, point, trace, life);
+            if (at + 1 < path.Count && path[at + 1].Point is var after && Math.Sqrt((after.X - x) * (after.X - x) + (after.Y - y) * (after.Y - y)) <= Link)
+                Walk(c, point, after, trace, (float)(Life - Math.Max(0, (now - path[at + 1].Tick) * step)));
+        }
+        // Истёкшие точки больше ни с чем не соединятся.
+        var oldest = now - Life / step;
+        _stale.Clear();
+        foreach (var (id, tick) in _known)
+            if (tick < oldest)
+                _stale.Add(id);
+        foreach (var id in _stale)
+            _known.Remove(id);
+        _stale.Clear();
+        foreach (var (entity, path) in _received)
+        {
+            path.RemoveAll(entry => entry.Tick < oldest);
+            if (path.Count == 0)
+                _stale.Add(entity);
+        }
+        foreach (var entity in _stale)
+            _received.Remove(entity);
     }
 }

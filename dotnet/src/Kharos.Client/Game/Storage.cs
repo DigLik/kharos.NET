@@ -2,8 +2,8 @@ namespace Kharos.Client.Game;
 
 /// <summary>
 /// Хранилище клиента между партиями (storage.ts): ключ — байты. Настройки модов (инструмент и запись Prefs, ABI 2) лежат
-/// под ключом «prefs/&lt;мод&gt;/&lt;ключ&gt;». TODO(Д4): файловое хранилище оболочки (слоты, настройки игрока) — по этому же
-/// договору; до него — <see cref="MemoryStorage"/>.
+/// под ключом «prefs/&lt;мод&gt;/&lt;ключ&gt;», настройки и слоты оболочки — под «engine/…» и «slots/…». У десктопа это
+/// файлы (<c>Kharos.Client.Shell.FileStorage</c>), в тестах и клиенте без оболочки — <see cref="MemoryStorage"/>.
 /// </summary>
 public interface IStorage
 {
@@ -12,6 +12,9 @@ public interface IStorage
 
     /// <summary>Запомнить байты ключа; пустые — стереть.</summary>
     void Set(string key, ReadOnlySpan<byte> value);
+
+    /// <summary>Все ключи (порядок не задан): оболочка чистит по ним прежние форматы.</summary>
+    IEnumerable<string> Keys => [];
 }
 
 /// <summary>Хранилище в памяти: живёт, пока жив процесс (тесты, клиент без оболочки).</summary>
@@ -28,6 +31,8 @@ public sealed class MemoryStorage : IStorage
         else
             _values[key] = value.ToArray();
     }
+
+    public IEnumerable<string> Keys => [.. _values.Keys];
 
     /// <summary>Сколько ключей.</summary>
     public int Count => _values.Count;

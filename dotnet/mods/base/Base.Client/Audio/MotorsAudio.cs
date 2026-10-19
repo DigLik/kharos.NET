@@ -74,6 +74,11 @@ internal sealed class MotorsAudio
     private (ComponentRef Unit, ComponentRef Position, ComponentRef Facing)? _components;
     private KindData? _data;
     private (double X, double Y, double Angle)[] _poses = new (double, double, double)[64];
+    // Пехота шагает общей петлёй: где была в прошлом кадре, сколько вблизи идущих и с какой стороны.
+    private readonly Dictionary<uint, (double X, double Y)> _foot = [];
+    private const double StepsLevel = 0.16;
+    // Медленнее этого, в тайлах за секунду, пехотинец стоит (в TS — тысячная тайла за тик).
+    private const double StepSpeed = 0.02;
     private double _clock, _lastStart = double.NegativeInfinity, _lastBrake = double.NegativeInfinity;
 
     private static double Wrap(double angle) => angle - Math.PI * 2 * Math.Floor(angle / (Math.PI * 2) + 0.5);
@@ -148,6 +153,7 @@ internal sealed class MotorsAudio
         _clock += seconds;
         _heard.Clear();
         _alive.Clear();
+        double steps = 0, stepsSide = 0;
         var tick = c.Tick;
         var time = c.Tick + c.Alpha;
         var units = c.Each(_components.Value.Unit, _components.Value.Position, _components.Value.Facing);
@@ -165,10 +171,21 @@ internal sealed class MotorsAudio
                 _kinds[e] = kind = proto >= 0 && c.ProtoPath(proto) is { } path && _data.Units.TryGetValue(path, out var found) && MotorSounds.Motors.ContainsKey(found.Motor) ? found : null;
             }
             var (x, y, facing) = poses[i];
-            if (kind is null || double.IsNaN(x))
+            if (double.IsNaN(x))
                 continue;
             var near = c.Nearness(x, y, Hearing);
             var side = c.Side(x);
+            if (kind is null)
+            {
+                // У пехоты мотора нет — она шагает.
+                if (near > 0 && _foot.TryGetValue(e, out var before) && Math.Sqrt((x - before.X) * (x - before.X) + (y - before.Y) * (y - before.Y)) >= StepSpeed * seconds)
+                {
+                    steps += near;
+                    stepsSide += near * side;
+                }
+                _foot[e] = (x, y);
+                continue;
+            }
             if (!_cars.TryGetValue(e, out var car))
             {
                 var spec = MotorSounds.Motors[kind.Motor];
@@ -200,6 +217,15 @@ internal sealed class MotorsAudio
         {
             Release(_cars[entity]);
             _cars.Remove(entity);
+        }
+        if (_foot.Count > units.Length)
+        {
+            _gone.Clear();
+            foreach (var entity in _foot.Keys)
+                if (!_alive.Contains(entity))
+                    _gone.Add(entity);
+            foreach (var entity in _gone)
+                _foot.Remove(entity);
         }
         if (_kinds.Count > units.Length)
         {
@@ -261,5 +287,6 @@ internal sealed class MotorsAudio
             });
             crowd.Voice.Place((float)(Loudness[name] * CrowdLevel * (1 - Math.Exp(-crowd.Sum / Saturate))), (float)(crowd.Side / crowd.Sum * 0.8));
         }
+        c.Audio.Loop("steps", (float)(StepsLevel * (1 - Math.Exp(-steps / Saturate))), steps > 0 ? (float)(stepsSide / steps) : 0);
     }
 }

@@ -26,11 +26,14 @@
     <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="all" />
     <!-- Картинки интерфейса и атласов для просмотра глазами: dotnet/.cache/client/. -->
     <PackageReference Include="StbImageWriteSharp" />
+    <!-- Ввод десктопа (Shell/InputMapTests): InputMap.cs собирается здесь же, без окна. -->
+    <PackageReference Include="Silk.NET.Input" />
   </ItemGroup>
   <ItemGroup>
     <!-- Мод hello: приказы и клиентский мод — тот же код, что в host.wasm и client.wasm. -->
     <Compile Include="..\..\mods\hello\Hello.Host\Orders.cs" Link="Hello\Orders.cs" />
     <Compile Include="..\..\mods\hello\Hello.Client\HelloClient.cs" Link="Hello\HelloClient.cs" />
+    <Compile Include="..\..\apps\Kharos.Desktop\InputMap.cs" Link="Desktop\InputMap.cs" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

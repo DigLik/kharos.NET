@@ -3,8 +3,8 @@ using Kharos.Mod.Sdk.Client;
 namespace Base.Client;
 
 /// <summary>
-/// Раздел Hud: панель игрока (client.ui: hud). TODO(К3а): Hud/TopBar.cs, Hud/Bar.cs, Hud/Commands.cs, Hud/Minimap.cs;
-/// TODO(К1): Hud/Lacks.cs.
+/// Раздел Hud: панель игрока (client.ui: hud) — верхняя полоса (TopBar), нижняя панель (Bar: мини-карта, сведения,
+/// сетка команд Commands), состояние из реплики (HudReader), остаток месторождений (KnownReserve). Hud/Lacks.cs — К1.
 /// </summary>
 internal sealed class HudSection : Section
 {

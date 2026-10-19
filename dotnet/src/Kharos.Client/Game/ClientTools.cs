@@ -143,7 +143,7 @@ public sealed class ClientTools : ModTools
     /// <summary>Режим администратора у этого подключения (сообщение Commands хоста).</summary>
     public Func<bool> Admin { get; set; } = () => false;
 
-    /// <summary>Право редактора у этого подключения. TODO(Р): протокол его не шлёт — до оболочки редактора false.</summary>
+    /// <summary>Право редактора у этого подключения (/editor; сообщение Commands хоста).</summary>
     public Func<bool> Editor { get; set; } = () => false;
 
     /// <summary>Номер облика по имени (Look, ABI 2): вид или свободный облик мода; нет — −1.</summary>
@@ -352,8 +352,8 @@ public sealed class ClientTools : ModTools
     }
 
     /// <summary>
-    /// Settings: запись партии из data/games.json, карта, туман, права. TODO(Д4): настройки хоста поверх записи
-    /// (HostOptions.Settings), час и сутки карты — протокол их клиенту пока не шлёт.
+    /// Settings: запись партии из data/games.json, карта, туман, права, а в «host» — настройки, что задали хосту поверх
+    /// записи (HostOptions.Settings из приветствия: size, land, weather со startHour и dayLength; не задавали — null).
     /// </summary>
     private void WriteSettings()
     {
@@ -381,6 +381,14 @@ public sealed class ClientTools : ModTools
             else
                 json.WriteNullValue();
             json.WriteBoolean("fog", welcome?.Fog ?? false);
+            json.WritePropertyName("host");
+            if (welcome is { Settings.Length: > 0 } && TryParse(welcome.Settings) is { } host)
+            {
+                using (host)
+                    host.RootElement.WriteTo(json);
+            }
+            else
+                json.WriteNullValue();
             json.WriteStartObject("rights");
             json.WriteBoolean("admin", Admin());
             json.WriteBoolean("editor", Editor());
@@ -388,6 +396,18 @@ public sealed class ClientTools : ModTools
             json.WriteEndObject();
         }
         buffer.WrittenSpan.CopyTo(Room(buffer.WrittenCount));
+    }
+
+    private static JsonDocument? TryParse(byte[] json)
+    {
+        try
+        {
+            return JsonDocument.Parse(json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Строка str входа: u16 длина и UTF-8.</summary>

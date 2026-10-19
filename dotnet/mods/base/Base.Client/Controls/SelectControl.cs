@@ -4,209 +4,293 @@ using Kharos.Mod.Sdk.Client;
 namespace Base.Client;
 
 /// <summary>
-/// Выделение — перенос controls/select.luau: щелчок — своя сущность под курсором, рамка — свои юниты в ней, Shift —
-/// добавить, Esc — снять, двойной щелчок — все свои того же вида на экране. Выделенное — <see cref="Shared.SelectionKey"/>
-/// (его видят приказы и панели).
+/// Выделение — перенос левой кнопки и цифр из controls.ts: щелчок — свой юнит или своё здание под курсором, рамка — свои
+/// юниты в ней (нет юнитов — здания), Shift добавляет (по уже выбранному — снимает), двойной щелчок или Ctrl+щелчок — все
+/// свои того же вида на экране, Ctrl+цифра запоминает группу, цифра выбирает её (Shift добавляет, повторно за
+/// <see cref="DoubleTap"/> — камера летит к группе), Esc бросает начатую рамку, потом снимает выделение. Здания с юнитами
+/// вместе не выбираются. Выделенное — <see cref="Shared.SelectionKey"/> (его видят приказы и панели), отметки — SelectMarks.
 /// </summary>
-internal sealed class SelectControl(BaseState state)
+internal sealed class SelectControl(BaseState state, PlaceWorld world)
 {
-    /// <summary>Сдвиг указателя, после которого щелчок становится рамкой, в пикселях.</summary>
-    private const float Threshold = 6;
+    /// <summary>Пока тянут рамку, в общей памяти лежит этот ключ: край экрана тогда двигает камеру.</summary>
+    public const string BoxKey = "selection.box";
 
-    /// <summary>Двойной щелчок — за столько секунд.</summary>
-    private const double Double = 0.35;
+    /// <summary>Двойной щелчок и повторное нажатие цифры — за столько секунд.</summary>
+    private const double DoubleTap = 0.4;
 
-    // Вид отметок — как selectionPass.ts: приглушённый зелёный, яркость из настроек (0,7 по умолчанию).
-    private const uint Selected = 0x73eb8c;
-    private const float Brightness = 0.7f;
-    private const double RingMargin = 0.2;
-    private const float BoxFillAlpha = 0.12f;
-    private const float HitAlpha = 0.5f;
-    private const float PathDot = 3, PathGap = 14, PathAlpha = 0.55f, PathGoal = 0.4f;
-    private const float BarHeight = 4, BarGap = 0.3f;
-    private const uint BarBack = 0x080d14, BarProducing = 0x59a6ff;
+    /// <summary>Если мышь с нажатой кнопкой сдвинулась меньше, это щелчок, а не перетаскивание, в пикселях экрана.</summary>
+    private const float ClickSlop = 4;
 
+    /// <summary>Насколько мимо юнита можно щёлкнуть, чтобы всё равно выбрать его, в пикселях экрана.</summary>
+    private const float PickMargin = 6;
+
+    private readonly SelectMarks _marks = new(state, world);
+    private readonly Dictionary<char, uint[]> _groups = [];
     private (float X, float Y, double Wx, double Wy)? _start;
-    private (double Time, uint Entity) _last = (-1, 0);
+    private bool _dragged;
+    private (uint Entity, double Time)? _lastUnit, _lastBuilding;
+    private (char Digit, double Time)? _lastGroup;
 
     private Parts P => state.P;
 
-    /// <summary>
-    /// Где сущность: середина и размер в тайлах; у юнита — описанный квадрат кольца (радиус — Body.radius), у здания —
-    /// основание (Footprint от левого верхнего тайла, место здания — он).
-    /// </summary>
-    private (double X, double Y, double W, double H, bool Round) Bounds(ClientContext c, uint entity)
+    // ------------------------------------------------------------------ кого выбрать
+
+    private bool IsUnit(ClientContext c, uint entity) => c.Has(entity, P.Unit);
+
+    /// <summary>Свои юниты, центр которых попал в прямоугольник в тайлах.</summary>
+    private List<uint> UnitsInBox(ClientContext c, double x1, double y1, double x2, double y2)
     {
-        var at = c.Get(entity, P.Position)!;
-        double x = at.Number(P.Position["x"]), y = at.Number(P.Position["y"]);
-        if (c.Has(entity, P.Unit))
-        {
-            var size = (state.Radius(c, entity) + RingMargin) * 2;
-            return (x, y, size, size, true);
-        }
-        if (state.Size(c, entity) is { } area)
-            return (x + area.W / 2, y + area.H / 2, area.W, area.H, false);
-        return (x, y, 1, 1, true);
+        double left = Math.Min(x1, x2), top = Math.Min(y1, y2), right = Math.Max(x1, x2), bottom = Math.Max(y1, y2);
+        var found = new List<uint>();
+        foreach (var entity in c.Within(left, top, right, bottom, P.Unit))
+            if (c.Mine(entity))
+                found.Add(entity);
+        return found;
     }
 
-    /// <summary>Кольцо вокруг юнита или рамка в два пикселя вокруг здания.</summary>
-    private void Mark(ClientContext c, uint entity, float share)
+    /// <summary>Свои здания и площадки, середина которых попала в прямоугольник в тайлах; kind — только этого вида.</summary>
+    private List<uint> BuildingsInBox(ClientContext c, double x1, double y1, double x2, double y2, int? proto = null)
     {
-        if (!c.Alive(entity) || !c.Has(entity, P.Position))
-            return;
-        var (x, y, w, h, round) = Bounds(c, entity);
-        var alpha = share * Brightness;
-        if (round)
-            // Кольцо — как спрайт 64 пикселя с ободом в 4: толщина растёт с размером.
-            c.Draw.Circle(x, y, w / 2 - w * 3 / 64, Selected, (float)(w * c.Camera.Zoom * 4 / 64), alpha);
-        else
-            c.Draw.Rect(x - w / 2, y - h / 2, x + w / 2, y + h / 2, Selected, 2, alpha);
-    }
-
-    /// <summary>Пунктир от (x1, y1) к (x2, y2): точки PathDot пикселей через PathGap пикселей экрана, от конца.</summary>
-    private static void Dashes(ClientContext c, double x1, double y1, double x2, double y2, float alpha)
-    {
-        var pixel = 1 / c.Camera.Zoom;
-        double dot = PathDot * pixel, step = PathGap * pixel;
-        var length = Math.Sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
-        double along = 0;
-        while (along < length)
+        double left = Math.Min(x1, x2), top = Math.Min(y1, y2), right = Math.Max(x1, x2), bottom = Math.Max(y1, y2);
+        var found = new List<uint>();
+        // Место здания — левый верхний тайл, самое широкое основание — 4 тайла: искать надо с запасом.
+        foreach (var entity in c.Within(left - 4, top - 4, right, bottom, P.Footprint))
         {
-            var x = x2 + (x1 - x2) / length * along;
-            var y = y2 + (y1 - y2) / length * along;
-            c.Draw.Rect(x - dot / 2, y - dot / 2, x + dot / 2, y + dot / 2, Selected, null, alpha);
-            along += step;
-        }
-    }
-
-    /// <summary>Точки пути юнита (Path.points — f64 x, y подряд, центры тайлов); пусто — пути нет или не посчитан.</summary>
-    private static List<(double X, double Y)> Waypoints(ComponentValues path, FieldRef field)
-    {
-        var bytes = path.Bytes(field);
-        var list = new List<(double, double)>(bytes.Length / 16);
-        for (var at = 0; at + 16 <= bytes.Length; at += 16)
-            list.Add((System.Buffers.Binary.BinaryPrimitives.ReadDoubleLittleEndian(bytes.AsSpan(at)), System.Buffers.Binary.BinaryPrimitives.ReadDoubleLittleEndian(bytes.AsSpan(at + 8))));
-        return list;
-    }
-
-    /// <summary>Пути, флажки сбора и полоски выпуска у выбранного.</summary>
-    private void Marks(ClientContext c, uint[] selection)
-    {
-        var pixel = 1 / c.Camera.Zoom;
-        foreach (var entity in selection)
-        {
-            // Едет ли юнит — есть ли у него Path; путь приходит только хозяину.
-            var path = c.Get(entity, P.Path);
-            var pose = c.Pose(entity);
-            if (path is not null && pose is { } at)
-            {
-                var (px, py) = (at.X, at.Y);
-                var (tx, ty) = (path.Number(P.Path["goalX"]) + 0.5, path.Number(P.Path["goalY"]) + 0.5);
-                foreach (var (wx, wy) in Waypoints(path, P.Path["points"]))
-                {
-                    Dashes(c, px, py, wx, wy, PathAlpha);
-                    (px, py) = (wx, wy);
-                    (tx, ty) = (wx, wy);
-                }
-                Dashes(c, px, py, tx, ty, PathAlpha);
-                var half = PathGoal / 2;
-                c.Draw.Rect(tx - half, ty - half, tx + half, ty + half, Selected, 2);
-            }
-            var producer = c.Get(entity, P.Producer);
-            if (producer is not null && producer.Flag(P.Producer["rally"]) && state.Center(c, entity) is { } center)
-            {
-                // Точка сбора — тайл: флажок на его середине.
-                double rx = producer.Number(P.Producer["rallyX"]) + 0.5, ry = producer.Number(P.Producer["rallyY"]) + 0.5;
-                Dashes(c, center.X, center.Y, rx, ry, PathAlpha);
-                c.Draw.Rect(rx - pixel, ry - 0.9, rx + pixel, ry, Selected);
-                c.Draw.Rect(rx + pixel, ry - 0.9, rx + pixel + 0.45, ry - 0.6, Selected);
-            }
-        }
-        // Полоски выпуска над своими производителями (current ≥ 0 — идёт заказ; progress — в тиках).
-        foreach (var entity in c.Each(P.Producer, P.Owner))
-        {
-            if (c.Get(entity, P.Producer) is not { } producer || !c.Mine(entity) || producer.Number(P.Producer["current"]) < 0 || !c.Has(entity, P.Building))
+            if (!c.Mine(entity) || (proto is { } wanted && c.Proto(entity) != wanted) || state.Center(c, entity) is not { } middle)
                 continue;
-            var unit = state.KindOf(c, (int)producer.Number(P.Producer["current"]));
-            var (x, y, w, h, _) = Bounds(c, entity);
-            var height = BarHeight * pixel;
-            var top = y - h / 2 - BarGap - height;
-            var left = x - w / 2;
-            var share = Math.Clamp(producer.Number(P.Producer["progress"]) / state.BuildTicks(c, unit), 0, 1);
-            c.Draw.Rect(left - pixel, top - pixel, left + w + pixel, top + height + pixel, BarBack);
-            c.Draw.Rect(left, top, left + w * share, top + height, BarProducing);
+            if (middle.X >= left && middle.X <= right && middle.Y >= top && middle.Y <= bottom)
+                found.Add(entity);
         }
+        return found;
     }
 
-    public void Update(ClientContext c)
+    /// <summary>Кого выбирает рамка: юниты в ней главнее, здания — только если юнитов нет.</summary>
+    private List<uint> BoxHits(ClientContext c, double x1, double y1, double x2, double y2)
+    {
+        var units = UnitsInBox(c, x1, y1, x2, y2);
+        return units.Count > 0 ? units : BuildingsInBox(c, x1, y1, x2, y2);
+    }
+
+    /// <summary>Свой юнит под точкой в тайлах: ближайший из тех, в чей круг (радиус и запас в пикселях) она попала.</summary>
+    private uint? UnitAt(ClientContext c, double x, double y)
+    {
+        var margin = PickMargin / c.Camera.Zoom;
+        uint? best = null;
+        var bestDistance = double.MaxValue;
+        foreach (var entity in c.Within(x - 3, y - 3, x + 3, y + 3, P.Unit))
+        {
+            if (!c.Mine(entity) || c.Pose(entity) is not { } at)
+                continue;
+            var distance = Math.Sqrt((at.X - x) * (at.X - x) + (at.Y - y) * (at.Y - y));
+            if (distance > state.Radius(c, entity) + margin || distance >= bestDistance)
+                continue;
+            best = entity;
+            bestDistance = distance;
+        }
+        return best;
+    }
+
+    /// <summary>Своё здание или площадка на тайле под точкой; нет — null.</summary>
+    private uint? OwnBuildingAt(ClientContext c, double x, double y)
+    {
+        int tx = (int)Math.Floor(x), ty = (int)Math.Floor(y);
+        var entity = Tools.Occupant(tx, ty);
+        if (entity == 0)
+            entity = world.SiteAt(c, tx, ty, 1, 1);
+        return entity != 0 && c.Mine(entity) ? entity : null;
+    }
+
+    /// <summary>Выбирает list; add — добавить к выбранным. Здания с юнитами вместе не выбираются.</summary>
+    private void Select(ClientContext c, List<uint> selection, IReadOnlyList<uint> list, bool add)
+    {
+        if (!add)
+            selection.Clear();
+        var buildings = list.Count > 0 && !IsUnit(c, list[0]);
+        selection.RemoveAll(entity => IsUnit(c, entity) == buildings);
+        foreach (var entity in list)
+            if (!selection.Contains(entity))
+                selection.Add(entity);
+    }
+
+    // ------------------------------------------------------------------ группы
+
+    /// <summary>Живые свои юниты и здания группы; погибших и чужих (их номер мог достаться новой сущности) группа забывает.</summary>
+    private uint[] GroupOf(ClientContext c, char digit)
+    {
+        if (!_groups.TryGetValue(digit, out var members))
+            return [];
+        var alive = members.Where(entity => c.Alive(entity) && c.Mine(entity) && (IsUnit(c, entity) || c.Has(entity, P.Footprint))).ToArray();
+        if (alive.Length > 0)
+            _groups[digit] = alive;
+        else
+            _groups.Remove(digit);
+        return alive;
+    }
+
+    private void SelectGroup(ClientContext c, List<uint> selection, char digit, bool add)
+    {
+        var group = GroupOf(c, digit);
+        if (group.Length == 0)
+            return;
+        Select(c, selection, group, add);
+        // Повторный выбор той же группы подряд наводит на неё камеру.
+        if (_lastGroup is { } last && last.Digit == digit && c.Time - last.Time < DoubleTap)
+            LookAtSelection(c, selection);
+        _lastGroup = (digit, c.Time);
+    }
+
+    private void AssignGroup(ClientContext c, char digit, IEnumerable<uint> selection)
+    {
+        var own = selection.Where(c.Mine).ToArray();
+        if (own.Length > 0)
+            _groups[digit] = own;
+        else
+            _groups.Remove(digit);
+    }
+
+    /// <summary>Камера летит к середине выделенного.</summary>
+    private static void LookAtSelectionOf(ClientContext c, IEnumerable<uint> selection)
+    {
+        double x = 0, y = 0;
+        var count = 0;
+        foreach (var entity in selection)
+            if (c.Pose(entity) is { } at)
+            {
+                x += at.X;
+                y += at.Y;
+                count++;
+            }
+        if (count > 0)
+            CameraShake.FlyTo(c, x / count, y / count);
+    }
+
+    private static void LookAtSelection(ClientContext c, List<uint> selection) => LookAtSelectionOf(c, selection);
+
+    // ------------------------------------------------------------------ кадр
+
+    /// <summary>Бросает начатое мышью: рамку выделения.</summary>
+    private bool CancelDrag(ClientContext c)
+    {
+        var had = _start is not null;
+        _start = null;
+        _dragged = false;
+        c.Shared.Remove(BoxKey);
+        return had;
+    }
+
+    public void Update(ClientContext c, bool listen = true)
     {
         var input = c.Input;
-        // Погибшие выпадают сами.
+        // Погибшие и исчезнувшие выпадают из выделения.
         var selection = Shared.Selection(c).Where(c.Alive).ToList();
+        List<uint> hits = [];
+        if (!listen)
+            CancelDrag(c);
 
-        if (input.Pressed(PointerButton.Left) && input.Inside && !input.OverUi)
+        if (listen && input.Pressed(PointerButton.Left) && input.Inside && !input.OverUi && !input.Alt)
+        {
             _start = (input.X, input.Y, input.WorldX, input.WorldY);
+            _dragged = false;
+        }
         if (_start is { } start)
         {
-            var moved = Math.Abs(input.X - start.X) + Math.Abs(input.Y - start.Y) > Threshold;
-            if (input.Down(PointerButton.Left) && moved)
+            if (Math.Sqrt((input.X - start.X) * (input.X - start.X) + (input.Y - start.Y) * (input.Y - start.Y)) > ClickSlop)
+                _dragged = true;
+            if (input.Down(PointerButton.Left) && _dragged)
             {
-                c.Draw.Rect(start.Wx, start.Wy, input.WorldX, input.WorldY, Selected, null, BoxFillAlpha);
-                c.Draw.Rect(start.Wx, start.Wy, input.WorldX, input.WorldY, Selected, 1);
+                c.Shared[BoxKey] = true;
+                SelectMarks.Box(c, start.Wx, start.Wy, input.WorldX, input.WorldY);
                 // Кого выберет рамка, если отпустить её сейчас, — бледнее выбранных.
-                foreach (var entity in c.Within(start.Wx, start.Wy, input.WorldX, input.WorldY, P.Unit))
-                    if (c.Mine(entity) && !selection.Contains(entity))
-                        Mark(c, entity, HitAlpha);
-            }
-            // Долгое касание стало приказом (OrderControl): отпускание не выделяет.
-            if (input.Released(PointerButton.Left) && c.Shared.ContainsKey(Shared.SwallowKey))
-            {
-                c.Shared.Remove(Shared.SwallowKey);
-                _start = null;
-                return;
+                hits = BoxHits(c, start.Wx, start.Wy, input.WorldX, input.WorldY);
             }
             if (input.Released(PointerButton.Left))
             {
-                var picked = new List<uint>();
-                if (moved)
+                if (c.Shared.Remove(Shared.SwallowKey))
                 {
-                    foreach (var entity in c.Within(start.Wx, start.Wy, input.WorldX, input.WorldY, P.Unit))
-                        if (c.Mine(entity))
-                            picked.Add(entity);
+                    // Долгое касание стало приказом (OrderControl): отпускание не выделяет.
                 }
-                else if (c.Pick(input.WorldX, input.WorldY) is { } entity && c.Mine(entity))
-                {
-                    picked = [entity];
-                    // Двойной щелчок: все свои того же вида на экране.
-                    if (_last.Entity == entity && c.Time - _last.Time < Double)
-                    {
-                        var kind = c.Proto(entity);
-                        var (x1, y1) = c.ToWorld(0, 0);
-                        var (x2, y2) = c.ToWorld(c.ScreenWidth, c.ScreenHeight);
-                        picked = [.. c.Within(x1, y1, x2, y2).Where(other => c.Mine(other) && c.Proto(other) == kind)];
-                    }
-                    _last = (c.Time, entity);
-                }
-                if (input.Shift)
-                {
-                    foreach (var entity in picked)
-                        if (!selection.Contains(entity))
-                            selection.Add(entity);
-                }
+                else if (_dragged)
+                    Select(c, selection, BoxHits(c, start.Wx, start.Wy, input.WorldX, input.WorldY), input.Shift);
                 else
-                    selection = picked;
-                _start = null;
+                    Click(c, selection, input.WorldX, input.WorldY, input.Shift, input.Ctrl);
+                CancelDrag(c);
             }
+            else if (!input.Down(PointerButton.Left))
+                CancelDrag(c);
         }
-        if (!input.Down(PointerButton.Left))
-            _start = null;
-        if (input.Hits.Contains("escape"))
-            selection = [];
+
+        // Цифры: Ctrl запоминает группу, без Ctrl — выбирает; Shift добавляет к выбранным.
+        foreach (var key in listen ? (IEnumerable<string>)input.Hits : [])
+            if (key.Length == 1 && char.IsAsciiDigit(key[0]))
+            {
+                if (input.Ctrl)
+                    AssignGroup(c, key[0], selection);
+                else
+                    SelectGroup(c, selection, key[0], input.Shift);
+            }
+
+        // Esc: сначала брошенная протяжка, потом выделение.
+        if (listen && input.Hits.Contains("escape") && !CancelDrag(c))
+            selection.Clear();
+
         var result = selection.ToArray();
         c.Shared[Shared.SelectionKey] = result;
+        c.Shared[Modes.GroupsKey] = new Dictionary<char, uint[]>(_groups);
 
-        Marks(c, result);
+        // Отметки: пути и цели — под кольцами, кольца — поверх.
+        _marks.Bars(c);
+        _marks.Routes(c, result);
+        _marks.Groups(c, _groups, result);
+        foreach (var entity in hits)
+            if (!selection.Contains(entity))
+                _marks.Mark(c, entity, SelectMarks.BoxHitAlpha);
         foreach (var entity in result)
-            Mark(c, entity, 1);
+            _marks.Mark(c, entity, 1);
+    }
+
+    /// <summary>Щелчок без протяжки: свой юнит, а если его нет — своё здание; пустое место снимает выделение.</summary>
+    private void Click(ClientContext c, List<uint> selection, double x, double y, bool shift, bool ctrl)
+    {
+        var now = c.Time;
+        var unit = UnitAt(c, x, y);
+        var twice = unit is { } u && _lastUnit is { } last && last.Entity == u && now - last.Time < DoubleTap;
+        _lastUnit = unit is { } clicked ? (clicked, now) : null;
+        if (unit is { } one)
+        {
+            if (twice || ctrl)
+            {
+                // Двойной щелчок или Ctrl — все свои юниты этого вида на экране.
+                var (x1, y1) = c.ToWorld(0, 0);
+                var (x2, y2) = c.ToWorld(c.ScreenWidth, c.ScreenHeight);
+                var kind = c.Proto(one);
+                Select(c, selection, UnitsInBox(c, x1, y1, x2, y2).Where(other => c.Proto(other) == kind).ToList(), shift);
+            }
+            else if (shift && selection.Contains(one))
+                selection.Remove(one);
+            else
+                Select(c, selection, [one], shift);
+            return;
+        }
+        // Не юнит — тогда, может быть, своё здание или площадка: с Shift — добавить или снять, двойной щелчок или Ctrl —
+        // все свои здания этого вида на экране.
+        var building = OwnBuildingAt(c, x, y);
+        var builtTwice = building is { } b && _lastBuilding is { } before && before.Entity == b && now - before.Time < DoubleTap;
+        _lastBuilding = building is { } own ? (own, now) : null;
+        if (building is not { } found)
+        {
+            if (!shift)
+                selection.Clear();
+            return;
+        }
+        if (builtTwice || ctrl)
+        {
+            var (x1, y1) = c.ToWorld(0, 0);
+            var (x2, y2) = c.ToWorld(c.ScreenWidth, c.ScreenHeight);
+            Select(c, selection, BuildingsInBox(c, x1, y1, x2, y2, c.Proto(found)), shift);
+        }
+        else if (shift && selection.Contains(found))
+            selection.Remove(found);
+        else
+            Select(c, selection, [found], shift);
     }
 }

@@ -10,8 +10,9 @@ internal readonly record struct NoteColor(double Sub, double Bell, double Grit);
 /// Фон заброшенной пустой земли под низким небом — перенос mods/base/audio/ambience.luau (ambience.ts и soundscape.ts).
 /// Всё время дует ветер, порывами; в развалинах гудит и воет; в непогоду шуршат песок и дождь. Под этим — едва слышная
 /// медленная подложка в миноре, а вдалеке, сквозь эхо, изредка скрипит ржавый металл, лязгает железо или, в бурю, рокочет
-/// гром. Ветер крепнет с погодой и высотой камеры, подложка ночью темнее и реже. Тревога и бой (пульс, гул пилы) ждут
-/// боя на движке: пока их нет, они на нуле. «Успехи» — c.Shared["triumphs"] (число), если мод управления его ведёт.
+/// гром. Ветер крепнет с погодой и высотой камеры, подложка ночью темнее и реже. Тревога и бой (пульс, гул пилы) идут от
+/// <see cref="Battle"/> через <see cref="Mood"/>. «Успехи» — открытая тема и отбитая атака (<see cref="Mood.Triumphs"/>) и
+/// c.Shared["triumphs"] (число), если мод управления его ведёт.
 /// </summary>
 internal sealed class AmbienceAudio
 {
@@ -212,10 +213,13 @@ internal sealed class AmbienceAudio
     private readonly Func<double, double>[] _howlPitch = [Wander(20), Wander(21)];
     private readonly Func<double, double>[] _howlPan = [Wander(30), Wander(31)];
 
-    /// <summary>Зерно случайности фона — по умолчанию текущее время, как os.time пилота.</summary>
-    public AmbienceAudio(double? seed = null)
+    private readonly Mood _mood;
+
+    /// <summary>Зерно случайности фона — по умолчанию текущее время, как os.time пилота; обстановка боя — от <see cref="Battle"/>.</summary>
+    public AmbienceAudio(double? seed = null, Mood? mood = null)
     {
         _next = Dsp.Random(seed ?? DateTimeOffset.UtcNow.ToUnixTimeSeconds() % 100000);
+        _mood = mood ?? new Mood();
     }
 
     private double Between(double[] range) => range[0] + _next() * (range[1] - range[0]);
@@ -260,20 +264,20 @@ internal sealed class AmbienceAudio
         var elapsed = _sinceStep;
         _sinceStep = 0;
 
-        // Обстановка (soundscape.ts): погода, высота камеры, биом под ней. Тревога и бой — пока нули.
+        // Обстановка (soundscape.ts): погода, высота камеры, биом под ней; тревога и бой — от звуков боя.
         var atmosphere = c.Atmosphere;
         var wind = Clamp01(Math.Sqrt((double)atmosphere.WindX * atmosphere.WindX + (double)atmosphere.WindY * atmosphere.WindY) / StrongWind);
         var precipitation = Clamp01(atmosphere.Precipitation);
         var light = Clamp01(atmosphere.Light);
         var altitude = Clamp01(Math.Log(MaxZoom / c.Camera.Zoom) / Math.Log(MaxZoom / MinZoom));
-        _threat = Ease(_threat, 0, elapsed, EaseThreat);
-        _battle = Ease(_battle, 0, elapsed, EaseBattle);
+        _threat = Ease(_threat, Clamp01(_mood.Threat), elapsed, EaseThreat);
+        _battle = Ease(_battle, Clamp01(_mood.Battle), elapsed, EaseBattle);
         var here = c.Terrain(c.Camera.X, c.Camera.Y, out var terrain) ? terrain.Biome : -1;
         for (var i = 0; i < 4; i++)
             _biomes[i] = Ease(_biomes[i], here == i ? 1 : 0, elapsed, EaseBiome);
         var (erg, salt, red, marsh) = (_biomes[0], _biomes[1], _biomes[2], _biomes[3]);
         var color = new NoteColor(erg, salt, red);
-        var successes = c.Shared.TryGetValue("triumphs", out var shared) && shared is not null ? Convert.ToDouble(shared) : 0;
+        var successes = (c.Shared.TryGetValue("triumphs", out var shared) && shared is not null ? Convert.ToDouble(shared) : 0) + _mood.Triumphs;
         if (_triumphs is null)
             _triumphs = successes;
         else if (successes > _triumphs)

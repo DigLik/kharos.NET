@@ -1,14 +1,16 @@
+using Base.Client.Music;
 using Kharos.Mod.Sdk.Client;
 
 namespace Base.Client;
 
-/// <summary>Раздел Music: музыка партии и меню (audio/music.ts).</summary>
+/// <summary>
+/// Раздел Music: музыка меню (audio/music.ts) — этап Music мода, шина music движка. Пока открыто меню, играют аккорды и
+/// мелодия (<see cref="MenuMusic"/>); в самой партии играет фон (раздел Audio): тревога и бой меняют его пульс и гул.
+/// Щелчки и касания кнопок меню звучат из оболочки.
+/// </summary>
 internal sealed class MusicSection : Section
 {
-    // TODO(К5): Music/Music.cs. Обработчик — client.Music("base.music", Frame).
-    public override void Setup(ClientBuilder client)
-    {
-    }
+    public override void Setup(ClientBuilder client) => client.Music("base.music", new MenuMusic().Update);
 
     public override void Frame(ClientContext c)
     {

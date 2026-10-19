@@ -450,5 +450,19 @@
     "lost": "La connexion au serveur a été perdue",
     "cannotConnect": "Impossible de se connecter au serveur {url}",
     "insecure": "La page est ouverte en https alors que le serveur utilise ws:// non chiffré, et le navigateur bloque cette connexion. Autorisez-la : icône à gauche de l'adresse → « Paramètres du site » → « Contenu non sécurisé » → « Autoriser », puis rechargez l'onglet. Ou connectez-vous au serveur en wss://."
+  },
+  "settings": {
+    "video": "Affichage",
+    "fullscreen": "Plein écran",
+    "vsync": "Synchronisation verticale",
+    "uiScale": "Échelle de l'interface",
+    "auto": "auto",
+    "keys": "Touches",
+    "keyFullscreen": "Plein écran",
+    "keyMenu": "Menu",
+    "keyChat": "Discussion",
+    "pressKey": "appuyez sur une touche…",
+    "filePath": "Chemin du fichier de sauvegarde",
+    "fileSaved": "Fichier enregistré : {path}"
   }
 }

@@ -23,6 +23,12 @@ public sealed class ViewerOptions
 
     /// <summary>Шаг часов клиента на кадр, секунды (60 кадров в секунду).</summary>
     public double FrameStep { get; init; } = 1 / 60.0;
+
+    /// <summary>
+    /// Звук офлайн: у клиента есть движок звука без устройства (<see cref="Viewer.Engine"/>), моды звучат (Audio.Available), а
+    /// каждый кадр отрисовывается столько звука, сколько в нём времени (<see cref="Viewer.Output"/>). Ничего не играет вслух.
+    /// </summary>
+    public bool Audio { get; init; }
 }
 
 /// <summary>
@@ -59,6 +65,7 @@ public sealed class Viewer : IDisposable
             throw new SimUnavailableException(reason);
         _sim = sim;
         _options = options;
+        Engine = options.Audio ? new Kharos.Audio.AudioEngine(new Kharos.Audio.AudioEngineOptions { Seed = 3 }) : null;
         Player = player;
         Mode = mode;
         var (hostEnd, clientEnd) = MemoryTransport.Pair();
@@ -68,7 +75,7 @@ public sealed class Viewer : IDisposable
         {
             Game = new ClientGame(sim.Host.Content, transport, new ClientGameOptions
             {
-                Audio = null,
+                Audio = Engine,
                 ModMode = mode,
                 ModuleOptions = new GameModuleOptions { CallTimeoutMs = sim.Options.CallTimeoutMs, Log = entry => ModLog.Add($"{entry.ModId}: {entry.Message}") },
                 Log = Log.Add,
@@ -100,6 +107,12 @@ public sealed class Viewer : IDisposable
 
     /// <summary>Игрок клиента.</summary>
     public uint Player { get; }
+
+    /// <summary>Движок звука без устройства (<see cref="ViewerOptions.Audio"/>); null — звука нет.</summary>
+    public Kharos.Audio.AudioEngine? Engine { get; }
+
+    /// <summary>Левый канал всего, что отрендерил движок по кадрам зрителя (с <see cref="ViewerOptions.Audio"/>).</summary>
+    public List<float> Output { get; } = [];
 
     /// <summary>Как исполняется код клиентского мода.</summary>
     public ModMode Mode { get; }
@@ -158,6 +171,8 @@ public sealed class Viewer : IDisposable
         Frames++;
         Draws = ViewerDraws.Of(_records, Game.Scene);
         Sounds.Take(_records, Frames);
+        if (Engine is not null)
+            Output.AddRange(Engine.Render((int)Math.Round(_options.FrameStep * Kharos.Audio.AudioFormat.SampleRate)).Left);
         return frame;
     }
 

@@ -94,8 +94,5 @@ public sealed class RequestTests
         Assert.Equal(100 - sim.MagazineOf("tank"), Amount(sim, station, "ammo"), 2);
     }
 
-    [Fact(DisplayName = "кнопки заказа: груз, потом количество шагами, не больше склада за вычетом других заказов", Skip = "клиент (Н6): кнопки заказа в интерфейсе")]
-    public void OrderButtons()
-    {
-    }
+    // «кнопки заказа: груз, потом количество шагами…» — клиентский тест: Client/Hud/RequestButtonsTests.cs.
 }

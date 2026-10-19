@@ -41,7 +41,7 @@ public sealed class ClientGameOptions
     /// <summary>Сколько ждать приветствия и снимка.</summary>
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(10);
 
-    /// <summary>Хранилище между партиями (настройки модов, ABI 2); null — в памяти. TODO(Д4): файловое у оболочки.</summary>
+    /// <summary>Хранилище между партиями (настройки модов, ABI 2); null — в памяти; у десктопа — файлы профиля (Shell.FileStorage).</summary>
     public IStorage? Storage { get; init; }
 
     /// <summary>
@@ -124,6 +124,7 @@ public sealed partial class ClientGame : IDisposable
             Storage = _options.Storage ?? new MemoryStorage(),
             Players = () => Players,
             Admin = () => Admin,
+            Editor = () => Editor,
         };
         Tools.LookId = LookId;
         _ownsModules = _options.Modules is null;
@@ -184,6 +185,9 @@ public sealed partial class ClientGame : IDisposable
     public IReadOnlyList<CommandInfo> Commands { get; private set; } = [];
     public bool Admin { get; private set; }
 
+    /// <summary>Подключение в редакторе карты (/editor): хост шлёт право сообщением Commands.</summary>
+    public bool Editor { get; private set; }
+
     /// <summary>Хост отказал или выгнал: причина; null — нет.</summary>
     public string? Refused { get; private set; }
 
@@ -192,7 +196,7 @@ public sealed partial class ClientGame : IDisposable
 
     /// <summary>
     /// Просьбы модов к оболочке (запись Shell, ABI 2): действие ClientAbi.ShellAction* и текст — копятся, пока их не
-    /// заберут. TODO(Д4): оболочка забирает их каждый кадр (меню, чат с текстом, настройки).
+    /// заберут: оболочка (Shell.ShellApp) забирает их каждый кадр (меню, чат с текстом, настройки).
     /// </summary>
     public List<(byte Action, string Arg)> ShellRequests => _shell;
 
@@ -379,7 +383,7 @@ public sealed partial class ClientGame : IDisposable
                         _rosterRevision++;
                         break;
                     case MessageType.Commands:
-                        (var commands, Admin) = Protocol.Messages.ReadCommands(message);
+                        (var commands, Admin, Editor) = Protocol.Messages.ReadRights(message);
                         Commands = commands;
                         break;
                     case MessageType.Refused:

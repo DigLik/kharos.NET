@@ -561,7 +561,7 @@ public sealed class HostSession
     private void SendCommands(Connection connection)
     {
         var list = _commands.Values.Where(c => !c.Console && (connection.Admin || !c.Admin)).Select(c => c.Info).ToList();
-        Send(connection, Protocol.Messages.Commands(list, connection.Admin));
+        Send(connection, Protocol.Messages.Commands(list, connection.Admin, connection.Editor));
     }
 
     /// <summary>Куски пакетов модов: пока есть бюджет (без предела — до 16 за тик).</summary>
@@ -733,6 +733,8 @@ public sealed class HostSession
             {
                 var connection = call.Caller.Connection!;
                 connection.Editor = !connection.Editor;
+                // Право редактора — клиенту (Commands, инструмент Settings): оболочка включает режим редактора.
+                SendCommands(connection);
                 Options.Log?.Invoke($"! {Name(connection.Player)} {(connection.Editor ? "открыл" : "закрыл")} редактор");
                 call.Caller.Reply(connection.Editor ? "editorOn" : "editorOff");
             },

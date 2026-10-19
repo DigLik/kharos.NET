@@ -87,8 +87,11 @@ public sealed record HostText(string Key, IReadOnlyList<string> Args)
 /// <summary>Игрок партии: номер, ник и в сети ли.</summary>
 public sealed record PlayerInfo(uint Player, string Name, bool Online);
 
-/// <summary>Команда чата, какой её знает клиент: имя без «/», аргументы, описание; secret — аргумент — пароль.</summary>
-public sealed record CommandInfo(string Name, IReadOnlyList<string> Args, string Help, bool Secret = false);
+/// <summary>
+/// Команда чата, какой её знает клиент: имя без «/», аргументы, описание; secret — аргумент — пароль. Choices — чем
+/// дописываются аргументы по их порядку (виды юнитов; null на месте аргумента — ничем), как choices в chatCommands.ts.
+/// </summary>
+public sealed record CommandInfo(string Name, IReadOnlyList<string> Args, string Help, bool Secret = false, IReadOnlyList<IReadOnlyList<string>?>? Choices = null);
 
 /// <summary>Кусок пакета мода: хеш пакета, сжатая длина целиком, смещение и байты.</summary>
 public sealed record ContentChunk(byte[] Hash, int Total, int Offset, byte[] Data);
@@ -107,7 +110,9 @@ public readonly record struct ViewBox(float Left, float Top, float Right, float 
 /// 0x05 Chunk    hash:32 total:varint offset:varint data:blob   — data ≤ 64 КБ
 /// 0x06 Players  count:varint (player:varint name:str flags:u8)×  — flags: 1 в сети
 /// 0x07 Refused  reason:str flags:u8 [args:varint str×]          — flags: 1 нужен пароль, 2 reason — ключ host.* с подстановками
-/// 0x08 Commands admin:u8 count:varint (name:str args:varint str× help:str flags:u8)×  — flags: 1 secret
+/// 0x08 Commands admin:u8 count:varint (name:str args:varint str× help:str flags:u8 [choices])× [editor:u8]
+///               — flags: 1 secret, 2 за ним choices: count:varint (n:varint str×)× (n = 0 — аргумент без вариантов);
+///               editor — подключение в редакторе карты (/editor); нет байта — нет
 /// 0x09 Land     packed:blob                                     — deflate-raw Land.Save
 /// 0x0A LandEdits count:varint (x:svarint y:svarint terrain:u8 biome:u8 peak:u8 relief:u8)×  — хранимые байты тайла
 /// 0x11 View     left top right bottom:f32
@@ -240,7 +245,8 @@ public static class Messages
         return args;
     }
 
-    public static byte[] Commands(IReadOnlyList<CommandInfo> commands, bool admin)
+    /// <summary>Команды подключения, режим администратора и редактора (права для инструмента Settings клиента).</summary>
+    public static byte[] Commands(IReadOnlyList<CommandInfo> commands, bool admin, bool editor = false)
     {
         var w = new WireWriter(256).Byte((byte)MessageType.Commands).Bool(admin).Varint((ulong)commands.Count);
         foreach (var command in commands)
@@ -248,12 +254,31 @@ public static class Messages
             w.Text(command.Name).Varint((ulong)command.Args.Count);
             foreach (var arg in command.Args)
                 w.Text(arg);
-            w.Text(command.Help).Byte(command.Secret ? (byte)1 : (byte)0);
+            var choices = command.Choices is { Count: > 0 } list ? list : null;
+            w.Text(command.Help).Byte((byte)((command.Secret ? 1 : 0) | (choices is null ? 0 : 2)));
+            if (choices is null)
+                continue;
+            w.Varint((ulong)choices.Count);
+            foreach (var options in choices)
+            {
+                w.Varint((ulong)(options?.Count ?? 0));
+                foreach (var option in options ?? [])
+                    w.Text(option);
+            }
         }
+        if (editor)
+            w.Bool(true);
         return w.ToArray();
     }
 
     public static (List<CommandInfo> Commands, bool Admin) ReadCommands(ReadOnlySpan<byte> message)
+    {
+        var (commands, admin, _) = ReadRights(message);
+        return (commands, admin);
+    }
+
+    /// <summary>Команды и права подключения: администратор, редактор.</summary>
+    public static (List<CommandInfo> Commands, bool Admin, bool Editor) ReadRights(ReadOnlySpan<byte> message)
     {
         var r = Open(message, MessageType.Commands);
         var admin = r.Bool();
@@ -264,9 +289,24 @@ public static class Messages
             var args = new string[r.Count()];
             for (var at = 0; at < args.Length; at++)
                 args[at] = r.Text();
-            commands.Add(new CommandInfo(name, args, r.Text(), (r.Byte() & 1) != 0));
+            var help = r.Text();
+            var flags = r.Byte();
+            IReadOnlyList<string>?[]? choices = null;
+            if ((flags & 2) != 0)
+            {
+                choices = new IReadOnlyList<string>?[r.Count()];
+                for (var at = 0; at < choices.Length; at++)
+                {
+                    var options = new string[r.Count()];
+                    for (var o = 0; o < options.Length; o++)
+                        options[o] = r.Text();
+                    choices[at] = options.Length > 0 ? options : null;
+                }
+            }
+            commands.Add(new CommandInfo(name, args, help, (flags & 1) != 0, choices));
         }
-        return Close(ref r, (commands, admin));
+        var editor = !r.End && r.Bool();
+        return Close(ref r, (commands, admin, editor));
     }
 
     public static byte[] Land(ReadOnlySpan<byte> packed) => new WireWriter(packed.Length + 8).Byte((byte)MessageType.Land).Blob(packed).ToArray();

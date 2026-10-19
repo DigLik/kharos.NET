@@ -450,5 +450,19 @@
     "lost": "Die Verbindung zum Server ging verloren",
     "cannotConnect": "Verbindung zum Server {url} fehlgeschlagen",
     "insecure": "Die Seite ist über https geöffnet, der Server nutzt aber ungesichertes ws://, und der Browser blockiert eine solche Verbindung. Erlaube sie: Symbol links neben der Adresse → „Website-Einstellungen“ → „Unsichere Inhalte“ → „Zulassen“, dann den Tab neu laden. Oder verbinde dich über wss:// mit dem Server."
+  },
+  "settings": {
+    "video": "Anzeige",
+    "fullscreen": "Vollbild",
+    "vsync": "Vertikale Synchronisation",
+    "uiScale": "Oberflächenskalierung",
+    "auto": "auto",
+    "keys": "Tasten",
+    "keyFullscreen": "Vollbild",
+    "keyMenu": "Menü",
+    "keyChat": "Chat",
+    "pressKey": "Taste drücken…",
+    "filePath": "Pfad der Speicherdatei",
+    "fileSaved": "Datei gespeichert: {path}"
   }
 }

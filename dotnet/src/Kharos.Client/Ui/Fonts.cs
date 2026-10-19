@@ -44,6 +44,9 @@ internal sealed unsafe class FontFace : IDisposable
 
     public void Dispose() => _info.Dispose();
 
+    /// <summary>Есть ли у лица буква (не .notdef).</summary>
+    public bool Has(int codepoint) => Glyph(codepoint) != 0;
+
     private int Glyph(int codepoint)
     {
         if (!_glyphs.TryGetValue(codepoint, out var glyph))
@@ -131,11 +134,24 @@ public sealed class Fonts : IDisposable
         }
     }
 
-    /// <summary>Лица: 0 — Ark Pixel 12, 1 — Ark Pixel 10.</summary>
+    /// <summary>Лица: 0 — Ark Pixel 12, 1 — Ark Pixel 10, 2 (если есть) — запасной Unifont.</summary>
     public Fonts(params byte[][] faces) => Faces = [.. faces.Select(bytes => new FontFace(bytes))];
 
-    /// <summary>Ark Pixel 12 и 10 из ресурсов сборки.</summary>
-    public static Fonts Load() => new(Resource("ark-pixel-12px.otf"), Resource("ark-pixel-10px.otf"));
+    /// <summary>Номер запасного лица: чего нет в Ark Pixel, рисует Unifont (как «Kharos Unifont» в fonts.css TS).</summary>
+    private const int Fallback = 2;
+
+    /// <summary>
+    /// Увеличение Unifont рядом с лицом (size-adjust в fonts.css): у Ark Pixel 12 кегль 12 даёт настоящие 16 точек
+    /// Unifont (4/3), у Ark Pixel 10 — 1,6.
+    /// </summary>
+    private static float FallbackScale(int face) => face == 0 ? 4f / 3f : 1.6f;
+
+    /// <summary>Каким лицом и в каком кегле рисовать букву: своё лицо, а без буквы — запасное, если оно её знает.</summary>
+    private (int Face, float Size) Pick(int face, float size, int codepoint) =>
+        Faces.Length > Fallback && !Faces[face].Has(codepoint) && Faces[Fallback].Has(codepoint) ? (Fallback, size * FallbackScale(face)) : (face, size);
+
+    /// <summary>Ark Pixel 12 и 10 и запасной Unifont из ресурсов сборки.</summary>
+    public static Fonts Load() => new(Resource("ark-pixel-12px.otf"), Resource("ark-pixel-10px.otf"), Resource("unifont-symbols.otf"));
 
     private static byte[] Resource(string name)
     {
@@ -205,9 +221,10 @@ public sealed class Fonts : IDisposable
         var previous = -1;
         foreach (var rune in text.EnumerateRunes())
         {
-            if (Kerning && previous >= 0) sum += Faces[face].Kern(previous, rune.Value, size);
-            sum += Faces[face].Advance(rune.Value, size);
-            previous = rune.Value;
+            var (used, px) = Pick(face, size, rune.Value);
+            if (Kerning && previous >= 0 && used == face) sum += Faces[face].Kern(previous, rune.Value, size);
+            sum += Faces[used].Advance(rune.Value, px);
+            previous = used == face ? rune.Value : -1;
         }
         width = MathF.Ceiling(sum);
         if (_widths.Count > 4000) _widths.Clear();
@@ -228,10 +245,12 @@ public sealed class Fonts : IDisposable
         var previous = -1;
         foreach (var rune in text.EnumerateRunes())
         {
-            if (Kerning && previous >= 0) pen += Faces[face].Kern(previous, rune.Value, px);
-            previous = rune.Value;
-            var advance = Faces[face].Advance(rune.Value, px);
-            var glyph = GetGlyph(face, px, rune.Value);
+            var (used, usedSize) = Pick(face, size, rune.Value);
+            var usedPx = used == face ? px : (int)Gui.Round(usedSize * scale);
+            if (Kerning && previous >= 0 && used == face) pen += Faces[face].Kern(previous, rune.Value, px);
+            previous = used == face ? rune.Value : -1;
+            var advance = Faces[used].Advance(rune.Value, usedPx);
+            var glyph = GetGlyph(used, usedPx, rune.Value);
             if (glyph.Width > 0)
             {
                 var gx = origin + Gui.Round(pen) + glyph.Left;

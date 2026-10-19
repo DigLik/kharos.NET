@@ -67,5 +67,28 @@
     "remember": [
       "Building"
     ]
+  },
+  "frames": {
+    "about": "Для сверки кадров с TS (сцены с панелями, ViewerScenes): как test, но с подачей base — панель игрока и выбор щелчком.",
+    "title": "Кадры",
+    "size": 128,
+    "fog": true,
+    "land": "default",
+    "start": false,
+    "credits": 0,
+    "remember": [
+      "Building"
+    ],
+    "client": {
+      "controls": [
+        "select"
+      ],
+      "ui": [
+        "hud"
+      ],
+      "atmosphere": [
+        "weather"
+      ]
+    }
   }
 }

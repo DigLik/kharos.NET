@@ -36,6 +36,10 @@
     <!-- Звук клиентской части base (банк, голоса, обработчики) — те же файлы, что в client.wasm. -->
     <Compile Include="..\..\mods\base\Base.Client\Sounds\*.cs" Exclude="..\..\mods\base\Base.Client\Sounds\SoundsSection.cs" Link="Base\Sounds\%(Filename)%(Extension)" />
     <Compile Include="..\..\mods\base\Base.Client\Audio\*.cs" Exclude="..\..\mods\base\Base.Client\Audio\AudioSection.cs" Link="Base\Audio\%(Filename)%(Extension)" />
+    <!-- Сетка команд HUD — чистая функция состояния (К3а): те же файлы, что в client.wasm. -->
+    <Compile Include="..\..\mods\base\Base.Client\Hud\Commands.cs;..\..\mods\base\Base.Client\Hud\Model.cs" Link="Base\Hud\%(Filename)%(Extension)" />
+    <!-- Камера, зона строительства и погода base — чистые модели без состояния мода (К2): те же файлы, что в client.wasm. -->
+    <Compile Include="..\..\mods\base\Base.Client\Camera\CameraModel.cs;..\..\mods\base\Base.Client\Camera\Motion.cs;..\..\mods\base\Base.Client\Camera\Shake.cs;..\..\mods\base\Base.Client\Controls\ZoneOutline.cs;..\..\mods\base\Base.Client\Atmosphere\WeatherModel.cs" Link="Base\Camera\%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

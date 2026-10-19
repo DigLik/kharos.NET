@@ -450,5 +450,19 @@
     "lost": "Server bilan aloqa uzildi",
     "cannotConnect": "{url} serveriga ulanib bo‘lmadi",
     "insecure": "Sahifa https orqali ochilgan, server esa himoyalanmagan ws:// orqali ishlamoqda va brauzer bunday ulanishni bloklamoqda. Ruxsat bering: manzil chapidagi belgi → «Sayt sozlamalari» → «Xavfsiz bo‘lmagan kontent» → «Ruxsat berish», so‘ng yorliqni qayta yuklang. Yoki serverga wss:// orqali ulaning."
+  },
+  "settings": {
+    "video": "Ekran",
+    "fullscreen": "To'liq ekran",
+    "vsync": "Vertikal sinxronlash",
+    "uiScale": "Interfeys masshtabi",
+    "auto": "avto",
+    "keys": "Tugmalar",
+    "keyFullscreen": "To'liq ekran",
+    "keyMenu": "Menyu",
+    "keyChat": "Chat",
+    "pressKey": "tugmani bosing…",
+    "filePath": "Saqlash fayli yo'li",
+    "fileSaved": "Fayl saqlandi: {path}"
   }
 }

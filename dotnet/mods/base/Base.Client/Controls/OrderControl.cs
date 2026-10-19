@@ -22,24 +22,27 @@ internal sealed class OrderControl(BaseState state)
     private void Order(ClientContext c, double x, double y)
     {
         var units = new List<uint>();
-        uint building = 0;
-        foreach (var entity in Shared.Selection(c))
+        var buildings = new List<uint>();
+        var selection = Shared.Selection(c);
+        foreach (var entity in selection)
         {
             if (!c.Mine(entity))
                 continue;
             if (c.Has(entity, P.Mover))
                 units.Add(entity);
             else if (c.Has(entity, P.Producer) && c.Has(entity, P.Building))
-                building = entity;
+                buildings.Add(entity);
         }
         if (units.Count > 0)
         {
             c.Send(PointOrder.Name, MemoryPackSerializer.Serialize(new PointOrder { Units = [.. units], X = x, Y = y, Queue = c.Input.Shift }));
             c.Sound("order", 0.35f);
         }
-        else if (building != 0)
+        // Выбраны только свои производящие здания: правый щелчок задаёт им всем точку сбора.
+        else if (buildings.Count > 0 && buildings.Count == selection.Length)
         {
-            c.Send(RallyOrder.Name, MemoryPackSerializer.Serialize(new RallyOrder { Building = building, X = (int)Math.Floor(x), Y = (int)Math.Floor(y) }));
+            foreach (var building in buildings)
+                c.Send(RallyOrder.Name, MemoryPackSerializer.Serialize(new RallyOrder { Building = building, X = (int)Math.Floor(x), Y = (int)Math.Floor(y) }));
             c.Sound("place", 0.35f);
         }
     }

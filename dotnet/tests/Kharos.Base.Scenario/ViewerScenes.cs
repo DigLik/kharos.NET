@@ -93,6 +93,10 @@ public static class ViewerScenes
             Fog = scene.Fog,
             Players = [.. players],
             Mode = mode,
+            // Сцена с панелями — партия frames (как test, но с подачей base: панель игрока и выбор щелчком).
+            Game = scene.Hud ? "frames" : "test",
+            // Час сцены — настройкой партии (weather.startHour, сутки стоят): его видят часы и свет клиента.
+            Settings = new { weather = new { startHour = scene.Weather.Hour, dayLength = 0 } },
         });
         try
         {
@@ -127,7 +131,18 @@ public static class ViewerScenes
                 // Здание стоит по левому верхнему тайлу: щелчок — в середину основания.
                 if (entity.Kind == "building" && Footprint(sim, entity.Type) is var (w, h))
                     (x, y) = (x + w / 2.0, y + h / 2.0);
+                // С панелями щелчок может прийтись на них: на время щелчка камера ставит сущность под верхнюю полосу.
+                if (scene.Hud)
+                {
+                    viewer.Camera = new CameraState(x, y + (scene.Height / 2.0 - 100) / scene.Camera.Zoom, scene.Camera.Zoom);
+                    viewer.Step();
+                }
                 viewer.ClickWorld(x, y, shift: i > 0);
+            }
+            if (scene.Hud)
+            {
+                viewer.Camera = new CameraState(scene.Camera.X, scene.Camera.Y, scene.Camera.Zoom);
+                viewer.Step();
             }
             return (sim, viewer, ids);
         }

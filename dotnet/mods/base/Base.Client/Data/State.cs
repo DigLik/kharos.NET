@@ -24,8 +24,18 @@ internal sealed class Parts(LoadContext ctx)
     public ComponentRef Deploys { get; } = ctx.Component("Deploys");
     public ComponentRef Player { get; } = ctx.Component("Player");
 
+    /// <summary>Наука игрока на сущности счёта и состояние лаборатории (раздел Research).</summary>
+    public ComponentRef Science { get; } = ctx.Component("Science");
+    public ComponentRef Research { get; } = ctx.Component("Research");
+    public ComponentRef Off { get; } = ctx.Component("Off");
+
     /// <summary>Слой месторождений: предметы «вид, остаток».</summary>
     public LayerRef? Deposits { get; } = ctx.Layer("deposits");
+
+    /// <summary>Стройка (площадка), укладка покрытия и слой готового покрытия — раздел Controls (постановка, зоны).</summary>
+    public ComponentRef Site { get; } = ctx.Component("Site");
+    public ComponentRef Pave { get; } = ctx.Component("Pave");
+    public LayerRef? Paving { get; } = ctx.Layer("paving");
 }
 
 /// <summary>Данные, компоненты, подача партии и вспомогательные чтения мира — общие для разделов клиента.</summary>
