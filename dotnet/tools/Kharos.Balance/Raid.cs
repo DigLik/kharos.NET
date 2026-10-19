@@ -168,14 +168,25 @@ public static class Raid
         double flow = 0;
         var costs = new Dictionary<string, string> { ["pipe"] = "pipe", ["mine"] = "mine", ["yard"] = "metalYard" };
         var metalPrice = Lib.Data.Resources["metal"].Price;
+        // Все набеги (отряд, цель, с турелью и без) — разом.
+        var attempts = (
+            from squad in Squads
+            from target in Targets
+            from guarded in new[] { false, true }
+            select (Squad: squad, Target: target, Guarded: guarded)).ToList();
+        var results = Work.Map(attempts, item =>
+        {
+            Progress($"  набег: {item.Squad.Name}, {item.Target.Name}{(item.Guarded ? ", с турелью" : "")}");
+            return Attempt(item.Squad, item.Target.Target, item.Guarded);
+        });
+        var next = 0;
         foreach (var squad in Squads)
         {
             var price = squad.Units.Sum(type => Lib.Data.Units[type].Cost);
             foreach (var (target, name) in Targets)
             {
-                Progress($"  набег: {squad.Name}, {name}");
-                var open = Attempt(squad, target, false);
-                var guarded = Attempt(squad, target, true);
+                var open = results[next++];
+                var guarded = results[next++];
                 flow = open.Flow;
                 var rebuild = Lib.Data.Buildings[costs[target]].Cost;
                 // Простой: линия стоит, пока один строитель отстраивает снесённое. Труба режет линию только пока её нет.

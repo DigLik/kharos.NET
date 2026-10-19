@@ -4,9 +4,10 @@ using Kharos.Balance;
 namespace Kharos.Base.Tests.Balance;
 
 /// <summary>
-/// Балансный харнесс против эталонов TS (docs/dotnet-n5.md, Н5.6): сцены tools/Kharos.Balance прогоняются на .NET и
-/// сверяются с <c>Balance/golden/*.json</c> (<c>KHAROS_HARNESS_JSON=1 bun tools/balance.ts all</c>) с допуском: доли ±5%, время
-/// ±2 с, счёт ±1. Долгие (минуты) и нужны не в каждом прогоне, поэтому <c>Explicit</c>: запускаются руками,
+/// Балансный харнесс против эталонов (docs/dotnet-n5.md, Н5.6): сцены tools/Kharos.Balance прогоняются на .NET и
+/// сверяются с <c>Balance/golden/*.json</c> с допуском: доли ±5%, время
+/// ±2 с, счёт ±1. Сцены раздела считаются разом (<c>Kharos.Balance.Work</c>: KHAROS_BALANCE_JOBS, по умолчанию все ядра).
+/// Долгие (минуты) и нужны не в каждом прогоне, поэтому <c>Explicit</c>: запускаются руками,
 /// <c>dotnet run -c Release --project tests/Kharos.Base.Tests -- --explicit only --filter-class "*BalanceTests"</c>
 /// (или <c>--filter-method "*Siege"</c> для одного). Режим кода мода — <c>KHAROS_MODS</c> (CLR по умолчанию). Что .NET пока
 /// не считает, харнесс пропускает с причиной (<c>SkipItem</c>) — такие куски перечислены в выводе теста, но не валят его.
@@ -34,32 +35,27 @@ public sealed class BalanceTests
         Assert.True(result.Share <= allowed, report.ToString());
     }
 
-    [Fact(Explicit = true, DisplayName = "баланс: боевые числа юнитов (таблица из данных) совпадают с TS")]
+    [Fact(Explicit = true, DisplayName = "баланс: боевые числа юнитов (таблица из данных) совпадают с эталоном")]
     public void CombatTable() => Check("combat", "table", 0, 3);
 
-    [Fact(Explicit = true, DisplayName = "баланс: парные бои отрядов равной цены совпадают с TS (долго: до получаса, KHAROS_BALANCE_JOBS ускоряет)")]
-    public void CombatDuels()
-    {
-        if (Environment.GetEnvironmentVariable("KHAROS_BALANCE_JOBS") is null)
-            Kharos.Balance.Combat.Jobs = Math.Max(1, Math.Min(4, Environment.ProcessorCount / 2));
-        Check("combat", "duel", 3, 3);
-    }
+    [Fact(Explicit = true, DisplayName = "баланс: парные бои отрядов равной цены совпадают с эталоном")]
+    public void CombatDuels() => Check("combat", "duel", 3, 3);
 
-    [Fact(Explicit = true, DisplayName = "баланс: рудник, производство и разгон совпадают с TS")]
+    [Fact(Explicit = true, DisplayName = "баланс: рудник, производство и разгон совпадают с эталоном")]
     public void Economy() => Check("economy", "economy");
 
-    [Fact(Explicit = true, DisplayName = "баланс: штурм узла обороны совпадает с TS")]
+    [Fact(Explicit = true, DisplayName = "баланс: штурм узла обороны совпадает с эталоном")]
     public void Siege() => Check("siege", "siege");
 
-    [Fact(Explicit = true, DisplayName = "баланс: набег на экономику совпадает с TS")]
+    [Fact(Explicit = true, DisplayName = "баланс: набег на экономику совпадает с эталоном")]
     public void Raid() => Check("raid", "raid");
 
-    [Fact(Explicit = true, DisplayName = "баланс: компоненты и лестница исследований совпадают с TS")]
+    [Fact(Explicit = true, DisplayName = "баланс: компоненты и лестница исследований совпадают с эталоном")]
     public void Research() => Check("research", "research");
 
-    [Fact(Explicit = true, DisplayName = "баланс: ядерный удар и защита — цены, взрыв, удар по базе песочницы и залп против перехватчика совпадают с TS")]
+    [Fact(Explicit = true, DisplayName = "баланс: ядерный удар и защита — цены, взрыв, удар по базе песочницы и залп против перехватчика совпадают с эталоном")]
     public void Nuke() => Check("nuke", "nuke");
 
-    [Fact(Explicit = true, DisplayName = "баланс: движение — строй, окружение, строители, нагрузка совпадают с TS")]
+    [Fact(Explicit = true, DisplayName = "баланс: движение — строй, окружение, строители, нагрузка совпадают с эталоном")]
     public void Movement() => Check("movement", "movement");
 }

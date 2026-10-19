@@ -37,13 +37,15 @@ public static class Modes
     {
         if (mode == "all")
         {
-            foreach (var name in All)
-                Report.Section(name, Table[name]);
+            // Разделы идут разом, каждый в свой буфер; выводятся по порядку.
+            var outputs = Report.Gather([.. All.Select(name => Table[name])]);
+            for (var i = 0; i < All.Length; i++)
+                Report.Section(All[i], outputs[i]);
             return true;
         }
         if (!Table.TryGetValue(mode, out var run))
             return false;
-        Report.Section(mode, run);
+        Report.Section(mode, Report.Collect(run));
         return true;
     }
 }
@@ -58,6 +60,11 @@ public static class Program
     public static int Main(string[] args)
     {
         Console.OutputEncoding = new UTF8Encoding(false);
+        // Код мода по умолчанию — host.wasm: модуль компилируется раз на процесс, а в режиме CLR каждая партия заново грузит и
+        // компилирует сборку мода в своей AssemblyLoadContext — на сотнях коротких боёв разом это упирается в JIT. Числа те же
+        // до байта (Combat.ParityTests); KHAROS_MODS=clr — по-старому.
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("KHAROS_MODS")))
+            Environment.SetEnvironmentVariable("KHAROS_MODS", "wasm");
         var json = Environment.GetEnvironmentVariable("KHAROS_HARNESS_JSON") == "1";
         var outDir = Environment.GetEnvironmentVariable("KHAROS_HARNESS_OUT") is { Length: > 0 } env ? env : null;
         string? mode = null;

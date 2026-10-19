@@ -142,18 +142,25 @@ public static class Movement
     public static void PrintFormation()
     {
         Log("\nСтрой на сухом ровном поле: средние на юнит. Поворот по прямой в чистом поле — почти ноль; всё сверх — вихляние");
-        var rows = new List<object[]>();
-        foreach (var type in new[] { "infantry", "lancer", "tank" })
+        // Все сцены (вид и сцена) — разом.
+        var scenes = (
+            from type in new[] { "infantry", "lancer", "tank" }
+            from scene in Enumerable.Range(0, 3)
+            select (Type: type, Scene: scene)).ToList();
+        var rows = Work.Map(scenes, item =>
         {
-            Progress($"  строй: {type}");
+            var type = item.Type;
+            if (item.Scene == 0)
             {
+                Progress($"  строй: {type}");
                 // Марш строем 4×4 на ~38 тайлов.
                 using var sim = Lib.NewSim();
                 var at = DryArena(sim, 60, 30);
                 var units = Block(sim, type, 1, 16, at.X + 2, at.Y + 10, 4);
                 sim.Now(1, new MoveOrder { Units = [.. units], X = at.X + 40, Y = at.Y + 12 });
-                rows.Add(FormationRow("марш 16", type, Follow(sim, units, 60)));
+                return FormationRow("марш 16", type, Follow(sim, units, 60));
             }
+            if (item.Scene == 1)
             {
                 // Две группы по 12 меняются местами лоб в лоб.
                 using var sim = Lib.NewSim();
@@ -162,7 +169,7 @@ public static class Movement
                 var right = Block(sim, type, 1, 12, at.X + 50, at.Y + 8, 3);
                 sim.Now(1, new MoveOrder { Units = [.. left], X = at.X + 52, Y = at.Y + 10 });
                 sim.Now(1, new MoveOrder { Units = [.. right], X = at.X + 4, Y = at.Y + 10 });
-                rows.Add(FormationRow("встречные 12+12", type, Follow(sim, [.. left, .. right], 90)));
+                return FormationRow("встречные 12+12", type, Follow(sim, [.. left, .. right], 90));
             }
             {
                 // 12 атакуют одну цель среди десятка смирных пехотинцев.
@@ -172,9 +179,9 @@ public static class Movement
                 var foes = Block(sim, "infantry", Training, 10, at.X + 40, at.Y + 9, 5, 1);
                 sim.Now(Training, new StanceOrder { Units = [.. foes], Stance = "passive" });
                 sim.Now(1, new AttackOrder { Units = [.. own], Target = foes[2] });
-                rows.Add(FormationRow("атака 12", type, Follow(sim, own, 30, () => false)));
+                return FormationRow("атака 12", type, Follow(sim, own, 30, () => false));
             }
-        }
+        });
         Table(["сцена", "вид", "время, с", "стоял, с", "крутился", "смен пов.", "поворот"], rows, 16, 10);
     }
 
@@ -229,10 +236,18 @@ public static class Movement
         var fired = 0;
         var total = 0;
         (string Type, int Count, int Cols)[] squads = [("lancer", 12, 4), ("tank", 10, 4), ("infantry", 20, 5), ("flamer", 16, 4), ("tesla", 8, 4), ("artillery", 8, 4), ("buggy", 12, 4)];
-        foreach (var (type, count, cols) in squads)
+        int[] shifts = [-8, 0, 9];
+        // Все расстановки всех отрядов — разом.
+        var sieges = Work.Map([.. squads.SelectMany(squad => shifts.Select(shift => (Squad: squad, Shift: shift)))], item =>
         {
-            Progress($"  окружение: {type}");
-            var results = new[] { -8, 0, 9 }.Select(shift => Besiege(type, count, cols, shift)).ToList();
+            if (item.Shift == shifts[0])
+                Progress($"  окружение: {item.Squad.Type}");
+            return Besiege(item.Squad.Type, item.Squad.Count, item.Squad.Cols, item.Shift);
+        });
+        for (var s = 0; s < squads.Length; s++)
+        {
+            var (type, count, _) = squads[s];
+            var results = sieges.Skip(s * shifts.Length).Take(shifts.Length).ToList();
             var lately = results.Sum(result => result.Lately);
             fired += lately;
             total += count * results.Count;
@@ -294,7 +309,6 @@ public static class Movement
         Log("\nСтроители едут на стройку генератора (2×2); луч строителя — 5 тайлов. «минимум» — сколько ехать до края луча");
         const string type = "generator";
         var (width, height) = Lib.SizeOf(type);
-        var rows = new List<object[]>();
         (string Scene, (int Dx, int Dy)[] Offsets)[] scenes =
         [
             ("один издалека", [(-12, 0)]),
@@ -303,8 +317,11 @@ public static class Movement
             ("на площадке", [(0, 0), (1, 1)]),
             ("с четырёх сторон", [(-12, 0), (13, 1), (1, -12), (1, 13)]),
         ];
-        foreach (var (scene, offsets) in scenes)
+        // Все сцены — разом.
+        var rows = Work.Map(scenes, item =>
         {
+            var (scene, offsets) = item;
+            Progress($"  строители: {scene}");
             var (sim, siteX, siteY) = Base();
             using var _ = sim;
             double Edge(double x, double y) => Math.Sqrt(Math.Pow(Math.Max(Math.Max(siteX - x, x - siteX - width), 0), 2) + Math.Pow(Math.Max(Math.Max(siteY - y, y - siteY - height), 0), 2));
@@ -333,10 +350,11 @@ public static class Movement
                         started[builders[i]] = (tick + 1) * Lib.Tick;
                 }
             }
+            var lines = new List<object[]>();
             for (var i = 0; i < builders.Count; i++)
             {
                 var position = sim.At(builders[i]);
-                rows.Add([
+                lines.Add([
                     i != 0 ? "" : scene,
                     Round(Edge(from[i].X, from[i].Y), 1),
                     started.TryGetValue(builders[i], out var begun) ? Round(begun, 1) : "—",
@@ -344,8 +362,9 @@ public static class Movement
                     Round(Math.Max(0, Edge(from[i].X, from[i].Y) - 5), 1),
                     Round(Edge(position.X, position.Y), 1)]);
             }
-        }
-        Table(["сцена", "до края", "работает", "проехал", "минимум", "встал от"], rows, 18, 10);
+            return lines;
+        });
+        Table(["сцена", "до края", "работает", "проехал", "минимум", "встал от"], rows.SelectMany(lines => lines), 18, 10);
     }
 
     /// <summary>Гоняет ticks тиков: среднее и худшее время тика в мс. Поиск пути движка в .NET не считается (в TS — тайлов за тик).</summary>
@@ -373,8 +392,13 @@ public static class Movement
     public static void PrintLoad()
     {
         Log("\nНагрузка: время тика в мс (бюджет — 50) и тайлов поиска пути за тик");
-        var rows = new List<object[]>();
-        foreach (var count in new[] { 200, 1000, 2000 })
+        // Сцены — разом: марши, 150 на одну цель, бой 100 на 100.
+        (string Name, Func<object[]> Run)[] scenes =
+            [("марш 200", () => March(200)), ("марш 1000", () => March(1000)), ("марш 2000", () => March(2000)), ("150 на одну цель", Crowd), ("бой 100 на 100", Battle)];
+        var rows = Work.Map(scenes.Select(scene => new Named<object[]>(scene.Name, scene.Run)).ToList(), scene => scene.Run());
+        Table(["сцена", "стоят", "идут", "худший", "поиск"], rows, 22, 9);
+
+        static object[] March(int count)
         {
             Progress($"  нагрузка: марш {count} лансеров");
             // Армия лансеров стоит, потом идёт строем на 40 тайлов дальше своего края.
@@ -400,8 +424,10 @@ public static class Movement
             var idle = Measure(sim, 100);
             sim.Now(1, new MoveOrder { Units = [.. units], X = JsRound(start.X + side * 1.5 + 40), Y = JsRound(start.Y + side * 0.75) });
             var moving = Measure(sim, 200);
-            rows.Add([$"марш {count} лансеров", idle.Mean, moving.Mean, moving.Worst, moving.Search]);
+            return [$"марш {count} лансеров", idle.Mean, moving.Mean, moving.Worst, moving.Search];
         }
+
+        static object[] Crowd()
         {
             // Полторы сотни разных юнитов на одну цель: худший случай для мест вокруг цели.
             Progress("  нагрузка: 150 на одну цель");
@@ -417,8 +443,10 @@ public static class Movement
                 sim.Set(target, "Health.value", 1);
                 return true;
             });
-            rows.Add(["150 на одну цель", "", result.Mean, result.Worst, result.Search]);
+            return ["150 на одну цель", "", result.Mean, result.Worst, result.Search];
         }
+
+        static object[] Battle()
         {
             // Бой двух армий по сотне: как в показательном бою, приказы раз в четверть секунды.
             Progress("  нагрузка: бой 100 на 100");
@@ -428,9 +456,8 @@ public static class Movement
             var army = Enumerable.Range(0, 100).Select(i => kinds[i % 7]).ToList();
             sim.SpawnBattle(1, at.X + 30, at.Y + 20, army, army, 15);
             var result = Measure(sim, (int)(60 / Lib.Tick), tick => tick % 5 != 0 || sim.DriveBattle(1));
-            rows.Add(["бой 100 на 100", "", result.Mean, result.Worst, result.Search]);
+            return ["бой 100 на 100", "", result.Mean, result.Worst, result.Search];
         }
-        Table(["сцена", "стоят", "идут", "худший", "поиск"], rows, 22, 9);
     }
 
     /// <summary>Состав армии перехода: пехота, техника всех весов и немного авиации.</summary>
@@ -537,26 +564,23 @@ public static class Movement
     public static void PrintCrossing()
     {
         Log($"\nПереход: {CrossingArmy.Sum(item => item.Count)} разных юнитов через карту 512×512 по диагонали (~611 тайлов), до {CrossingLimit} минут игры");
-        var rows = new List<object[]>();
-        foreach (var seed in new int?[] { null, 1, 2, 3, 4, 5, 6 })
+        // KHAROS_BALANCE_ONLY=3 — только карта с этим зерном (обычная — «обычная»), для быстрой проверки. Карты — разом.
+        static string NameOf(int? seed) => seed is { } value ? Num(value) : "обычная";
+        var only = Environment.GetEnvironmentVariable("KHAROS_BALANCE_ONLY");
+        var seeds = new int?[] { null, 1, 2, 3, 4, 5, 6 }.Where(seed => only is not { Length: > 0 } || only == NameOf(seed)).ToList();
+        var rows = Work.Map(seeds, seed =>
         {
-            var name = seed is { } value ? Num(value) : "обычная";
-            // KHAROS_BALANCE_ONLY=3 — только карта с этим зерном (обычная — «обычная»), для быстрой проверки.
-            if (Environment.GetEnvironmentVariable("KHAROS_BALANCE_ONLY") is { Length: > 0 } only && only != name)
-                continue;
-            Progress($"  переход: карта {name}");
-            rows.AddRange(Cross(seed));
-        }
-        Table(["карта", "доехали", "последний", "дольше всех стоял", "скорость", "худший", "поиск"], rows, 10, 13);
+            Progress($"  переход: карта {NameOf(seed)}");
+            return Cross(seed);
+        });
+        Table(["карта", "доехали", "последний", "дольше всех стоял", "скорость", "худший", "поиск"], rows.SelectMany(map => map), 10, 13);
         Log("  «последний» — когда доехал последний, с; «дольше всех стоял» — подряд с приказом, с; «худший» — тик, мс");
     }
 
     /// <summary>Все замеры движения, кроме долгого перехода.</summary>
     public static void Run()
     {
-        PrintFormation();
-        PrintSurround();
-        PrintBuilders();
-        PrintLoad();
+        // Куски — разом. Время тика в «нагрузке» под общей нагрузкой машины выше, чем в одиночку (с эталоном не сверяется).
+        Report.Parallel(PrintFormation, PrintSurround, PrintBuilders, PrintLoad);
     }
 }

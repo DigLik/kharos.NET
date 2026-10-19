@@ -89,18 +89,13 @@ public static class Siege
     private enum Guard { Bare, Repair, Shield }
 
     /// <summary>Узел обороны в симуляции: стены, турели и строитель внутри (repair) или щит с электростанцией (shield).</summary>
-    private static (Sim Sim, Spot[] Turrets, Spot Gate, uint First) Node(Guard guard)
+    private static (Sim Sim, Spot[] Turrets, Spot Gate) Node(Guard guard)
     {
         var sim = Lib.NewSim();
         var at = Ground(sim, 2 * Ring + 3, 2 * Ring + 3);
         var (walls, turrets) = Layout(at.X + 1, at.Y + 1);
-        uint first = 0;
         foreach (var spot in walls.Concat(turrets))
-        {
-            var entity = sim.PutBuilding(spot.Type, spot.X, spot.Y, Defender);
-            if (first == 0)
-                first = entity;
-        }
+            sim.PutBuilding(spot.Type, spot.X, spot.Y, Defender);
         sim.SetCredits(Defender, RepairCredits);
         if (guard == Guard.Shield)
         {
@@ -122,7 +117,7 @@ public static class Siege
         }
         // Стена, которую будут пробивать: середина левой.
         var gate = walls.First(spot => spot.X == at.X + 1 && spot.Y == at.Y + 1 + Ring);
-        return (sim, turrets, gate, first);
+        return (sim, turrets, gate);
     }
 
     /// <summary>Итог одного штурма: секунда пролома (0 — не пробили), потери юнитов и кредитов, снесено турелей, траты на ремонт.</summary>
@@ -131,13 +126,8 @@ public static class Siege
     /// <summary>Один штурм: узел, отряд, приказы и замер.</summary>
     private static Result Assault(Squad squad, Guard guard)
     {
-        var (sim, turrets, gate, first) = Node(guard);
+        var (sim, turrets, gate) = Node(guard);
         using var _ = sim;
-        // Приказ напоминают раз в OrdersTicks тиков, а гонящийся без пути ищет его в свою очередь раз в SCAN_TICKS (5) тиков
-        // по номеру сущности (onTurn). Напоминание снимает путь, и итог штурма зависит от того, сколько тиков между
-        // очередью юнита и напоминанием. В TS сцена — первые сущности мира (первая стена — 1), здесь перед ней счета игроков:
-        // номера сдвинуты на first − 1. Сдвиг напоминаний на столько же тиков возвращает очередям юнитов тот же лад, что в TS.
-        var phase = (int)((first - 1) % (uint)OrdersTicks);
         sim.SpawnBattle(1, gate.X, gate.Y, squad.Units, [], Gap);
         var kind = squad.Units[0];
         var air = Lib.Data.Units[kind].Kind == "air";
@@ -147,7 +137,7 @@ public static class Siege
         var killed = 0;
         for (var tick = 0; tick < (int)Math.Round(Limit / Lib.Tick); tick++)
         {
-            if (tick == 0 || (tick + phase) % OrdersTicks == 0)
+            if (tick % OrdersTicks == 0)
             {
                 if (Lib.CountUnits(sim, 1, kind) == 0)
                     break;
@@ -206,14 +196,18 @@ public static class Siege
     {
         Log("\nШтурм узла обороны: кольцо стен 7×7, внутри стрелковая, ракетная и пушечная турели");
         Log($"  атакующие встают в {Gap} тайлах и бьют в стену, после пролома — в турели; винтокрылы летят через стену");
-        var all = new List<(Squad Squad, double Cost, Result Bare, Result Repair, Result Shield)>();
-        foreach (var squad in Squads)
+        var only = Environment.GetEnvironmentVariable("KHAROS_BALANCE_ONLY");
+        var squads = Squads.Where(squad => only is not { Length: > 0 } || squad.Name.Contains(only)).ToList();
+        // Все штурмы (отряд и оборона) — разом.
+        Guard[] guards = [Guard.Bare, Guard.Repair, Guard.Shield];
+        var assaults = squads.SelectMany(squad => guards.Select(guard => (Squad: squad, Guard: guard))).ToList();
+        var results = Work.Map(assaults, item =>
         {
-            if (Environment.GetEnvironmentVariable("KHAROS_BALANCE_ONLY") is { Length: > 0 } only && !squad.Name.Contains(only))
-                continue;
-            Progress($"  штурм: {squad.Name}");
-            all.Add((squad, squad.Units.Sum(type => Lib.Data.Units[type].Cost), Assault(squad, Guard.Bare), Assault(squad, Guard.Repair), Assault(squad, Guard.Shield)));
-        }
+            Progress($"  штурм: {item.Squad.Name}, {item.Guard}");
+            return Assault(item.Squad, item.Guard);
+        });
+        var all = squads.Select((squad, i) => (Squad: squad, Cost: squad.Units.Sum(type => Lib.Data.Units[type].Cost),
+            Bare: results[3 * i], Repair: results[3 * i + 1], Shield: results[3 * i + 2])).ToList();
         var rows = new List<object[]>();
         foreach (var item in all)
         {

@@ -78,31 +78,50 @@ internal static class Attack
                 continue;
             // Приказ атаки снимает патруль и возвращение на место.
             ClearTactics(call, entity);
-            if (Aim(call, entity, target, air))
+            // Отступление от TS: тот же приказ повторно (игрок снова щёлкнул по той же цели) оставляет путь погони к ней.
+            // В TS путь снимается всегда, а снятый прокладывается заново лишь в очередь юнита раз в SCAN_TICKS тиков, и
+            // юнит, чья очередь выпадает на тик перед повтором, при частых повторах не трогался бы с места вовсе.
+            var again = Chasing(call, entity, target);
+            if (Aim(call, entity, target, air, again))
             {
                 // Прежний путь больше не нужен: к цели юнит тронется сам в ближайший тик.
-                call.Remove(entity, S.Path);
+                if (!again)
+                    call.Remove(entity, S.Path);
                 ordered = true;
                 continue;
             }
-            // Безоружный носитель подвозит турели на выстрел.
+            // Безоружный носитель подвозит турели на выстрел; повтор — если все взявшие цель турели уже гнались за ней.
             var any = false;
+            again = true;
             foreach (var turret in Factory.TurretsOf(call, entity))
-                any |= Aim(call, turret, target, air);
+            {
+                var chasing = Chasing(call, turret, target);
+                if (!Aim(call, turret, target, air, chasing))
+                    continue;
+                any = true;
+                again &= chasing;
+            }
             if (!any)
                 continue;
-            call.Remove(entity, S.Path);
+            if (!again)
+                call.Remove(entity, S.Path);
             ordered = true;
         }
         return ordered;
     }
 
-    /// <summary>Берёт ли цель этот стрелок; взял — Armed с погоней по приказу.</summary>
-    private static bool Aim(Call call, uint entity, uint target, bool air)
+    /// <summary>Гонится ли стрелок уже за этой целью по приказу игрока.</summary>
+    private static bool Chasing(Call call, uint gunner, uint target) =>
+        call.Has(gunner, S.Armed) && call.Num(gunner, S.Armed, R.ArmedTarget) == target
+        && call.Flag(gunner, S.Armed, R.ArmedChase) && call.Flag(gunner, S.Armed, R.ArmedOrdered);
+
+    /// <summary>Берёт ли цель этот стрелок; взял — Armed с погоней по приказу. Повтор (again) погоню не трогает.</summary>
+    private static bool Aim(Call call, uint entity, uint target, bool air, bool again)
     {
         if (!call.Has(entity, S.Armed) || WeaponOf(call, entity) is not { } weapon || (air ? !weapon.Air : weapon.OnlyAir))
             return false;
-        call.Set(entity, S.Armed).Number(R.ArmedTarget, target).Flag(R.ArmedChase, true).Flag(R.ArmedOrdered, true).Number(R.ArmedStuck, 0);
+        if (!again)
+            call.Set(entity, S.Armed).Number(R.ArmedTarget, target).Flag(R.ArmedChase, true).Flag(R.ArmedOrdered, true).Number(R.ArmedStuck, 0);
         return true;
     }
 

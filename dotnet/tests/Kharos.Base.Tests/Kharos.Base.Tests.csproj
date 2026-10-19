@@ -42,7 +42,7 @@
     <Using Include="Kharos.Base.Scenario" />
     <!-- Эталоны графики из TS (dump.ts) — рядом с тестами. -->
     <None Include="Looks\golden\*.json" CopyToOutputDirectory="PreserveNewest" />
-    <!-- Эталоны баланса из TS (KHAROS_HARNESS_JSON=1 bun tools/balance.ts all) — для tools/Kharos.Balance. -->
+    <!-- Эталоны баланса — вывод tools/Kharos.Balance (all с ключом out); прежние из TS лежат в Balance/golden/ts и не копируются. -->
     <None Include="Balance\golden\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -626,10 +626,15 @@ public static class Economy
     /// <summary>Раздел целиком: сначала рудник, потом производство по его выручке, потом разгон.</summary>
     public static void Run()
     {
-        PrintLineMath();
-        var lineRate = MeasureMine();
-        PrintProduction(lineRate);
-        PrintProducts();
-        PrintOpening();
+        // Рудник с тем, что считается по его выручке, и разгон — две партии разом.
+        Report.Parallel(
+            () =>
+            {
+                PrintLineMath();
+                var lineRate = MeasureMine();
+                PrintProduction(lineRate);
+                PrintProducts();
+            },
+            PrintOpening);
     }
 }

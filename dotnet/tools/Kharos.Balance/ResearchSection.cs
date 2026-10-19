@@ -64,33 +64,45 @@ public static class ResearchSection
         double[] radii = [100, 200, 300];
         var reach = new List<double>[] { [], [], [] };
         var whole = Ladder(Session).Parts;
-        foreach (var size in new[] { 256, 1024, 2048 })
+        int[] sizes = [256, 1024, 2048];
+        // Все карты (размер и зерно) — разом.
+        var maps = Work.Map([.. sizes.SelectMany(size => Enumerable.Range(0, 3).Select(n => (Size: size, N: n)))], map =>
         {
+            var (size, n) = map;
+            Progress($"  карта {size}, зерно {n}");
+            using var sim = Sim.Create(new SimOptions { Size = size / 2, Land = Lib.LandWithSeed(1337 + n * 7919), Players = [], Rules = new { protection = 0 } });
+            var spots = DepositsOf(sim, size / 2);
+            var kharite = spots.Where(spot => spot.Kind == "kharite").ToList();
+            var near = new List<double>[] { [], [], [] };
+            // Досягаемость меряем на карте, где есть куда расти: от каждого двадцатого месторождения как от базы.
+            if (size == 2048)
+            {
+                var half = size / 2.0 - radii[2];
+                for (var i = 0; i < spots.Count; i++)
+                {
+                    var baseSpot = spots[i];
+                    if (i % 20 != 0 || Math.Abs(baseSpot.X) > half || Math.Abs(baseSpot.Y) > half)
+                        continue;
+                    for (var r = 0; r < radii.Length; r++)
+                        near[r].Add(kharite.Where(spot => Math.Sqrt(Math.Pow(spot.X - baseSpot.X, 2) + Math.Pow(spot.Y - baseSpot.Y, 2)) <= radii[r]).Sum(spot => spot.Reserve));
+                }
+            }
+            return (All: spots.Count, Count: kharite.Count, Total: kharite.Sum(spot => spot.Reserve), Near: near);
+        });
+        for (var s = 0; s < sizes.Length; s++)
+        {
+            var size = sizes[s];
             var counts = new List<int>();
             var totals = new List<double>();
             var all = 0;
             for (var n = 0; n < 3; n++)
             {
-                Progress($"  карта {size}, зерно {n}");
-                using var sim = Sim.Create(new SimOptions { Size = size / 2, Land = Lib.LandWithSeed(1337 + n * 7919), Players = [], Rules = new { protection = 0 } });
-                var spots = DepositsOf(sim, size / 2);
-                var kharite = spots.Where(spot => spot.Kind == "kharite").ToList();
-                all += spots.Count;
-                counts.Add(kharite.Count);
-                totals.Add(kharite.Sum(spot => spot.Reserve));
-                // Досягаемость меряем на карте, где есть куда расти: от каждого двадцатого месторождения как от базы.
-                if (size == 2048)
-                {
-                    var half = size / 2.0 - radii[2];
-                    for (var i = 0; i < spots.Count; i++)
-                    {
-                        var baseSpot = spots[i];
-                        if (i % 20 != 0 || Math.Abs(baseSpot.X) > half || Math.Abs(baseSpot.Y) > half)
-                            continue;
-                        for (var r = 0; r < radii.Length; r++)
-                            reach[r].Add(kharite.Where(spot => Math.Sqrt(Math.Pow(spot.X - baseSpot.X, 2) + Math.Pow(spot.Y - baseSpot.Y, 2)) <= radii[r]).Sum(spot => spot.Reserve));
-                    }
-                }
+                var map = maps[s * 3 + n];
+                all += map.All;
+                counts.Add(map.Count);
+                totals.Add(map.Total);
+                for (var r = 0; r < radii.Length; r++)
+                    reach[r].AddRange(map.Near[r]);
             }
             var parts = totals.Average() / RefineRatio / KhariteForPart;
             rows.Add([$"{size}×{size}", Economy.JsRound(all / 3.0), $"{counts.Min()}–{counts.Max()}", Economy.JsRound(parts), Round(parts / whole, 1)]);
@@ -316,10 +328,18 @@ public static class ResearchSection
 
     public static void Run()
     {
-        PrintSupply();
-        PrintMap();
-        var (rate, first) = MeasureLine();
-        PrintLadder(rate, first);
-        PrintLevels();
+        // Карты и живая линия — разом.
+        Report.Parallel(
+            () =>
+            {
+                PrintSupply();
+                PrintMap();
+            },
+            () =>
+            {
+                var (rate, first) = MeasureLine();
+                PrintLadder(rate, first);
+                PrintLevels();
+            });
     }
 }

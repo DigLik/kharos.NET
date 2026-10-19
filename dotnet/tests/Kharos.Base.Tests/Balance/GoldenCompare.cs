@@ -5,7 +5,7 @@ using Kharos.Balance;
 
 namespace Kharos.Base.Tests.Balance;
 
-/// <summary>Итог сверки раздела с эталоном TS: расхождения, пропущенные куски и сколько ячеек сверено.</summary>
+/// <summary>Итог сверки раздела с эталоном: расхождения, пропущенные куски и сколько ячеек сверено.</summary>
 public sealed record CompareResult(List<string> Diffs, List<string> Skipped, int Cells)
 {
     /// <summary>Доля ячеек и строк с расхождением.</summary>
@@ -13,7 +13,7 @@ public sealed record CompareResult(List<string> Diffs, List<string> Skipped, int
 }
 
 /// <summary>
-/// Сверка вывода харнесса .NET (<see cref="Item"/>) с эталоном TS (golden/*.json) с допуском: числа — на 5% (целые — ещё и на
+/// Сверка вывода харнесса .NET (<see cref="Item"/>) с эталоном (golden/*.json) с допуском: числа — на 5% (целые — ещё и на
 /// единицу: счёт ±1), время «м:сс» — на 2 секунды (или 5%), строки — как есть. Кусок, который .NET пропускает
 /// (<see cref="SkipItem"/>), закрывает столько элементов эталона, сколько в нём сказано, и сверку не проходит, а попадает в
 /// отчёт. Таблицы замеров времени тика (заголовок «сцена, стоят, идут…») зависят от машины и числами не сверяются.
@@ -63,7 +63,7 @@ public static class GoldenCompare
                 case TextItem text when expected["text"] is { } line:
                     cells++;
                     if (CompareText(line.GetValue<string>(), text.Text) is { } why)
-                        diffs.Add($"#{at} текст: {why}\n    TS:   {line.GetValue<string>()}\n    .NET: {text.Text}");
+                        diffs.Add($"#{at} текст: {why}\n    эталон: {line.GetValue<string>()}\n    .NET:   {text.Text}");
                     break;
                 case TableItem table when expected["table"] is JsonObject golden_:
                     cells += CompareTable(at, golden_, table, diffs);
@@ -92,12 +92,12 @@ public static class GoldenCompare
         var actualHead = actual.Head.Select(cell => Convert.ToString(cell, CultureInfo.InvariantCulture) ?? "").ToList();
         if (!head.SequenceEqual(actualHead))
         {
-            diffs.Add($"#{at} заголовок таблицы: TS [{string.Join(", ", head)}], .NET [{string.Join(", ", actualHead)}]");
+            diffs.Add($"#{at} заголовок таблицы: эталон [{string.Join(", ", head)}], .NET [{string.Join(", ", actualHead)}]");
             return 1;
         }
         var rows = golden["rows"]!.AsArray();
         if (rows.Count != actual.Rows.Count)
-            diffs.Add($"#{at} таблица [{string.Join(", ", head)}]: строк {rows.Count} в TS и {actual.Rows.Count} в .NET");
+            diffs.Add($"#{at} таблица [{string.Join(", ", head)}]: строк {rows.Count} в эталоне и {actual.Rows.Count} в .NET");
         // Замеры времени тика зависят от машины: форму сверяем, числа — нет.
         var timings = head.Count >= 4 && head[0] == "сцена" && head[1] == "стоят";
         var count = 0;
@@ -107,7 +107,7 @@ public static class GoldenCompare
             var row = actual.Rows[r];
             if (expected.Count != row.Length)
             {
-                diffs.Add($"#{at} строка {r}: ячеек {expected.Count} в TS и {row.Length} в .NET");
+                diffs.Add($"#{at} строка {r}: ячеек {expected.Count} в эталоне и {row.Length} в .NET");
                 continue;
             }
             for (var c = 0; c < row.Length; c++)
@@ -116,7 +116,7 @@ public static class GoldenCompare
                 if (timings && c > 0)
                     continue;
                 if (CompareCell(expected[c]!, row[c]) is { } why)
-                    diffs.Add($"#{at} строка {r} «{Text(expected[0])}», столбец «{head[c]}»: {why} (TS {Text(expected[c])}, .NET {Convert.ToString(row[c], CultureInfo.InvariantCulture)})");
+                    diffs.Add($"#{at} строка {r} «{Text(expected[0])}», столбец «{head[c]}»: {why} (эталон {Text(expected[c])}, .NET {Convert.ToString(row[c], CultureInfo.InvariantCulture)})");
             }
         }
         return count;
@@ -128,9 +128,9 @@ public static class GoldenCompare
     {
         if (golden is JsonValue value && value.TryGetValue<double>(out var number))
             return actual is string text
-                ? (double.TryParse(text, CultureInfo.InvariantCulture, out var parsed) && Close(number, parsed) ? null : "в TS число, в .NET строка")
+                ? (double.TryParse(text, CultureInfo.InvariantCulture, out var parsed) && Close(number, parsed) ? null : "в эталоне число, в .NET строка")
                 : Close(number, Convert.ToDouble(actual, CultureInfo.InvariantCulture)) ? null : "число вне допуска";
-        return actual is string actualText ? CompareText(Text(golden), actualText) : $"в TS строка, в .NET {actual}";
+        return actual is string actualText ? CompareText(Text(golden), actualText) : $"в эталоне строка, в .NET {actual}";
     }
 
     /// <summary>Числа в допуске: 5% (целые — ещё и ±1).</summary>

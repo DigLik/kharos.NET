@@ -27,9 +27,6 @@ public static class Combat
 
     private static BaseTables Data => Lib.Data;
 
-    /// <summary>Сколько боёв считается разом: KHAROS_BALANCE_JOBS, по умолчанию один. Бои независимы, результат от числа потоков не зависит.</summary>
-    public static int Jobs { get; set; } = int.TryParse(Environment.GetEnvironmentVariable("KHAROS_BALANCE_JOBS"), out var parsed) && parsed > 0 ? parsed : 1;
-
     /// <summary>Всё оружие юнита: своё и на его турелях.</summary>
     private static List<string> WeaponsOf(string type)
     {
@@ -99,25 +96,10 @@ public static class Combat
         return left;
     }
 
-    /// <summary>Парный бой: у каждой стороны столько юнитов, сколько влезает в DuelBudget кредитов. Возвращает победы стороны a.</summary>
-    private static int Duel(string a, string b)
-    {
-        var countA = Math.Max(1, (int)Math.Floor(DuelBudget / Data.Units[a].Cost));
-        var countB = Math.Max(1, (int)Math.Floor(DuelBudget / Data.Units[b].Cost));
-        var own = Enumerable.Repeat(a, countA).ToList();
-        var foe = Enumerable.Repeat(b, countB).ToList();
-        var winsA = 0;
-        for (var round = 0; round < Rounds; round++)
-        {
-            // Дистанция боя меняется от раунда к раунду: так видно, решает ли бой дальнобойность.
-            var result = Fight(own, foe, 4 + round);
-            if (result.Own > 0 && result.Foe == 0)
-                winsA++;
-        }
-        return winsA;
-    }
+    /// <summary>Отряд парного боя: столько юнитов вида, сколько влезает в DuelBudget кредитов.</summary>
+    private static List<string> DuelSquad(string type) => Enumerable.Repeat(type, Math.Max(1, (int)Math.Floor(DuelBudget / Data.Units[type].Cost))).ToList();
 
-    /// <summary>Печатает таблицу парных боёв: строка побеждает столбец.</summary>
+    /// <summary>Печатает таблицу парных боёв: строка побеждает столбец. Все бои таблицы (пара и раунд) считаются разом.</summary>
     public static void PrintDuels()
     {
         var types = Rows().Select(row => row.Type).ToList();
@@ -125,25 +107,26 @@ public static class Combat
         var print = Grid(["", .. types]);
         // KHAROS_BALANCE_ONLY=infantry,flamer — только эти строки таблицы (для быстрой проверки); KHAROS_BALANCE_JOBS=N — N боёв разом.
         var only = Environment.GetEnvironmentVariable("KHAROS_BALANCE_ONLY")?.Split(',', StringSplitOptions.RemoveEmptyEntries);
-        var jobs = Jobs;
-        foreach (var a in types)
+        var lines = types.Where(a => only is null || only.Contains(a)).ToList();
+        var fights = (
+            from a in lines
+            from b in types
+            where a != b
+            from round in Enumerable.Range(0, Rounds)
+            select (A: a, B: b, Round: round)).ToList();
+        var won = Work.Map(fights, fight =>
         {
-            if (only is not null && !only.Contains(a))
-                continue;
-            var cells = new string[types.Count];
-            Parallel.For(0, types.Count, new ParallelOptions { MaxDegreeOfParallelism = jobs }, column =>
-            {
-                var b = types[column];
-                if (a == b)
-                {
-                    cells[column] = "—";
-                    return;
-                }
-                Progress($"  бой {a} против {b}");
-                cells[column] = $"{Duel(a, b)}/{Rounds}";
-            });
-            print([a, .. cells]);
-        }
+            if (fight.Round == 0)
+                Progress($"  бой {fight.A} против {fight.B}");
+            // Дистанция боя меняется от раунда к раунду: так видно, решает ли бой дальнобойность.
+            var result = Fight(DuelSquad(fight.A), DuelSquad(fight.B), 4 + fight.Round);
+            return result.Own > 0 && result.Foe == 0;
+        });
+        var wins = new Dictionary<(string, string), int>();
+        for (var i = 0; i < fights.Count; i++)
+            wins[(fights[i].A, fights[i].B)] = wins.GetValueOrDefault((fights[i].A, fights[i].B)) + (won[i] ? 1 : 0);
+        foreach (var a in lines)
+            print([a, .. types.Select(b => a == b ? "—" : $"{wins[(a, b)]}/{Rounds}")]);
     }
 
     /// <summary>Таблица боевых чисел и парные бои разом.</summary>

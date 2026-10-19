@@ -221,9 +221,10 @@ public static class Nuke
         var intercept = Data.Buildings["interceptor"].Intercept!;
         var capacity = (int)intercept.Capacity;
         Log($"\nЗалп против одного перехватчика с полным запасом ({capacity} ракеты): сколько боеголовок дошло");
-        var rows = new List<object[]>();
-        foreach (var count in (int[])[1, capacity, capacity + 1, capacity + 2])
+        // Залпы — разом.
+        var rows = Work.Map((int[])[1, capacity, capacity + 1, capacity + 2], count =>
         {
+            Progress($"  залп: {count}");
             var (sim, target, silos) = Standoff(count, true);
             using var _ = sim;
             var before = Census(sim, 1);
@@ -231,17 +232,22 @@ public static class Nuke
             var after = Census(sim, 1);
             var left = sim.With(Names.Interceptor.Name).Sum(entity => sim.Num(entity, "Interceptor.missiles"));
             var lost = before.Buildings - after.Buildings;
-            rows.Add([count, lost != 0 ? "да" : "нет", lost, before.Cost - after.Cost, left]);
-        }
+            return (object[])[count, lost != 0 ? "да" : "нет", lost, before.Cost - after.Cost, left];
+        });
         Table(["ракет", "пробили", "зданий", "потеряно кр", "осталось у перехв."], rows, 6, 14);
         Log($"  новую ракету перехватчик собирает {Minutes(intercept.Seconds)}: залпы чаще этого его истощают");
     }
 
     public static void Run()
     {
-        PrintPrices();
-        PrintBlast();
-        PrintStrike();
-        PrintVolleys();
+        // Удар и залпы — разом.
+        Report.Parallel(
+            () =>
+            {
+                PrintPrices();
+                PrintBlast();
+                PrintStrike();
+            },
+            PrintVolleys);
     }
 }
