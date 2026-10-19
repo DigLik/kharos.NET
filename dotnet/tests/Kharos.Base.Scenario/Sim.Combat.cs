@@ -22,17 +22,13 @@ public sealed partial class Sim
         Query<ResolvedList>(CombatQueries.Resolve, new ResolveArgs { Player = player, Units = units, X = x, Y = y, Fog = fog }).Items;
 
     /// <summary>
-    /// Стойка юнитов прямо в компоненте Tactics (setStance без приказа: приказ stance — раздел Tactics, С8). Новую тактику
-    /// заводит с полями по умолчанию.
+    /// Стойка юнитов приказом stance от их хозяев (setStance): применится в начале следующего тика, как приказ игрока.
+    /// Безоружные и чужие приказом отсеиваются.
     /// </summary>
     public void SetStance(string stance, params uint[] units)
     {
-        foreach (var unit in units)
-        {
-            if (!Has(unit, Names.Tactics.Name))
-                Add(unit, Names.Tactics.Name);
-            Set(unit, "Tactics.stance", stance);
-        }
+        foreach (var group in units.GroupBy(OwnerOf))
+            Send(group.Key, new StanceOrder { Units = [.. group], Stance = stance });
     }
 
     /// <summary>

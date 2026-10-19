@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Base.Shared.Orders;
 using MemoryPack;
 
@@ -71,14 +72,43 @@ internal static partial class Commands
 
         public override object? Read(ReadOnlySpan<byte> payload)
         {
+            T? order;
             try
             {
-                return MemoryPackSerializer.Deserialize<T>(payload);
+                order = MemoryPackSerializer.Deserialize<T>(payload);
             }
             catch (MemoryPackSerializationException)
             {
                 return null;
             }
+            return order is not null && Whole(order) ? order : null;
+        }
+
+        /// <summary>
+        /// Поля, что у нового приказа не null (массивы, строки, вложенная кисть): MemoryPack пропускает в них null
+        /// (длина −1), а обработчики на null не рассчитаны. Такой payload — кривой, его отвергают, как TS — кривой ввод.
+        /// </summary>
+        private static readonly PropertyInfo[] Required = RequiredOf();
+
+        private static PropertyInfo[] RequiredOf()
+        {
+            var fresh = Activator.CreateInstance<T>();
+            return [.. typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.CanRead && p.CanWrite && !p.PropertyType.IsValueType && p.GetValue(fresh) is not null)];
+        }
+
+        private static bool Whole(T order)
+        {
+            foreach (var property in Required)
+                switch (property.GetValue(order))
+                {
+                    case null:
+                        return false;
+                    // Массив строк: null-строка внутри — тоже кривой ввод.
+                    case object?[] items when Array.IndexOf(items, null) >= 0:
+                        return false;
+                }
+            return true;
         }
 
         public override byte[] Write(object order) => MemoryPackSerializer.Serialize((T)order);

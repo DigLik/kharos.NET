@@ -44,6 +44,9 @@ public sealed class Occupancy
         _open = def.Field("open")!.Slot;
     }
 
+    /// <summary>Номер правки занятости: растёт, когда тайл занят или освобождён (ключ кэша проходимости).</summary>
+    public ulong Version { get; private set; }
+
     /// <summary>Сколько зданий занимают тайлы.</summary>
     public int Count
     {
@@ -152,6 +155,7 @@ public sealed class Occupancy
 
     private void Write(int x, int y, uint entity)
     {
+        Version++;
         if (_bounds is { } map && map.Contains(x, y))
         {
             _grid[(long)(y - map.Top) * map.Width + (x - map.Left)] = entity;

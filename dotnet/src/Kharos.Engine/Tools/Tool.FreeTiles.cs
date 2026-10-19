@@ -17,13 +17,8 @@ public partial class ModTools
         if (count > MaxToolTiles || from > 1024)
             throw new FormatException("FreeTiles: count или from слишком велики");
         var air = (flags & ModAbi.PlanAir) != 0;
-        HashSet<long>? blocked = null;
         // Отрицательный корпус — стоящие не в счёт (freeTilesNear без blocked).
-        if (radius >= 0)
-        {
-            blocked = [];
-            nav.StandingUnits(ignore, radius, air, (flags & ModAbi.PlanJam) != 0, blocked);
-        }
+        var blocked = radius >= 0 ? nav.Standing(ignore, radius, air, (flags & ModAbi.PlanJam) != 0) : null;
         nav.FreeTilesNear(x, y, (int)count, (int)from, blocked, air, _freeTiles, (flags & ModAbi.PlanFoot) != 0);
         U32((uint)(_freeTiles.Count / 2));
         foreach (var value in _freeTiles)

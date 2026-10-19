@@ -174,8 +174,24 @@ public sealed class RoutesTests
         Assert.Equal(0u, hauler.Pickup);
     }
 
-    [Fact(DisplayName = "приказ с Shift прерывает маршрут: грузовик на маршруте не держит группу и идёт с ней", Skip = "ждёт С8: очередь Shift (followOrders, дело без конца)")]
+    [Fact(DisplayName = "приказ с Shift прерывает маршрут: грузовик на маршруте не держит группу и идёт с ней")]
     public void ShiftOrderInterruptsRoute()
     {
+        var (sim, buildings, truck, _, _) = Row(["metalYard", "metalYard"]);
+        using var _sim = sim;
+        var (from, to) = (buildings[0], buildings[1]);
+        var at = sim.At(truck);
+        var tank = Spawn(sim, "tank", 1, (int)Math.Floor(at.X) + 2, (int)Math.Floor(at.Y) + 1);
+        sim.SetStock(from, "metal", 100);
+        sim.Send(1, new RouteOrder { Units = [truck], Stops = [from, to] });
+        sim.Seconds(1);
+        Assert.Equal(2, sim.Hauler(truck).Route.Length);
+        var goal = ((int)Math.Floor(at.X) + 6, (int)Math.Floor(at.Y) + 3);
+        sim.Send(1, new MoveOrder { Units = [truck, tank], X = goal.Item1, Y = goal.Item2, Queue = true });
+        sim.Seconds(0.2);
+        // Маршрут конца не имеет: ждать его танку было бы вечно.
+        Assert.Empty(sim.Hauler(truck).Route);
+        Until(sim, () => Sim.Distance(sim.At(tank), goal) < 2.5, 30);
+        Until(sim, () => Sim.Distance(sim.At(truck), goal) < 2.5, 30);
     }
 }

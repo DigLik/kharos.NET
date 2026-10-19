@@ -12,7 +12,9 @@ namespace Base.Host.Sections.Construction;
 /// <para>
 /// Кэш, производный от мира (docs/dotnet-n5.md, Н5-3): считается по миру до вызова и помнится в экземпляре мода с
 /// ключом — ревизиями состава и мест (<see cref="Tools.Revision"/>). Экземпляр выбросили — пересчёт по тому же миру
-/// даст то же. Записи этого же вызова (новое здание) кэш не видит до следующего вызова.
+/// даст то же. Записи этого же вызова (новое здание) кэш не видит до следующего вызова. Ревизии сменились (в бою — каждый
+/// тик: ходят и гибнут юниты) — сначала пакетом читается то, из чего зоны считаются (здания и стройки с полями); не
+/// изменилось — зоны прежние: они от этого и только от этого зависят.
 /// </para>
 /// </summary>
 internal static class Zones
@@ -118,7 +120,13 @@ internal static class Zones
     }
 
     /// <summary>Забыть посчитанное (resetZones): следующий вызов пересчитает.</summary>
-    public static void Reset() => _key = (ulong.MaxValue, ulong.MaxValue);
+    public static void Reset()
+    {
+        _key = (ulong.MaxValue, ulong.MaxValue);
+        _inputs = null;
+    }
+
+    private static Inputs? _inputs;
 
     private static void Refresh()
     {
@@ -127,18 +135,61 @@ internal static class Zones
         if (key == _key)
             return;
         _key = key;
+        var inputs = Inputs.Read();
+        if (_inputs is not null && inputs.Same(_inputs))
+            return;
+        _inputs = inputs;
         _grids = null;
         _gridIndex = null;
-        Compute();
+        Compute(inputs);
     }
 
-    private static void Compute()
+    /// <summary>Всё, из чего считаются зоны: здания (место, вид, хозяин, разбор) и стройки (то же, есть ли склад и здание).</summary>
+    private sealed class Inputs
+    {
+        public required uint[] Buildings, Sites;
+        public required double[] BuildingValues, SiteValues;
+        public required bool[] BuildingHas, SiteHas, SiteBuilt, SiteStock;
+
+        public static Inputs Read()
+        {
+            var buildings = Core.All(S.Building);
+            var values = new double[buildings.Length * 5];
+            var has = new bool[buildings.Length * 5];
+            Tools.Columns(buildings, [(S.Position, S.PositionX), (S.Position, S.PositionY), (S.Proto, S.ProtoId), (S.Owner, S.OwnerPlayer), (S.Site, Refs.R.SiteDemolish)], values, has);
+            var sites = Core.All(S.Site);
+            var siteValues = new double[sites.Length * 5];
+            var siteHas = new bool[sites.Length * 5];
+            var built = new bool[sites.Length];
+            var stock = new bool[sites.Length];
+            if (sites.Length > 0)
+            {
+                Tools.Columns(sites, [(S.Site, Refs.R.SiteDemolish), (S.Proto, S.ProtoId), (S.Owner, S.OwnerPlayer), (S.Position, S.PositionX), (S.Position, S.PositionY)], siteValues, siteHas);
+                Tools.Has(sites, S.Building, built);
+                Tools.Has(sites, S.Stock, stock);
+            }
+            return new Inputs
+            {
+                Buildings = buildings, BuildingValues = values, BuildingHas = has,
+                Sites = sites, SiteValues = siteValues, SiteHas = siteHas, SiteBuilt = built, SiteStock = stock,
+            };
+        }
+
+        public bool Same(Inputs other) =>
+            Buildings.AsSpan().SequenceEqual(other.Buildings) && Sites.AsSpan().SequenceEqual(other.Sites) &&
+            Bits(BuildingValues).SequenceEqual(Bits(other.BuildingValues)) && Bits(SiteValues).SequenceEqual(Bits(other.SiteValues)) &&
+            BuildingHas.AsSpan().SequenceEqual(other.BuildingHas) && SiteHas.AsSpan().SequenceEqual(other.SiteHas) &&
+            SiteBuilt.AsSpan().SequenceEqual(other.SiteBuilt) && SiteStock.AsSpan().SequenceEqual(other.SiteStock);
+
+        private static ReadOnlySpan<long> Bits(double[] values) => System.Runtime.InteropServices.MemoryMarshal.Cast<double, long>(values.AsSpan());
+    }
+
+    private static void Compute(Inputs inputs)
     {
         // Здания мира: место, размер, вид, хозяин, стройка ли — пакетом.
-        var entities = Core.All(S.Building);
-        var values = new double[entities.Length * 5];
-        var has = new bool[entities.Length * 5];
-        Tools.Columns(entities, [(S.Position, S.PositionX), (S.Position, S.PositionY), (S.Proto, S.ProtoId), (S.Owner, S.OwnerPlayer), (S.Site, Refs.R.SiteDemolish)], values, has);
+        var entities = inputs.Buildings;
+        var values = inputs.BuildingValues;
+        var has = inputs.BuildingHas;
         var n = entities.Length;
         var occupancy = new Dictionary<(int, int), Member>();
         var all = new List<Member>(n);
@@ -264,18 +315,20 @@ internal static class Zones
         }
 
         // Стройка входит в сеть первой трубы, подведённой к её основанию сбоку, или здания того же вида вплотную.
-        var sites = Core.All(S.Site);
-        foreach (var site in sites)
+        var sites = inputs.Sites;
+        var m = sites.Length;
+        for (var i = 0; i < m; i++)
         {
-            if (Tools.Has(site, S.Building) || !Tools.Has(site, S.Stock) || Tools.Get(site, S.Site) is not { } work || work.Number(Refs.R.SiteDemolish) != 0)
+            var site = sites[i];
+            var (column, at) = (inputs.SiteValues, inputs.SiteHas);
+            if (inputs.SiteBuilt[i] || !inputs.SiteStock[i] || !at[i] || column[i] != 0)
                 continue;
-            if (Tools.Get(site, S.Proto) is not { } proto || Core.ProtoName((int)proto.Number(S.ProtoId), "buildings") is not { } type || Factory.Building(type) is not { } spec)
+            if (!at[m + i] || Core.ProtoName((int)column[m + i], "buildings") is not { } type || Factory.Building(type) is not { } spec)
                 continue;
-            var (owner, position) = (Tools.Get(site, S.Owner), Tools.Get(site, S.Position));
-            if (owner is null || position is null)
+            if (!at[2 * m + i] || !at[3 * m + i])
                 continue;
-            var player = (uint)owner.Number(S.OwnerPlayer);
-            var (x, y, w, h) = ((int)position.Number(S.PositionX), (int)position.Number(S.PositionY), (int)spec.Width, (int)spec.Height);
+            var player = (uint)column[2 * m + i];
+            var (x, y, w, h) = ((int)column[3 * m + i], (int)column[4 * m + i], (int)spec.Width, (int)spec.Height);
             Zone? zone = null;
             void Touch(int tx, int ty)
             {

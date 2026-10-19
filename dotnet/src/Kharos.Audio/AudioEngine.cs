@@ -56,6 +56,7 @@ public sealed class AudioEngine
     private readonly SampleBuffer[] _noise;
     private readonly Dictionary<string, VoiceGraph> _kinds = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Sound> _loops = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, float> _loopVolumes = new(StringComparer.Ordinal);
     private readonly VoiceContext _context;
     private uint _seed;
     private uint _nextId = 1;
@@ -153,6 +154,7 @@ public sealed class AudioEngine
     /// <summary>Фоновая петля банка: громкость и сторона меняются плавно; первая просьба заводит её со случайного места.</summary>
     public void Loop(string name, float volume, float pan)
     {
+        _loopVolumes[name] = MathF.Max(volume, 0f);
         if (!_loops.TryGetValue(name, out var sound))
         {
             if (volume <= 0f || !Bank.TryGet(name, out var record))
@@ -166,6 +168,9 @@ public sealed class AudioEngine
         sound.Automate(0, ParamId.Gain, AutomationKind.Target, MathF.Max(volume, 0f), double.NaN, LoopGlide);
         sound.Automate(Engine.Voice.PanIndex, ParamId.Pan, AutomationKind.Target, Math.Clamp(pan, -1f, 1f), double.NaN, LoopGlide);
     }
+
+    /// <summary>Громкость, которую последней просили у петли <see cref="Loop"/> (к ней она идёт плавно); не просили — 0.</summary>
+    public float LoopVolume(string name) => _loopVolumes.GetValueOrDefault(name);
 
     /// <summary>Громкость шины — плавно за 50 мс.</summary>
     public void SetVolume(Bus bus, float volume) => Send(new BusVolume((int)bus, volume));

@@ -58,7 +58,7 @@ public sealed class LogisticsBench
             spent[i] = Haul(sim) - was;
         }
         var peak = spent.Max();
-        var dispatch = spent.Where((_, i) => (sim.Tick - (ulong)ticks + (ulong)i) % 10 == 9).Average();
+        var dispatch = spent.Where((_, i) => (sim.Tick - (ulong)ticks + (ulong)i) % 10 == 0).Average();
         var total = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds / ticks;
         var lines = new List<string> { $"режим {sim.Mode}, {trucks.Count} грузовиков, {buildings} зданий, {ticks} тиков; тик целиком {F(total)} мс" };
         foreach (var timing in sim.Host.Scheduler.Timings())

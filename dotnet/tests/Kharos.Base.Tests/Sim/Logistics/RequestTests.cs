@@ -79,9 +79,19 @@ public sealed class RequestTests
         Assert.Equal(0, Wanted(sim, station, "metal"));
     }
 
-    [Fact(DisplayName = "юниты в кругах станции запроса пополняют магазины из её запаса", Skip = "ждёт С5b: снабжение (магазины юнитов)")]
+    [Fact(DisplayName = "юниты в кругах станции запроса пополняют магазины из её запаса")]
     public void UnitsRefillMagazinesFromStation()
     {
+        var (sim, buildings, _, x, y) = Row(["requestStation"], truck: false, rules: Unprotected);
+        using var _sim = sim;
+        var station = buildings[0];
+        sim.OrderNow(1, new WantOrder { Buildings = [station], Resource = "ammo", Amount = 100 });
+        sim.SetStock(station, "ammo", 100);
+        var tank = Spawn(sim, "tank", 1, x + 11, y + 3);
+        sim.Set(tank, "Magazine.ammo", 0);
+        sim.Seconds(10);
+        Assert.Equal(sim.MagazineOf("tank"), sim.Rounds(tank), 2);
+        Assert.Equal(100 - sim.MagazineOf("tank"), Amount(sim, station, "ammo"), 2);
     }
 
     [Fact(DisplayName = "кнопки заказа: груз, потом количество шагами, не больше склада за вычетом других заказов", Skip = "клиент (Н6): кнопки заказа в интерфейсе")]

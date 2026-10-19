@@ -34,6 +34,11 @@ public sealed class PathSearch
         (1, 1, Diagonal), (1, -1, Diagonal), (-1, 1, Diagonal), (-1, -1, Diagonal),
     ];
 
+    // Те же шаги столбцами — для внутреннего цикла окна.
+    private static readonly int[] StepX = [1, -1, 0, 0, 1, 1, -1, -1];
+    private static readonly int[] StepY = [0, 0, 1, -1, 1, -1, 1, -1];
+    private static readonly double[] StepPrice = [1, 1, 1, 1, Diagonal, Diagonal, Diagonal, Diagonal];
+
     private double _cap = double.PositiveInfinity;
     private uint[] _stamps = [];
     private double[] _costs = [];
@@ -67,7 +72,7 @@ public sealed class PathSearch
     public void CloseQuota(double previous) => _cap = previous;
 
     /// <summary>Кратчайший путь по тайлам (<c>findPath</c>): тайлы подряд x, y без начального; не дойти — к ближайшему к цели.</summary>
-    public void FindPath(IPathGrid grid, int fromX, int fromY, int toX, int toY, double near, double limit, double fastest, List<int> into)
+    public void FindPath<TGrid>(TGrid grid, int fromX, int fromY, int toX, int toY, double near, double limit, double fastest, List<int> into) where TGrid : IPathGrid
     {
         into.Clear();
         var narrowed = _cap - Searched < limit;
@@ -82,7 +87,7 @@ public sealed class PathSearch
         Cut = narrowed && Searched >= _cap;
     }
 
-    private void Search(IPathGrid grid, int fromX, int fromY, int toX, int toY, double near, double limit, double fastest, List<int> into)
+    private void Search<TGrid>(TGrid grid, int fromX, int fromY, int toX, int toY, double near, double limit, double fastest, List<int> into) where TGrid : IPathGrid
     {
         if (!BeyondWindow(fromX, fromY, toX, toY))
         {
@@ -110,7 +115,7 @@ public sealed class PathSearch
         near != 0 ? (double)((x - toX) * (x - toX) + (y - toY) * (y - toY)) <= near * near : x == toX && y == toY;
 
     /// <summary>Поиск внутри окна вокруг старта (<c>findNearPath</c>); false — цель не найдена, а поиск упёрся в край окна.</summary>
-    private bool NearPath(IPathGrid grid, int fromX, int fromY, int toX, int toY, double near, double limit, double fastest, bool partial, List<int> into)
+    private bool NearPath<TGrid>(TGrid grid, int fromX, int fromY, int toX, int toY, double near, double limit, double fastest, bool partial, List<int> into) where TGrid : IPathGrid
     {
         const int size = Window * Window;
         if (_stamps.Length == 0)
@@ -124,9 +129,14 @@ public sealed class PathSearch
         var current = unchecked(++_generation);
         var (originX, originY) = (fromX - Half, fromY - Half);
         const int start = Half * Window + Half;
-        _stamps[start] = current;
-        _costs[start] = 0;
-        _passable[start] = 1;
+        var stamps = _stamps;
+        var costs = _costs;
+        var parents = _parents;
+        var passable = _passable;
+        var prices = _prices;
+        stamps[start] = current;
+        costs[start] = 0;
+        passable[start] = 1;
         var open = _open;
         open.Clear();
         open.Push(start, Estimate(fromX, fromY, toX, toY, fastest));
@@ -134,6 +144,9 @@ public sealed class PathSearch
         var closestDistance = Estimate(fromX, fromY, toX, toY, fastest);
         double visited = 0;
         bool found = false, edge = false;
+        var stepX = StepX;
+        var stepY = StepY;
+        var stepPrice = StepPrice;
         while (open.Count > 0)
         {
             var go = visited < limit;
@@ -150,25 +163,26 @@ public sealed class PathSearch
                 found = true;
                 break;
             }
-            var reached = _costs[at];
-            foreach (var (dx, dy, price) in Steps)
+            var reached = costs[at];
+            for (var k = 0; k < 8; k++)
             {
+                int dx = stepX[k], dy = stepY[k];
                 var (nextX, nextY) = (localX + dx, localY + dy);
-                if (nextX < 0 || nextY < 0 || nextX >= Window || nextY >= Window)
+                if ((uint)nextX >= Window || (uint)nextY >= Window)
                 {
                     edge = true;
                     continue;
                 }
                 var next = nextY * Window + nextX;
-                if (!Free(grid, current, next, x + dx, y + dy))
+                if (!Free(ref grid, current, next, x + dx, y + dy))
                     continue;
-                if (dx != 0 && dy != 0 && (!Free(grid, current, at + dx, x + dx, y) || !Free(grid, current, at + dy * Window, x, y + dy)))
+                if (dx != 0 && dy != 0 && (!Free(ref grid, current, at + dx, x + dx, y) || !Free(ref grid, current, at + dy * Window, x, y + dy)))
                     continue;
-                var total = reached + price * _prices[next];
-                if (total >= _costs[next])
+                var total = reached + stepPrice[k] * prices[next];
+                if (total >= costs[next])
                     continue;
-                _costs[next] = total;
-                _parents[next] = at;
+                costs[next] = total;
+                parents[next] = at;
                 var left = Estimate(x + dx, y + dy, toX, toY, fastest);
                 if (left < closestDistance)
                 {
@@ -191,7 +205,8 @@ public sealed class PathSearch
         return true;
     }
 
-    private bool Free(IPathGrid grid, uint current, int index, int x, int y)
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private bool Free<TGrid>(ref TGrid grid, uint current, int index, int x, int y) where TGrid : IPathGrid
     {
         if (_stamps[index] != current)
         {
@@ -205,7 +220,7 @@ public sealed class PathSearch
     }
 
     /// <summary>То же без окна: тайлы — в словарях (<c>findFarPath</c>).</summary>
-    private void FarPath(IPathGrid grid, int fromX, int fromY, int toX, int toY, double near, double limit, double fastest, List<int> into)
+    private void FarPath<TGrid>(TGrid grid, int fromX, int fromY, int toX, int toY, double near, double limit, double fastest, List<int> into) where TGrid : IPathGrid
     {
         long Key(int x, int y) => ((long)y - fromY + Span / 2) * Span + ((long)x - fromX + Span / 2);
         var cost = _farCost;
@@ -268,7 +283,7 @@ public sealed class PathSearch
     }
 
     /// <summary>Свободен ли прямой путь между точками с запасом по бокам и не медленнее концов (<c>isClear</c>).</summary>
-    public static bool IsClear(IPathGrid grid, double fromX, double fromY, double toX, double toY)
+    public static bool IsClear<TGrid>(TGrid grid, double fromX, double fromY, double toX, double toY) where TGrid : IPathGrid
     {
         var (dx, dy) = (toX - fromX, toY - fromY);
         var length = DetMath.Hypot(dx, dy);
@@ -294,7 +309,7 @@ public sealed class PathSearch
     }
 
     /// <summary>Спрямляет путь (<c>smoothPath</c>): дальняя видная точка — скачками вдвое, потом делением пополам.</summary>
-    public static void SmoothPath(IPathGrid grid, double fromX, double fromY, List<double> points, List<double> into)
+    public static void SmoothPath<TGrid>(TGrid grid, double fromX, double fromY, List<double> points, List<double> into) where TGrid : IPathGrid
     {
         into.Clear();
         var (anchorX, anchorY) = (fromX, fromY);

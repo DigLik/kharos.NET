@@ -26,10 +26,9 @@ public sealed class DispatcherTests
     public void OrderWithoutSectionHandlerIsRefusedWithItsPackage()
     {
         using var sim = Create(64);
-        sim.Send(1, new ResearchOrder());
         sim.Send(1, new LaunchOrder());
         sim.Advance();
-        Assert.Equal(["research: ждёт С6", "launch: ждёт С7"], Reasons(sim));
+        Assert.Equal(["launch: ждёт С7"], Reasons(sim));
     }
 
     [Fact]
@@ -44,6 +43,28 @@ public sealed class DispatcherTests
         Assert.Equal(0, sim.Credits(1));
     }
 
+    /// <summary>Payload с null на месте массива или строки (длина −1, 255 255 255 255 в MemoryPack) — кривой ввод: отказ, не ошибка.</summary>
+    [Fact]
+    public void PayloadWithNullArrayOrStringIsRefused()
+    {
+        using var sim = Create(64);
+        static byte[] Nulled<T>(T order, int at)
+        {
+            var bytes = MemoryPackSerializer.Serialize(order);
+            bytes.AsSpan(at, 4).Fill(255);
+            return bytes;
+        }
+        // Заголовок класса — байт числа полей; дальше поля по порядку.
+        sim.Send(1, MoveOrder.Name, Nulled(new MoveOrder(), 1));
+        sim.Send(1, PointOrder.Name, Nulled(new PointOrder(), 1));
+        sim.Send(1, PaveOrder.Name, Nulled(new PaveOrder { Kind = "" }, 1));
+        sim.Send(1, SellOrder.Name, Nulled(new SellOrder { Port = 1 }, 5));
+        // Строка null внутри массива строк.
+        sim.Send(1, FilterOrder.Name, Nulled(new FilterOrder { Goods = [""] }, 9));
+        sim.Advance();
+        Assert.Equal(["move: payload", "order: payload", "pave: payload", "sell: payload", "filter: payload"], Reasons(sim));
+    }
+
     [Fact]
     public void ShiftQueuesOrdersAndPlainOrderForgetsThem()
     {
@@ -53,7 +74,8 @@ public sealed class DispatcherTests
         sim.Send(1, new MoveOrder { Units = [unit], X = 10, Y = 10, Queue = true });
         sim.Send(1, new MoveOrder { Units = [unit], X = 12, Y = 10, Queue = true });
         sim.Advance();
-        Assert.Equal(["move", "move"], sim.Query<NameList>(KernelQueries.Orders, new EntityArgs { Entity = unit }).Items);
+        // Первый приказ очереди свободный юнит берёт в этом же тике (followOrders, раздел Tactics), второй ждёт.
+        Assert.Equal(["move"], sim.Query<NameList>(KernelQueries.Orders, new EntityArgs { Entity = unit }).Items);
         // Чужой юнит в очередь не встаёт.
         sim.Send(2, new MoveOrder { Units = [unit], X = 1, Y = 1, Queue = true });
         sim.Send(1, new StopOrder { Units = [unit] });

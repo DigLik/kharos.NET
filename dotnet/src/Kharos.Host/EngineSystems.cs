@@ -78,7 +78,7 @@ internal static class EngineSystems
     /// <summary>vision (Д4): обзор раз в <see cref="Kharos.Host.Vision.Ticks"/> тиков.</summary>
     private static ISystem UpdateVision(Host host) => new DelegateSystem(ctx =>
     {
-        if (host.Vision is { } vision && ctx.Tick % Kharos.Host.Vision.Ticks == 1)
+        if (host.Vision is { } vision && ctx.Tick % Kharos.Host.Vision.Ticks == 0)
             vision.Update(ctx.World, ctx.Tick);
     });
 
@@ -107,7 +107,7 @@ internal static class EngineSystems
     /// <summary>updateBuildMemory (Д4): игроки запоминают чужие здания, ушедшие из обзора, — на тиках пересчёта обзора.</summary>
     private static ISystem RememberBuildings(Host host) => new DelegateSystem(ctx =>
     {
-        if (host.Vision is { } vision && ctx.Tick % Kharos.Host.Vision.Ticks == 1)
+        if (host.Vision is { } vision && ctx.Tick % Kharos.Host.Vision.Ticks == 0)
             host.Buildings.Update(ctx.World, vision, host.RememberComponents);
     });
 }

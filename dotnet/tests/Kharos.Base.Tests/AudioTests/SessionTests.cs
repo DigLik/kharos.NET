@@ -127,10 +127,12 @@ public sealed class SessionTests
         var factory = factories[0];
         double X() => world.Number(factory, Builtin.Position, 0) + 1.5;
         double Y() => world.Number(factory, Builtin.Position, 1) + 1.5;
+        // Звука ждём по числу отрендеренных отсчётов, а не по часам стенки: под нагрузкой кадров меньше, но отсчёты
+        // считаются по времени кадров, и окно измерения всегда одной длины.
         void Watch(double seconds)
         {
-            var until = DateTime.UtcNow.AddSeconds(seconds);
-            while (DateTime.UtcNow < until)
+            var target = session.Output.Count + (int)(seconds * Rate);
+            while (session.Output.Count < target)
             {
                 session.Look(X(), Y());
                 session.Step();
@@ -141,12 +143,25 @@ public sealed class SessionTests
         Watch(1.5);
         var voices = session.Engine!.ActiveVoices;
         var before = BaseSession.Rms(session.Output, session.Output.Count - Rate, Rate);
+        Assert.Equal(0f, session.Engine.LoopVolume("machinery"));
         session.Game.Send("produce", MemoryPack.MemoryPackSerializer.Serialize(new global::Base.Shared.Orders.ProduceOrder { Producer = factory, Unit = "builder" }));
-        Watch(2);
+        // Петля цеха заводится, когда хост (под нагрузкой он медленнее) начал производство и клиент это увидел. Меряем саму
+        // петлю — громкость, которую звук машин просит у неё, а не уровень всего вывода: на него под нагрузкой влияет
+        // остальной фон, и сравнение «до и после» выходило случайным.
+        var started = DateTime.UtcNow.AddSeconds(60);
+        while (session.Engine.LoopVolume("machinery") <= 0)
+        {
+            Assert.True(DateTime.UtcNow < started, "петля цеха не завелась");
+            session.Look(X(), Y());
+            session.Step();
+            Thread.Sleep(10);
+        }
+        Watch(1);
+        var level = session.Engine.LoopVolume("machinery");
         var after = BaseSession.Rms(session.Output, session.Output.Count - Rate, Rate);
-        Report(string.Create(CultureInfo.InvariantCulture, $"Главное здание: фон {before:F5}, с цехом {after:F5}, голосов {voices} → {session.Engine.ActiveVoices}"));
-        Assert.True(session.Engine.ActiveVoices > voices, "петля цеха не завелась");
-        Assert.True(after > 1.5 * before, $"цех не слышен: {before} → {after}");
+        Report(string.Create(CultureInfo.InvariantCulture, $"Главное здание: петля цеха {level:F4}, фон {before:F5}, с цехом {after:F5}, голосов {voices} → {session.Engine.ActiveVoices}"));
+        // Цех посреди экрана: громкость петли — 0,25 × (1 − e^(−близость/3)), близость у середины — около 1.
+        Assert.True(level > 0.03, $"петля цеха тиха: {level}");
         Assert.Empty(session.Game.Errors);
     }
 

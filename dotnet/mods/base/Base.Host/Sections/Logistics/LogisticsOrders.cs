@@ -28,9 +28,21 @@ internal static class LogisticsOrders
         Commands.Handle<WantOrder>(WantOrder.Name, (call, player, order) => SetWanted(Pass.Of(call), player, order.Buildings, order.Resource, order.Amount));
         // Приказ идти или стоять снимает строителя с поручения, грузовик — с работы, шахты, маршрута и приказа.
         Commands.OnRelease(Release);
+        // Грузовик, погибший в бою, отпускается перед удалением (releaseHauler в combat.ts).
+        Combat.Hooks.ReleaseHauler = ReleaseDead;
         Commands.Resolve(HaulPriority, ResolveHaul);
         Commands.Resolve(PickupPriority, ResolvePickup);
         Commands.Resolve(SupplyPriority, ResolveSupply);
+    }
+
+    /// <summary>Гибель грузовика в бою (releaseHauler, Combat.Hooks.ReleaseHauler): снимает с него дела до удаления.</summary>
+    public static void ReleaseDead(Call call, uint unit)
+    {
+        if (!call.Has(unit, S.Hauler))
+            return;
+        var truck = Truck.Read(new View(call), unit);
+        truck.Release();
+        truck.Save(call);
     }
 
     private static void Release(Call call, uint unit)

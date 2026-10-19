@@ -189,12 +189,15 @@ public sealed class WebSocketTransportTests
     public async Task ServerDropWithoutCloseFrameIsError()
     {
         await using var server = await TestServer.StartAsync();
-        server.Handler = (socket, _) =>
+        // Рвём не сразу после принятия: на загруженной машине Abort обгонял ответ рукопожатия, и падал сам Connect
+        // (обрыв во время рукопожатия — другой случай). Ждём первое сообщение клиента: он уже подключён.
+        server.Handler = async (socket, cancel) =>
         {
+            await socket.ReceiveAsync(new byte[16], cancel);
             socket.Abort();
-            return Task.CompletedTask;
         };
         using var transport = await Connect(server);
+        transport.Send([1]);
         Assert.Null(await Wait.For(transport.ReceiveAsync().AsTask(), "обрыв"));
         Assert.True(transport.Closed);
         Assert.NotNull(transport.CloseReason);

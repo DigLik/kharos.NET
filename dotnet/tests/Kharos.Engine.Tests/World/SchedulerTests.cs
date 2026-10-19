@@ -67,7 +67,9 @@ public sealed class SchedulerTests
         var scheduler = new Scheduler(Fixtures.World(), [Spec("slow", ctx => ticks.Add(ctx.Tick), every: 4)]);
         for (var i = 0; i < 12; i++)
             scheduler.Step(0.05);
-        Assert.Equal([4ul, 8, 12], ticks);
+        // Тик системы — с нуля, как time.tick в TS: кратные 4 — 0, 4 и 8; после 12 тиков номер — 12.
+        Assert.Equal([0ul, 4, 8], ticks);
+        Assert.Equal(12ul, scheduler.Tick);
     }
 
     [Fact]
@@ -126,7 +128,7 @@ public sealed class SchedulerTests
         scheduler.Step(0.05);
         scheduler.Step(0.05);
         Assert.Equal([1, 2], counts);
-        Assert.Equal(2.0, world.Number(2, drive, 1));
+        Assert.Equal(1.0, world.Number(2, drive, 1));
     }
 
     [Fact]
@@ -246,11 +248,11 @@ public sealed class SchedulerTests
     {
         var scheduler = new Scheduler(Fixtures.World(), [Spec("shoot", ctx => ctx.Commands.Signal("shot", [1]), every: 2)]);
         scheduler.Step(0.05);
-        Assert.Empty(scheduler.Signals);
-        scheduler.Step(0.05);
         Assert.Equal("shot", Assert.Single(scheduler.Signals).Name);
         scheduler.Step(0.05);
         Assert.Empty(scheduler.Signals);
+        scheduler.Step(0.05);
+        Assert.Equal("shot", Assert.Single(scheduler.Signals).Name);
         Assert.Single(scheduler.Timings(), timing => timing.Name == "shoot");
     }
 

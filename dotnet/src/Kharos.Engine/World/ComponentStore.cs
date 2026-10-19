@@ -31,6 +31,12 @@ public sealed class ComponentStore
     public ComponentDef Def { get; }
     public int Count => _count;
 
+    /// <summary>
+    /// Номер правки хранилища: растёт при любой правке — строка добавлена или снята, записано поле. Ключ кэша движка,
+    /// производного от этого компонента (стоящие юниты для поиска пути).
+    /// </summary>
+    public ulong Version { get; internal set; }
+
     /// <summary>Сущности в порядке строк.</summary>
     public ReadOnlySpan<uint> Entities => _entities.AsSpan(0, _count);
 
@@ -45,15 +51,25 @@ public sealed class ComponentStore
     /// <summary>Значение байтового поля (по <see cref="FieldDef.Slot"/>) в строке.</summary>
     public ReadOnlySpan<byte> BytesAt(int slot, int row) => _bytes[slot][row];
 
-    internal Span<double> MutableColumn(int slot) => _columns[slot].AsSpan(0, _count);
+    internal Span<double> MutableColumn(int slot)
+    {
+        Version++;
+        return _columns[slot].AsSpan(0, _count);
+    }
+
     internal double[] RawColumn(int slot) => _columns[slot];
 
     internal byte[] RawBytes(int slot, int row) => _bytes[slot][row];
-    internal void SetBytes(int slot, int row, byte[] value) => _bytes[slot][row] = value;
+    internal void SetBytes(int slot, int row, byte[] value)
+    {
+        Version++;
+        _bytes[slot][row] = value;
+    }
 
     /// <summary>Новая строка со значениями по умолчанию.</summary>
     internal int AddRow(uint entity)
     {
+        Version++;
         var row = _count;
         if (row == _entities.Length)
             Grow(Math.Max(16, row * 2));
@@ -74,6 +90,7 @@ public sealed class ComponentStore
         var row = _sparse.Get(entity);
         if (row < 0)
             return false;
+        Version++;
         _sparse.Clear(entity);
         var last = --_count;
         if (row != last)

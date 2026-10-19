@@ -125,7 +125,7 @@ public sealed partial class CombatTests
         Assert.True(blasted);
     }
 
-    [Fact(DisplayName = "танк наводит башню, а не корпус, стреляет на ходу, а без цели ровняет башню по корпусу", Skip = "ждёт С5b: restTurrets — без цели башня ровняется по корпусу")]
+    [Fact(DisplayName = "танк наводит башню, а не корпус, стреляет на ходу, а без цели ровняет башню по корпусу")]
     public void TankAimsTurret()
     {
         var (sim, x, y) = Field();

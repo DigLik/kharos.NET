@@ -78,6 +78,33 @@ public sealed partial class Navigation
     /// </summary>
     public bool IsWalkable(int x, int y, bool foot = false)
     {
+        if (Bounds is not { } map)
+            return Walkable(x, y, foot);
+        if (!map.Contains(x, y))
+            return false;
+        // Проходимость тайла помнится, пока не правили землю, занятость и ворота (Footprint).
+        Occupancy.Refresh();
+        var key = (Land?.Revision ?? 0, Occupancy.Version, World.Store(Builtin.Footprint).Version);
+        if (key != _walkKey || _walk.Length == 0)
+        {
+            if (_walk.Length == 0)
+                _walk = new byte[(long)map.Width * map.Height];
+            else
+                Array.Clear(_walk);
+            _walkKey = key;
+        }
+        ref var bits = ref _walk[(long)(y - map.Top) * map.Width + (x - map.Left)];
+        if (bits == 0)
+            bits = (byte)(1 | (Walkable(x, y, false) ? 2 : 0) | (Walkable(x, y, true) ? 4 : 0));
+        return (bits & (foot ? 4 : 2)) != 0;
+    }
+
+    private byte[] _walk = [];
+    private (int, ulong, ulong) _walkKey;
+
+    /// <summary><see cref="IsWalkable"/> без памяти.</summary>
+    private bool Walkable(int x, int y, bool foot)
+    {
         if (!InBounds(x, y))
             return false;
         var (terrain, _, cliff) = TileAt(x, y);
@@ -266,7 +293,7 @@ public sealed partial class Navigation
     /// Проходимые тайлы вокруг точки, от ближних к дальним, через шаг группы (<c>freeTilesNear</c>): не больше count
     /// тайлов x, y подряд в into; с кольца fromRadius; blocked — тоже не годятся; air — места летающим.
     /// </summary>
-    public void FreeTilesNear(int x, int y, int count, int fromRadius, HashSet<long>? blocked, bool air, List<int> into, bool foot = false)
+    public void FreeTilesNear(int x, int y, int count, int fromRadius, StandingTiles? blocked, bool air, List<int> into, bool foot = false)
     {
         into.Clear();
         var searchRadius = Math.Min(MaxGroupRadius, Math.Max(8, (int)Math.Ceiling(Math.Sqrt(count))));
@@ -277,7 +304,7 @@ public sealed partial class Navigation
                     if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != radius)
                         continue;
                     var (tileX, tileY) = (x + dx * GroupSpacing, y + dy * GroupSpacing);
-                    if (into.Count >= count * 2 || (blocked is not null && blocked.Contains(Key(tileX, tileY))))
+                    if (into.Count >= count * 2 || (blocked is not null && blocked.Contains(tileX, tileY)))
                         continue;
                     if (CanStand(air, tileX, tileY, foot))
                     {

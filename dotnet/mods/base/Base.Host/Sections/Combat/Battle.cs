@@ -554,29 +554,29 @@ internal sealed partial class Battle
         mark.Arms |= (weapon.OnlyAir ? 0 : 1) | (weapon.Air ? 2 : 0);
     }
 
-    /// <summary>Уходит из дома в погоню (leaveHome): тактика запоминает, откуда ушёл.</summary>
+    /// <summary>
+    /// Уходит из дома в погоню (leaveHome): тактика запоминает, откуда ушёл. В патруле возвращаться некуда. Запись — хук
+    /// раздела Tactics, если он есть; кэш тактики тика обновляется в любом случае.
+    /// </summary>
     private void LeaveHome(uint entity)
     {
-        if (Hooks.LeaveHome is { } hook)
-        {
-            hook(_call, entity);
-            if (_tactics.TryGetValue(entity, out var known))
-                known.Away = true;
-            return;
-        }
         var tactics = TacticsOf(entity);
         if (tactics is not null && (tactics.Away || PatrolOf(entity) > 0))
             return;
         var mark = MarkOf(entity);
         var (x, y) = mark is not null ? (mark.X, mark.Y) : _call.At(entity);
         var (homeX, homeY) = (Math.Floor(x), Math.Floor(y));
+        if (Hooks.LeaveHome is { } hook)
+            hook(_call, entity);
+        else if (tactics is null)
+            _call.Add(entity, S.Tactics).Flag(R.TacticsAway, true).Number(R.TacticsHomeX, homeX).Number(R.TacticsHomeY, homeY);
+        else
+            _call.Set(entity, S.Tactics).Flag(R.TacticsAway, true).Number(R.TacticsHomeX, homeX).Number(R.TacticsHomeY, homeY);
         if (tactics is null)
         {
-            _call.Add(entity, S.Tactics).Flag(R.TacticsAway, true).Number(R.TacticsHomeX, homeX).Number(R.TacticsHomeY, homeY);
             _tactics[entity] = new TacticsState { Stance = Stance.Defensive, Away = true, HomeX = homeX, HomeY = homeY };
             return;
         }
-        _call.Set(entity, S.Tactics).Flag(R.TacticsAway, true).Number(R.TacticsHomeX, homeX).Number(R.TacticsHomeY, homeY);
         tactics.Away = true;
         tactics.HomeX = homeX;
         tactics.HomeY = homeY;

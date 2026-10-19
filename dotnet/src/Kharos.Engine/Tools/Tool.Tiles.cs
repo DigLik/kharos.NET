@@ -28,9 +28,18 @@ public partial class ModTools
         }
         var into = Room((int)(w * h));
         var i = 0;
-        for (var tileY = y; tileY < y + h; tileY++)
-            for (var tileX = x; tileX < x + w; tileX++)
+        // Обход по смещениям в long: x + w у края int (int.MaxValue) не переполняется и цикл не зацикливается;
+        // тайл за пределами int — вне карты, нулевой байт.
+        for (var dy = 0L; dy < h; dy++)
+            for (var dx = 0L; dx < w; dx++)
             {
+                var (longX, longY) = (x + dx, y + dy);
+                if (longX > int.MaxValue || longY > int.MaxValue)
+                {
+                    into[i++] = 0;
+                    continue;
+                }
+                var (tileX, tileY) = ((int)longX, (int)longY);
                 var (terrain, _, foot) = nav.TileAt(tileX, tileY);
                 byte bits = 0;
                 if (nav.InBounds(tileX, tileY))

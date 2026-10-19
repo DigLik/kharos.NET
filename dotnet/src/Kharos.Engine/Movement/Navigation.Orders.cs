@@ -86,9 +86,8 @@ public sealed partial class Navigation
         plan.Air = air;
         var jam = tries >= JamTries;
         var group = ignore is null ? new HashSet<uint> { entity } : (ignore.Contains(entity) ? ignore : new HashSet<uint>(ignore) { entity });
-        var taken = new HashSet<long>();
-        StandingUnits(group, unit.Radius, air, jam, taken);
-        if (near == 0 && taken.Contains(Key(x, y)))
+        var taken = Standing(group, unit.Radius, air, jam);
+        if (near == 0 && taken.Contains(x, y))
         {
             var free = new List<int>(2);
             FreeTilesNear(x, y, 1, 1, taken, air, free);
@@ -197,7 +196,7 @@ public sealed partial class Navigation
     /// Ближайший к (x, y) тайл, где наземный может стоять и нет стоящих (<c>nearestStand</c>), не дальше
     /// <see cref="StandRadius"/> колец; среди равноудалённых — ближний к (fromX, fromY).
     /// </summary>
-    private (int X, int Y)? NearestStand(int x, int y, int fromX, int fromY, bool foot, HashSet<long> taken)
+    private (int X, int Y)? NearestStand(int x, int y, int fromX, int fromY, bool foot, StandingTiles taken)
     {
         for (var ring = 1; ring <= StandRadius; ring++)
         {
@@ -209,7 +208,7 @@ public sealed partial class Navigation
                     if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != ring)
                         continue;
                     var (tileX, tileY) = (x + dx, y + dy);
-                    if (!IsWalkable(tileX, tileY, foot) || taken.Contains(Key(tileX, tileY)))
+                    if (!IsWalkable(tileX, tileY, foot) || taken.Contains(tileX, tileY))
                         continue;
                     var order = (double)(dx * dx + dy * dy) * 1e6 + (double)(tileX - fromX) * (tileX - fromX) + (double)(tileY - fromY) * (tileY - fromY);
                     if (order >= bestOrder)
@@ -224,17 +223,19 @@ public sealed partial class Navigation
     }
 
     /// <summary>Сетка поиска пути юнита: свой тайл проходим всегда, занятое стоящими — нет; цена шага — по местности.</summary>
-    private sealed class Walker(Navigation nav, int fromX, int fromY, bool foot, Chassis chassis, double radius, HashSet<long> taken) : IPathGrid
+    private readonly struct Walker(Navigation nav, int fromX, int fromY, bool foot, Chassis chassis, double radius, StandingTiles taken) : IPathGrid
     {
-        public bool Walkable(int x, int y) => (x == fromX && y == fromY) || (nav.IsWalkable(x, y, foot) && !taken.Contains(Key(x, y)));
+        public bool Walkable(int x, int y) => (x == fromX && y == fromY) || (nav.IsWalkable(x, y, foot) && !taken.Contains(x, y));
 
         public double Slowness(int x, int y) => 1 / nav.TerrainSpeed(chassis, radius, x, y);
     }
 
     /// <summary>Сетка «где может стоять это тело» без цены шага: проверка прямой мимо занятой точки.</summary>
-    internal sealed class StandGrid(Navigation nav, bool air, bool foot) : IPathGrid
+    internal readonly struct StandGrid(Navigation nav, bool air, bool foot) : IPathGrid
     {
         public bool Walkable(int x, int y) => nav.CanStand(air, x, y, foot);
+
+        public double Slowness(int x, int y) => 1;
     }
 
     // Группа.
@@ -280,8 +281,7 @@ public sealed partial class Navigation
             group.Add(all[i]);
             radius = Math.Max(radius, Unit(all[i]).Radius);
         }
-        var taken = new HashSet<long>();
-        StandingUnits(group, radius, air, false, taken);
+        var taken = Standing(group, radius, air, false);
         var tiles = new List<int>();
         FreeTilesNear(x, y, units.Count, 0, taken, air, tiles);
         if (tiles.Count == 0)
@@ -402,8 +402,7 @@ public sealed partial class Navigation
         var height = h != 0 ? h : r * 2;
         var size = unit.Radius;
         var reach = Math.Max(0, radius - ApproachMargin);
-        var taken = new HashSet<long>();
-        StandingUnits(new HashSet<uint> { entity }, size, false, false, taken);
+        var taken = Standing(new HashSet<uint> { entity }, size, false, false);
         var span = Math.Ceiling(reach + size);
         var foot = unit.Chassis.Foot;
         var places = new List<(int X, int Y, double Order, int Index)>();
@@ -417,7 +416,7 @@ public sealed partial class Navigation
                 if (!IsWalkable(tileX, tileY, foot) || Occupancy.SiteAt(tileX, tileY) != 0)
                     continue;
                 var distance = DetMath.Hypot(tileX + 0.5 - unit.X, tileY + 0.5 - unit.Y);
-                places.Add((tileX, tileY, distance + (taken.Contains(Key(tileX, tileY)) ? 1e6 : 0), places.Count));
+                places.Add((tileX, tileY, distance + (taken.Contains(tileX, tileY) ? 1e6 : 0), places.Count));
             }
         // Сортировка JS устойчива: равные — в порядке обхода.
         places.Sort((a, b) => a.Order != b.Order ? a.Order.CompareTo(b.Order) : a.Index.CompareTo(b.Index));

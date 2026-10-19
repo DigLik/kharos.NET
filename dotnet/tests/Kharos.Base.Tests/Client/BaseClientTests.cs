@@ -109,19 +109,16 @@ public sealed class BaseClientTests
         Assert.Equal("Багги", session.InfoTitle());
         Assert.Contains("Прочность 150 · Скорость 6 · Обзор 11", session.Texts());
 
-        // Правый щелчок — приказ точкой: едет только выбранная, остальные стоят.
+        // Правый щелчок — приказ точкой: едет только выбранная, остальные стоят. Shift — следующий приказ встаёт в
+        // очередь едущей багги; доехав, она берёт его сама (followOrders; свободный юнит взял бы его сразу, как в TS).
         var target = (X: start[buggies[0]].X + 6, Y: start[buggies[0]].Y - 4);
+        var queued = (X: target.X - 3, Y: target.Y + 2);
         session.Click(PointerButtons.Right, frame.View.ToScreen((float)target.X, (float)target.Y));
-        session.Until(_ => Dist(session.At(buggies[0]), target) < 2.5, "выбранная багги доехала");
+        session.Click(PointerButtons.Right, frame.View.ToScreen((float)queued.X, (float)queued.Y), shift: true);
+        session.Until(_ => session.Queue(buggies[0]) > 0, "приказ в очереди выделенной багги");
+        session.Until(_ => session.Queue(buggies[0]) == 0 && Dist(session.At(buggies[0]), queued) < 2.5, "багги доехала до точки из очереди");
         foreach (var other in squad.Where(e => e != buggies[0]))
             Assert.True(Dist(session.At(other), start[other]) < 0.5, $"сущность {other} сдвинулась");
-
-        // Shift: приказ встаёт в очередь, багги стоит (дождались, пока кончится путь: Path у едущего юнита есть).
-        session.Until(_ => !session.World.Has(buggies[0], session.World.Schema.Id("Path")), "багги встала");
-        var queued = session.At(buggies[0]);
-        session.Click(PointerButtons.Right, frame.View.ToScreen((float)queued.X - 3, (float)queued.Y + 2), shift: true);
-        session.Until(_ => session.Queue(buggies[0]) > 0, "приказ в очереди выделенной багги");
-        Assert.True(Dist(session.At(buggies[0]), queued) < 0.5);
 
         // Щелчок по пустой земле снимает выделение.
         session.Click(PointerButtons.Left, frame.View.ToScreen(frame.View.X + 14, frame.View.Y - 7));

@@ -48,7 +48,10 @@ public sealed class Scheduler
 
     private CommandScope Scope => new(Layers, Land);
 
-    /// <summary>Номер тика: первый тик — 1. Хранится в сохранении хоста.</summary>
+    /// <summary>
+    /// Номер тика, как time.tick в TS (ecs/loop.ts): приказы и системы тика видят его номер с нуля, после тика он
+    /// растёт на 1 — между тиками это число сделанных тиков. Хранится в сохранении хоста.
+    /// </summary>
     public ulong Tick { get; set; }
 
     /// <summary>Длина тика в секундах.</summary>
@@ -90,13 +93,19 @@ public sealed class Scheduler
     /// <summary>Один тик длиной dt секунд.</summary>
     public void Step(double dt)
     {
-        Tick++;
         Dt = dt;
         _signals.Clear();
-        RunOrders();
-        foreach (var entry in _order)
-            if (Tick % (ulong)entry.Spec.Every == 0)
-                RunSystem(entry);
+        try
+        {
+            RunOrders();
+            foreach (var entry in _order)
+                if (Tick % (ulong)entry.Spec.Every == 0)
+                    RunSystem(entry);
+        }
+        finally
+        {
+            Tick++;
+        }
     }
 
     /// <summary>

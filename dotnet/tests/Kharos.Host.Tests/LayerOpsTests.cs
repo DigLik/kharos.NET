@@ -144,7 +144,8 @@ public sealed class LayerOpsTests
         var items = host.Layers.Items(layer, LayerOwner.World, host.Layers.CellOf(layer, 5.2, 5.7));
         Assert.Equal([TraceLayer.Scar, TraceLayer.Scar, TraceLayer.Wreck], items.Select(item => (int)item.Fields[TraceLayer.Kind]));
         Assert.Equal([1.0, 2.0, 3.0], items.Select(item => item.Fields[TraceLayer.Id]));
-        Assert.All(items, item => Assert.Equal((double)host.Tick, item.Fields[TraceLayer.Tick]));
+        // Тик следа — тот, в котором его положили (с нуля, как в TS); после шага номер тика партии уже следующий.
+        Assert.All(items, item => Assert.Equal((double)host.Tick - 1, item.Fields[TraceLayer.Tick]));
         Assert.Empty(host.Errors);
     }
 

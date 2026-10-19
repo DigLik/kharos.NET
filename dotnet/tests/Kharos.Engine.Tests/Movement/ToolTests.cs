@@ -102,6 +102,18 @@ public sealed class ToolTests
         Assert.NotEqual(plane, U32(clear, 4));
     }
 
+    [Fact(DisplayName = "Tiles у края int: x + w не переполняется, тайлы за int.MaxValue — вне карты")]
+    public void TilesAtIntEdge()
+    {
+        var (_, tools, _) = Make();
+        var tiles = Call(tools, Abi.ToolTiles, Input(int.MaxValue, int.MaxValue, 3u, 2u));
+        Assert.Equal(6, tiles.Length);
+        Assert.All(tiles, bits => Assert.Equal(0, bits & Abi.TileOnMap));
+        // Настоящий тайл — только (int.MaxValue, int.MaxValue), остальные за краем int: нулевой байт.
+        Assert.All(tiles[1..], bits => Assert.Equal(0, bits));
+        Assert.Equal(4, Call(tools, Abi.ToolTiles, Input(int.MinValue, int.MaxValue - 1, 2u, 2u)).Length);
+    }
+
     [Fact(DisplayName = "Plan: путь, цель на свободном тайле, норма тика и летающий за краем карты")]
     public void PlanTool()
     {

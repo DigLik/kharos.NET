@@ -261,11 +261,15 @@ public sealed class EconomyTests
         sim.PutBuilding("pipe", x, y + 3, 1);
         sim.Advance();
         var site = sim.SiteAt(x, y + 4);
-        // Стройблоки — только на складе далеко за базой, в отдельной сети: трубы до него не доходят.
+        // Стройблоки — только на складе далеко за базой, в отдельной сети: трубы до него не доходят. В TS склад — у
+        // самого края досягаемости строителя (FETCH_REACH = 40), строитель везёт блоки сам, а грузовик получает работу
+        // от заявки в 0,5 блока, мелькающей в тике прихода строителя, — только если этот тик кратен тику диспетчера. Здесь
+        // склад дальше досягаемости строителя: блоки везёт грузовик, как и сказано в заголовке.
         uint far = 0;
-        for (var dx = 40; dx < 120 && far == 0; dx++)
-            if (Scene.CanPlace(sim, "blockYard", x + dx, y))
-                far = sim.PutBuilding("blockYard", x + dx, y, 1);
+        foreach (var dy in new[] { 0, -6, 6, -12, 12 })
+            for (var dx = 46; dx < 120 && far == 0; dx++)
+                if (Scene.CanPlace(sim, "blockYard", x + dx, y + dy))
+                    far = sim.PutBuilding("blockYard", x + dx, y + dy, 1);
         Assert.NotEqual(0u, far);
         sim.SetStock(far, "blocks", 50);
         var truck = Spawn(sim, "truck", 1, x + 6, y + 8);

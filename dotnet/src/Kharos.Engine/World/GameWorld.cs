@@ -263,6 +263,7 @@ public sealed class GameWorld
         if (BitConverter.DoubleToInt64Bits(cell) == BitConverter.DoubleToInt64Bits(value))
             return;
         cell = value;
+        store.Version++;
         if (TrackChanges)
             store.Mark(row, def.Index);
         if (store.Def.Id == Builtin.Position)
@@ -281,6 +282,7 @@ public sealed class GameWorld
     /// <summary>Отмечает изменения после записи столбцами в обход <see cref="WriteCell"/> (возврат столбцов системы).</summary>
     internal void Touched(ComponentStore store, int row, ulong mask)
     {
+        store.Version++;
         if (TrackChanges)
             store.MarkMask(row, mask);
         if (store.Def.Id == Builtin.Position)
@@ -323,6 +325,38 @@ public sealed class GameWorld
     /// <summary>Сущности с <see cref="Builtin.Position"/> в круге (x, y, r) и со всеми components — по возрастанию номеров. Сетка 4×4 тайла строится лениво.</summary>
     public void Near(double x, double y, double radius, ReadOnlySpan<int> components, List<uint> into)
     {
+        // Клеток в круге больше, чем сущностей в самом коротком хранилище запроса, — обход хранилища дешевле сетки
+        // (Core.All в моде — круг на всю карту). Набор тот же: та же проверка круга, после — та же сортировка.
+        var positions = _stores[Builtin.Position];
+        var shortest = positions;
+        foreach (var id in components)
+            if (_stores[id].Count < shortest.Count)
+                shortest = _stores[id];
+        var cellsWide = Math.Floor((x + radius) / SpatialGrid.Cell) - Math.Floor((x - radius) / SpatialGrid.Cell) + 1;
+        var cellsHigh = Math.Floor((y + radius) / SpatialGrid.Cell) - Math.Floor((y - radius) / SpatialGrid.Cell) + 1;
+        if (cellsWide * cellsHigh >= shortest.Count)
+        {
+            var begin = into.Count;
+            var xs = positions.Column(0);
+            var ys = positions.Column(1);
+            var reach = radius * radius;
+            foreach (var entity in shortest.Entities)
+            {
+                var row = positions.RowOf(entity);
+                if (row < 0)
+                    continue;
+                var (dx, dy) = (xs[row] - x, ys[row] - y);
+                if (!(dx * dx + dy * dy <= reach))
+                    continue;
+                var all = true;
+                foreach (var id in components)
+                    all &= _stores[id].Contains(entity);
+                if (all)
+                    into.Add(entity);
+            }
+            into.Sort(begin, into.Count - begin, null);
+            return;
+        }
         if (_grid is null || _grid.Revision != PositionRevision)
             (_grid ??= new SpatialGrid()).Build(this);
         var start = into.Count;
