@@ -153,6 +153,7 @@ public sealed partial class Sim : IDisposable
     {
         for (var i = 0; i < ticks; i++)
         {
+            PumpViewers();
             Host.Step();
             _ticks++;
             _pending = 0;
@@ -192,6 +193,7 @@ public sealed partial class Sim : IDisposable
             Advance();
             return;
         }
+        PumpViewers();
         Host.Apply();
         _pending = 0;
         Drain();
@@ -224,10 +226,10 @@ public sealed partial class Sim : IDisposable
 
     // ===== Внутреннее =====
 
-    /// <summary>Забирает изменения хоста (иначе копятся) и сигналы тика.</summary>
+    /// <summary>Забирает изменения хоста (иначе копятся) и сигналы тика; со зрителями — рассылкой им (Sim.Viewer.cs).</summary>
     private void Drain()
     {
-        var delta = Host.TakeDelta();
+        var delta = TakeDelta();
         foreach (var signal in delta.Signals)
             Signals.Add(new SimSignal(Host.Tick, signal.Name, signal.Payload, signal.To, signal.At));
     }
@@ -242,5 +244,9 @@ public sealed partial class Sim : IDisposable
             throw new SimErrorException(errors);
     }
 
-    public void Dispose() => Host.Dispose();
+    public void Dispose()
+    {
+        CloseViewers();
+        Host.Dispose();
+    }
 }

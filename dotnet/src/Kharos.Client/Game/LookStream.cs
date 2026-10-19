@@ -22,6 +22,9 @@ public static class LookStream
         int directions = Math.Max((int)r.U16(), 1), phases = Math.Max((int)r.U16(), 1);
         var fps = r.F32();
         float? step = (flags & ClientAbi.LookStep) != 0 ? r.F32() : null;
+        int variants = (flags & ClientAbi.LookVariants) != 0 ? Math.Max((int)r.U16(), 1) : 1;
+        var working = (flags & ClientAbi.LookWorking) != 0;
+        var cycle = working ? phases * 2 : phases;
         var layer = (LookLayer)r.U8();
         if (layer is not (LookLayer.Floor or LookLayer.Ground or LookLayer.Building or LookLayer.Air))
             throw new FormatException($"облик: слой {(byte)layer}");
@@ -39,24 +42,27 @@ public static class LookStream
             var at = Skip(ref r);
             portrait = new PortraitSpec(portraitWidth, portraitHeight, canvas => Replay(canvas, bytes, at)) { Origin = portraitOrigin };
         }
-        var frames = new int[phases * directions];
+        var frames = new int[variants * cycle * directions];
         for (var i = 0; i < frames.Length; i++)
             frames[i] = Skip(ref r);
         if (!r.End)
             throw new FormatException("облик: лишние байты");
         if (width is 0 or > 1024 || height is 0 or > 1024)
             throw new FormatException($"облик: кадр {width} × {height}");
-        return new LookSpec((canvas, angle, phase) =>
+        int Direction(double angle)
         {
-            var direction = 0;
-            if (directions > 1)
-            {
-                var turns = Math.Round(angle / Look.Turn * directions, MidpointRounding.AwayFromZero) % directions;
-                direction = (int)(turns < 0 ? turns + directions : turns);
-            }
-            Replay(canvas, bytes, frames[phase % phases * directions + direction]);
-        })
+            if (directions <= 1)
+                return 0;
+            var turns = Math.Round(angle / Look.Turn * directions, MidpointRounding.AwayFromZero) % directions;
+            return (int)(turns < 0 ? turns + directions : turns);
+        }
+        return new LookSpec((canvas, angle, phase) => Replay(canvas, bytes, frames[phase % cycle * directions + Direction(angle)]))
         {
+            Variants = variants,
+            Working = working,
+            DrawCell = variants > 1
+                ? (canvas, variant, angle, phase) => Replay(canvas, bytes, frames[((variant % variants) * cycle + phase % cycle) * directions + Direction(angle)])
+                : null,
             Width = width,
             Height = height,
             Origin = origin,

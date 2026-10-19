@@ -96,12 +96,36 @@ public static class ClientStream
                         }
                         break;
                     }
+                    case ClientAbi.OpField:
+                    {
+                        // TODO(Д2): настоящее поле ввода (каретка, выделение, фокус) — в UI-ядре; пока узел с текстом.
+                        var id = r.Str();
+                        var value = r.Str();
+                        var style = ReadStyle(ref r);
+                        gui.Open(style with { Id = id });
+                        gui.Text(value, new TextStyle());
+                        gui.Close();
+                        break;
+                    }
+                    case ClientAbi.OpIcon:
+                    {
+                        // TODO(Д2): значок в строке текста (rich); пока картинка ячейки облика отдельным узлом.
+                        var proto = r.I32();
+                        var cell = r.U16();
+                        var size = r.F32();
+                        if (scene.LookOf(proto) is { Cells.Length: > 0 } look)
+                            gui.Image(cell < look.Cells.Length ? new Icon(look.Cells[cell], look.Width, look.Height) : look.Icon, size, size, 0);
+                        else
+                            gui.Space(size, size);
+                        break;
+                    }
                     case ClientAbi.OpLine:
                     {
                         var (x1, y1, x2, y2) = (r.F32(), r.F32(), r.F32(), r.F32());
                         var color = r.U32();
                         var width = r.F32();
                         scene.World.Line(x1, y1, x2, y2, width / Zoom(scene), color);
+                        scene.Recorder?.Invoke(new FrameRecord(op, null, color, [x1, y1, x2, y2, width]));
                         break;
                     }
                     case ClientAbi.OpCircle:
@@ -112,6 +136,7 @@ public static class ClientStream
                         var zoom = Zoom(scene);
                         var segments = (int)Math.Clamp(MathF.Sqrt(radius * zoom) * 4, 12, 64);
                         scene.World.Circle(x, y, radius, float.IsNaN(width) ? null : width / zoom, color, segments);
+                        scene.Recorder?.Invoke(new FrameRecord(op, null, color, [x, y, radius, width]));
                         break;
                     }
                     case ClientAbi.OpRect:
@@ -130,6 +155,40 @@ public static class ClientStream
                             scene.World.Line(right, bottom, left, bottom, w, color);
                             scene.World.Line(left, bottom, left, top, w, color);
                         }
+                        scene.Recorder?.Invoke(new FrameRecord(op, null, color, [x1, y1, x2, y2, width]));
+                        break;
+                    }
+                    case ClientAbi.OpSprite:
+                    {
+                        var sprite = new SceneSprite(r.I32(), r.U16(), r.U16(), r.F32(), r.F32(), r.F32(), r.F32(), r.F32(), r.U8(), r.U8(), r.U32());
+                        if (scene.Sprites.Count < ClientScene.MaxSprites)
+                            scene.Sprites.Add(sprite);
+                        break;
+                    }
+                    case ClientAbi.OpPaint:
+                    {
+                        var entity = r.U32();
+                        var mask = r.U8();
+                        var paint = new ScenePaint(mask,
+                            (mask & ClientAbi.PaintVariant) != 0 ? r.U16() : 0,
+                            (mask & ClientAbi.PaintFrame) != 0 ? r.U16() : 0,
+                            (mask & ClientAbi.PaintBuilt) != 0 ? r.F32() : 1,
+                            (mask & ClientAbi.PaintDim) != 0 ? r.F32() : 0);
+                        scene.Paints[entity] = scene.Paints.TryGetValue(entity, out var earlier) ? earlier.Merge(paint) : paint;
+                        break;
+                    }
+                    case ClientAbi.OpLight:
+                    {
+                        var light = new SceneLight(r.F32(), r.F32(), r.F32(), r.F32(), r.F32());
+                        if (scene.Lights.Count < ClientScene.MaxLights)
+                            scene.Lights.Add(light);
+                        break;
+                    }
+                    case ClientAbi.OpBeam:
+                    {
+                        var beam = new SceneBeam(r.F32(), r.F32(), r.F32(), r.F32(), r.F32(), r.F32(), r.F32(), r.F32());
+                        if (scene.Beams.Count < ClientScene.MaxLights)
+                            scene.Beams.Add(beam);
                         break;
                     }
                     case ClientAbi.OpParticle:
@@ -151,6 +210,7 @@ public static class ClientStream
                         var name = r.Str();
                         var (volume, pan, rate) = (r.F32(), r.F32(), r.F32());
                         sounds?.Engine?.Play(name, volume, pan, rate);
+                        scene.Recorder?.Invoke(new FrameRecord(op, name, 0, [volume, pan, rate]));
                         break;
                     }
                     case ClientAbi.OpSoundAt:
@@ -159,6 +219,7 @@ public static class ClientStream
                         var (x, y) = (r.F64(), r.F64());
                         var (volume, reach, detune) = (r.F32(), r.F32(), r.F32());
                         sounds?.Engine?.PlayAt(name, listener, x, y, volume, reach, detune);
+                        scene.Recorder?.Invoke(new FrameRecord(op, name, 0, [(float)x, (float)y, volume, reach, detune]));
                         break;
                     }
                     case ClientAbi.OpLoop:
@@ -166,6 +227,7 @@ public static class ClientStream
                         var name = r.Str();
                         var (volume, pan) = (r.F32(), r.F32());
                         sounds?.Engine?.Loop(name, volume, pan);
+                        scene.Recorder?.Invoke(new FrameRecord(op, name, 0, [volume, pan]));
                         break;
                     }
                     case ClientAbi.OpVolume:
@@ -220,6 +282,18 @@ public static class ClientStream
                     {
                         var name = r.Str();
                         scene.Orders.Add((name, r.Blob().ToArray()));
+                        break;
+                    }
+                    case ClientAbi.OpPrefs:
+                    {
+                        var key = r.Str();
+                        scene.Prefs.Add((key, r.Blob().ToArray()));
+                        break;
+                    }
+                    case ClientAbi.OpShell:
+                    {
+                        var action = r.U8();
+                        scene.Shell.Add((action, r.Str()));
                         break;
                     }
                     case ClientAbi.OpCamera:
@@ -308,6 +382,7 @@ public static class ClientStream
             Note = r.F32(),
             Velocity = r.F32(),
         };
+        scene.Recorder?.Invoke(new FrameRecord(ClientAbi.OpVoice, kind, handle, [bus, (float)options.At, options.Length, options.Note, options.Velocity]));
         if (sounds is null || (graph is null && kind is null))
             return;
         try

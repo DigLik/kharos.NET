@@ -70,6 +70,10 @@ public static class Shell
         using var gpu = GpuContext.CreateForWindow(window, vsync: true);
         DesktopLog.Write($"видеокарта: {gpu.AdapterName}, {gpu.Backend}");
         using var renderer = new Renderer(gpu);
+        // TODO(Н6, витрина и Д1): KHAROS_SHOT_SCENE (сценка витрины или сцена сверки кадров) и KHAROS_SHOT_HOUR (час поверх часов
+        // карты) дойдут до партии и камеры, когда появятся раздел витрины в Base.Host и Viewer; пока только журнал.
+        if (shot is { Scene: not null } or { Hour: not null })
+            DesktopLog.Write($"снимок: сцена {shot.Scene ?? "-"}, час {shot.Hour?.ToString() ?? "-"} (пока не применяются)");
 
         AudioEngine? audio = null;
         OpenAlOutput? output = null;
@@ -157,7 +161,7 @@ public static class Shell
                 input.PlacePointer(at.X / toLogical, at.Y / toLogical);
 
             renderer.Resize(buffer.X, buffer.Y);
-            var frame = game.Step(input.Take(clock.Elapsed.TotalSeconds, buffer.X / scale, buffer.Y / scale, scale, toLogical));
+            var frame = game.Step(input.Take(shot is { FixedClock: true } ? frames * ShotFrameSeconds : clock.Elapsed.TotalSeconds, buffer.X / scale, buffer.Y / scale, scale, toLogical));
             game.Upload(renderer);
             renderer.Render(frame);
             frames++;

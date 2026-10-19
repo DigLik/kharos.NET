@@ -2,6 +2,7 @@ using System.Globalization;
 using Base.Shared.Orders;
 using Kharos.Client.Game;
 using Kharos.Client.Ui;
+using Kharos.Engine.Layers;
 using Kharos.Gpu;
 using MemoryPack;
 using RenderFrame = Kharos.Gpu.Frame;
@@ -12,7 +13,8 @@ namespace Kharos.Base.Tests;
 /// Подача base от начала до конца на модели TS: хост (host.wasm) и клиент (client.wasm) через LocalGame, ввод — как от
 /// мыши. Партия — skirmish как в TS: MCV, две багги и три пехотинца, 1500 кредитов. Производство начинается с
 /// разворота MCV в главное здание. Без окна и звука; картинки кадров — в dotnet/.cache/base (k-*.png), если есть адаптер
-/// WebGPU. Хост тикает в десять раз быстрее часов.
+/// WebGPU. Хост тикает в десять раз быстрее часов. SkirmishStartsAndRenders и DepositsFromLayerAreDrawn — на обвязке
+/// Viewer (хост сценария Sim, клиент в режиме CLR или KHAROS_MODS=wasm, свои часы, приём настоящим протоколом).
 /// </summary>
 public sealed class BaseClientTests
 {
@@ -50,49 +52,93 @@ public sealed class BaseClientTests
     private static int ShownCredits(BaseSession session) =>
         session.Texts().Where(text => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out _)).Select(int.Parse).FirstOrDefault();
 
+    // ===== На обвязке Viewer (docs/dotnet-n6.md, Н6.3): хост сценария Sim и клиент в режиме CLR, часы — свои =====
+
+    /// <summary>Схватка на сценарии: хост с модом base (партия skirmish, как в TS) и зритель игрока 1.</summary>
+    private static (Sim Sim, Viewer Viewer) Skirmish()
+    {
+        Assert.SkipWhen(Viewer.Unavailable(Sim.DefaultMode) is not null, Viewer.Unavailable(Sim.DefaultMode) ?? "");
+        var sim = Sim.Create(new SimOptions { Game = "skirmish", Players = [1] });
+        return (sim, sim.Viewer(1));
+    }
+
+    /// <summary>Свои сущности реплики зрителя с компонентами, по возрастанию номеров.</summary>
+    private static List<uint> Mine(Viewer viewer, params string[] components)
+    {
+        var world = viewer.World;
+        var list = new List<uint>();
+        world.Query([.. components.Append("Owner").Select(name => world.Schema.Id(name))], list);
+        list.Sort();
+        return [.. list.Where(entity => world.Number(entity, Kharos.Engine.World.Builtin.Owner, 0) == viewer.Player)];
+    }
+
+    /// <summary>Свои сущности вида path по реплике зрителя.</summary>
+    private static List<uint> Of(Viewer viewer, string path)
+    {
+        var proto = viewer.Game.Content.FindProto(path)!.Id;
+        var id = viewer.World.Schema.Id("Proto");
+        return [.. Mine(viewer, "Proto").Where(entity => (int)viewer.World.Number(entity, id, 0) == proto)];
+    }
+
+    private static (double X, double Y) At(Viewer viewer, uint entity) =>
+        (viewer.World.Number(entity, Kharos.Engine.World.Builtin.Position, 0), viewer.World.Number(entity, Kharos.Engine.World.Builtin.Position, 1));
+
+    /// <summary>Стартовый отряд на экране зрителя (наземные — слой 1, турели — слой 2).</summary>
+    private static RenderFrame OnScreen(Viewer viewer)
+    {
+        Assert.True(viewer.Until(() => BaseSession.Layers(viewer.Last)[1] >= 6 && BaseSession.Layers(viewer.Last)[2] >= 3, 20), $"отряд MCV не на экране; ошибки: {string.Join(" | ", viewer.Log.TakeLast(5))}");
+        return viewer.Last;
+    }
+
+    /// <summary>Заголовок панели сведений о выбранном (узел info:title); ничего не выбрано — null.</summary>
+    private static string? InfoTitle(Viewer viewer) => viewer.Ui.Find("info:title")?.Children.FirstOrDefault(child => child.Kind == LeafKind.Text)?.Text;
+
     [Fact]
     public void SkirmishStartsAndRenders()
     {
-        using var session = new BaseSession();
-        var game = session.Game;
-        Assert.Equal("base", Assert.Single(game.Mods).Name);
+        var (sim, viewer) = Skirmish();
+        using var party = sim;
+        var game = viewer.Game;
+        var mod = Assert.Single(game.Mods);
+        Assert.Equal("base", mod.Name);
+        Assert.Equal(viewer.Mode, mod.Mode);
         // Облики: 18 юнитов, 8 турелей, 48 зданий (завод с чертежом, остальные заглушками) и 6 месторождений.
         Assert.Equal(18 + 8 + 48 + 6, game.Looks.Count);
 
-        var frame = OnScreen(session);
+        var frame = OnScreen(viewer);
         var layers = BaseSession.Layers(frame);
         // Наземные: MCV, две багги, три пехотинца; турели — слоем выше (MCV несёт пушку, багги — стрелков); зданий нет.
         Assert.Equal((6, 3, 0), (layers[1], layers[2], layers[3]));
-        Assert.Equal(6, session.Mine("Mover").Count);
-        Assert.Single(session.Of("units/mcv"));
-        Assert.Equal(2, session.Of("units/buggy").Count);
-        Assert.Equal(3, session.Of("units/infantry").Count);
-        Assert.Empty(session.Mine("Building"));
+        Assert.Equal(6, Mine(viewer, "Mover").Count);
+        Assert.Single(Of(viewer, "units/mcv"));
+        Assert.Equal(2, Of(viewer, "units/buggy").Count);
+        Assert.Equal(3, Of(viewer, "units/infantry").Count);
+        Assert.Empty(Mine(viewer, "Building"));
         // MCV — свёрнутая база: Producer у него есть, а заказов ещё нет.
-        Assert.Equal(session.Of("units/mcv").Single(), session.Mine("Producer").Single());
+        Assert.Equal(Of(viewer, "units/mcv").Single(), Mine(viewer, "Producer").Single());
 
         // Камера: масштаб 32, центр у отряда (камера на три тайла южнее).
-        var units = session.Mine("Mover");
-        var centre = (X: units.Average(e => session.At(e).X), Y: units.Average(e => session.At(e).Y));
+        var units = Mine(viewer, "Mover");
+        var centre = (X: units.Average(e => At(viewer, e).X), Y: units.Average(e => At(viewer, e).Y));
         Assert.Equal(32f, frame.View.Zoom);
         Assert.True(Dist(centre, (frame.View.X, frame.View.Y - 3)) < 1, $"камера ({frame.View.X}, {frame.View.Y}), отряд {centre}");
 
         // HUD: кредиты со своего счёта, часы (начало мира — 9 утра), меню, подсказка по управлению.
-        Assert.Equal(1500, session.Credits());
-        Assert.Equal(1500, ShownCredits(session));
-        Assert.Contains(session.Texts(), text => System.Text.RegularExpressions.Regex.IsMatch(text, @"^\d\d:\d\d$"));
-        Assert.Contains("Меню", session.Texts());
-        Assert.Contains("Ничего не выбрано.", session.Texts());
-        Assert.Null(session.InfoTitle());
+        var texts = viewer.Ui.Texts();
+        Assert.Equal(1500, sim.Credits(1));
+        Assert.Equal(1500, texts.Where(text => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out _)).Select(int.Parse).FirstOrDefault());
+        Assert.Contains(texts, text => System.Text.RegularExpressions.Regex.IsMatch(text, @"^\d\d:\d\d$"));
+        Assert.Contains("Меню", texts);
+        Assert.Contains("Ничего не выбрано.", texts);
+        Assert.Null(InfoTitle(viewer));
         Assert.True(frame.Interface.Segments.Select(s => s.Paint.Kind).ToHashSet().IsSupersetOf([PaintKind.Skin, PaintKind.Font, PaintKind.Minimap]));
 
         // Туман войны и погода утра: светло, ветер задан атмосферой мода.
         Assert.NotNull(frame.Fog);
         Assert.InRange(frame.Light, 0.9f, 1f);
         Assert.NotEqual((0f, 0f), frame.Wind);
-        Assert.Empty(game.Errors);
-        Assert.Null(session.Local.Failure);
-        Assert.Empty(session.Log);
+        Assert.Empty(viewer.Log);
+        Assert.Empty(sim.Log);
     }
 
     [Fact]
@@ -206,23 +252,34 @@ public sealed class BaseClientTests
     [Fact]
     public void DepositsFromLayerAreDrawn()
     {
-        using var session = new BaseSession();
-        var frame = OnScreen(session);
-        var known = session.DepositCount();
-        // Редактор кладёт месторождения рядом с отрядом: слой deposits, предметы с видом и остатком.
-        session.OpenEditor();
-        var (x, y) = session.At(session.Mine("Mover")[0]);
+        var (sim, viewer) = Skirmish();
+        using var party = sim;
+        OnScreen(viewer);
+        int Deposits()
+        {
+            var layers = viewer.Game.Replica.Layers!;
+            var id = layers.Find("deposits") ?? throw new Xunit.Sdk.XunitException("нет слоя deposits");
+            return layers.Cells(id, LayerOwner.World).Sum(cell => layers.Items(id, LayerOwner.World, cell).Count);
+        }
+        var known = Deposits();
+        // Редактор кладёт месторождения рядом с отрядом: слой deposits, предметы с видом и остатком. Права — командами
+        // чата, как у игрока (локальной партии пароль не нужен); приказы edit.* уходят хосту от клиента.
+        viewer.Game.Say("/admin test");
+        viewer.Game.Say("/editor");
+        viewer.Run(0.1);
+        var (x, y) = At(viewer, Mine(viewer, "Mover")[0]);
         var kinds = new[] { "metal", "silicon", "fuel", "kharite", "lithium", "uranium" };
         for (var i = 0; i < kinds.Length; i++)
-            session.Game.Send(EditDepositOrder.Name, MemoryPackSerializer.Serialize(new EditDepositOrder { X = (int)x - 9 + i * 3, Y = (int)y + 4, Kind = kinds[i], Reserve = 1500 }));
+            viewer.Game.Send(EditDepositOrder.Name, MemoryPackSerializer.Serialize(new EditDepositOrder { X = (int)x - 9 + i * 3, Y = (int)y + 4, Kind = kinds[i], Reserve = 1500 }));
+        Assert.Equal(kinds.Length, viewer.Sent.Of<EditDepositOrder>().Count);
         // Хост принял сколько смог (место должно быть строимым): на экране рисуется каждое — слоем «на земле».
-        session.Until(_ => session.DepositCount() > known, "месторождения дошли до клиента");
-        session.Steps(10);
-        var placed = session.DepositCount() - known;
-        frame = session.Step();
+        Assert.True(viewer.Until(() => Deposits() > known, 10), "месторождения не дошли до клиента");
+        viewer.Step(10);
+        var placed = Deposits() - known;
+        var frame = viewer.Frame();
         Assert.True(BaseSession.Layers(frame)[0] >= placed, $"спрайтов на земле {BaseSession.Layers(frame)[0]}, новых месторождений {placed}");
-        Assert.Empty(session.Game.Errors);
-        Assert.Empty(session.Log);
+        Assert.Empty(viewer.Log);
+        Assert.Empty(sim.Log);
     }
 
     [Fact]

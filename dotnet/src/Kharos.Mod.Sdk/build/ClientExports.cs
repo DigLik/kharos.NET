@@ -12,7 +12,7 @@ internal static unsafe class ClientExports
     private static global::Kharos.Mod.Sdk.Client.ClientMod Create() => new KharosModEntry();
 
     [UnmanagedCallersOnly(EntryPoint = "kh_abi_version")]
-    private static int AbiVersion() => ModRuntime.AbiVersion();
+    private static int AbiVersion() => ClientRuntime.AbiVersion();
 
     [UnmanagedCallersOnly(EntryPoint = "kh_alloc")]
     private static int Alloc(int size) => ModRuntime.Alloc(size);

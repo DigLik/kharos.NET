@@ -1,6 +1,10 @@
+using System.Buffers;
+using System.Buffers.Binary;
 using System.Text;
+using System.Text.Json;
 using Kharos.Client.Ui;
 using Kharos.Content;
+using Kharos.Engine.Movement;
 using Kharos.Engine.Terrain;
 using Kharos.Engine.Tools;
 using Kharos.Engine.World;
@@ -93,26 +97,50 @@ public sealed class Poses
 
 /// <summary>
 /// Инструменты движка для клиентских модов (kh.tool): общие <see cref="ModTools"/> над миром реплики (Position и
-/// Facing — сглаженные) и свои — ClientAbi.Tool* (Each, Pose, Pick, Within, Sees, Explored, Measure, Column).
+/// Facing — сглаженные; ход и занятость — <see cref="ModTools.Navigation"/> по реплике, как у хоста) и свои —
+/// ClientAbi.Tool* (Each, Pose, Pick, Within, Sees, Explored, Measure, Column; ABI 2 — Text, Prefs, Roster, Settings).
 /// </summary>
 public sealed class ClientTools : ModTools
 {
     private readonly Replica _replica;
+    private readonly GameContent _content;
+    private readonly Func<Land?> _land;
     private readonly Poses _poses;
     private readonly Fonts _fonts;
     private readonly List<uint> _list = [];
     private readonly List<int> _components = [];
+    private ChassisTable? _chassis;
 
     public ClientTools(Replica replica, GameContent content, Func<Land?> land, Poses poses, Fonts fonts)
         : base(new ReplicaWorld(replica, content, land))
     {
         _replica = replica;
+        _content = content;
+        _land = land;
         _poses = poses;
         _fonts = fonts;
     }
 
     /// <summary>Ошибки разбора входа — сюда.</summary>
     public Action<string>? Log { get; set; }
+
+    /// <summary>Хранилище настроек модов (Prefs, ABI 2): ключи <see cref="PrefsKey"/>.</summary>
+    public IStorage Storage { get; set; } = new MemoryStorage();
+
+    /// <summary>Чей вызов сейчас (имя мода): настройки Prefs у каждого мода свои. null — настроек нет.</summary>
+    public string? Mod { get; set; }
+
+    /// <summary>Игроки партии для Roster (ростер протокола).</summary>
+    public Func<IReadOnlyList<PlayerInfo>> Players { get; set; } = () => [];
+
+    /// <summary>Режим администратора у этого подключения (сообщение Commands хоста).</summary>
+    public Func<bool> Admin { get; set; } = () => false;
+
+    /// <summary>Право редактора у этого подключения. TODO(Р): протокол его не шлёт — до оболочки редактора false.</summary>
+    public Func<bool> Editor { get; set; } = () => false;
+
+    /// <summary>Ключ настройки key мода mod в хранилище.</summary>
+    public static string PrefsKey(string mod, string key) => $"prefs/{mod}/{key}";
 
     protected override void Report(int id, string message) => Log?.Invoke($"инструмент {id}: {message}");
 
@@ -197,9 +225,46 @@ public sealed class ClientTools : ModTools
                 }
                 return 0;
             }
+            case ClientAbi.ToolText:
+            {
+                var key = Str(ref r);
+                var n = BinaryPrimitives.ReadUInt16LittleEndian(r.Bytes(2));
+                for (var i = 0; i < n; i++)
+                    Str(ref r);
+                // TODO(Д3): словари всех модов (Kharos.I18n) на языке игрока с подстановкой аргументов; пока — сам ключ.
+                WriteStr(key);
+                return 0;
+            }
+            case ClientAbi.ToolPrefs:
+            {
+                var key = Str(ref r);
+                if (Mod is { } mod && Storage.Get(PrefsKey(mod, key)) is { } bytes)
+                    bytes.CopyTo(Room(bytes.Length));
+                return 0;
+            }
+            case ClientAbi.ToolRoster:
+            {
+                var players = Players();
+                var admin = Admin();
+                U32((uint)players.Count);
+                foreach (var player in players)
+                {
+                    U32(player.Player);
+                    WriteStr(player.Name);
+                    var into = Room(2);
+                    into[0] = player.Online ? (byte)1 : (byte)0;
+                    // Протокол знает только свой режим администратора: у чужих — 0.
+                    into[1] = admin && player.Player == _replica.Player ? (byte)1 : (byte)0;
+                }
+                return 0;
+            }
+            case ClientAbi.ToolSettings:
+                WriteSettings();
+                return 0;
             case ModAbi.ToolStorage:
                 return ModAbi.ErrorUnknownId;
             default:
+                EnsureNavigation(world);
                 return base.Run(id, ref r);
         }
     }
@@ -249,6 +314,76 @@ public sealed class ClientTools : ModTools
                 (best, bestDistance) = (entity, distance);
         }
         return best;
+    }
+
+    /// <summary>
+    /// Ход и занятость над миром реплики (16 Tiles, 17 Occupant, 21 Walkable и др.; на них стоят Placing и canPlace из
+    /// Base.Shared/Rules) — те же, что у хоста: ходовые из data/moves.json, земля, слой paving, границы карты. Мир,
+    /// земля или слои реплики сменились — строятся заново.
+    /// </summary>
+    private void EnsureNavigation(GameWorld world)
+    {
+        var land = _land();
+        if (Navigation is { } navigation && navigation.World == world && navigation.Land == land && navigation.Layers == _replica.Layers)
+            return;
+        _chassis ??= _content.Data("moves") is { } moves ? ChassisTable.Parse(moves) : ChassisTable.Empty;
+        var bounds = _replica.Welcome?.Map is { } map ? new TileBounds(map.Left, map.Top, map.Right, map.Bottom) : (TileBounds?)null;
+        Navigation = new Navigation(world, land, _replica.Layers, bounds, _chassis);
+    }
+
+    /// <summary>
+    /// Settings: запись партии из data/games.json, карта, туман, права. TODO(Д4): настройки хоста поверх записи
+    /// (HostOptions.Settings), час и сутки карты — протокол их клиенту пока не шлёт.
+    /// </summary>
+    private void WriteSettings()
+    {
+        var buffer = new ArrayBufferWriter<byte>(256);
+        using (var json = new Utf8JsonWriter(buffer))
+        {
+            var welcome = _replica.Welcome;
+            json.WriteStartObject();
+            json.WriteString("game", welcome?.Game ?? "");
+            json.WritePropertyName("settings");
+            if (welcome is not null && _content.Data("games") is { ValueKind: JsonValueKind.Object } games && games.TryGetProperty(welcome.Game, out var entry))
+                entry.WriteTo(json);
+            else
+                json.WriteNullValue();
+            json.WritePropertyName("map");
+            if (welcome?.Map is { } map)
+            {
+                json.WriteStartObject();
+                json.WriteNumber("left", map.Left);
+                json.WriteNumber("top", map.Top);
+                json.WriteNumber("right", map.Right);
+                json.WriteNumber("bottom", map.Bottom);
+                json.WriteEndObject();
+            }
+            else
+                json.WriteNullValue();
+            json.WriteBoolean("fog", welcome?.Fog ?? false);
+            json.WriteStartObject("rights");
+            json.WriteBoolean("admin", Admin());
+            json.WriteBoolean("editor", Editor());
+            json.WriteEndObject();
+            json.WriteEndObject();
+        }
+        buffer.WrittenSpan.CopyTo(Room(buffer.WrittenCount));
+    }
+
+    /// <summary>Строка str входа: u16 длина и UTF-8.</summary>
+    private static string Str(ref ToolInput r) => Encoding.UTF8.GetString(r.Bytes(BinaryPrimitives.ReadUInt16LittleEndian(r.Bytes(2))));
+
+    /// <summary>Строка str ответа: u16 длина и UTF-8 (длиннее 65535 байт — обрезается по символам).</summary>
+    private void WriteStr(string text)
+    {
+        var count = Encoding.UTF8.GetByteCount(text);
+        while (count > ushort.MaxValue)
+        {
+            text = text[..(text.Length * 3 / 4)];
+            count = Encoding.UTF8.GetByteCount(text);
+        }
+        BinaryPrimitives.WriteUInt16LittleEndian(Room(2), (ushort)count);
+        Encoding.UTF8.GetBytes(text, Room(count));
     }
 
     private void ReadComponents(ref ToolInput r)

@@ -1,0 +1,2373 @@
+{
+ "version": 1,
+ "width": 640,
+ "height": 400,
+ "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+ "scenes": [
+  {
+   "seed": 1337,
+   "size": 1024,
+   "fog": false,
+   "player": 1,
+   "width": 640,
+   "height": 400,
+   "time": 10,
+   "credits": [
+    {
+     "player": 1,
+     "amount": 10000
+    },
+    {
+     "player": 2,
+     "amount": 10000
+    },
+    {
+     "player": 3,
+     "amount": 10000
+    }
+   ],
+   "research": [
+    1,
+    2,
+    3
+   ],
+   "allies": [],
+   "commands": [],
+   "advanceTicks": 1,
+   "selected": [],
+   "terrainRegions": [
+    [
+     0,
+     0,
+     128,
+     80
+    ],
+    [
+     512,
+     0,
+     128,
+     80
+    ],
+    [
+     0,
+     320,
+     128,
+     80
+    ],
+    [
+     512,
+     320,
+     128,
+     80
+    ]
+   ],
+   "hud": false,
+   "biome": 0,
+   "name": "biome-erg-noon",
+   "description": "Биом erg, полдень, застройка и четыре юнита",
+   "camera": {
+    "x": -95.5,
+    "y": -71.5,
+    "zoom": 32
+   },
+   "weather": {
+    "hour": 12,
+    "light": 1,
+    "windX": 1.5,
+    "windY": 0.4,
+    "precipitation": 0
+   },
+   "entities": [
+    {
+     "kind": "building",
+     "type": "command",
+     "x": -103,
+     "y": -76,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": -99,
+     "y": -76,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "smelter",
+     "x": -103,
+     "y": -72,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "factory",
+     "x": -95,
+     "y": -76,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "turret",
+     "x": -91,
+     "y": -74,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -92,
+     "y": -71,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -91,
+     "y": -71,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -90,
+     "y": -71,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "infantry",
+     "x": -99,
+     "y": -69,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "buggy",
+     "x": -97,
+     "y": -68,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": -94,
+     "y": -68,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "truck",
+     "x": -101,
+     "y": -68,
+     "owner": 1
+    }
+   ],
+   "render": {
+    "name": "biome-erg-noon",
+    "tick": 1,
+    "entities": 12,
+    "blasts": 0,
+    "shots": 0,
+    "sites": 0,
+    "errors": []
+   }
+  },
+  {
+   "seed": 1337,
+   "size": 1024,
+   "fog": false,
+   "player": 1,
+   "width": 640,
+   "height": 400,
+   "time": 10,
+   "credits": [
+    {
+     "player": 1,
+     "amount": 10000
+    },
+    {
+     "player": 2,
+     "amount": 10000
+    },
+    {
+     "player": 3,
+     "amount": 10000
+    }
+   ],
+   "research": [
+    1,
+    2,
+    3
+   ],
+   "allies": [],
+   "commands": [],
+   "advanceTicks": 1,
+   "selected": [],
+   "terrainRegions": [
+    [
+     0,
+     0,
+     128,
+     80
+    ],
+    [
+     512,
+     0,
+     128,
+     80
+    ],
+    [
+     0,
+     320,
+     128,
+     80
+    ],
+    [
+     512,
+     320,
+     128,
+     80
+    ]
+   ],
+   "hud": false,
+   "biome": 1,
+   "name": "biome-salt-noon",
+   "description": "Биом salt, полдень, застройка и четыре юнита",
+   "camera": {
+    "x": 0.5,
+    "y": 0.5,
+    "zoom": 32
+   },
+   "weather": {
+    "hour": 12,
+    "light": 1,
+    "windX": 1.5,
+    "windY": 0.4,
+    "precipitation": 0
+   },
+   "entities": [
+    {
+     "kind": "building",
+     "type": "command",
+     "x": -7,
+     "y": -4,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": -3,
+     "y": -4,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "smelter",
+     "x": -7,
+     "y": 0,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "factory",
+     "x": 1,
+     "y": -4,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "turret",
+     "x": 5,
+     "y": -2,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": 4,
+     "y": 1,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": 5,
+     "y": 1,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": 6,
+     "y": 1,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "infantry",
+     "x": -3,
+     "y": 3,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "buggy",
+     "x": -1,
+     "y": 4,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": 2,
+     "y": 4,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "truck",
+     "x": -5,
+     "y": 4,
+     "owner": 1
+    }
+   ],
+   "render": {
+    "name": "biome-salt-noon",
+    "tick": 1,
+    "entities": 12,
+    "blasts": 0,
+    "shots": 0,
+    "sites": 0,
+    "errors": []
+   }
+  },
+  {
+   "seed": 1337,
+   "size": 1024,
+   "fog": false,
+   "player": 1,
+   "width": 640,
+   "height": 400,
+   "time": 10,
+   "credits": [
+    {
+     "player": 1,
+     "amount": 10000
+    },
+    {
+     "player": 2,
+     "amount": 10000
+    },
+    {
+     "player": 3,
+     "amount": 10000
+    }
+   ],
+   "research": [
+    1,
+    2,
+    3
+   ],
+   "allies": [],
+   "commands": [],
+   "advanceTicks": 1,
+   "selected": [],
+   "terrainRegions": [
+    [
+     0,
+     0,
+     128,
+     80
+    ],
+    [
+     512,
+     0,
+     128,
+     80
+    ],
+    [
+     0,
+     320,
+     128,
+     80
+    ],
+    [
+     512,
+     320,
+     128,
+     80
+    ]
+   ],
+   "hud": false,
+   "biome": 2,
+   "name": "biome-red-noon",
+   "description": "Биом red, полдень, застройка и четыре юнита",
+   "camera": {
+    "x": -47.5,
+    "y": -323.5,
+    "zoom": 32
+   },
+   "weather": {
+    "hour": 12,
+    "light": 1,
+    "windX": 1.5,
+    "windY": 0.4,
+    "precipitation": 0
+   },
+   "entities": [
+    {
+     "kind": "building",
+     "type": "command",
+     "x": -55,
+     "y": -328,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": -51,
+     "y": -328,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "smelter",
+     "x": -55,
+     "y": -324,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "factory",
+     "x": -47,
+     "y": -328,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "turret",
+     "x": -43,
+     "y": -326,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -44,
+     "y": -323,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -43,
+     "y": -323,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -42,
+     "y": -323,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "infantry",
+     "x": -51,
+     "y": -321,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "buggy",
+     "x": -49,
+     "y": -320,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": -46,
+     "y": -320,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "truck",
+     "x": -53,
+     "y": -320,
+     "owner": 1
+    }
+   ],
+   "render": {
+    "name": "biome-red-noon",
+    "tick": 1,
+    "entities": 12,
+    "blasts": 0,
+    "shots": 0,
+    "sites": 0,
+    "errors": []
+   }
+  },
+  {
+   "seed": 1337,
+   "size": 1024,
+   "fog": false,
+   "player": 1,
+   "width": 640,
+   "height": 400,
+   "time": 10,
+   "credits": [
+    {
+     "player": 1,
+     "amount": 10000
+    },
+    {
+     "player": 2,
+     "amount": 10000
+    },
+    {
+     "player": 3,
+     "amount": 10000
+    }
+   ],
+   "research": [
+    1,
+    2,
+    3
+   ],
+   "allies": [],
+   "commands": [],
+   "advanceTicks": 1,
+   "selected": [],
+   "terrainRegions": [
+    [
+     0,
+     0,
+     128,
+     80
+    ],
+    [
+     512,
+     0,
+     128,
+     80
+    ],
+    [
+     0,
+     320,
+     128,
+     80
+    ],
+    [
+     512,
+     320,
+     128,
+     80
+    ]
+   ],
+   "hud": false,
+   "biome": 3,
+   "name": "biome-marsh-noon",
+   "description": "Биом marsh, полдень, застройка и четыре юнита",
+   "camera": {
+    "x": 120.5,
+    "y": -119.5,
+    "zoom": 32
+   },
+   "weather": {
+    "hour": 12,
+    "light": 1,
+    "windX": 1.5,
+    "windY": 0.4,
+    "precipitation": 0
+   },
+   "entities": [
+    {
+     "kind": "building",
+     "type": "command",
+     "x": 113,
+     "y": -124,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": 117,
+     "y": -124,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "smelter",
+     "x": 113,
+     "y": -120,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "factory",
+     "x": 121,
+     "y": -124,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "turret",
+     "x": 125,
+     "y": -122,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": 124,
+     "y": -119,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": 125,
+     "y": -119,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": 126,
+     "y": -119,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "infantry",
+     "x": 117,
+     "y": -117,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "buggy",
+     "x": 119,
+     "y": -116,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": 122,
+     "y": -116,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "truck",
+     "x": 115,
+     "y": -116,
+     "owner": 1
+    }
+   ],
+   "render": {
+    "name": "biome-marsh-noon",
+    "tick": 1,
+    "entities": 12,
+    "blasts": 0,
+    "shots": 0,
+    "sites": 0,
+    "errors": []
+   }
+  },
+  {
+   "seed": 1337,
+   "size": 1024,
+   "fog": false,
+   "player": 1,
+   "width": 640,
+   "height": 400,
+   "time": 10,
+   "credits": [
+    {
+     "player": 1,
+     "amount": 10000
+    },
+    {
+     "player": 2,
+     "amount": 10000
+    },
+    {
+     "player": 3,
+     "amount": 10000
+    }
+   ],
+   "research": [
+    1,
+    2,
+    3
+   ],
+   "allies": [],
+   "commands": [
+    {
+     "player": 1,
+     "command": {
+      "type": "move",
+      "units": [
+       8,
+       9,
+       10,
+       11,
+       12
+      ],
+      "x": -88,
+      "y": -64
+     }
+    }
+   ],
+   "advanceTicks": 10,
+   "selected": [],
+   "terrainRegions": [
+    [
+     0,
+     0,
+     128,
+     80
+    ],
+    [
+     512,
+     0,
+     128,
+     80
+    ],
+    [
+     0,
+     320,
+     128,
+     80
+    ],
+    [
+     512,
+     320,
+     128,
+     80
+    ]
+   ],
+   "hud": false,
+   "biome": 0,
+   "name": "night-lights",
+   "description": "Ночь (23 ч): огни зданий, фары и пятна света, юниты в движении",
+   "camera": {
+    "x": -95.5,
+    "y": -71.5,
+    "zoom": 32
+   },
+   "weather": {
+    "hour": 23,
+    "light": 0.10000000149011612,
+    "windX": 1.5,
+    "windY": 0.4,
+    "precipitation": 0
+   },
+   "entities": [
+    {
+     "kind": "building",
+     "type": "command",
+     "x": -103,
+     "y": -76,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": -99,
+     "y": -76,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "smelter",
+     "x": -103,
+     "y": -72,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "factory",
+     "x": -95,
+     "y": -76,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "turret",
+     "x": -91,
+     "y": -74,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -92,
+     "y": -71,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -91,
+     "y": -71,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -90,
+     "y": -71,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "infantry",
+     "x": -99,
+     "y": -69,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "buggy",
+     "x": -97,
+     "y": -68,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": -94,
+     "y": -68,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "truck",
+     "x": -101,
+     "y": -68,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "lancer",
+     "x": -92,
+     "y": -68,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "gunship",
+     "x": -98,
+     "y": -78,
+     "owner": 1
+    }
+   ],
+   "render": {
+    "name": "night-lights",
+    "tick": 10,
+    "entities": 14,
+    "blasts": 0,
+    "shots": 0,
+    "sites": 0,
+    "errors": []
+   }
+  },
+  {
+   "seed": 1337,
+   "size": 1024,
+   "fog": true,
+   "player": 1,
+   "width": 640,
+   "height": 400,
+   "time": 10,
+   "credits": [
+    {
+     "player": 1,
+     "amount": 10000
+    },
+    {
+     "player": 2,
+     "amount": 10000
+    },
+    {
+     "player": 3,
+     "amount": 10000
+    }
+   ],
+   "research": [
+    1,
+    2,
+    3
+   ],
+   "allies": [],
+   "commands": [],
+   "advanceTicks": 20,
+   "selected": [],
+   "terrainRegions": [
+    [
+     0,
+     0,
+     100,
+     60
+    ]
+   ],
+   "hud": false,
+   "biome": 2,
+   "name": "fog",
+   "description": "Туман войны: видимая область вокруг своей базы, дальше тёмная; чужие на границе",
+   "camera": {
+    "x": -43.5,
+    "y": -323.5,
+    "zoom": 32
+   },
+   "weather": {
+    "hour": 12,
+    "light": 1,
+    "windX": 1.5,
+    "windY": 0.4,
+    "precipitation": 0
+   },
+   "entities": [
+    {
+     "kind": "building",
+     "type": "command",
+     "x": -55,
+     "y": -328,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": -51,
+     "y": -328,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "smelter",
+     "x": -55,
+     "y": -324,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "factory",
+     "x": -47,
+     "y": -328,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "turret",
+     "x": -43,
+     "y": -326,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -44,
+     "y": -323,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -43,
+     "y": -323,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -42,
+     "y": -323,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "infantry",
+     "x": -51,
+     "y": -321,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "buggy",
+     "x": -49,
+     "y": -320,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": -46,
+     "y": -320,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "truck",
+     "x": -53,
+     "y": -320,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": -36,
+     "y": -322,
+     "owner": 2
+    },
+    {
+     "kind": "building",
+     "type": "turret",
+     "x": -34,
+     "y": -326,
+     "owner": 2
+    }
+   ],
+   "render": {
+    "name": "fog",
+    "tick": 20,
+    "entities": 14,
+    "blasts": 0,
+    "shots": 0,
+    "sites": 0,
+    "errors": []
+   }
+  },
+  {
+   "seed": 1337,
+   "size": 1024,
+   "fog": false,
+   "player": 1,
+   "width": 640,
+   "height": 400,
+   "time": 25,
+   "credits": [
+    {
+     "player": 1,
+     "amount": 10000
+    },
+    {
+     "player": 2,
+     "amount": 10000
+    },
+    {
+     "player": 3,
+     "amount": 10000
+    }
+   ],
+   "research": [
+    1,
+    2,
+    3
+   ],
+   "allies": [],
+   "commands": [],
+   "advanceTicks": 1,
+   "selected": [],
+   "terrainRegions": [
+    [
+     0,
+     0,
+     128,
+     80
+    ],
+    [
+     512,
+     0,
+     128,
+     80
+    ],
+    [
+     0,
+     320,
+     128,
+     80
+    ],
+    [
+     512,
+     320,
+     128,
+     80
+    ]
+   ],
+   "hud": false,
+   "biome": 0,
+   "name": "weather-dust",
+   "description": "Осадки (dust), сила 0.8, сильный ветер",
+   "camera": {
+    "x": -95.5,
+    "y": -71.5,
+    "zoom": 32
+   },
+   "weather": {
+    "hour": 15,
+    "light": 0.7200000286102295,
+    "windX": 2.4,
+    "windY": 0.9,
+    "precipitation": 0.8
+   },
+   "entities": [
+    {
+     "kind": "building",
+     "type": "command",
+     "x": -103,
+     "y": -76,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": -99,
+     "y": -76,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "smelter",
+     "x": -103,
+     "y": -72,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "factory",
+     "x": -95,
+     "y": -76,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "turret",
+     "x": -91,
+     "y": -74,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -92,
+     "y": -71,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -91,
+     "y": -71,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -90,
+     "y": -71,
+     "owner": 1
+    }
+   ],
+   "render": {
+    "name": "weather-dust",
+    "tick": 1,
+    "entities": 8,
+    "blasts": 0,
+    "shots": 0,
+    "sites": 0,
+    "errors": []
+   }
+  },
+  {
+   "seed": 1337,
+   "size": 1024,
+   "fog": false,
+   "player": 1,
+   "width": 640,
+   "height": 400,
+   "time": 25,
+   "credits": [
+    {
+     "player": 1,
+     "amount": 10000
+    },
+    {
+     "player": 2,
+     "amount": 10000
+    },
+    {
+     "player": 3,
+     "amount": 10000
+    }
+   ],
+   "research": [
+    1,
+    2,
+    3
+   ],
+   "allies": [],
+   "commands": [],
+   "advanceTicks": 1,
+   "selected": [],
+   "terrainRegions": [
+    [
+     0,
+     0,
+     128,
+     80
+    ],
+    [
+     512,
+     0,
+     128,
+     80
+    ],
+    [
+     0,
+     320,
+     128,
+     80
+    ],
+    [
+     512,
+     320,
+     128,
+     80
+    ]
+   ],
+   "hud": false,
+   "biome": 1,
+   "name": "weather-snow",
+   "description": "Осадки (snow), сила 0.8, сильный ветер",
+   "camera": {
+    "x": 0.5,
+    "y": 0.5,
+    "zoom": 32
+   },
+   "weather": {
+    "hour": 15,
+    "light": 0.7200000286102295,
+    "windX": 2.4,
+    "windY": 0.9,
+    "precipitation": 0.8
+   },
+   "entities": [
+    {
+     "kind": "building",
+     "type": "command",
+     "x": -7,
+     "y": -4,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": -3,
+     "y": -4,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "smelter",
+     "x": -7,
+     "y": 0,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "factory",
+     "x": 1,
+     "y": -4,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "turret",
+     "x": 5,
+     "y": -2,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": 4,
+     "y": 1,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": 5,
+     "y": 1,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": 6,
+     "y": 1,
+     "owner": 1
+    }
+   ],
+   "render": {
+    "name": "weather-snow",
+    "tick": 1,
+    "entities": 8,
+    "blasts": 0,
+    "shots": 0,
+    "sites": 0,
+    "errors": []
+   }
+  },
+  {
+   "seed": 1337,
+   "size": 1024,
+   "fog": false,
+   "player": 1,
+   "width": 640,
+   "height": 400,
+   "time": 25,
+   "credits": [
+    {
+     "player": 1,
+     "amount": 10000
+    },
+    {
+     "player": 2,
+     "amount": 10000
+    },
+    {
+     "player": 3,
+     "amount": 10000
+    }
+   ],
+   "research": [
+    1,
+    2,
+    3
+   ],
+   "allies": [],
+   "commands": [],
+   "advanceTicks": 1,
+   "selected": [],
+   "terrainRegions": [
+    [
+     0,
+     0,
+     128,
+     80
+    ],
+    [
+     512,
+     0,
+     128,
+     80
+    ],
+    [
+     0,
+     320,
+     128,
+     80
+    ],
+    [
+     512,
+     320,
+     128,
+     80
+    ]
+   ],
+   "hud": false,
+   "biome": 3,
+   "name": "weather-rain",
+   "description": "Осадки (rain), сила 0.8, сильный ветер",
+   "camera": {
+    "x": 120.5,
+    "y": -119.5,
+    "zoom": 32
+   },
+   "weather": {
+    "hour": 15,
+    "light": 0.7200000286102295,
+    "windX": 2.4,
+    "windY": 0.9,
+    "precipitation": 0.8
+   },
+   "entities": [
+    {
+     "kind": "building",
+     "type": "command",
+     "x": 113,
+     "y": -124,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": 117,
+     "y": -124,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "smelter",
+     "x": 113,
+     "y": -120,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "factory",
+     "x": 121,
+     "y": -124,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "turret",
+     "x": 125,
+     "y": -122,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": 124,
+     "y": -119,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": 125,
+     "y": -119,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": 126,
+     "y": -119,
+     "owner": 1
+    }
+   ],
+   "render": {
+    "name": "weather-rain",
+    "tick": 1,
+    "entities": 8,
+    "blasts": 0,
+    "shots": 0,
+    "sites": 0,
+    "errors": []
+   }
+  },
+  {
+   "seed": 1337,
+   "size": 1024,
+   "fog": false,
+   "player": 1,
+   "width": 640,
+   "height": 400,
+   "time": 10,
+   "credits": [
+    {
+     "player": 1,
+     "amount": 10000
+    },
+    {
+     "player": 2,
+     "amount": 10000
+    },
+    {
+     "player": 3,
+     "amount": 10000
+    }
+   ],
+   "research": [
+    1,
+    2,
+    3
+   ],
+   "allies": [],
+   "commands": [
+    {
+     "player": 1,
+     "command": {
+      "type": "move",
+      "units": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      "x": -94,
+      "y": -71
+     }
+    },
+    {
+     "player": 1,
+     "command": {
+      "type": "stance",
+      "units": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      "stance": "aggressive"
+     }
+    },
+    {
+     "player": 2,
+     "command": {
+      "type": "stance",
+      "units": [
+       5,
+       6
+      ],
+      "stance": "aggressive"
+     }
+    }
+   ],
+   "advanceTicks": 300,
+   "selected": [],
+   "terrainRegions": [
+    [
+     0,
+     0,
+     128,
+     80
+    ],
+    [
+     512,
+     0,
+     128,
+     80
+    ],
+    [
+     0,
+     320,
+     128,
+     80
+    ],
+    [
+     512,
+     320,
+     128,
+     80
+    ]
+   ],
+   "hud": false,
+   "biome": 0,
+   "name": "tracks-wrecks",
+   "description": "Колея и остовы: техника едет через кадр и воюет, на земле гарь и обломки",
+   "camera": {
+    "x": -95.5,
+    "y": -71.5,
+    "zoom": 32
+   },
+   "weather": {
+    "hour": 12,
+    "light": 1,
+    "windX": 1.5,
+    "windY": 0.4,
+    "precipitation": 0
+   },
+   "entities": [
+    {
+     "kind": "unit",
+     "type": "buggy",
+     "x": -104,
+     "y": -75,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "buggy",
+     "x": -104,
+     "y": -72,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": -104,
+     "y": -69,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "infantry",
+     "x": -104,
+     "y": -67,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "lancer",
+     "x": -104,
+     "y": -66,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": -87,
+     "y": -74,
+     "owner": 2
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": -87,
+     "y": -70,
+     "owner": 2
+    }
+   ],
+   "render": {
+    "name": "tracks-wrecks",
+    "tick": 300,
+    "entities": 7,
+    "blasts": 1,
+    "shots": 1,
+    "sites": 0,
+    "errors": []
+   }
+  },
+  {
+   "seed": 1337,
+   "size": 1024,
+   "fog": false,
+   "player": 1,
+   "width": 640,
+   "height": 400,
+   "time": 10,
+   "credits": [
+    {
+     "player": 1,
+     "amount": 10000
+    },
+    {
+     "player": 2,
+     "amount": 10000
+    },
+    {
+     "player": 3,
+     "amount": 10000
+    }
+   ],
+   "research": [
+    1,
+    2,
+    3
+   ],
+   "allies": [
+    [
+     1,
+     3
+    ]
+   ],
+   "commands": [],
+   "advanceTicks": 1,
+   "selected": [
+    4,
+    8
+   ],
+   "terrainRegions": [
+    [
+     0,
+     0,
+     128,
+     80
+    ],
+    [
+     512,
+     0,
+     128,
+     80
+    ],
+    [
+     0,
+     320,
+     128,
+     80
+    ],
+    [
+     512,
+     320,
+     128,
+     80
+    ]
+   ],
+   "hud": false,
+   "biome": 1,
+   "name": "sides-neutrals",
+   "description": "Стороны: свои синие, чужие красные, союзные зелёные, ничьи серые; свой танк и пехота выделены",
+   "camera": {
+    "x": 0.5,
+    "y": 0.5,
+    "zoom": 32
+   },
+   "weather": {
+    "hour": 12,
+    "light": 1,
+    "windX": 1.5,
+    "windY": 0.4,
+    "precipitation": 0
+   },
+   "entities": [
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": -8,
+     "y": -4,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": -4,
+     "y": -4,
+     "owner": 2
+    },
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": 0,
+     "y": -4,
+     "owner": 3
+    },
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": 4,
+     "y": -4,
+     "owner": 0
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": -8,
+     "y": 2,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": -4,
+     "y": 2,
+     "owner": 2
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": 0,
+     "y": 2,
+     "owner": 3
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": 4,
+     "y": 2,
+     "owner": 0
+    },
+    {
+     "kind": "unit",
+     "type": "infantry",
+     "x": -7,
+     "y": 5,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "infantry",
+     "x": -3,
+     "y": 5,
+     "owner": 2
+    },
+    {
+     "kind": "unit",
+     "type": "infantry",
+     "x": 1,
+     "y": 5,
+     "owner": 3
+    },
+    {
+     "kind": "unit",
+     "type": "infantry",
+     "x": 5,
+     "y": 5,
+     "owner": 0
+    },
+    {
+     "kind": "building",
+     "type": "turret",
+     "x": 8,
+     "y": -4,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "turret",
+     "x": 8,
+     "y": -1,
+     "owner": 2
+    },
+    {
+     "kind": "building",
+     "type": "turret",
+     "x": 8,
+     "y": 2,
+     "owner": 0
+    }
+   ],
+   "render": {
+    "name": "sides-neutrals",
+    "tick": 1,
+    "entities": 15,
+    "blasts": 0,
+    "shots": 0,
+    "sites": 0,
+    "errors": []
+   }
+  },
+  {
+   "seed": 1337,
+   "size": 1024,
+   "fog": false,
+   "player": 1,
+   "width": 640,
+   "height": 400,
+   "time": 10,
+   "credits": [
+    {
+     "player": 1,
+     "amount": 10000
+    },
+    {
+     "player": 2,
+     "amount": 10000
+    },
+    {
+     "player": 3,
+     "amount": 10000
+    }
+   ],
+   "research": [
+    1,
+    2,
+    3
+   ],
+   "allies": [],
+   "commands": [
+    {
+     "player": 1,
+     "command": {
+      "type": "work",
+      "building": 2,
+      "on": false
+     }
+    },
+    {
+     "player": 1,
+     "command": {
+      "type": "work",
+      "building": 3,
+      "on": false
+     }
+    },
+    {
+     "player": 1,
+     "command": {
+      "type": "build",
+      "building": "radar",
+      "x": -44,
+      "y": -324,
+      "builders": [
+       4
+      ]
+     }
+    },
+    {
+     "player": 1,
+     "command": {
+      "type": "build",
+      "building": "generator",
+      "x": -42,
+      "y": -326,
+      "builders": [
+       5
+      ]
+     }
+    },
+    {
+     "player": 1,
+     "command": {
+      "type": "build",
+      "building": "matter",
+      "x": -49,
+      "y": -323,
+      "builders": [
+       6
+      ]
+     }
+    }
+   ],
+   "advanceTicks": 90,
+   "selected": [],
+   "terrainRegions": [
+    [
+     0,
+     0,
+     128,
+     80
+    ],
+    [
+     512,
+     0,
+     128,
+     80
+    ],
+    [
+     0,
+     320,
+     128,
+     80
+    ],
+    [
+     512,
+     320,
+     128,
+     80
+    ]
+   ],
+   "hud": false,
+   "biome": 2,
+   "name": "construction-off",
+   "description": "Стройка (три площадки, строители) и выключенные здания (темнее, без огней), вечер",
+   "camera": {
+    "x": -47.5,
+    "y": -323.5,
+    "zoom": 32
+   },
+   "weather": {
+    "hour": 23,
+    "light": 0.10000000149011612,
+    "windX": 1.5,
+    "windY": 0.4,
+    "precipitation": 0
+   },
+   "entities": [
+    {
+     "kind": "building",
+     "type": "command",
+     "x": -57,
+     "y": -328,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": -52,
+     "y": -328,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "smelter",
+     "x": -52,
+     "y": -324,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "siliconWorks",
+     "x": -47,
+     "y": -328,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "builder",
+     "x": -54,
+     "y": -320,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "builder",
+     "x": -49,
+     "y": -320,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "builder",
+     "x": -45,
+     "y": -320,
+     "owner": 1
+    }
+   ],
+   "render": {
+    "name": "construction-off",
+    "tick": 90,
+    "entities": 7,
+    "blasts": 0,
+    "shots": 0,
+    "sites": 3,
+    "errors": []
+   }
+  },
+  {
+   "seed": 1337,
+   "size": 1024,
+   "fog": false,
+   "player": 1,
+   "width": 640,
+   "height": 400,
+   "time": 10,
+   "credits": [
+    {
+     "player": 1,
+     "amount": 10000
+    },
+    {
+     "player": 2,
+     "amount": 10000
+    },
+    {
+     "player": 3,
+     "amount": 10000
+    }
+   ],
+   "research": [
+    1,
+    2,
+    3
+   ],
+   "allies": [],
+   "commands": [
+    {
+     "player": 1,
+     "command": {
+      "type": "stance",
+      "units": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      "stance": "aggressive"
+     }
+    },
+    {
+     "player": 2,
+     "command": {
+      "type": "stance",
+      "units": [
+       5,
+       6,
+       7,
+       8,
+       9
+      ],
+      "stance": "aggressive"
+     }
+    },
+    {
+     "player": 1,
+     "command": {
+      "type": "move",
+      "units": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      "x": -49,
+      "y": -324
+     }
+    },
+    {
+     "player": 2,
+     "command": {
+      "type": "move",
+      "units": [
+       5,
+       6,
+       7,
+       8,
+       9
+      ],
+      "x": -47,
+      "y": -324
+     }
+    }
+   ],
+   "advanceTicks": 100,
+   "selected": [],
+   "terrainRegions": [
+    [
+     0,
+     0,
+     100,
+     60
+    ]
+   ],
+   "hud": false,
+   "biome": 2,
+   "name": "battle-blast",
+   "description": "Бой стенка на стенку, кадр со вспышками, снарядами и взрывами",
+   "camera": {
+    "x": -47.5,
+    "y": -323.5,
+    "zoom": 32
+   },
+   "weather": {
+    "hour": 12,
+    "light": 1,
+    "windX": 1.5,
+    "windY": 0.4,
+    "precipitation": 0
+   },
+   "entities": [
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": -53,
+     "y": -328,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "rocketeer",
+     "x": -53,
+     "y": -326,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "infantry",
+     "x": -53,
+     "y": -324,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "lancer",
+     "x": -53,
+     "y": -322,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "tesla",
+     "x": -53,
+     "y": -320,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": -43,
+     "y": -328,
+     "owner": 2
+    },
+    {
+     "kind": "unit",
+     "type": "rocketeer",
+     "x": -43,
+     "y": -326,
+     "owner": 2
+    },
+    {
+     "kind": "unit",
+     "type": "infantry",
+     "x": -43,
+     "y": -324,
+     "owner": 2
+    },
+    {
+     "kind": "unit",
+     "type": "lancer",
+     "x": -43,
+     "y": -322,
+     "owner": 2
+    },
+    {
+     "kind": "unit",
+     "type": "tesla",
+     "x": -43,
+     "y": -320,
+     "owner": 2
+    }
+   ],
+   "render": {
+    "name": "battle-blast",
+    "tick": 100,
+    "entities": 10,
+    "blasts": 2,
+    "shots": 0,
+    "sites": 0,
+    "errors": []
+   }
+  },
+  {
+   "seed": 1337,
+   "size": 1024,
+   "fog": false,
+   "player": 1,
+   "width": 640,
+   "height": 400,
+   "time": 10,
+   "credits": [
+    {
+     "player": 1,
+     "amount": 10000
+    },
+    {
+     "player": 2,
+     "amount": 10000
+    },
+    {
+     "player": 3,
+     "amount": 10000
+    }
+   ],
+   "research": [
+    1,
+    2,
+    3
+   ],
+   "allies": [],
+   "commands": [],
+   "advanceTicks": 1,
+   "selected": [
+    9
+   ],
+   "terrainRegions": [],
+   "hud": true,
+   "biome": 0,
+   "name": "hud-panels",
+   "description": "Интерфейс игры: верхняя полоса, нижняя панель с выделенным юнитом и сеткой команд",
+   "camera": {
+    "x": -95.5,
+    "y": -71.5,
+    "zoom": 32
+   },
+   "weather": {
+    "hour": 12,
+    "light": 1,
+    "windX": 1.5,
+    "windY": 0.4,
+    "precipitation": 0
+   },
+   "entities": [
+    {
+     "kind": "building",
+     "type": "command",
+     "x": -103,
+     "y": -76,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "generator",
+     "x": -99,
+     "y": -76,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "smelter",
+     "x": -103,
+     "y": -72,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "factory",
+     "x": -95,
+     "y": -76,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "turret",
+     "x": -91,
+     "y": -74,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -92,
+     "y": -71,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -91,
+     "y": -71,
+     "owner": 1
+    },
+    {
+     "kind": "building",
+     "type": "wall",
+     "x": -90,
+     "y": -71,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "infantry",
+     "x": -99,
+     "y": -69,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "buggy",
+     "x": -97,
+     "y": -68,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "tank",
+     "x": -94,
+     "y": -68,
+     "owner": 1
+    },
+    {
+     "kind": "unit",
+     "type": "truck",
+     "x": -101,
+     "y": -68,
+     "owner": 1
+    }
+   ],
+   "render": {
+    "name": "hud-panels",
+    "tick": 1,
+    "entities": 12,
+    "blasts": 0,
+    "shots": 0,
+    "sites": 0,
+    "errors": []
+   }
+  }
+ ]
+}

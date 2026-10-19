@@ -10,6 +10,7 @@ using Base.Host.Sections.Pipes;
 using Base.Host.Sections.Players;
 using Base.Host.Sections.Production;
 using Base.Host.Sections.Research;
+using Base.Host.Sections.Showcase;
 using Base.Host.Sections.Tactics;
 using Base.Host.Sections.Trade;
 using Base.Shared.Data;
@@ -46,6 +47,7 @@ public sealed class BaseMod : Mod
         MissilesSection.Setup(mod);
         TacticsSection.Setup(mod);
         PlayersSection.Setup(mod);
+        ShowcaseSection.Setup(mod);
         Order.Apply(mod);
     }
 

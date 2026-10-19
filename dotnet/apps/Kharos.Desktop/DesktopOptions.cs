@@ -2,8 +2,13 @@ using System.Globalization;
 
 namespace Kharos.Desktop;
 
-/// <summary>Снимок кадра вместо игры: KHAROS_SHOT, KHAROS_SHOT_FRAMES, KHAROS_SHOT_POINTER, KHAROS_SHOT_SIZE.</summary>
-public sealed record ShotOptions(string Path, int Frames, (float X, float Y)? Pointer, (int Width, int Height) Size);
+/// <summary>
+/// Снимок кадра вместо игры: KHAROS_SHOT, KHAROS_SHOT_FRAMES, KHAROS_SHOT_POINTER, KHAROS_SHOT_SIZE; Н6.4: KHAROS_SHOT_SCENE —
+/// сценка витрины (или описание сцены сверки кадров), KHAROS_SHOT_HOUR — час суток (0..24) поверх часов карты,
+/// KHAROS_CLOCK=fixed — замороженные экранные часы (время кадра = номер кадра, без реального времени).
+/// </summary>
+public sealed record ShotOptions(string Path, int Frames, (float X, float Y)? Pointer, (int Width, int Height) Size,
+    string? Scene = null, float? Hour = null, bool FixedClock = false);
 
 /// <summary>
 /// Настройки запуска из окружения (как у пилота): KHAROS_MODS — папки с модами через разделитель путей, KHAROS_GAME —
@@ -16,7 +21,8 @@ public sealed record DesktopOptions(IReadOnlyList<string> ModRoots, string? Game
     public static DesktopOptions FromEnvironment()
     {
         var shot = Env("KHAROS_SHOT") is { } path
-            ? new ShotOptions(Path.GetFullPath(path), Int(Env("KHAROS_SHOT_FRAMES")) ?? 60, Pointer(Env("KHAROS_SHOT_POINTER")), Size(Env("KHAROS_SHOT_SIZE")))
+            ? new ShotOptions(Path.GetFullPath(path), Int(Env("KHAROS_SHOT_FRAMES")) ?? 60, Pointer(Env("KHAROS_SHOT_POINTER")), Size(Env("KHAROS_SHOT_SIZE")),
+                Env("KHAROS_SHOT_SCENE"), Hour(Env("KHAROS_SHOT_HOUR")), string.Equals(Env("KHAROS_CLOCK"), "fixed", StringComparison.OrdinalIgnoreCase))
             : null;
         return new DesktopOptions(FindModRoots(), Env("KHAROS_GAME"), !string.Equals(Env("KHAROS_AUDIO"), "off", StringComparison.OrdinalIgnoreCase),
             Float(Env("KHAROS_SCALE")), shot, Env("KHAROS_SERVER"), Env("KHAROS_NAME"), Env("KHAROS_PASSWORD"));
@@ -44,6 +50,9 @@ public sealed record DesktopOptions(IReadOnlyList<string> ModRoots, string? Game
     private static int? Int(string? text) => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) && value > 0 ? value : null;
 
     private static float? Float(string? text) => float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) && value > 0 ? value : null;
+
+    private static float? Hour(string? text) =>
+        float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) && value is >= 0 and <= 24 ? value : null;
 
     private static (float, float)? Pointer(string? text)
     {

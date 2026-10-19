@@ -134,12 +134,15 @@ public sealed unsafe class GpuContext : IDisposable
     /// <summary>Адаптер, совместимый с поверхностью (или любой, если её нет); нет адаптера — <see cref="GpuException"/>.</summary>
     private Adapter* RequestAdapter(Surface* surface)
     {
-        var options = new RequestAdapterOptions { CompatibleSurface = surface, PowerPreference = PowerPreference.HighPerformance };
+        var options = new RequestAdapterOptions { CompatibleSurface = surface, PowerPreference = PowerPreference.HighPerformance, ForceFallbackAdapter = SoftwareRequested };
         var request = new Request();
         Api.InstanceRequestAdapter(Instance, &options, new PfnRequestAdapterCallback(&OnAdapter), &request);
         if (request.Result == null) throw new GpuException("WebGPU: нет адаптера — " + Marshal.PtrToStringUTF8(request.Message));
         return (Adapter*)request.Result;
     }
+
+    /// <summary>KHAROS_GPU_ADAPTER=software: просить программный (запасной) адаптер вместо видеокарты.</summary>
+    public static bool SoftwareRequested => string.Equals(Environment.GetEnvironmentVariable("KHAROS_GPU_ADAPTER"), "software", StringComparison.OrdinalIgnoreCase);
 
     private static InstanceBackend BackendsFromEnvironment() => Environment.GetEnvironmentVariable("KHAROS_GPU_BACKEND")?.ToLowerInvariant() switch
     {

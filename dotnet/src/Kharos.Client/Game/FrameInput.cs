@@ -34,6 +34,15 @@ public record struct ClientInput()
     /// <summary>Набранный за кадр текст.</summary>
     public string Text { get; set; } = "";
 
+    /// <summary>Язык игрока (ABI 2): ru, en, … — моды берут его для своих строк.</summary>
+    public string Lang { get; set; } = "ru";
+
+    /// <summary>Правки полей ввода мода (Field) за кадр: номер поля и новое значение (ABI 2). TODO(Д2): ведёт UI-ядро.</summary>
+    public IReadOnlyList<(string Id, string Value)> Edits { get; set; } = [];
+
+    /// <summary>Режим оболочки (ABI 2): ClientAbi.Shell* — меню поверх партии, редактор, запись. TODO(Д4): ставит оболочка.</summary>
+    public byte Shell { get; set; }
+
     /// <summary>Что из этого берёт интерфейс.</summary>
     public readonly UiInput ToUi() => new()
     {
@@ -57,10 +66,11 @@ public sealed class FrameInput
 
     /// <summary>
     /// Вход кадра: время, экран, камера, ввод, состояние интерфейса после <see cref="Gui.Begin"/> (места, наведение,
-    /// щелчки по узлам прошлого кадра), звук, сигналы хоста, атмосфера.
+    /// щелчки по узлам прошлого кадра), звук, сигналы хоста, атмосфера, оболочка (язык, правки полей, режим, ревизия
+    /// ростера roster).
     /// </summary>
     public void Write(AbiWriter w, in FrameClock clock, in ClientInput input, CameraState camera, Gui gui,
-        AtmosphereState atmosphere, IReadOnlyList<ReplicaSignal> signals, double? audioNow, IReadOnlyList<uint> ended)
+        AtmosphereState atmosphere, IReadOnlyList<ReplicaSignal> signals, double? audioNow, IReadOnlyList<uint> ended, uint roster = 0)
     {
         w.Clear();
         w.F64(clock.Time).F64(clock.Dt).U64(clock.Tick).F64(clock.Alpha).F64(clock.Clock).F64(clock.TickDt).U32(clock.Player);
@@ -122,6 +132,13 @@ public sealed class FrameInput
             w.U64(signals[i].Tick).Str(signals[i].Signal.Name).Blob(signals[i].Signal.Payload);
 
         w.F32(atmosphere.Light).F32(atmosphere.WindX).F32(atmosphere.WindY).F32(atmosphere.Precipitation);
+
+        w.Str(input.Lang);
+        var edits = Math.Min(input.Edits.Count, ushort.MaxValue);
+        w.U16((ushort)edits);
+        for (var i = 0; i < edits; i++)
+            w.Str(input.Edits[i].Id).Str(input.Edits[i].Value);
+        w.U8(input.Shell).U32(roster);
     }
 
     private static byte Buttons(PointerButtons buttons) =>

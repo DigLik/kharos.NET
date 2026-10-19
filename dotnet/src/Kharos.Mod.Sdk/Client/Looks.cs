@@ -14,6 +14,12 @@ public readonly record struct Beam(float Along = 8, float Length = 60, float Nea
 /// <summary>Кадр облика: холст, угол направления в радианах, фаза.</summary>
 public delegate void LookDraw(Canvas canvas, double angle, int phase);
 
+/// <summary>
+/// Ячейка облика с вариантами (ABI клиента 2): холст, вариант, угол, фаза. С <see cref="LookSpec.Working"/> фазы
+/// <see cref="LookSpec.Phases"/>..2 × Phases − 1 — кадры «в работе».
+/// </summary>
+public delegate void LookCellDraw(Canvas canvas, int variant, double angle, int phase);
+
 /// <summary>Портрет для панелей: рисуется один раз и обрезается по закрашенному.</summary>
 public sealed record PortraitSpec(int Width, int Height, Action<Canvas> Draw)
 {
@@ -49,6 +55,18 @@ public sealed record LookSpec(LookDraw Draw)
     public int Icon { get; init; }
     public PortraitSpec? Portrait { get; init; }
 
+    /// <summary>
+    /// Вариантов облика (ABI клиента 2, LookVariants): стена — 16, ворота — 17, дверь шахты — 8 × 4. Рисует их
+    /// <see cref="DrawCell"/>; 1 — без вариантов.
+    /// </summary>
+    public int Variants { get; init; } = 1;
+
+    /// <summary>Второй набор фаз «в работе» (LookWorking, framesOf в buildingsPass.ts): фазы удваиваются.</summary>
+    public bool Working { get; init; }
+
+    /// <summary>Ячейка с вариантом; null — <see cref="LookSpec.Draw"/> (вариант не передаётся).</summary>
+    public LookCellDraw? DrawCell { get; init; }
+
     /// <summary>Облик потоком (ClientAbi, «Поток облика») — то, что отдаёт kh_look; для сверки вне wasm.</summary>
     public byte[] Encode()
     {
@@ -62,6 +80,8 @@ public sealed record LookSpec(LookDraw Draw)
     {
         var directions = Math.Max(Directions, 1);
         var phases = Math.Max(Phases, 1);
+        var variants = Math.Max(Variants, 1);
+        var frames = Working ? phases * 2 : phases;
         byte flags = 0;
         if (Origin is not null) flags |= ClientAbi.LookOrigin;
         if (Step is not null) flags |= ClientAbi.LookStep;
@@ -69,10 +89,13 @@ public sealed record LookSpec(LookDraw Draw)
         if (Memory) flags |= ClientAbi.LookMemory;
         if (Beam is not null) flags |= ClientAbi.LookBeam;
         if (Portrait is not null) flags |= ClientAbi.LookPortrait;
+        if (variants > 1) flags |= ClientAbi.LookVariants;
+        if (Working) flags |= ClientAbi.LookWorking;
         w.U16(checked((ushort)Width)).U16(checked((ushort)Height)).U8(flags);
         if (Origin is { } origin) w.F64(origin.X).F64(origin.Y);
         w.F64(Anchor.X).F64(Anchor.Y).U16(checked((ushort)directions)).U16(checked((ushort)phases)).F32(Fps);
         if (Step is { } step) w.F32(step);
+        if (variants > 1) w.U16(checked((ushort)variants));
         w.U8((byte)Layer);
         if (Shadow is { } shadow) w.F32(shadow.Offset).F32(shadow.Opacity);
         w.U16(checked((ushort)Icon)).U16(checked((ushort)Lamps.Count));
@@ -86,12 +109,17 @@ public sealed record LookSpec(LookDraw Draw)
             portrait.Draw(canvas);
             w.U8(ClientAbi.CanvasEnd);
         }
-        for (var phase = 0; phase < phases; phase++)
-            for (var direction = 0; direction < directions; direction++)
-            {
-                Draw(canvas, (double)direction / directions * Canvas.Turn, phase);
-                w.U8(ClientAbi.CanvasEnd);
-            }
+        for (var variant = 0; variant < variants; variant++)
+            for (var phase = 0; phase < frames; phase++)
+                for (var direction = 0; direction < directions; direction++)
+                {
+                    var angle = (double)direction / directions * Canvas.Turn;
+                    if (DrawCell is { } cell)
+                        cell(canvas, variant, angle, phase);
+                    else
+                        Draw(canvas, angle, phase);
+                    w.U8(ClientAbi.CanvasEnd);
+                }
     }
 }
 

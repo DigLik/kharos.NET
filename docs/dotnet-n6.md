@@ -174,7 +174,7 @@
 | 1 | Д5 Звук движка | `src/Kharos.Audio/**`, `ClientGame.Audio.cs`: офлайн-рендер, WAV для записи, звуки оболочки | — | Sonnet |
 | 1 | Д6 Память слоёв | `Kharos.Host/{Vision,VisionView}.cs`, `Engine/Layers/*`, `engine.traces` | — | Opus |
 | 1 | Б-А Здания, часть 1 | `Art/Buildings/` от `command` до `barracks` (25), `Art/BuildingKit.cs` | П0.3, П0.4 | Sonnet |
-| 1 | Б-Б Здания, часть 2 | `Art/Buildings/` от `mine` до `cannonTurret` (22): стена, ворота, трубы, турели | Б-А (`BuildingKit`) | Sonnet |
+| 1 | Б-Б Здания, часть 2 | `Art/Buildings/` от `mine` до `cannonTurret` (23): стена, ворота, трубы, турели | Б-А (`BuildingKit`) | Sonnet |
 | 1 | Б-З Значки и кадры эффектов | `Art/Icons.cs`, `Art/Effects.cs`, `Art/Paving.cs` | П0.3, П0.4 | Sonnet |
 | 1 | Б-Зв Банк звуков | `Sounds/*`, `AudioTests/BankGolden.cs` | П0.3 | Sonnet |
 | 2 | К1 Эффекты | `Effects/*` (кроме `Traces.cs`), `Hud/Lacks.cs` | Д1, Б-З | Opus |

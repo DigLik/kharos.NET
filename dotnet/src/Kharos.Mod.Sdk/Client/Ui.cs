@@ -13,6 +13,7 @@ public sealed class Ui
 {
     private readonly ByteWriter _out;
     private readonly Dictionary<string, IdState> _ids = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _edits = new(StringComparer.Ordinal);
     private int _depth;
 
     private readonly record struct IdState(byte Flags, Rect Rect, float U, float V, Click Click);
@@ -72,6 +73,17 @@ public sealed class Ui
         }
     }
 
+    /// <summary>Правки полей ввода за кадр (вход кадра, ABI 2).</summary>
+    internal void ReadEdits(ref ByteReader r)
+    {
+        _edits.Clear();
+        for (int i = 0, n = r.U16(); i < n; i++)
+        {
+            var id = r.Str();
+            _edits[id] = r.Str();
+        }
+    }
+
     /// <summary>Закрывает узлы, что обработчик оставил открытыми (после исключения).</summary>
     internal void Unwind(int depth)
     {
@@ -104,6 +116,12 @@ public sealed class Ui
 
     /// <summary>Место узла id в прошлом кадре.</summary>
     public Rect? RectOf(string id) => _ids.TryGetValue(id, out var state) ? state.Rect : null;
+
+    /// <summary>Новое значение поля ввода id, если игрок правил его за кадр; null — не правил.</summary>
+    public string? Edited(string id) => _edits.GetValueOrDefault(id);
+
+    /// <summary>Все правки полей ввода за кадр: номер поля → значение.</summary>
+    public IReadOnlyDictionary<string, string> Edits => _edits;
 
     /// <summary>Ширина строки шрифтом font (инструмент клиента: шрифты — у него).</summary>
     public float Measure(string text, FontName font = FontName.Body) => ClientTools.Measure(text, font);
@@ -159,6 +177,21 @@ public sealed class Ui
 
     /// <summary>Мини-карта с туманом поверх.</summary>
     public void Minimap(float width, float height) => _out.U8(ClientAbi.OpImage).U8(ClientAbi.ImageMinimap).F32(width).F32(height);
+
+    /// <summary>
+    /// Поле ввода id с текстом value (ABI 2): что набрал игрок, приходит кадром позже — <see cref="Edited"/>; value мод
+    /// держит сам и показывает каждый кадр. Номер узла — id (Id стиля не нужен).
+    /// </summary>
+    public void Field(string id, string value, Style? style = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        _out.U8(ClientAbi.OpField).Str(id).Str(value);
+        WriteStyle(style ?? new Style());
+    }
+
+    /// <summary>Значок внутри текста (ABI 2): ячейка cell облика вида proto (номер вида), size × size, своей стороной.</summary>
+    public void Icon(int proto, int cell = 0, float size = 12) =>
+        _out.U8(ClientAbi.OpIcon).I32(proto).U16(checked((ushort)cell)).F32(size);
 
     /// <summary>Пустое место; grow — растёт в остаток.</summary>
     public void Space(float width = 0, float height = 0, float grow = 0) => _out.U8(ClientAbi.OpSpace).F32(width).F32(height).F32(grow);
@@ -310,6 +343,54 @@ internal static class ClientTools
         return output.Length >= 4 ? BinaryPrimitives.ReadSingleLittleEndian(output) : 0;
     }
 
+    /// <summary>48 Text: строка ключа key на языке игрока с аргументами.</summary>
+    public static string Text(string key, ReadOnlySpan<string> args)
+    {
+        Begin();
+        Str(key);
+        U16(checked((ushort)args.Length));
+        foreach (var arg in args) Str(arg);
+        var output = Call(ClientAbi.ToolText);
+        var length = BinaryPrimitives.ReadUInt16LittleEndian(output);
+        return Encoding.UTF8.GetString(output.Slice(2, length));
+    }
+
+    /// <summary>49 Prefs: байты настройки мода key (нет — пусто).</summary>
+    public static byte[] Prefs(string key)
+    {
+        Begin();
+        Str(key);
+        return Call(ClientAbi.ToolPrefs).ToArray();
+    }
+
+    /// <summary>50 Roster: игроки партии.</summary>
+    public static RosterEntry[] Roster()
+    {
+        Begin();
+        var output = Call(ClientAbi.ToolRoster);
+        var at = 0;
+        var count = (int)BinaryPrimitives.ReadUInt32LittleEndian(output);
+        at += 4;
+        var entries = new RosterEntry[count];
+        for (var i = 0; i < count; i++)
+        {
+            var player = BinaryPrimitives.ReadUInt32LittleEndian(output[at..]);
+            var length = BinaryPrimitives.ReadUInt16LittleEndian(output[(at + 4)..]);
+            var nick = Encoding.UTF8.GetString(output.Slice(at + 6, length));
+            at += 6 + length;
+            entries[i] = new RosterEntry(player, nick, output[at] != 0, output[at + 1] != 0);
+            at += 2;
+        }
+        return entries;
+    }
+
+    /// <summary>51 Settings: JSON настроек партии и прав.</summary>
+    public static string Settings()
+    {
+        Begin();
+        return Encoding.UTF8.GetString(Call(ClientAbi.ToolSettings));
+    }
+
     public static void Begin() => _length = 0;
 
     public static Span<byte> Room(int count)
@@ -322,6 +403,15 @@ internal static class ClientTools
     }
 
     public static void Byte(byte value) => Room(1)[0] = value;
+    public static void U16(ushort value) => BinaryPrimitives.WriteUInt16LittleEndian(Room(2), value);
+
+    /// <summary>Строка str: u16 длина байт и UTF-8.</summary>
+    public static void Str(string text)
+    {
+        var count = Encoding.UTF8.GetByteCount(text);
+        U16(checked((ushort)count));
+        Encoding.UTF8.GetBytes(text, Room(count));
+    }
     public static void U32(uint value) => BinaryPrimitives.WriteUInt32LittleEndian(Room(4), value);
     public static void F64(double value) => BinaryPrimitives.WriteDoubleLittleEndian(Room(8), value);
     public static void Utf8(string text) => Encoding.UTF8.GetBytes(text, Room(Encoding.UTF8.GetByteCount(text)));

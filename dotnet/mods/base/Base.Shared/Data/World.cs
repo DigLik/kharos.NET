@@ -53,7 +53,7 @@ public sealed class SpawnSpec
 
 /// <summary>
 /// Партия (games.json). size, fog, land, remember читает движок (GameContent.Game); start — давать ли вошедшему
-/// стартовый набор (credits и units по порядку), sandbox — готовая база (sandbox.ts).
+/// стартовый набор (credits и units по порядку), sandbox — готовая база (sandbox.ts), client — подача (<see cref="ClientSpec"/>).
 /// </summary>
 public sealed class GameSpec
 {
@@ -68,4 +68,21 @@ public sealed class GameSpec
     public string[] Units { get; set; } = [];
     public SpawnSpec Spawn { get; set; } = new();
     public string[] Remember { get; set; } = [];
+
+    /// <summary>Подача партии в клиенте base (подобъект <c>client</c>); нет — подачи base у партии нет.</summary>
+    public ClientSpec? Client { get; set; }
+}
+
+/// <summary>
+/// Подача партии (games.json, подобъект <c>client</c>; раздел client партии пилота games/skirmish.luau): режим камеры
+/// (rts, follow) и имена видов разделов клиента base — управление (select, orders), панели (hud), атмосфера (weather),
+/// эффекты (traces). Чего нет в списке, то раздел не делает.
+/// </summary>
+public sealed class ClientSpec
+{
+    public string? Camera { get; set; }
+    public string[] Controls { get; set; } = [];
+    public string[] Ui { get; set; } = [];
+    public string[] Atmosphere { get; set; } = [];
+    public string[] Effects { get; set; } = [];
 }

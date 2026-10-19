@@ -31,11 +31,11 @@
     <PackageReference Include="StbImageWriteSharp" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Чертежи облика base (юниты, турели, здания, месторождения) — те же файлы, что в client.wasm: сверка со всеми видами TS. -->
-    <Compile Include="..\..\mods\base\Base.Client\Art\*.cs" Link="Base\Art\%(Filename)%(Extension)" />
+    <!-- Чертежи облика base (юниты, турели, здания Art/Buildings, месторождения) — те же файлы, что в client.wasm: сверка со всеми видами TS. Файлы разделов (*Section.cs) живут на состоянии мода и сюда не входят. -->
+    <Compile Include="..\..\mods\base\Base.Client\Art\**\*.cs" Exclude="..\..\mods\base\Base.Client\Art\ArtSection.cs" Link="Base\Art\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Звук клиентской части base (банк, голоса, обработчики) — те же файлы, что в client.wasm. -->
-    <Compile Include="..\..\mods\base\Base.Client\Sounds\*.cs" Link="Base\Sounds\%(Filename)%(Extension)" />
-    <Compile Include="..\..\mods\base\Base.Client\Audio\*.cs" Link="Base\Audio\%(Filename)%(Extension)" />
+    <Compile Include="..\..\mods\base\Base.Client\Sounds\*.cs" Exclude="..\..\mods\base\Base.Client\Sounds\SoundsSection.cs" Link="Base\Sounds\%(Filename)%(Extension)" />
+    <Compile Include="..\..\mods\base\Base.Client\Audio\*.cs" Exclude="..\..\mods\base\Base.Client\Audio\AudioSection.cs" Link="Base\Audio\%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

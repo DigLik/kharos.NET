@@ -119,6 +119,47 @@ public sealed class Draw
     /// <summary>Прямоугольник по углам: width — толщина рамки в пикселях, null — заливка.</summary>
     public void Rect(double x1, double y1, double x2, double y2, uint color, float? width = null, float alpha = 1) =>
         _out.U8(ClientAbi.OpRect).F32((float)x1).F32((float)y1).F32((float)x2).F32((float)y2).U32(Rgba(color, alpha)).F32(width ?? float.NaN);
+
+    /// <summary>
+    /// Свободный спрайт облика вида proto (ABI 2: эффекты, призраки): точка привязки облика — в (x, y) тайлов; variant —
+    /// вариант (<see cref="LookSpec.Variants"/>), frame — фаза (с <see cref="LookSpec.Working"/> — среди удвоенных),
+    /// angle — направление; team — 0 своя, 1 чужая, 2 союзная, 3 ничья; tint — множитель цвета 0xRRGGBB или 0xAARRGGBB.
+    /// </summary>
+    public void Sprite(int proto, double x, double y, double angle = 0, int variant = 0, int frame = 0, float scale = 1, float alpha = 1,
+        int team = 0, LookLayer layer = LookLayer.Ground, uint tint = 0xffffff) =>
+        _out.U8(ClientAbi.OpSprite).I32(proto).U16(checked((ushort)variant)).U16(checked((ushort)frame)).F32((float)angle)
+            .F32((float)x).F32((float)y).F32(scale).F32(alpha).U8((byte)team).U8((byte)layer).U32(Rgba(tint));
+
+    /// <summary>
+    /// Уточнение спрайта сущности на этот кадр (ABI 2): вариант, фаза, доля постройки 0..1 («растёт снизу»),
+    /// затемнение 0..1 (выключенное), hide — не рисовать. null — как решает движок.
+    /// </summary>
+    public void Paint(uint entity, int? variant = null, int? frame = null, float? built = null, float? dim = null, bool hide = false)
+    {
+        byte mask = 0;
+        if (variant is not null) mask |= ClientAbi.PaintVariant;
+        if (frame is not null) mask |= ClientAbi.PaintFrame;
+        if (built is not null) mask |= ClientAbi.PaintBuilt;
+        if (dim is not null) mask |= ClientAbi.PaintDim;
+        if (hide) mask |= ClientAbi.PaintHide;
+        _out.U8(ClientAbi.OpPaint).U32(entity).U8(mask);
+        if (variant is { } v) _out.U16(checked((ushort)v));
+        if (frame is { } f) _out.U16(checked((ushort)f));
+        if (built is { } b) _out.F32(b);
+        if (dim is { } d) _out.F32(d);
+    }
+
+    /// <summary>Огонь в (x, y) тайлов (ABI 2): радиус пятна spot и ореола bloom в текселях, яркость 0..1.</summary>
+    public void Light(double x, double y, float spot, float bloom, float level = 1) =>
+        _out.U8(ClientAbi.OpLight).F32((float)x).F32((float)y).F32(spot).F32(bloom).F32(level);
+
+    /// <summary>
+    /// Луч (ABI 2, как фары): начало в тайлах, направление angle, длина и ближняя полуширина в текселях, яркость,
+    /// расширение.
+    /// </summary>
+    public void Beam(double x, double y, double angle, float length = 60, float level = 1, float near = 4, float spread = 0.28f) =>
+        _out.U8(ClientAbi.OpBeam).F32((float)x).F32((float)y).F32(length).F32(level).F32((float)Math.Cos(angle)).F32((float)Math.Sin(angle))
+            .F32(near).F32(spread);
 }
 
 /// <summary>
@@ -142,6 +183,7 @@ public sealed class ClientContext
         Ui = new Ui(_out);
         Draw = new Draw(_out);
         Audio = new ClientAudio(_out);
+        Prefs = new Prefs(_out);
     }
 
     public Input Input { get; } = new();
@@ -150,6 +192,18 @@ public sealed class ClientContext
     public Ui Ui { get; }
     public Draw Draw { get; }
     public ClientAudio Audio { get; }
+
+    /// <summary>Настройки мода у игрока (ABI 2): между партиями.</summary>
+    public Prefs Prefs { get; }
+
+    /// <summary>Язык игрока (ABI 2): ru, en, …</summary>
+    public string Lang { get; private set; } = "ru";
+
+    /// <summary>Режим оболочки (ABI 2): меню поверх партии, редактор, запись.</summary>
+    public ShellMode Shell { get; private set; }
+
+    /// <summary>Ревизия ростера (ABI 2): сменилась — перечитать <see cref="Roster"/>.</summary>
+    public uint RosterRevision { get; private set; }
 
     /// <summary>Общая память обработчиков мода (selection и т. п.).</summary>
     public Dictionary<string, object?> Shared { get; } = new(StringComparer.Ordinal);
@@ -296,6 +350,23 @@ public sealed class ClientContext
     /// <summary>Местность в точке; false — у партии нет местности.</summary>
     public bool Terrain(double x, double y, out TerrainInfo info) => Tools.Terrain(x, y, out info);
 
+    // ------------------------------------------------------------------ оболочка (ABI 2)
+
+    /// <summary>Строка ключа key на языке игрока (словари всех модов); нет ключа — сам ключ.</summary>
+    public string Text(string key, params ReadOnlySpan<string> args) => ClientTools.Text(key, args);
+
+    /// <summary>Игроки партии: номер, ник, в сети ли, администратор ли.</summary>
+    public RosterEntry[] Roster() => ClientTools.Roster();
+
+    /// <summary>
+    /// Настройки партии и права — JSON: { "game", "settings" (запись data/games.json), "map", "fog",
+    /// "rights": { "admin", "editor" } }.
+    /// </summary>
+    public string Settings() => ClientTools.Settings();
+
+    /// <summary>Просьба к оболочке: меню, чат с текстом arg, настройки.</summary>
+    public void Ask(ShellAction action, string arg = "") => _out.U8(ClientAbi.OpShell).U8((byte)action).Str(arg);
+
     // ------------------------------------------------------------------ экран и слух
 
     public (double X, double Y) ToScreen(double x, double y) => ((x - Camera.X) * Camera.Zoom + ScreenWidth / 2.0, (y - Camera.Y) * Camera.Zoom + ScreenHeight / 2.0);
@@ -432,6 +503,9 @@ public sealed class ClientContext
         }
     }
 
+    /// <summary>Буфер выхода вне GC — прочь (конец экземпляра в режиме CLR).</summary>
+    internal void Release() => _out.Dispose();
+
     internal void Load(LoadContext ctx, WorldSchema schema)
     {
         Schema = schema;
@@ -471,6 +545,10 @@ public sealed class ClientContext
         Atmosphere.WindX = r.F32();
         Atmosphere.WindY = r.F32();
         Atmosphere.Precipitation = r.F32();
+        Lang = r.Str();
+        Ui.ReadEdits(ref r);
+        Shell = (ShellMode)r.U8();
+        RosterRevision = r.U32();
     }
 
     private void End()

@@ -68,9 +68,39 @@ public static unsafe class ClrBridge
     /// <summary>Текст последней ошибки.</summary>
     public static string Error() => ModRuntime.Error;
 
+    // ===== Клиентский мод (ClientAbi, docs/dotnet-n6.md, Н6-6): те же kh_*, что ClientExports, без адресов wasm =====
+
+    /// <summary>kh_abi_version клиентского мода: версия клиентского ABI этого SDK.</summary>
+    public static int ClientAbiVersion() => ClientRuntime.AbiVersion();
+
+    /// <summary>kh_load клиентского мода: create — класс мода (ClientExports.Create сборки мода).</summary>
+    public static int ClientLoad(Func<object> create, ReadOnlySpan<byte> info)
+    {
+        global::Kharos.Mod.Sdk.Client.ClientMod mod;
+        try
+        {
+            mod = (global::Kharos.Mod.Sdk.Client.ClientMod)create();
+        }
+        catch (Exception ex)
+        {
+            return ModRuntime.Fail(global::Kharos.Mod.Abi.ModAbi.ErrorException, $"kh_load: {ex.GetType().Name}: {ex.Message}");
+        }
+        return ClientRuntime.LoadCore(mod, info);
+    }
+
+    /// <summary>kh_look.</summary>
+    public static int ClientLook(int look) => ClientRuntime.Look(look);
+
+    /// <summary>kh_bank.</summary>
+    public static int ClientBank(int entry, int variant, int rate) => ClientRuntime.Bank(entry, variant, rate);
+
+    /// <summary>kh_frame: вход кадра → выход (<see cref="Output"/>).</summary>
+    public static int ClientFrame(ReadOnlySpan<byte> input) => ClientRuntime.FrameCore(input);
+
     /// <summary>Конец экземпляра: память вне GC освобождена, импорты отвязаны.</summary>
     public static void Detach()
     {
+        ClientRuntime.ReleaseAll();
         ModRuntime.ReleaseAll();
         Random = null;
         Log = null;

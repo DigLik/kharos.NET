@@ -177,6 +177,35 @@ sealed partial class ModManifest
 
     /// <summary>Клиент: предметы слоёв, которые клиент рисует обликами видов (месторождения).</summary>
     public ModItemLook[] ItemLooks { get; set; } = [];
+
+    /// <summary>Клиент (ABI 2): клетки слоёв-сеток, которые клиент рисует обликами видов (покрытие: дорога, фундамент, мост).</summary>
+    public ModCellLook[] CellLooks { get; set; } = [];
+}
+
+/// <summary>
+/// Клетки слоя-сетки рисуются обликами (ABI клиента 2, покрытие): канал Field тайла — номер в Looks (вид «раздел/имя»,
+/// пусто или 0 — не рисовать). Connect — облик стыкуется с соседями: вариант (LookVariants) — маска четырёх соседей с тем
+/// же значением канала (1 север, 2 восток, 4 юг, 8 запад), 16 вариантов; без Connect — вариант 0.
+/// </summary>
+[MemoryPackable]
+#if KHAROS_PLUGINS
+public
+#else
+internal
+#endif
+sealed partial class ModCellLook
+{
+    /// <summary>Имя слоя-сетки.</summary>
+    public string Layer { get; set; } = "";
+
+    /// <summary>Канал тайла с номером вида — номер канала сетки строкой («0»): каналы сетки безымянны.</summary>
+    public string Field { get; set; } = "";
+
+    /// <summary>Виды по значениям канала; пустое имя — клетка не рисуется.</summary>
+    public string[] Looks { get; set; } = [];
+
+    /// <summary>Стыковка с соседями: вариант облика — маска соседей с тем же значением.</summary>
+    public bool Connect { get; set; }
 }
 
 /// <summary>Предметы слоя-«предметов» рисуются обликами: поле Field предмета — номер в Looks (вид «раздел/имя»).</summary>

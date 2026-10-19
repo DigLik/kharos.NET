@@ -26,7 +26,23 @@
     },
     "remember": [
       "Building"
-    ]
+    ],
+    "client": {
+      "camera": "rts",
+      "controls": [
+        "select",
+        "orders"
+      ],
+      "ui": [
+        "hud"
+      ],
+      "atmosphere": [
+        "weather"
+      ],
+      "effects": [
+        "traces"
+      ]
+    }
   },
   "sandbox": {
     "about": "Тестовая карта (sandbox.ts): готовая база у месторождения, кредиты и груз в хранилищах.",

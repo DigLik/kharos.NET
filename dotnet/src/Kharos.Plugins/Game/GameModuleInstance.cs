@@ -41,7 +41,7 @@ public readonly ref struct SystemFrame
 /// (<see cref="Look"/>, <see cref="Bank"/>, <see cref="Frame(ReadOnlySpan{byte})"/>). Вызовы — из одного потока. Состояния между вызовами у мода нет, поэтому после ловушки (<see cref="Faulted"/>)
 /// экземпляр выбрасывается и создаётся новый.
 /// </summary>
-public sealed class GameModuleInstance : IModInstance
+public sealed class GameModuleInstance : IModInstance, IClientModInstance
 {
     private readonly GameModule _module;
     private readonly Store _store;
@@ -125,8 +125,8 @@ public sealed class GameModuleInstance : IModInstance
                 // Реактор WASI: конструкторы libc, затем первый вызов поднимает рантайм .NET.
                 instance.GetAction("_initialize")?.Invoke();
                 var version = abi();
-                if (version != ModAbi.Version)
-                    throw new ModAbiException(ModId, $"ABI мода {version}, хоста {ModAbi.Version}");
+                if (version != Abi)
+                    throw new ModAbiException(ModId, $"ABI мода {version}, {(IsClient ? "клиента" : "хоста")} {Abi}");
                 _shared = shared();
                 if (_shared <= 0 || (long)_shared + ModAbi.SharedSize > _memory.GetLength())
                     throw new ModAbiException(ModId, $"kh_shared вернул {_shared}");
@@ -147,8 +147,8 @@ public sealed class GameModuleInstance : IModInstance
                 throw Trap(ex, "загрузка");
             }
             StartupMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-            if (Manifest.Abi != ModAbi.Version)
-                throw new ModAbiException(ModId, $"манифест под ABI {Manifest.Abi}");
+            if (Manifest.Abi != Abi)
+                throw new ModAbiException(ModId, $"манифест под ABI {Manifest.Abi}, ждали {Abi}");
             Systems = module.Layouts(Manifest);
             _capacity = new int[Systems.Count];
             _data = new int[Systems.Count];
@@ -169,6 +169,9 @@ public sealed class GameModuleInstance : IModInstance
 
     /// <summary>Клиентский мод: облики, звуки и кадр вместо систем и приказов.</summary>
     public bool IsClient { get; }
+
+    /// <summary>Версия ABI стороны мода: клиентского — ClientAbi.Version, хоста — ModAbi.Version.</summary>
+    public int Abi => IsClient ? ClientAbi.Version : ModAbi.Version;
 
     /// <summary>Что мод объявил в kh_load.</summary>
     public ModManifest Manifest { get; }

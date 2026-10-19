@@ -155,9 +155,10 @@ public sealed class ClientLayerToolsTests : IDisposable
     [Fact]
     public void ClientOwnToolsLiveFrom40AndHostToolsAreNotShadowed()
     {
-        // 40 Each (свой) отвечает списком; 41–47 — свои; 48 — нет такого; хостовые 18–20 отвечают из реплики (тесты выше).
+        // 40 Each (свой) отвечает списком; 41–51 — свои (48–51 — ABI 2, ClientAbiTests); 52 — нет такого; хостовые 18–20
+        // отвечают из реплики (тесты выше).
         Assert.Equal(4, Call(40, Input(0u)).Length);
-        Assert.Equal(-1, _tools.Call(48, [], new byte[16]));
+        Assert.Equal(-1, _tools.Call(52, [], new byte[16]));
         Assert.Equal(25, Call(ToolPeak, Input(1u, 0, 0)).Length);
     }
 }

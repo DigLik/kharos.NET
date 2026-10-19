@@ -40,66 +40,18 @@ public sealed class ClientGameOptions
 
     /// <summary>Сколько ждать приветствия и снимка.</summary>
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(10);
-}
 
-/// <summary>Клиентский мод в партии: модуль, экземпляр (после ловушки — новый) и его голоса.</summary>
-public sealed class ClientModule : IDisposable
-{
-    private readonly Action<GameModuleInstance> _prepare;
-    private GameModuleInstance? _instance;
+    /// <summary>Хранилище между партиями (настройки модов, ABI 2); null — в памяти. TODO(Д4): файловое у оболочки.</summary>
+    public IStorage? Storage { get; init; }
 
-    internal ClientModule(ModPackage package, GameModule module, Action<GameModuleInstance> prepare, AudioEngine? audio)
-    {
-        Package = package;
-        Module = module;
-        _prepare = prepare;
-        Sounds = new ModSounds(audio);
-        _instance = module.CreateInstance();
-        prepare(_instance);
-        Manifest = _instance.Manifest;
-    }
+    /// <summary>
+    /// Как исполняется код клиентских модов (docs/dotnet-n6.md, Н6-6): client.wasm (игра) или сборка .NET в процессе
+    /// (тесты, обвязка Viewer: <c>ModModes.FromEnvironment()</c>, KHAROS_MODS=wasm|clr, по умолчанию CLR).
+    /// </summary>
+    public ModMode ModMode { get; init; } = ModMode.Wasm;
 
-    public string Name => Package.Name;
-    public ModPackage Package { get; }
-    public GameModule Module { get; }
-
-    /// <summary>Что мод объявил в kh_load: облики, звуки, голоса.</summary>
-    public ModManifest Manifest { get; }
-
-    public ModSounds Sounds { get; }
-
-    /// <summary>Сколько раз экземпляр пересоздан после ловушки.</summary>
-    public int Restarts { get; private set; }
-
-    /// <summary>Время kh_frame с разбором выхода прошлого кадра, мс.</summary>
-    public double LastFrameMs { get; internal set; }
-
-    /// <summary>Выключен после трёх сбоев.</summary>
-    public bool Disabled => Module.Disabled;
-
-    /// <summary>Экземпляр для вызовов (null — выключен).</summary>
-    internal GameModuleInstance? Acquire()
-    {
-        if (Module.Disabled)
-            return null;
-        if (_instance is { Faulted: false })
-            return _instance;
-        _instance?.Dispose();
-        _instance = null;
-        Sounds.ReleaseAll();
-        _instance = Module.CreateInstance();
-        _prepare(_instance);
-        Restarts++;
-        return _instance;
-    }
-
-    public void Dispose()
-    {
-        Sounds.ReleaseAll();
-        _instance?.Dispose();
-        _instance = null;
-        Module.Dispose();
-    }
+    /// <summary>Режим CLR: сборка клиентской части по имени мода; кого нет — ищется рядом с mod.json (проект *.Client).</summary>
+    public IReadOnlyDictionary<string, string>? ClrAssemblies { get; init; }
 }
 
 /// <summary>Сколько стоил кадр клиента без видеокарты, мс: приём, моды, сборка кадра.</summary>
@@ -112,23 +64,8 @@ public readonly record struct ClientFrameStats(double Total, double Pump, double
 /// и следы → раскладка интерфейса → кадр рендера: спрайты по слоям с палитрой сторон и тенями, огни и лучи, следы,
 /// туман, атмосфера. Вызовы — из одного потока.
 /// </summary>
-public sealed class ClientGame : IDisposable
+public sealed partial class ClientGame : IDisposable
 {
-    /// <summary>Мини-карта по умолчанию — PALETTE из minimap.ts: биом за биомом, внутри — вид местности.</summary>
-    public static readonly uint[] DefaultMinimap =
-    [
-        0xC29945, 0x63450F, 0x36331A, 0x8C6828,
-        0xD1C9B3, 0x5E5C54, 0x4D8585, 0x828078,
-        0xB35C29, 0x542414, 0x452112, 0x804024,
-        0x857A38, 0x454021, 0x1A3621, 0x645F34,
-    ];
-
-    /// <summary>С какой доли срока следы растворяются.</summary>
-    private const float FadeFrom = 0.25f;
-
-    /// <summary>Туман над тайлом, байты: не разведан, разведан, виден (fogPass.ts).</summary>
-    private const byte FogHidden = 240, FogRemembered = 128, FogVisible = 0;
-
     private readonly ITransport _transport;
     private readonly ClientGameOptions _options;
     private readonly bool _ownsFonts, _ownsModules;
@@ -139,22 +76,14 @@ public sealed class ClientGame : IDisposable
     private readonly AbiWriter _input = new();
     private readonly FrameInput _frameInput = new();
     private readonly List<ReplicaSignal> _signals = [];
-    private readonly Dictionary<uint, (float X, float Y, float Distance, double Seen)> _walked = [];
-    private readonly List<(float Bottom, int At)> _buildings = [];
-    private readonly List<float> _buildingSprites = [];
-    private readonly List<uint> _forget = [];
-    private readonly List<(int Layer, int Field, Look?[] Looks)> _itemLooks = [];
     private double? _last;
     private double _tickTime;
-    private int _fogRevision = -1;
-    private uint[] _minimapPalette = DefaultMinimap;
-    private (float X, float Y) _drift;
     private Renderer? _uploaded;
-    private (byte[] Alpha, int Width, int Height)? _fogImage;
-    private int _fogImageRevision, _fogDelivered;
     private ViewBox? _viewSent;
     private double _viewSentAt = double.NegativeInfinity;
     private readonly List<ChatLine> _chat = [];
+    private readonly List<(byte Action, string Arg)> _shell = [];
+    private uint _rosterRevision;
     private bool _disposed;
 
     /// <summary>Партия со своими модами: ждёт приветствие и снимок; моды хоста должны совпасть со своими.</summary>
@@ -185,7 +114,13 @@ public sealed class ClientGame : IDisposable
         Scene = new ClientScene(Gui) { LookOf = proto => (uint)proto < (uint)_lookByProto!.Length ? _lookByProto[proto] : null };
         Scene.SetPalette(ClientScene.DefaultTeams);
         Land = TerrainOf(Replica);
-        Tools = new ClientTools(Replica, content, () => Land, Poses, Fonts) { Log = Report };
+        Tools = new ClientTools(Replica, content, () => Land, Poses, Fonts)
+        {
+            Log = Report,
+            Storage = _options.Storage ?? new MemoryStorage(),
+            Players = () => Players,
+            Admin = () => Admin,
+        };
         _ownsModules = _options.Modules is null;
         _modules = _options.Modules ?? new GameModuleHost(_options.ModuleOptions);
         _lookByProto = new Look?[content.Protos.Count];
@@ -247,6 +182,21 @@ public sealed class ClientGame : IDisposable
     /// <summary>Хост отказал или выгнал: причина; null — нет.</summary>
     public string? Refused { get; private set; }
 
+    /// <summary>Ревизия ростера (вход кадра, ABI 2): растёт, когда хост прислал игроков.</summary>
+    public uint RosterRevision => _rosterRevision;
+
+    /// <summary>
+    /// Просьбы модов к оболочке (запись Shell, ABI 2): действие ClientAbi.ShellAction* и текст — копятся, пока их не
+    /// заберут. TODO(Д4): оболочка забирает их каждый кадр (меню, чат с текстом, настройки).
+    /// </summary>
+    public List<(byte Action, string Arg)> ShellRequests => _shell;
+
+    /// <summary>
+    /// После модов кадра, до сборки кадра рендера: обвязка тестов (Viewer, сверка кадров) ставит камеру и атмосферу
+    /// сцены поверх того, что решили моды.
+    /// </summary>
+    public Action<ClientScene>? AfterMods { get; set; }
+
     /// <summary>Строка чата или команда («/…») хосту.</summary>
     public void Say(string text) => _transport.Send(Protocol.Messages.Say(text));
 
@@ -303,19 +253,19 @@ public sealed class ClientGame : IDisposable
         var frame = Frame;
         frame.Clear();
         Scene.World = frame.World;
-        Scene.Orders.Clear();
-        Scene.Errors.Clear();
+        Scene.BeginFrame();
         Scene.Time = time;
-        Gui.Begin(input.ToUi());
+        BeginUi(input);
         var clock = new FrameClock(time, dt, Replica.Tick, Poses.Alpha, welcome.Dt, Replica.Player);
         foreach (var mod in _mods)
             RunMod(mod, clock, input);
+        AfterMods?.Invoke(Scene);
         foreach (var error in Scene.Errors)
             Report(error);
         var modded = Stopwatch.GetTimestamp();
 
         StepParticles((float)dt);
-        Gui.Finish(frame.Interface);
+        FinishUi(frame);
         foreach (var (name, payload) in Scene.Orders)
             _transport.Send(DeltaCodec.Order(name, payload));
 
@@ -323,17 +273,12 @@ public sealed class ClientGame : IDisposable
         frame.View = new View((float)camera.X, (float)camera.Y, (float)camera.Zoom, input.Width, input.Height, input.Scale);
         frame.Time = (float)time;
         Scene.Palette.CopyTo(frame.Palette, 0);
-        var atmosphere = Scene.Atmosphere;
-        frame.Light = Math.Clamp(atmosphere.Light, 0, 1);
-        frame.Precipitation = Math.Clamp(atmosphere.Precipitation, 0, 1);
-        frame.Wind = (atmosphere.WindX, atmosphere.WindY);
-        // Снос копится, а не считается как ветер × время: смена ветра не дёргает пелену (precipitationPass.ts).
-        _drift = (Euclid(_drift.X + atmosphere.WindX * (float)dt, Renderer.Window), Euclid(_drift.Y + atmosphere.WindY * (float)dt, Renderer.Window));
-        frame.Drift = _drift;
+        Atmosphere(frame, (float)dt);
         Decals((float)dt, frame);
         SendView(frame.View, time);
         UpdateFog(frame);
-        var sprites = Sprites(frame, time);
+        SceneLights(frame);
+        var sprites = Sprites(frame, time) + SceneSprites(frame);
         var done = Stopwatch.GetTimestamp();
         Stats = new ClientFrameStats(
             Stopwatch.GetElapsedTime(started, done).TotalMilliseconds,
@@ -416,6 +361,7 @@ public sealed class ClientGame : IDisposable
                         break;
                     case MessageType.Players:
                         Players = Protocol.Messages.ReadPlayers(message);
+                        _rosterRevision++;
                         break;
                     case MessageType.Commands:
                         (var commands, Admin) = Protocol.Messages.ReadCommands(message);
@@ -454,7 +400,7 @@ public sealed class ClientGame : IDisposable
         var schema = Replica.Schema!;
         var load = new ModLoadInfo
         {
-            Abi = ModAbi.Version,
+            Abi = ClientAbi.Version,
             Side = ClientAbi.Side,
             Seed = welcome.Seed,
             Game = welcome.Game,
@@ -478,10 +424,10 @@ public sealed class ClientGame : IDisposable
         var minimap = DefaultMinimap;
         foreach (var package in Content.Mods)
         {
-            if (package.ClientWasm is not { } wasm)
+            if (ClientModule.Load(package, _options.ModMode, load, () => _modules, _options.ModuleOptions, _options.ClrAssemblies) is not { } module)
                 continue;
-            var module = _modules.Load(package.Name, wasm, load);
             ClientModule mod;
+            Tools.Mod = package.Name;
             try
             {
                 mod = new ClientModule(package, module, Prepare, Audio);
@@ -517,103 +463,22 @@ public sealed class ClientGame : IDisposable
                 _lookByProto[proto.Id] = look;
                 _looks.Add(look);
             }
-            if (Audio is { } audio)
-            {
-                for (var entry = 0; entry < manifest.Bank.Length; entry++)
-                {
-                    var info = manifest.Bank[entry];
-                    var variants = new SampleBuffer[Math.Max(info.Variants, 1)];
-                    for (var variant = 0; variant < variants.Length; variant++)
-                        variants[variant] = ReadSample(instance.Bank(entry, variant, AudioFormat.SampleRate), $"мод {package.Name}, звук {info.Name}");
-                    audio.Bank.Add(info.Name, Buses.Parse(info.Bus) ?? Bus.World, variants);
-                }
-                foreach (var voice in manifest.Voices)
-                {
-                    try
-                    {
-                        audio.RegisterVoice(voice.Name, VoiceGraph.Decode(voice.Graph));
-                    }
-                    catch (FormatException error)
-                    {
-                        Report($"мод {package.Name}, голос {voice.Name}: {error.Message}");
-                    }
-                }
-            }
+            LoadSounds(package, instance, manifest);
             if (manifest.Minimap.Length == 16)
                 minimap = manifest.Minimap;
             // Мод, собранный до ItemLooks, их не присылает.
             foreach (var item in manifest.ItemLooks ?? [])
                 ResolveItemLook(package.Name, item);
+            foreach (var cell in manifest.CellLooks ?? [])
+                ResolveCellLook(package.Name, cell);
         }
         _minimapPalette = minimap;
     }
 
-    /// <summary>Предметы слоя, которые рисуются обликами видов: слой, поле с номером вида и облики по номерам.</summary>
-    private void ResolveItemLook(string mod, ModItemLook item)
-    {
-        var layers = Replica.Layers!;
-        if (layers.Find(item.Layer) is not { } layer || layers.Spec(layer).IsGrid)
-        {
-            Report($"мод {mod}: предметы слоя {item.Layer} — нет такого слоя предметов");
-            return;
-        }
-        var fields = layers.Spec(layer).Fields;
-        var field = -1;
-        for (var i = 0; i < fields.Count; i++)
-            if (fields[i].Name == item.Field)
-                field = i;
-        if (field < 0)
-        {
-            Report($"мод {mod}: у слоя {item.Layer} нет поля {item.Field}");
-            return;
-        }
-        var looks = new Look?[item.Looks.Length];
-        for (var i = 0; i < looks.Length; i++)
-            if (item.Looks[i].Length > 0 && Content.FindProto(item.Looks[i]) is { } proto)
-                looks[i] = _lookByProto[proto.Id];
-        _itemLooks.Add((layer, field, looks));
-    }
-
-    private void Prepare(GameModuleInstance instance)
+    private void Prepare(IClientModInstance instance)
     {
         instance.Tools = Tools.Call;
         instance.RandomSource = null;
-    }
-
-    /// <summary>Запись банка из kh_bank: channels:u8 frames:u32 и f32 канал за каналом.</summary>
-    private static SampleBuffer ReadSample(ReadOnlySpan<byte> bytes, string where)
-    {
-        var r = new AbiReader(bytes);
-        int channels = r.U8(), frames = checked((int)r.U32());
-        if (channels is 0 or 3 or > 4 || frames > AudioFormat.SampleRate * 60)
-            throw new ClientException($"{where}: {channels} каналов, {frames} кадров");
-        var data = new float[channels][];
-        for (var c = 0; c < channels; c++)
-        {
-            data[c] = new float[frames];
-            System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(r.Take(frames * 4)).CopyTo(data[c]);
-        }
-        return new SampleBuffer(data);
-    }
-
-    /// <summary>Мини-карта: тайл — пиксель цветом своей местности и биома (minimap вида lands, PALETTE в minimap.ts).</summary>
-    private (byte[], int, int)? BuildMinimap()
-    {
-        if (Land is not { } land || Replica.Welcome?.Map is not { } map)
-            return null;
-        var (width, height) = (map.Width, map.Height);
-        var pixels = new byte[width * height * 4];
-        for (var y = 0; y < height; y++)
-            for (var x = 0; x < width; x++)
-            {
-                var (tx, ty) = (map.Left + x, map.Top + y);
-                var terrain = (int)land.TerrainAt(tx, ty) & 3;
-                var biome = (int)land.BiomeAt(tx + 0.5, ty + 0.5) & 3;
-                var color = _minimapPalette[biome * 4 + terrain];
-                var at = (y * width + x) * 4;
-                (pixels[at], pixels[at + 1], pixels[at + 2], pixels[at + 3]) = ((byte)(color >> 16), (byte)(color >> 8), (byte)color, 255);
-            }
-        return (pixels, width, height);
     }
 
     // ------------------------------------------------------------------ кадр
@@ -652,7 +517,8 @@ public sealed class ClientGame : IDisposable
     private void RunMod(ClientModule mod, in FrameClock clock, in ClientInput input)
     {
         var started = Stopwatch.GetTimestamp();
-        GameModuleInstance? instance;
+        Tools.Mod = mod.Name;
+        IClientModInstance? instance;
         try
         {
             instance = mod.Acquire();
@@ -666,7 +532,7 @@ public sealed class ClientGame : IDisposable
         if (instance is null)
             return;
         var camera = Scene.Camera;
-        _frameInput.Write(_input, clock, input, camera, Gui, Scene.Atmosphere, _signals, Audio?.Now, mod.Sounds.TakeEnded());
+        _frameInput.Write(_input, clock, input, camera, Gui, Scene.Atmosphere, _signals, Audio?.Now, mod.Sounds.TakeEnded(), _rosterRevision);
         try
         {
             var output = instance.Frame(_input.Written);
@@ -687,266 +553,15 @@ public sealed class ClientGame : IDisposable
             mod.Module.Strike();
             Report($"мод {mod.Name}: выход кадра: {error.Message}");
         }
+        // Настройки мода — под его ключом; просьбы к оболочке — копятся до оболочки.
+        foreach (var (key, value) in Scene.Prefs)
+            Tools.Storage.Set(ClientTools.PrefsKey(mod.Name, key), value);
+        Scene.Prefs.Clear();
+        _shell.AddRange(Scene.Shell);
+        if (_shell.Count > 100)
+            _shell.RemoveRange(0, _shell.Count - 100);
+        Scene.Shell.Clear();
         mod.LastFrameMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-    }
-
-    /// <summary>Частицы: ход, снос ветром, отмирание; рисуются в слой поверх мира квадратами по текселю.</summary>
-    private void StepParticles(float dt)
-    {
-        var (wx, wy) = (Scene.Atmosphere.WindX, Scene.Atmosphere.WindY);
-        var particles = Scene.Particles;
-        var kept = 0;
-        for (var i = 0; i < particles.Count; i++)
-        {
-            var p = particles[i];
-            p.Age += dt;
-            var drift = p.Drift ? 1f : 0f;
-            p.X += (p.Vx + wx * drift) * dt;
-            p.Y += (p.Vy + wy * drift) * dt;
-            if (p.Age >= p.Life)
-                continue;
-            particles[kept++] = p;
-            var fade = MathF.Min(1 - p.Age / p.Life, 1);
-            var size = p.Size / RenderFrame.Texels;
-            var x = MathF.Floor(p.X * RenderFrame.Texels) / RenderFrame.Texels;
-            var y = MathF.Floor(p.Y * RenderFrame.Texels) / RenderFrame.Texels;
-            Scene.World.Rect(x, y, x + size, y + size, Rgba(p.Color, fade));
-        }
-        particles.RemoveRange(kept, particles.Count - kept);
-    }
-
-    /// <summary>
-    /// Следы на земле: стареют, с <see cref="FadeFrom"/> срока растворяются (плавная ступень), вне обзора забываются;
-    /// что в кадре — в frame.Decals (decalsPass.ts).
-    /// </summary>
-    private void Decals(float dt, RenderFrame frame)
-    {
-        var (left, top, right, bottom) = frame.View.Bounds(2);
-        for (var node = Scene.Decals.First; node is not null;)
-        {
-            var next = node.Next;
-            ref var decal = ref node.ValueRef;
-            decal.Age += dt;
-            if (decal.Age >= decal.Life || !Replica.Sees((int)MathF.Floor(decal.X2), (int)MathF.Floor(decal.Y2)))
-            {
-                Scene.Decals.Remove(node);
-                node = next;
-                continue;
-            }
-            if (decal.X2 >= left && decal.X2 <= right && decal.Y2 >= top && decal.Y2 <= bottom)
-            {
-                var share = MathF.Max((decal.Age / decal.Life - FadeFrom) / (1 - FadeFrom), 0);
-                var remaining = 1 - share * share * (3 - 2 * share);
-                Push(frame.Decals, [decal.X1, decal.Y1, decal.X2, decal.Y2, decal.Width, 0, 0, 0, 0, decal.R, decal.G, decal.B, decal.Opacity, remaining, decal.Density, decal.Seed]);
-            }
-            node = next;
-        }
-    }
-
-    /// <summary>Туман войны: альфа на тайл с рамкой в тайл (неразведанной) — когда обзор поменялся.</summary>
-    private void UpdateFog(RenderFrame frame)
-    {
-        if (Replica.Welcome is not { Fog: true, Map: { } map } welcome || Replica.Layers is not { } layers)
-            return;
-        frame.Fog = (map.Left - 1, map.Top - 1);
-        if (_fogRevision == Replica.FogRevision)
-            return;
-        _fogRevision = Replica.FogRevision;
-        int width = map.Width + 2, height = map.Height + 2;
-        var alpha = new byte[width * height];
-        alpha.AsSpan().Fill(FogHidden);
-        var owner = LayerOwner.Player(welcome.Player);
-        var sight = layers.Find(Fog.Sight);
-        var explored = layers.Find(Fog.Explored);
-        int fromX = map.Left >> 5, toX = (map.Right - 1) >> 5, fromY = map.Top >> 5, toY = (map.Bottom - 1) >> 5;
-        for (var cy = fromY; cy <= toY; cy++)
-            for (var cx = fromX; cx <= toX; cx++)
-            {
-                var seen = sight is { } s ? layers.ChunkBytes(s, owner, cx, cy) : [];
-                var known = explored is { } e ? layers.ChunkBytes(e, owner, cx, cy) : [];
-                if (seen.IsEmpty && known.IsEmpty)
-                    continue;
-                for (var ty = 0; ty < LayerSet.Chunk; ty++)
-                {
-                    var y = (cy << 5) + ty;
-                    if (y < map.Top || y >= map.Bottom)
-                        continue;
-                    for (var tx = 0; tx < LayerSet.Chunk; tx++)
-                    {
-                        var x = (cx << 5) + tx;
-                        if (x < map.Left || x >= map.Right)
-                            continue;
-                        var tile = ty * LayerSet.Chunk + tx;
-                        var value = !seen.IsEmpty && seen[tile] != 0 ? FogVisible : !known.IsEmpty && known[tile] != 0 ? FogRemembered : FogHidden;
-                        alpha[(y - map.Top + 1) * width + (x - map.Left + 1)] = value;
-                    }
-                }
-            }
-        frame.FogUpdate = (alpha, width, height);
-        _fogImage = frame.FogUpdate;
-        _fogImageRevision++;
-    }
-
-    /// <summary>
-    /// Спрайты видимых сущностей по слоям (build в game.rs): облик по виду, кадр по направлению и фазе (у ходовых — по
-    /// пройденному пути), сторона по владельцу, тень, огни и лучи; здания — по нижнему краю. Возвращает, сколько спрайтов.
-    /// </summary>
-    private int Sprites(RenderFrame frame, double time)
-    {
-        if (Replica.World is not { } world)
-            return 0;
-        var view = frame.View;
-        var (left, top, right, bottom) = view.Bounds(7);
-        var player = Replica.Player;
-        var fog = Replica.Welcome is { Fog: true };
-        static float Snap(float value) => MathF.Round(value * RenderFrame.Texels, MidpointRounding.AwayFromZero) / RenderFrame.Texels;
-        _buildings.Clear();
-        _buildingSprites.Clear();
-        Span<float> sprite = stackalloc float[RenderFrame.Sprite];
-        var count = 0;
-        var proto = world.Store(Builtin.Proto);
-        var protoIds = proto.Column(0);
-        foreach (var entity in world.Store(Builtin.Position).Entities)
-        {
-            var row = proto.RowOf(entity);
-            if (row < 0 || LookOf((int)protoIds[row]) is not { } look)
-                continue;
-            if (!Poses.TryGet(world, entity, out var px, out var py, out var angle))
-                continue;
-            var (x, y) = ((float)px, (float)py);
-            if (x < left || x > right || y < top || y > bottom)
-                continue;
-            var owner = world.TryNumber(entity, Builtin.Owner, 0, out var number) ? (uint)number : 0;
-            // Чужое вне обзора не видно (руда — где разведано).
-            if (owner != player && fog && !(look.Spec.Memory ? Replica.Explored((int)MathF.Floor(x), (int)MathF.Floor(y)) : Replica.Sees((int)MathF.Floor(x), (int)MathF.Floor(y))))
-                continue;
-            // Турель — слоем выше своего носителя.
-            var layer = (int)look.Spec.Layer;
-            if (world.TryNumber(entity, Builtin.Mount, 0, out var parent) && parent >= 1)
-                layer = (world.TryNumber((uint)parent, Builtin.Proto, 0, out var parentProto) && LookOf((int)parentProto) is { } carrier ? (int)carrier.Spec.Layer : 0) + 1;
-            var phase = 0;
-            if (look.Phases > 1)
-            {
-                if (look.Spec.Step is { } step)
-                {
-                    (float X, float Y, float Distance, double Seen) walk = _walked.TryGetValue(entity, out var known) ? known : (x, y, 0f, time);
-                    var moved = MathF.Sqrt((x - walk.X) * (x - walk.X) + (y - walk.Y) * (y - walk.Y));
-                    var distance = walk.Distance + (moved < 1 ? moved : 0);
-                    _walked[entity] = (x, y, distance, time);
-                    phase = (int)(distance / step) % look.Phases;
-                }
-                else
-                    phase = (int)(time * look.Spec.Fps) % look.Phases;
-            }
-            var (team, grey) = owner == 0 ? (3f, 1f) : owner == player ? (0f, 0f) : (1f, 0f);
-            var cell = look.Cell(angle, phase);
-            var uv = look.Cells[cell];
-            var (w, h) = look.Tiles;
-            var (spriteLeft, spriteTop) = (x + look.Offset.X - view.X, y + look.Offset.Y - view.Y);
-            sprite[0] = spriteLeft;
-            sprite[1] = spriteTop;
-            sprite[2] = w;
-            sprite[3] = h;
-            sprite[4] = uv.U0;
-            sprite[5] = uv.V0;
-            sprite[6] = uv.U1;
-            sprite[7] = uv.V1;
-            sprite[8] = team;
-            sprite[9] = look.Shadow.Offset;
-            sprite[10] = look.Shadow.Opacity;
-            sprite[11] = grey;
-            if (layer == (int)LookLayer.Building)
-            {
-                _buildings.Add((y + look.Offset.Y + h, _buildingSprites.Count));
-                foreach (var value in sprite) _buildingSprites.Add(value);
-            }
-            else
-                foreach (var value in sprite) frame.SpriteLayers[Math.Min(layer, RenderFrame.Layers - 1)].Add(value);
-            count++;
-
-            var (cos, sin) = ((float)Math.Cos(angle), (float)Math.Sin(angle));
-            var (forwardX, forwardY) = (cos / RenderFrame.Texels, sin / RenderFrame.Texels);
-            foreach (var lamp in look.Spec.Lamps)
-            {
-                var (lx, ly) = (Snap(x + lamp.Along * forwardX - lamp.Across * forwardY), Snap(y + lamp.Along * forwardY + lamp.Across * forwardX));
-                Push(frame.Spots, [lx, ly, lamp.Radius * 2, 1]);
-                Push(frame.Blooms, [lx, ly, lamp.Radius, 1]);
-            }
-            if (look.Spec.Beam is { } beam)
-                Push(frame.Beams, [Snap(x + beam.Along * forwardX), Snap(y + beam.Along * forwardY), beam.Length, beam.Level, cos, sin, beam.Near, beam.Spread]);
-            // Огни кадра (здания): пятно в 16 радиусов лампы, ореол в 3 + 2 (lights.add в buildingsPass.ts).
-            foreach (var light in look.FrameLights[cell])
-            {
-                if (light.Level <= Renderer.MinLevel)
-                    continue;
-                Push(frame.Spots, [x + light.X, y + light.Y, light.Size * 16, light.Level]);
-                Push(frame.Blooms, [x + light.X, y + light.Y, light.Size * 3 + 2, light.Level]);
-            }
-        }
-        if (_itemLooks.Count > 0 && Replica.Layers is { } layers)
-            count += ItemSprites(frame, layers, sprite, (left, top, right, bottom), fog);
-        if (_buildings.Count > 0)
-        {
-            _buildings.Sort((a, b) => a.Bottom.CompareTo(b.Bottom));
-            var layer = frame.SpriteLayers[(int)LookLayer.Building];
-            foreach (var (_, at) in _buildings)
-                for (var i = 0; i < RenderFrame.Sprite; i++)
-                    layer.Add(_buildingSprites[at + i]);
-        }
-        // Путь забывается через 2 с без показа.
-        _forget.Clear();
-        foreach (var (entity, walk) in _walked)
-            if (time - walk.Seen >= 2)
-                _forget.Add(entity);
-        foreach (var entity in _forget)
-            _walked.Remove(entity);
-        return count;
-    }
-
-    /// <summary>
-    /// Предметы слоёв, которые мод велел рисовать обликами (месторождения): место предмета — точка привязки облика;
-    /// рисуются там, где разведано, как руда. Возвращает, сколько спрайтов.
-    /// </summary>
-    private int ItemSprites(RenderFrame frame, LayerSet layers, Span<float> sprite, (float Left, float Top, float Right, float Bottom) area, bool fog)
-    {
-        var count = 0;
-        var view = frame.View;
-        foreach (var (layer, field, looks) in _itemLooks)
-        {
-            var size = (double)layers.Spec(layer).Cell;
-            for (var cy = (int)Math.Floor(area.Top / size); cy <= (int)Math.Floor(area.Bottom / size); cy++)
-                for (var cx = (int)Math.Floor(area.Left / size); cx <= (int)Math.Floor(area.Right / size); cx++)
-                    foreach (var item in layers.Items(layer, LayerOwner.World, (cx, cy)))
-                    {
-                        var kind = (int)item.Fields[field];
-                        if ((uint)kind >= (uint)looks.Length || looks[kind] is not { } look)
-                            continue;
-                        var (x, y) = ((float)item.X, (float)item.Y);
-                        if (x < area.Left || x > area.Right || y < area.Top || y > area.Bottom)
-                            continue;
-                        var (tx, ty) = ((int)MathF.Floor(x), (int)MathF.Floor(y));
-                        if (fog && !(look.Spec.Memory ? Replica.Explored(tx, ty) : Replica.Sees(tx, ty)))
-                            continue;
-                        var uv = look.Cells[look.Cell(0, 0)];
-                        var (w, h) = look.Tiles;
-                        sprite[0] = x + look.Offset.X - view.X;
-                        sprite[1] = y + look.Offset.Y - view.Y;
-                        sprite[2] = w;
-                        sprite[3] = h;
-                        sprite[4] = uv.U0;
-                        sprite[5] = uv.V0;
-                        sprite[6] = uv.U1;
-                        sprite[7] = uv.V1;
-                        sprite[8] = 3;
-                        sprite[9] = look.Shadow.Offset;
-                        sprite[10] = look.Shadow.Opacity;
-                        sprite[11] = 1;
-                        var target = frame.SpriteLayers[Math.Min((int)look.Spec.Layer, RenderFrame.Layers - 1)];
-                        foreach (var value in sprite) target.Add(value);
-                        count++;
-                    }
-        }
-        return count;
     }
 
     private void Report(string message)

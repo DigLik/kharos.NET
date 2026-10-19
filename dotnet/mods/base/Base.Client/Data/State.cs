@@ -28,13 +28,16 @@ internal sealed class Parts(LoadContext ctx)
     public LayerRef? Deposits { get; } = ctx.Layer("deposits");
 }
 
-/// <summary>Данные, компоненты и вспомогательные чтения мира — общие для панелей, управления и эффектов.</summary>
-internal sealed class BaseState(ClientData data, Parts parts)
+/// <summary>Данные, компоненты, подача партии и вспомогательные чтения мира — общие для разделов клиента.</summary>
+internal sealed class BaseState(ClientData data, Parts parts, Base.Shared.Data.ClientSpec? profile = null)
 {
     private readonly Dictionary<int, Kind?> _kinds = [];
 
     public ClientData Data { get; } = data;
     public Parts P { get; } = parts;
+
+    /// <summary>Подача партии (подобъект client записи data/games.json); у чужой партии — null.</summary>
+    public Base.Shared.Data.ClientSpec? Profile { get; } = profile;
 
     /// <summary>Вид сущности (запись data); у сущности нет вида или данных — null.</summary>
     public Kind? KindOf(ClientContext c, uint entity) => KindOf(c, c.Proto(entity));

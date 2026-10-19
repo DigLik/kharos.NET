@@ -16,17 +16,34 @@ public static unsafe class ClientRuntime
     private static ClientContext? _client;
     private static readonly ByteWriter Output = new();
 
+    /// <summary>kh_abi_version клиентского мода: версия клиентского ABI (ClientAbi.Version), а не хостового.</summary>
+    public static int AbiVersion() => ClientAbi.Version;
+
     /// <summary>kh_load: разбор ModLoadInfo, Setup и Load мода; в out — ModManifest с обликами и звуками.</summary>
     public static int Load(delegate*<ClientMod> create, int ptr, int len)
     {
+        ClientMod mod;
         try
         {
-            var info = MemoryPackSerializer.Deserialize<ModLoadInfo>(new ReadOnlySpan<byte>((void*)(nint)ptr, len));
+            mod = create();
+        }
+        catch (Exception ex)
+        {
+            return ModRuntime.Fail(ModAbi.ErrorException, $"kh_load: {ex.GetType().Name}: {ex.Message}");
+        }
+        return LoadCore(mod, new ReadOnlySpan<byte>((void*)(nint)ptr, len));
+    }
+
+    /// <summary>kh_load без адресов wasm (его зовёт и мост режима CLR, <see cref="ClrBridge"/>).</summary>
+    internal static int LoadCore(ClientMod mod, ReadOnlySpan<byte> bytes)
+    {
+        try
+        {
+            var info = MemoryPackSerializer.Deserialize<ModLoadInfo>(bytes);
             if (info is null)
                 return ModRuntime.Fail(ModAbi.ErrorBadInput, "kh_load: пустой ModLoadInfo");
-            if (info.Abi != ModAbi.Version)
-                return ModRuntime.Fail(ModAbi.ErrorAbi, $"kh_load: ABI клиента {info.Abi}, мода {ModAbi.Version}");
-            var mod = create();
+            if (info.Abi != ClientAbi.Version)
+                return ModRuntime.Fail(ModAbi.ErrorAbi, $"kh_load: ABI клиента {info.Abi}, мода {ClientAbi.Version}");
             var builder = new ClientBuilder();
             mod.Setup(builder);
             var manifest = builder.ToManifest();
@@ -88,18 +105,30 @@ public static unsafe class ClientRuntime
     }
 
     /// <summary>kh_frame: вход кадра → обработчики → выход кадра. Сбой обработчика — в журнал, кадр идёт дальше.</summary>
-    public static int Frame(int ptr, int len)
+    public static int Frame(int ptr, int len) => FrameCore(new ReadOnlySpan<byte>((void*)(nint)ptr, len));
+
+    /// <summary>kh_frame без адресов wasm (его зовёт и мост режима CLR).</summary>
+    internal static int FrameCore(ReadOnlySpan<byte> input)
     {
         if (_builder is null || _client is null)
             return ModRuntime.Fail(ModAbi.ErrorNotLoaded, "kh_frame до kh_load");
         try
         {
-            var (pointer, length) = _client.Frame(new ReadOnlySpan<byte>((void*)(nint)ptr, len), _builder, message => Sdk.Host.Log(message, LogLevel.Error));
+            var (pointer, length) = _client.Frame(input, _builder, message => Sdk.Host.Log(message, LogLevel.Error));
             return ModRuntime.Done((byte*)pointer, length);
         }
         catch (Exception ex)
         {
             return ModRuntime.Fail(ex is FormatException ? ModAbi.ErrorBadInput : ModAbi.ErrorException, $"kh_frame: {ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    /// <summary>Конец экземпляра в режиме CLR: буферы вне GC освобождены (ALC их не собирает).</summary>
+    internal static void ReleaseAll()
+    {
+        _client?.Release();
+        _client = null;
+        _builder = null;
+        Output.Dispose();
     }
 }

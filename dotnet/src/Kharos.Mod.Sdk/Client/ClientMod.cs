@@ -36,6 +36,7 @@ public sealed class ClientBuilder
 
     internal List<(string Proto, Func<LookSpec> Spec)> Looks { get; } = [];
     internal List<ModItemLook> ItemLooks { get; } = [];
+    internal List<ModCellLook> CellLooks { get; } = [];
     internal List<(ModBankInfo Info, BankRender Render)> Bank { get; } = [];
     internal List<ModVoiceInfo> Voices { get; } = [];
     internal Dictionary<string, List<SignalHandler>> Signals { get; } = new(StringComparer.Ordinal);
@@ -70,6 +71,18 @@ public sealed class ClientBuilder
         ArgumentException.ThrowIfNullOrEmpty(layer);
         ArgumentException.ThrowIfNullOrEmpty(field);
         ItemLooks.Add(new ModItemLook { Layer = layer, Field = field, Looks = looks });
+    }
+
+    /// <summary>
+    /// Клетки слоя-сетки layer (покрытие: дорога, фундамент, мост) рисуются обликами: канал channel тайла — номер в
+    /// списке looks (вид «раздел/имя», пусто — не рисовать). connect — облик стыкуется с соседями: вариант облика
+    /// (<see cref="LookSpec.Variants"/>, 16) — маска соседей с тем же значением (1 север, 2 восток, 4 юг, 8 запад).
+    /// </summary>
+    public void CellLook(string layer, int channel, bool connect, params string[] looks)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(layer);
+        ArgumentOutOfRangeException.ThrowIfNegative(channel);
+        CellLooks.Add(new ModCellLook { Layer = layer, Field = channel.ToString(System.Globalization.CultureInfo.InvariantCulture), Looks = looks, Connect = connect });
     }
 
     /// <summary>Запись банка звуков: render считает каналы при загрузке, на каждый вариант.</summary>
@@ -113,11 +126,12 @@ public sealed class ClientBuilder
 
     internal ModManifest ToManifest() => new()
     {
-        Abi = ModAbi.Version,
+        Abi = ClientAbi.Version,
         Looks = [.. Looks.Select(look => look.Proto)],
         Bank = [.. Bank.Select(entry => entry.Info)],
         Voices = [.. Voices],
         Minimap = MinimapPalette,
         ItemLooks = [.. ItemLooks],
+        CellLooks = [.. CellLooks],
     };
 }

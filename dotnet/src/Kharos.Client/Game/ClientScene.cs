@@ -23,6 +23,43 @@ public record struct CameraState(double X, double Y, double Zoom);
 public record struct AtmosphereState(float Light, float WindX, float WindY, float Precipitation);
 
 /// <summary>
+/// Свободный спрайт облика (запись Sprite, ABI 2): вид, вариант, фаза, направление, точка привязки в тайлах, масштаб,
+/// прозрачность, сторона (0 своя … 3 ничья), слой (LookLayer), rgba-множитель цвета.
+/// </summary>
+public readonly record struct SceneSprite(int Proto, int Variant, int Frame, float Angle, float X, float Y, float Scale, float Alpha, byte Team, byte Layer, uint Tint);
+
+/// <summary>
+/// Уточнение спрайта сущности на кадр (запись Paint, ABI 2): Mask — какие поля заданы (ClientAbi.Paint*); Hide — не
+/// рисовать.
+/// </summary>
+public readonly record struct ScenePaint(byte Mask, int Variant, int Frame, float Built, float Dim)
+{
+    public bool Has(byte bit) => (Mask & bit) != 0;
+    public bool Hide => Has(ClientAbi.PaintHide);
+
+    /// <summary>Поздняя запись поверх ранней: заданные в ней поля побеждают.</summary>
+    public ScenePaint Merge(ScenePaint later) => new(
+        (byte)(Mask | later.Mask),
+        later.Has(ClientAbi.PaintVariant) ? later.Variant : Variant,
+        later.Has(ClientAbi.PaintFrame) ? later.Frame : Frame,
+        later.Has(ClientAbi.PaintBuilt) ? later.Built : Built,
+        later.Has(ClientAbi.PaintDim) ? later.Dim : Dim);
+}
+
+/// <summary>Огонь (запись Light, ABI 2): место в тайлах, радиусы пятна и ореола в текселях, яркость.</summary>
+public readonly record struct SceneLight(float X, float Y, float Spot, float Bloom, float Level);
+
+/// <summary>Луч (запись Beam, ABI 2): как Frame.Beams — начало, длина, яркость, cos, sin, ближняя полуширина, расширение.</summary>
+public readonly record struct SceneBeam(float X, float Y, float Length, float Level, float Cos, float Sin, float Near, float Spread);
+
+/// <summary>
+/// Запись выхода кадра для обвязки тестов (Viewer, <see cref="ClientScene.Recorder"/>): рисунок 0x20–0x22 (Values —
+/// координаты и толщина, Id — цвет) или звук 0x40–0x43 (Name — имя звука или вид голоса, Id — номер голоса, Values —
+/// числа записи по порядку).
+/// </summary>
+public readonly record struct FrameRecord(byte Op, string? Name, uint Id, float[] Values);
+
+/// <summary>
 /// Куда ложится выход кадра клиентских модов (ClientAbi «Выход кадра»): интерфейс, слой поверх мира, частицы, следы,
 /// приказы, камера, атмосфера, палитра. Звук — у <see cref="ModSounds"/> своего мода.
 /// </summary>
@@ -30,6 +67,9 @@ public sealed class ClientScene(Gui gui)
 {
     /// <summary>Больше частиц и следов разом не бывает (как в script.rs).</summary>
     public const int MaxParticles = 20_000, MaxDecals = 12_000;
+
+    /// <summary>Больше свободных спрайтов, огней и лучей за кадр не берётся (ABI 2; лишнее отбрасывается).</summary>
+    public const int MaxSprites = 20_000, MaxLights = 4_096;
 
     /// <summary>Палитра по умолчанию — TEAMS из unitArt.ts: свои синие, чужие красные, союзники зелёные; ничьи — как свои, серым.</summary>
     public static readonly uint[] DefaultTeams = [0x1f63d8, 0x5aa9ff, 0xe4f4ff, 0xb3261e, 0xff6b5a, 0xffe9e4, 0x1f7a3c, 0x4ec973, 0xe8fff0, 0x1f63d8, 0x5aa9ff, 0xe4f4ff];
@@ -59,6 +99,46 @@ public sealed class ClientScene(Gui gui)
 
     /// <summary>Сбои разбора за кадр.</summary>
     public List<string> Errors { get; } = [];
+
+    /// <summary>
+    /// Запись линий, кругов, рамок и звуковых команд модов по мере разбора (обвязка тестов Viewer); null — не писать.
+    /// Свободные спрайты, Paint, огни и лучи и так лежат кадр в <see cref="Sprites"/>, <see cref="Paints"/>,
+    /// <see cref="Lights"/>, <see cref="Beams"/>.
+    /// </summary>
+    public Action<FrameRecord>? Recorder { get; set; }
+
+    // ABI 2 — потребители заполняют пакеты волны 1; до них записи разбираются и лежат здесь кадр.
+
+    /// <summary>Свободные спрайты кадра (Sprite). TODO(Д1): рисовать в ClientGame.Sprites.</summary>
+    public List<SceneSprite> Sprites { get; } = [];
+
+    /// <summary>Уточнения спрайтов сущностей кадра (Paint), слитые по сущности. TODO(Д1): применять в ClientGame.Sprites.</summary>
+    public Dictionary<uint, ScenePaint> Paints { get; } = [];
+
+    /// <summary>Огни кадра (Light). TODO(Д1): в Frame.Spots и Frame.Blooms (ClientGame.Effects).</summary>
+    public List<SceneLight> Lights { get; } = [];
+
+    /// <summary>Лучи кадра (Beam). TODO(Д1): в Frame.Beams (ClientGame.Effects).</summary>
+    public List<SceneBeam> Beams { get; } = [];
+
+    /// <summary>Записи настроек мода (Prefs), ещё не сохранённые: ключ мода и байты (пусто — стереть).</summary>
+    public List<(string Key, byte[] Value)> Prefs { get; } = [];
+
+    /// <summary>Просьбы к оболочке (Shell): действие ClientAbi.ShellAction* и текст. Разбирает оболочка (Д4).</summary>
+    public List<(byte Action, string Arg)> Shell { get; } = [];
+
+    /// <summary>Начало кадра: записи прошлого кадра — прочь.</summary>
+    public void BeginFrame()
+    {
+        Orders.Clear();
+        Errors.Clear();
+        Sprites.Clear();
+        Paints.Clear();
+        Lights.Clear();
+        Beams.Clear();
+        Prefs.Clear();
+        Shell.Clear();
+    }
 
     public void SetPalette(ReadOnlySpan<uint> colors)
     {

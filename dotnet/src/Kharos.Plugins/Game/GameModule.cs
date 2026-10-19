@@ -27,7 +27,7 @@ public readonly record struct ModTableLayout(int Width, bool Write);
 /// Скомпилированный модуль мода с его ModLoadInfo. Экземпляры без состояния: их можно держать пулом и выбрасывать
 /// после ловушки. Перерасходы времени считаются на мод: после <see cref="GameModuleOptions.MaxStrikes"/> он выключен.
 /// </summary>
-public sealed class GameModule : IModModule
+public sealed class GameModule : IClientModModule
 {
     private readonly ConcurrentQueue<GameModuleInstance> _pool = new();
     private int _strikes;
@@ -38,6 +38,9 @@ public sealed class GameModule : IModModule
         Host = host;
         ModId = modId;
         Module = module;
+        // Клиентский мод говорит на клиентском ABI (ClientAbi.Version), хоста — на ModAbi.Version.
+        if (load.Side == ClientAbi.Side)
+            load.Abi = ClientAbi.Version;
         LoadInfo = load;
         LoadBytes = MemoryPackSerializer.Serialize(load);
         Imports = [.. module.Imports.Select(i => $"{i.ModuleName}.{i.Name}")];
@@ -73,6 +76,8 @@ public sealed class GameModule : IModModule
     }
 
     IModInstance IModModule.CreateInstance() => CreateInstance();
+
+    IClientModInstance IClientModModule.CreateClientInstance() => CreateInstance();
 
     /// <summary>Экземпляр из пула или новый.</summary>
     public GameModuleInstance Rent()

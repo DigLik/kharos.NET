@@ -49,6 +49,15 @@ public sealed record LookSpec(Action<Canvas, double, int> Draw)
     /// <summary>Направление кадра значка.</summary>
     public int Icon { get; init; }
     public PortraitSpec? Portrait { get; init; }
+
+    /// <summary>Вариантов (ABI клиента 2, LookVariants): стена — 16, ворота — 17; рисует их <see cref="DrawCell"/>.</summary>
+    public int Variants { get; init; } = 1;
+
+    /// <summary>Второй набор фаз «в работе» (LookWorking): фазы удваиваются — сначала покой, затем работа.</summary>
+    public bool Working { get; init; }
+
+    /// <summary>Ячейка с вариантом: холст, вариант, угол, фаза (среди удвоенных); null — <see cref="Draw"/>.</summary>
+    public Action<Canvas, int, double, int>? DrawCell { get; init; }
 }
 
 /// <summary>Огонь кадра после растеризации: смещение от места сущности в тайлах, радиус в пикселях, яркость.</summary>
@@ -67,11 +76,15 @@ public sealed class Look
     public int Height => Spec.Height;
     public int Directions { get; }
     public int Phases { get; }
+    /// <summary>Вариантов облика (1 — без вариантов).</summary>
+    public int Variants { get; }
+    /// <summary>Фаз в варианте: <see cref="Phases"/>, с <see cref="LookSpec.Working"/> — вдвое больше.</summary>
+    public int Frames { get; }
     /// <summary>Левый верхний угол кадра от места сущности, в тайлах.</summary>
     public (float X, float Y) Offset { get; }
     /// <summary>Тень: сдвиг в тайлах и непрозрачность.</summary>
     public (float Offset, float Opacity) Shadow { get; }
-    /// <summary>Кадры RGBA по порядку фаза × направление — до упаковки.</summary>
+    /// <summary>Кадры RGBA по порядку вариант × фаза × направление — до упаковки.</summary>
     public List<byte[]> Images { get; } = [];
     /// <summary>Места кадров в атласе — после упаковки.</summary>
     public Uv[] Cells { get; internal set; } = [];
@@ -87,17 +100,24 @@ public sealed class Look
         Spec = spec;
         Directions = Math.Max(spec.Directions, 1);
         Phases = Math.Max(spec.Phases, 1);
+        Variants = Math.Max(spec.Variants, 1);
+        Frames = spec.Working ? Phases * 2 : Phases;
         var (originX, originY) = spec.Origin ?? (spec.Width / 2.0, spec.Height / 2.0);
         Offset = ((float)(-(originX + spec.Anchor.X) / 16), (float)(-(originY + spec.Anchor.Y) / 16));
         Shadow = spec.Shadow is { } shadow ? (shadow.Offset / Tile, shadow.Opacity) : (0, 0);
-        for (var phase = 0; phase < Phases; phase++)
-            for (var direction = 0; direction < Directions; direction++)
-            {
-                var canvas = new Canvas(spec.Width, spec.Height) { OriginX = originX, OriginY = originY };
-                spec.Draw(canvas, (double)direction / Directions * Turn, phase);
-                Images.Add(canvas.Data);
-                FrameLights.Add([.. canvas.Lights.Select(light => new FrameLight((float)((light.X - spec.Anchor.X) / 16), (float)((light.Y - spec.Anchor.Y) / 16), (float)light.Size, (float)light.Level))]);
-            }
+        for (var variant = 0; variant < Variants; variant++)
+            for (var phase = 0; phase < Frames; phase++)
+                for (var direction = 0; direction < Directions; direction++)
+                {
+                    var canvas = new Canvas(spec.Width, spec.Height) { OriginX = originX, OriginY = originY };
+                    var angle = (double)direction / Directions * Turn;
+                    if (spec.DrawCell is { } cell)
+                        cell(canvas, variant, angle, phase);
+                    else
+                        spec.Draw(canvas, angle, phase);
+                    Images.Add(canvas.Data);
+                    FrameLights.Add([.. canvas.Lights.Select(light => new FrameLight((float)((light.X - spec.Anchor.X) / 16), (float)((light.Y - spec.Anchor.Y) / 16), (float)light.Size, (float)light.Level))]);
+                }
         if (spec.Portrait is { } portrait) Portrait = Crop(portrait);
         PortraitSize = Portrait is { } cropped ? (cropped.Width, cropped.Height) : (spec.Width, spec.Height);
     }
@@ -141,6 +161,16 @@ public sealed class Look
             direction = (int)(turns < 0 ? turns + Directions : turns);
         }
         return phase % Phases * Directions + direction;
+    }
+
+    /// <summary>
+    /// Номер кадра варианта variant, фазы phase (покоя или, при working и <see cref="LookSpec.Working"/>, «в работе») и
+    /// направления angle (ABI клиента 2).
+    /// </summary>
+    public int Cell(double angle, int phase, int variant, bool working = false)
+    {
+        var frame = phase % Phases + (working && Frames > Phases ? Phases : 0);
+        return (Math.Clamp(variant, 0, Variants - 1) * Frames + frame) * Directions + Cell(angle, 0);
     }
 
     /// <summary>Размер кадра в тайлах.</summary>

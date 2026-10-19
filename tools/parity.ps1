@@ -4,7 +4,9 @@
 
 .DESCRIPTION
   Заголовки test('...') из packages/tests/*.test.ts сверяются с DisplayName в [Fact]/[Theory] тестов .NET:
-  dotnet/tests/Kharos.Base.Tests/Sim/**, dotnet/tests/Kharos.Engine.Tests/Movement/** и dotnet/tests/Kharos.Host.Tests/**.
+  dotnet/tests/Kharos.Base.Tests/Sim/**, dotnet/tests/Kharos.Engine.Tests/Movement/**, dotnet/tests/Kharos.Host.Tests/**,
+  а с Н6 (docs/dotnet-n6.md, Н6.3) и подача: dotnet/tests/Kharos.Client.Tests/**, Kharos.Base.Tests/Client/**,
+  Kharos.Base.Tests/AudioTests/** и dotnet/tests/Kharos.Audio.Tests/**.
   По каждому файлу TS печатается: всего, перенесено, пропущено (Skip = "ждёт ...") и не перенесено.
   Заголовок в .NET — дословный заголовок TS. Инструмент-отчёт: код возврата всегда 0.
 
@@ -76,7 +78,12 @@ function ConvertFrom-CsString([string]$text) {
 $csDirs = @(
     'dotnet/tests/Kharos.Base.Tests/Sim',
     'dotnet/tests/Kharos.Engine.Tests/Movement',
-    'dotnet/tests/Kharos.Host.Tests'
+    'dotnet/tests/Kharos.Host.Tests',
+    # Подача (docs/dotnet-n6.md, Н6.3): клиент, клиент base, звук base и движок звука.
+    'dotnet/tests/Kharos.Client.Tests',
+    'dotnet/tests/Kharos.Base.Tests/Client',
+    'dotnet/tests/Kharos.Base.Tests/AudioTests',
+    'dotnet/tests/Kharos.Audio.Tests'
 ) | ForEach-Object { Join-Path $root $_ } | Where-Object { Test-Path $_ }
 
 # title -> @{ Skip = <причина или $null>; Where = <файл> }

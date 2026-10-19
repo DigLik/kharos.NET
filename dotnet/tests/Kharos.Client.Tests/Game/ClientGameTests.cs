@@ -7,6 +7,7 @@ using Kharos.Content;
 using Kharos.Engine.World;
 using Kharos.Gpu;
 using Kharos.Host;
+using Kharos.Plugins.Game;
 using MemoryPack;
 using HostGame = Kharos.Host.Host;
 using RenderFrame = Kharos.Gpu.Frame;
@@ -23,7 +24,11 @@ internal sealed class HelloSession : IDisposable
 
     public static string ModDir => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Repo.Cache("x"))!, "..", "..", "mods", "hello"));
 
-    public static bool Built => File.Exists(Path.Combine(ModDir, "host.wasm")) && File.Exists(Path.Combine(ModDir, "client.wasm"));
+    /// <summary>Режим клиентского мода: KHAROS_MODS (wasm | clr), по умолчанию CLR (Hello.Client.dll в своей ALC).</summary>
+    public static ModMode ClientMode => ModModes.FromEnvironment();
+
+    public static bool Built => File.Exists(Path.Combine(ModDir, "host.wasm")) && File.Exists(Path.Combine(ModDir, "client.wasm"))
+        && (ClientMode == ModMode.Wasm || ClrModule.FindClient(ModDir) is not null);
 
     public const string NotBuilt = "mods/hello/host.wasm и client.wasm не собраны: pwsh dotnet/tools/build-mods.ps1 -Mod hello";
 
@@ -32,7 +37,7 @@ internal sealed class HelloSession : IDisposable
         Assert.SkipUnless(Built, NotBuilt);
         var content = GameContent.Load([ModPackage.Read(ModDir)]);
         Local = LocalGame.Start(() => new HostGame(content, new HostOptions { Modules = new Kharos.Plugins.Game.GameModuleOptions { CallTimeoutMs = 1000 }, Seed = 1 }));
-        Game = new ClientGame(content, Local.Client, new ClientGameOptions { ModuleOptions = new Kharos.Plugins.Game.GameModuleOptions { CallTimeoutMs = 1000 }, Log = Log.Add });
+        Game = new ClientGame(content, Local.Client, new ClientGameOptions { ModMode = ClientMode, ModuleOptions = new Kharos.Plugins.Game.GameModuleOptions { CallTimeoutMs = 1000 }, Log = Log.Add });
         Input = new ClientInput { Width = width, Height = height };
     }
 

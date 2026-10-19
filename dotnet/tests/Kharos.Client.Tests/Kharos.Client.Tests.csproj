@@ -14,6 +14,8 @@
     <ProjectReference Include="..\..\src\Kharos.Client\Kharos.Client.csproj" />
     <!-- Хост одиночной игры — партия hello для сквозных тестов клиента. -->
     <ProjectReference Include="..\..\src\Kharos.Host\Kharos.Host.csproj" />
+    <!-- Клиент hello в режиме CLR (KHAROS_MODS, по умолчанию CLR): Hello.Client.dll грузится в свою ALC, в процесс не подключается. -->
+    <ProjectReference Include="..\..\mods\hello\Hello.Client\Hello.Client.csproj" ReferenceOutputAssembly="false" />
     <!-- Сторона мода: запись потоков SDK сверяется с разбором клиента вне wasm. -->
     <ProjectReference Include="..\..\src\Kharos.Mod.Sdk\Kharos.Mod.Sdk.csproj" />
     <PackageReference Include="MemoryPack" />
