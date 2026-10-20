@@ -56,7 +56,9 @@ public sealed class HudTests : IDisposable
         Repo.Png("nothing-" + name, Render(scale, width, height), (int)(width * scale), (int)(height * scale));
     }
 
-    [Fact]
+    // Замер (время кадра HUD по часам): не в обычном прогоне — на загруженной машине он мерит соседей.
+    [Fact(Explicit = true)]
+    [Trait("Category", "Bench")]
     public void FrameTime()
     {
         const int width = 1280, height = 720, warmup = 30, frames = 300;

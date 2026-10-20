@@ -41,12 +41,13 @@ public class LocalGameTests
         }
         Assert.Equal(23, HelloGame.Units(replica.World!, 1).Count);
 
-        // 20 Гц: за ~0,5 с — около десяти тиков.
+        // Хост тикает сам, по часам. Сколько тиков за полсекунды — у замера PacesTwentyTicksPerSecond: на загруженной
+        // машине поток хоста вытесняют, и число тиков за отрезок времени говорит о соседях; сам шаг часов проверяет Pace.
         var ticks = game.Ticks;
-        Thread.Sleep(500);
-        var passed = game.Ticks - ticks;
-        Assert.InRange(passed, 3, 16);
-        Assert.True(game.AverageTickMs < 50, $"тик {game.AverageTickMs} мс");
+        while (game.Ticks < ticks + 3 && clock.ElapsedMilliseconds < 20_000)
+            Thread.Sleep(10);
+        Assert.True(game.Ticks >= ticks + 3, $"хост не тикает: {game.Ticks - ticks} тиков");
+        TestContext.Current.TestOutputHelper?.WriteLine($"тик {game.AverageTickMs:F2} мс");
 
         game.Stop();
         Assert.False(game.Running);
@@ -115,7 +116,22 @@ public class LocalGameTests
             Assert.Equal(start + 5, manual.Ticks);
         }
 
-        // По часам: за время t набегает t / шаг тиков.
+        // По часам — у замера PacesTwentyTicksPerSecond (зависит от загрузки машины) и у Pace (шаг часов без часов).
+    }
+
+    [Fact(Explicit = true, DisplayName = "замер: по часам хост делает 20 тиков в секунду, за время t — t / шаг тиков")]
+    [Trait("Category", "Bench")]
+    public void PacesTwentyTicksPerSecond()
+    {
+        Assert.SkipUnless(HelloGame.Built, HelloGame.NotBuilt);
+        using (var game = LocalGame.Start(() => new Host(HelloGame.Content())))
+        {
+            // 20 Гц: за ~0,5 с — около десяти тиков; бюджет тика — у TickBenchTests.
+            var ticks = game.Ticks;
+            Thread.Sleep(500);
+            Assert.InRange(game.Ticks - ticks, 3, 16);
+            Assert.True(game.AverageTickMs < 50, $"тик {game.AverageTickMs} мс");
+        }
         using var timed = LocalGame.Start(() => new Host(HelloGame.Content()), step: TimeSpan.FromMilliseconds(20));
         var watch = Stopwatch.StartNew();
         var first = timed.Ticks;

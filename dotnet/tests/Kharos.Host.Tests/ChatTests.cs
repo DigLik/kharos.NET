@@ -72,6 +72,18 @@ public sealed class ChatTests
         public void Say(string text) => End.Send(Messages.Say(text));
     }
 
+    /// <summary>Часы, которые двигает тест: <see cref="HostSessionOptions.Time"/>.</summary>
+    private sealed class ManualTime : TimeProvider
+    {
+        private long _ticks;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp() => _ticks;
+
+        public void Advance(TimeSpan by) => _ticks += by.Ticks;
+    }
+
     /// <summary>Партия base с хостом сессии: Sim ставит сцену (правки без тика), сессия ведёт игроков и тики.</summary>
     private sealed class Rig : IDisposable
     {
@@ -86,12 +98,16 @@ public sealed class ChatTests
                 SendRate = 0,
                 AdminPassword = password,
                 ChatGap = gap ?? (zeroGap ? TimeSpan.Zero : TimeSpan.FromMilliseconds(500)),
+                Time = Time,
                 Log = Log.Add,
             });
         }
 
         public Sim Sim { get; }
         public HostSession Session { get; }
+
+        /// <summary>Часы сессии: стоят, пока тест их не сдвинет (пауза чата и запрет /admin не зависят от загрузки машины).</summary>
+        public ManualTime Time { get; } = new();
         public List<string> Log { get; } = [];
 
         public Peer Join(string name, string? token = null)
@@ -165,7 +181,7 @@ public sealed class ChatTests
         two.Say("   ");
         rig.Step();
         Assert.Single(two.Lines);
-        Thread.Sleep(550);
+        rig.Time.Advance(TimeSpan.FromMilliseconds(550));
         rig.Say(one, new string('x', 250));
         Assert.Equal(Kharos.Host.PlayerRoster.MaxChat, two.Lines[^1].Text.Length);
         var late = rig.Join("Поздний");
@@ -235,7 +251,7 @@ public sealed class ChatTests
         // После неверного пароля несколько секунд не пускает и с верным.
         rig.Say(spy, "/admin секрет");
         Assert.False(spy.Admin);
-        Thread.Sleep(3100);
+        rig.Time.Advance(TimeSpan.FromMilliseconds(3100));
         rig.Say(spy, "/admin секрет");
         Assert.True(spy.Admin);
         Assert.Contains("kick", spy.CommandNames);

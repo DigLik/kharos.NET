@@ -23,11 +23,10 @@ public sealed class OpenAlTests
 public sealed class CostTests
 {
     /// <summary>
-    /// Замер: 32 голоса (шум или пила → 2 фильтра с LFO на срезе → усиление → панорама) и общий голос эха с откликом
-    /// 4 с стерео, в который идут все 32. Печатает мс на квант 128 кадров; квант длится 2,67 мс.
+    /// 32 голоса (шум или пила → 2 фильтра с LFO на срезе → усиление → панорама) и общий голос эха с откликом 4 с стерео, в
+    /// который идут все 32.
     /// </summary>
-    [Fact]
-    public void ThirtyTwoVoicesWithFiltersAndReverb()
+    private static AudioEngine ThirtyTwoVoices()
     {
         var engine = new AudioEngine(new AudioEngineOptions { Seed = 5 });
         engine.Bank.Add("reverb", Bus.World, new SampleBuffer(Synth.ReverbImpulse(AudioFormat.SampleRate, 4, 1)));
@@ -46,11 +45,36 @@ public sealed class CostTests
             pan.To(reverb.Node(1));
             engine.Voice(s.Build(), new VoiceOptions { Bus = Bus.World });
         }
+        return engine;
+    }
+
+    /// <summary>32 голоса с эхом играют все разом и на ходу не выделяют память (время кванта — у замера ниже).</summary>
+    [Fact]
+    public void ThirtyTwoVoicesWithFiltersAndReverb()
+    {
+        var engine = ThirtyTwoVoices();
+        var (_, _, allocated) = Measure(engine);
+        // Выделения — в установившемся режиме: пока JIT доводит код (дольше на загруженной машине), он выделяет сам.
+        for (var run = 1; run < 3 && allocated > 0; run++)
+            allocated = Math.Min(allocated, Measure(engine).Allocated);
+        Assert.Equal(33, engine.ActiveVoices);
+        // Общие машины CI: выделения только печатаются (в CI JIT ещё и доводит код по ходу).
+        TestContext.Current.TestOutputHelper?.WriteLine($"выделено {allocated} байт за {Quanta} квантов");
+        if (!Ci)
+            Assert.Equal(0, allocated);
+    }
+
+    /// <summary>Замер: те же 32 голоса с эхом; печатает мс на квант 128 кадров — квант длится 2,67 мс.</summary>
+    [Fact(Explicit = true)]
+    [Trait("Category", "Bench")]
+    public void ThirtyTwoVoicesWithFiltersAndReverbCost()
+    {
+        var engine = ThirtyTwoVoices();
         var (average, worst, allocated) = Measure(engine);
-        // Бюджет проверяется по лучшему из нескольких прогонов: на загруженной машине (параллельные тесты) поток
-        // вытесняют, и среднее одного прогона отражает соседей, а не стоимость кода. Лучший прогон шума не набирает.
+        // Бюджет проверяется по лучшему из нескольких прогонов: на загруженной машине поток вытесняют, и среднее одного
+        // прогона отражает соседей, а не стоимость кода. Лучший прогон шума не набирает.
         var best = average;
-        for (var run = 1; run < 5 && best >= 2.667 && !Ci; run++)
+        for (var run = 1; run < 5 && best >= 2.667; run++)
         {
             var again = Measure(engine);
             best = Math.Min(best, again.Average);
@@ -60,18 +84,14 @@ public sealed class CostTests
         TestContext.Current.TestOutputHelper?.WriteLine(
             $"32 голоса + эхо 4 с: {average:F3} мс на квант в среднем (лучший прогон {best:F3}), худший {worst:F3} мс (квант — 2,667 мс), " +
             $"выделено {allocated} байт за {Quanta} квантов, голосов {engine.ActiveVoices}");
-        Assert.Equal(33, engine.ActiveVoices);
-        // Общие машины CI — не замер: там время и выделения только печатаются (в CI JIT ещё и доводит код по ходу).
-        if (Ci)
-            return;
-        Assert.Equal(0, allocated);
         Assert.True(best < 2.667, $"{best} мс на квант в лучшем из прогонов — не успевает");
     }
 
     private static bool Ci => Environment.GetEnvironmentVariable("CI") == "true";
 
-    /// <summary>Только эхо: стереовход в отклик 4 с стерео.</summary>
-    [Fact]
+    /// <summary>Замер: только эхо — стереовход в отклик 4 с стерео.</summary>
+    [Fact(Explicit = true)]
+    [Trait("Category", "Bench")]
     public void ReverbAlone()
     {
         var engine = new AudioEngine(new AudioEngineOptions { Seed = 5 });
@@ -81,8 +101,7 @@ public sealed class CostTests
         engine.Voice(s.Build());
         var (average, worst, _) = Measure(engine);
         TestContext.Current.TestOutputHelper?.WriteLine($"эхо 4 с, стерео: {average:F3} мс на квант, худший {worst:F3} мс");
-        if (!Ci)
-            Assert.True(average < 2.667);
+        Assert.True(average < 2.667);
     }
 
     private const int Quanta = 3000;

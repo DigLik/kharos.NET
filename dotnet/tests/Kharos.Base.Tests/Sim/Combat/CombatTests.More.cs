@@ -178,10 +178,10 @@ public sealed partial class CombatTests
             Assert.True(sim.At(entity).X < x + 6.5, $"{Scene.TypeOf(sim, entity)}: {sim.At(entity).X} ≥ {x + 6.5}");
     }
 
-    [Fact(DisplayName = "показательный бой: большая армия строится целиком, стороны не перемешаны, и тик остаётся коротким")]
-    public void ShowcaseLargeArmy()
+    /// <summary>Показательный бой: армии двух сторон по 60 тыс. кредитов; каждая строится целиком и на своей половине поля.</summary>
+    private static Sim ShowcaseArmy()
     {
-        using var sim = Create();
+        var sim = Create();
         var army = Sim.RandomArmy(60000, null, () => 0.37);
         sim.SpawnBattle(1, 0, 0, army, army);
         var (own, foe) = (0, 0);
@@ -200,6 +200,30 @@ public sealed partial class CombatTests
         }
         Assert.Equal(army.Count, own);
         Assert.Equal(army.Count, foe);
+        return sim;
+    }
+
+    [Fact(DisplayName = "показательный бой: большая армия строится целиком, стороны не перемешаны, и бой идёт без ошибок")]
+    public void ShowcaseLargeArmy()
+    {
+        using var sim = ShowcaseArmy();
+        // Пять секунд боя: сотни юнитов ищут путь разом; ошибка системы или мода роняет Advance. Время тика меряет замер
+        // ниже (ShowcaseLargeArmyTickBench), не этот тест: на загруженной машине оно говорит о соседях, а не о коде.
+        for (var tick = 0; tick < 100; tick++)
+        {
+            if (tick % 10 == 0)
+                sim.DriveBattle(1);
+            sim.Advance();
+        }
+        var sides = sim.With(Names.Unit.Name, Names.Owner.Name).Select(sim.OwnerOf).Distinct().Count();
+        Assert.Equal(2, sides);
+    }
+
+    [Fact(Explicit = true, DisplayName = "замер: показательный бой — тик остаётся коротким")]
+    [Trait("Category", "Bench")]
+    public void ShowcaseLargeArmyTickBench()
+    {
+        using var sim = ShowcaseArmy();
         // Десять секунд боя: сотни юнитов ищут путь разом, и ни один тик не должен превращаться в заметную запинку.
         // Первый тик новой партии в режиме CLR компилирует код мода (своя AssemblyLoadContext у каждой партии) — это не тик
         // боя: в TS процесс к этому тесту уже разогрет.

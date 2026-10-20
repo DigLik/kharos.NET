@@ -46,7 +46,7 @@ public sealed class ClientGameOptions
 
     /// <summary>
     /// Как исполняется код клиентских модов (docs/dotnet-n6.md, Н6-6): client.wasm (игра) или сборка .NET в процессе
-    /// (тесты, обвязка Viewer: <c>ModModes.FromEnvironment()</c>, KHAROS_MODS=wasm|clr, по умолчанию CLR).
+    /// (тесты: обвязка Viewer — <c>Sim.DefaultMode</c>, тесты клиента — <c>ModModes.FromEnvironment()</c>, KHAROS_MODS=wasm|clr).
     /// </summary>
     public ModMode ModMode { get; init; } = ModMode.Wasm;
 

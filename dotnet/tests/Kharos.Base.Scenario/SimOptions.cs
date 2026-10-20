@@ -38,7 +38,7 @@ public sealed class SimOptions
     /// <summary>Игроки, которых нужно ввести в партию; по умолчанию 1 и 2.</summary>
     public IReadOnlyList<uint> Players { get; init; } = [1, 2];
 
-    /// <summary>Режим кода мода; null — <c>KHAROS_MODS</c> (wasm | clr), не задана — CLR.</summary>
+    /// <summary>Режим кода мода; null — <see cref="Sim.DefaultMode"/> (<c>KHAROS_MODS</c>, не задана — свежий wasm, иначе CLR).</summary>
     public ModMode? Mode { get; init; }
 
     /// <summary>Предел вызова мода в wasm, мс (в CLR пределов нет). По умолчанию вольный: тесты проверяют логику, не время.</summary>

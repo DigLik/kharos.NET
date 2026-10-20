@@ -18,8 +18,8 @@ public sealed partial class Sim
     public IReadOnlyList<Viewer> Viewers => _viewers;
 
     /// <summary>
-    /// Клиент игрока <paramref name="player"/> на реплике этой партии: <c>ClientGame</c> в режиме CLR (или
-    /// <c>KHAROS_MODS=wasm</c> — client.wasm), без окна и звука. Игрок входит, если ещё не входил. Клиентская часть не
+    /// Клиент игрока <paramref name="player"/> на реплике этой партии: <c>ClientGame</c> в режиме
+    /// <see cref="Sim.DefaultMode"/> (client.wasm или CLR), без окна и звука. Игрок входит, если ещё не входил. Клиентская часть не
     /// собрана — <see cref="SimUnavailableException"/> (тесту — <c>Assert.SkipWhen(Viewer.Unavailable(mode) is not null, …)</c>).
     /// </summary>
     public Viewer Viewer(uint player = 1, ViewerOptions? options = null)

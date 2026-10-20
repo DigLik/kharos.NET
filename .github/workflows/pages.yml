@@ -20,7 +20,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Владелец и репозиторий в ссылках скачивания — из github.repository (dotnet/site/README.md).
       - name: Подставить репозиторий
         run: sed -i 's#DigLik/kharos\.NET#${{ github.repository }}#g' dotnet/site/index.html

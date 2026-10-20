@@ -223,6 +223,28 @@ false|true`, плюс push тега `v*`; на `main` сам не срабаты
   - **Не проверялось (решение пользователя):** всё в WSL и на Linux — `dotnet test` в WSL, упаковка linux-x64, смоук
     mixed и смоук в WSL. Полный `dotnet test` решения не гонялся: только затронутые проекты (Engine, Host, Base — оборона
     и армия, CLR и wasm).
+- **Скорость тестов и CI** (после волны 2, Windows):
+  - Причина медленного `dotnet test` (Base.Tests 27 мин, 4–9 ядер из 24): в режиме CLR каждая партия (`Sim`, `Host`) и
+    каждый клиент (`Viewer`, `ClientGame`) грузят мод в свою collectible AssemblyLoadContext, и JIT компилирует весь мод
+    заново — около 0,5 с процессора на партию. Параллельные тесты упирались в блокировки JIT и загрузчика рантайма: за
+    70 с прогона потоки накопили 1500 с «компиляции» при 4 занятых ядрах, а блокировки самих тестов (Monitor) — ~100
+    за прогон. Модуль wasm компилируется раз на процесс (и в дисковый кэш), экземпляр — десятки миллисекунд.
+  - Без `KHAROS_MODS` тесты идут на `host.wasm` и `client.wasm`, если они собраны и не старше исходников мода
+    (`Sim.DefaultMode`, `Sim.WasmFresh`); иначе — CLR, как раньше, `KHAROS_MODS=clr` — CLR с отладчиком. CLR и wasm
+    по-прежнему сверяют ParityTests, ClrModeTests, ViewerTests. Боевой треугольник считает пары параллельно и
+    останавливается, когда большинство из трёх боёв решено (40 → ~13 с в общем прогоне).
+  - Время по часам — не в обычных тестах: замеры `[Fact(Explicit = true)]` с `[Trait("Category", "Bench")]`
+    (`Kharos.*.Tests.exe -trait Category=Bench -explicit only`): граница зоны, тик показательного боя и skirmish, цена
+    звука и кадра, 32 голоса и эхо, кадр HUD, кадр 1080p, темп LocalGame. Логика (равенство с перебором, армии и
+    стороны, ошибки) осталась в обычных тестах.
+  - Чат: часы `HostSessionOptions.Time` (TimeProvider) — пауза `ChatGap`, счёт сообщений и запрет `/admin`; ChatTests
+    двигают их сами. Смоук hello в Desktop.Tests берёт моды из `dotnet/mods`, а не их копию в bin (сборка в CI шла до
+    `build-mods`, копия была без wasm, и роверов не было). `Renderer.ReadPixels`: буфер чтения создаётся отображённым
+    и копия кадра дожидается конца очереди — на WARP в CI первое чтение кадра каждого рендера было чёрным (локально на
+    WARP Windows 11 не повторяется; проверить в CI).
+  - CI (`dotnet.yml`): моды — одно задание и артефакт `ci-mods` (из кэша, если исходники те же), тесты — части
+    base-sim-1, base-sim-2, base-rest и other на каждой ОС параллельно, кэш NuGet, actions на Node 24.
+  - Локально: `dotnet test Kharos.slnx -c Release` — 27 мин → ~1,5 мин (Base.Tests ~1 мин, дольше всех — Kharos.Gpu.Tests).
 
 **Проверяющий после каждой волны (один, локально):** `build-mods.ps1`; `dotnet test` всего решения на Windows и в WSL,
 CLR и `KHAROS_MODS=wasm`; `tools/parity.ps1` («нет» = 0 после волны 0); `BalanceTests` и `BalanceVsTsTests` (`-explicit

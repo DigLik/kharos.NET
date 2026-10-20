@@ -348,7 +348,9 @@ public sealed class BaseClientTests
         Assert.Empty(game.Errors);
     }
 
-    [Fact]
+    // Замер (цена кадра по часам): не в обычном прогоне — на загруженной машине он мерит соседей.
+    [Fact(Explicit = true)]
+    [Trait("Category", "Bench")]
     public void FrameCostOfSkirmish()
     {
         using var session = new BaseSession();

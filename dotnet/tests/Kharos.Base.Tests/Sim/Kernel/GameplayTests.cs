@@ -34,25 +34,32 @@ public sealed class GameplayTests
         Assert.True(Data.Buildings["mine"].Inventory > truck);
     }
 
+    /// <summary>Пары «кто кого бьёт» боевого треугольника.</summary>
+    private static readonly (string Own, string Foe)[] Counters =
+    [
+        // Пехоту — дешёвый рой — бьют миниганы, осколки и разряд.
+        ("buggy", "infantry"), ("tesla", "infantry"), ("tank", "infantry"),
+        // Пехота сама бьёт ракетчиков (по ней ракета слаба) и авиацию.
+        ("infantry", "rocketeer"), ("infantry", "drone"),
+        // Ракетчик — против лёгкой техники и авиации.
+        ("rocketeer", "buggy"), ("rocketeer", "lancer"), ("rocketeer", "gunship"),
+        // Танк переживает ракеты и давит осколками; против танка — лазер и авиация.
+        ("tank", "rocketeer"), ("lancer", "tank"), ("drone", "tank"), ("gunship", "tank"),
+    ];
+
     [Fact(DisplayName = "боевой треугольник: у каждого юнита есть контр-юнит")]
     public void EveryUnitHasACounter()
     {
-        // Пехоту — дешёвый рой — бьют миниганы, осколки и разряд.
-        Assert.True(Beats("buggy", "infantry"));
-        Assert.True(Beats("tesla", "infantry"));
-        Assert.True(Beats("tank", "infantry"));
-        // Пехота сама бьёт ракетчиков (по ней ракета слаба) и авиацию.
-        Assert.True(Beats("infantry", "rocketeer"));
-        Assert.True(Beats("infantry", "drone"));
-        // Ракетчик — против лёгкой техники и авиации.
-        Assert.True(Beats("rocketeer", "buggy"));
-        Assert.True(Beats("rocketeer", "lancer"));
-        Assert.True(Beats("rocketeer", "gunship"));
-        // Танк переживает ракеты и давит осколками; против танка — лазер и авиация.
-        Assert.True(Beats("tank", "rocketeer"));
-        Assert.True(Beats("lancer", "tank"));
-        Assert.True(Beats("drone", "tank"));
-        Assert.True(Beats("gunship", "tank"));
+        // Каждая пара — свои партии, независимые друг от друга: пары считаются параллельно (последовательно — 40 с, весь
+        // тест упирался в этот путь). Исход боя от этого не зависит: у каждой партии свой хост и свой ряд случайных чисел.
+        Scene.SkipUnlessAvailable();
+        var lost = new System.Collections.Concurrent.ConcurrentBag<string>();
+        Parallel.ForEach(Counters, pair =>
+        {
+            if (!Beats(pair.Own, pair.Foe))
+                lost.Add($"{pair.Own} → {pair.Foe}");
+        });
+        Assert.True(lost.IsEmpty, "не бьёт: " + string.Join(", ", lost.Order()));
     }
 
     /// <summary>Цена отряда в бою: у каждой стороны столько юнитов, сколько в неё влезает.</summary>
@@ -61,8 +68,24 @@ public sealed class GameplayTests
     /// <summary>Дистанции между передними рядами в боях, по которым судит Beats.</summary>
     private static readonly int[] Gaps = [5, 7, 9];
 
-    /// <summary>Побеждает ли первый отряд второй равной цены в большинстве боёв на ровном поле с разной дистанцией.</summary>
-    private static bool Beats(string own, string foe) => Gaps.Count(gap => Wins(own, foe, gap)) > Gaps.Length / 2.0;
+    /// <summary>
+    /// Побеждает ли первый отряд второй равной цены в большинстве боёв на ровном поле с разной дистанцией. Бои — по порядку
+    /// дистанций, пока большинство не решено: исход тот же, что у всех трёх, а третий бой не нужен, если первые два сошлись.
+    /// </summary>
+    private static bool Beats(string own, string foe)
+    {
+        int won = 0, fought = 0;
+        foreach (var gap in Gaps)
+        {
+            if (Wins(own, foe, gap))
+                won++;
+            fought++;
+            var left = Gaps.Length - fought;
+            if (won > Gaps.Length / 2.0 || won + left <= Gaps.Length / 2.0)
+                break;
+        }
+        return won > Gaps.Length / 2.0;
+    }
 
     /// <summary>Левый верхний тайл ровной проходимой площадки width×height (arena).</summary>
     private static (int X, int Y) Arena(Sim sim, int width, int height)

@@ -9,8 +9,9 @@ namespace Kharos.Base.Scenario;
 
 /// <summary>
 /// Сценарий base на хосте (docs/dotnet-n5.md, Н5.6): аналог <c>createSim</c> и <c>sim.advance</c> из packages/tests.
-/// Партия идёт настоящим хостом с модом base — в режиме CLR (по умолчанию, быстро, с отладчиком) или на host.wasm
-/// (<c>KHAROS_MODS=wasm</c>); тесты не знают разницы, мир совпадает до байта.
+/// Партия идёт настоящим хостом с модом base — на host.wasm (по умолчанию, когда он собран и не старше исходников мода)
+/// или в режиме CLR (<c>KHAROS_MODS=clr</c> — с отладчиком; без свежего host.wasm — сам); тесты не знают разницы, мир
+/// совпадает до байта. Почему wasm по умолчанию — у <see cref="DefaultMode"/>.
 /// <code>
 /// using var sim = Sim.Create(new SimOptions { Size = 256, Rules = new { techTree = false } });
 /// var unit = sim.PutUnit("builder", 1, 10.5, 10.5);        // правка edit.unit, сразу применена
@@ -65,8 +66,45 @@ public sealed partial class Sim : IDisposable
     /// <summary>Папка мода base (mod.json, data, host.wasm).</summary>
     public static string ModDir => Path.Combine(DotnetRoot, "mods", "base");
 
-    /// <summary>Режим из KHAROS_MODS (wasm | clr); не задан — CLR.</summary>
-    public static ModMode DefaultMode => ModModes.FromEnvironment();
+    /// <summary>
+    /// Режим из KHAROS_MODS (wasm | clr); не задан — wasm, если host.wasm и client.wasm собраны и не старше исходников мода
+    /// (<see cref="WasmFresh"/>), иначе CLR. Почему не CLR: каждая партия и каждый клиент в CLR грузят мод в свою
+    /// collectible AssemblyLoadContext, и JIT заново компилирует весь мод (около 0,5 с процессора на партию); параллельные
+    /// тесты упираются в блокировки JIT и загрузчика рантайма и занимают 4–9 ядер из 24 (Base.Tests — 27 мин). Модуль wasm
+    /// компилируется раз на процесс (и кэшируется на диске), экземпляр поднимается за десятки миллисекунд.
+    /// </summary>
+    public static ModMode DefaultMode => ModModes.FromEnvironment(WasmFresh ? ModMode.Wasm : ModMode.Clr);
+
+    /// <summary>
+    /// host.wasm и client.wasm есть и не старше исходников, из которых собраны: своей части мода (Base.Host или
+    /// Base.Client), общей (Base.Shared), SDK модов и DetMath, настроек сборки модов. Иначе тест шёл бы на старом коде
+    /// мода, а правка в Base.Host — мимо. Считается раз на процесс.
+    /// </summary>
+    public static bool WasmFresh => Fresh.Value;
+
+    private static readonly Lazy<bool> Fresh = new(() =>
+        Built("host.wasm", "*.Host") && Built("client.wasm", "*.Client"));
+
+    /// <summary>wasm мода есть и не старше исходников своей части (part) и общих.</summary>
+    private static bool Built(string wasm, string part)
+    {
+        var file = Path.Combine(ModDir, wasm);
+        if (!File.Exists(file))
+            return false;
+        var built = File.GetLastWriteTimeUtc(file);
+        var src = Path.Combine(DotnetRoot, "src");
+        var roots = Directory.GetDirectories(ModDir, part).Concat(Directory.GetDirectories(ModDir, "*.Shared")).Append(Path.Combine(src, "Kharos.Mod.Sdk"));
+        static bool Source(string path) =>
+            !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+            && !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+            && Path.GetExtension(path) is ".cs" or ".csproj" or ".props" or ".targets";
+        var sources = roots.Where(Directory.Exists)
+            .SelectMany(root => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            .Concat(Directory.EnumerateFiles(Path.Combine(DotnetRoot, "mods"), "Directory.Build.*"))
+            .Concat(Directory.Exists(Path.Combine(src, "Kharos.Engine", "Math")) ? Directory.EnumerateFiles(Path.Combine(src, "Kharos.Engine", "Math"), "DetMath*.cs") : [])
+            .Where(Source);
+        return sources.All(source => File.GetLastWriteTimeUtc(source) <= built);
+    }
 
     /// <summary>Почему сценарий в этом режиме не запустить (нет host.wasm или Base.Host.dll); null — можно.</summary>
     public static string? Unavailable(ModMode mode) => mode switch

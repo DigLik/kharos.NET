@@ -125,7 +125,9 @@ public sealed class ShowcaseTests(GpuFixture fixture)
         Assert.True(night.Mean() < dayImage.Mean() * 0.8f, $"{gpu.AdapterName} ({gpu.Backend}, программный: {gpu.IsSoftware}): день {dayImage.Mean():F1}, ночь {night.Mean():F1}");
     }
 
-    [Fact]
+    // Замер (кадр 1080p по часам, только печать): не в обычном прогоне.
+    [Fact(Explicit = true)]
+    [Trait("Category", "Bench")]
     public void Performance_1080p()
     {
         const int width = 1920, height = 1080;

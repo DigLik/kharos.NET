@@ -53,18 +53,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: dotnet/global.json
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: dotnet/.cache/wasi-sdk
           key: wasi-sdk-29-${{ runner.os }}-${{ runner.arch }}
       - run: pwsh dotnet/tools/build-mods.ps1
       # tar сохраняет пути dotnet/mods/<мод>/*.wasm (upload-artifact отбросил бы общий префикс).
       - run: tar -cf mods.tar dotnet/mods/*/host.wasm dotnet/mods/*/client.wasm
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: mods
           path: mods.tar
@@ -91,11 +91,11 @@ jobs:
     env:
       VERSION: ${{ needs.meta.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: dotnet/global.json
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: mods
       - run: tar -xf mods.tar
@@ -128,7 +128,7 @@ jobs:
             echo "::warning::Смоук с lavapipe не прошёл, повтор без GPU (KHAROS_GPU=none)"
             KHAROS_GPU=none smoke
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ matrix.rid }}
           path: ${{ runner.temp }}/out/kharos-${{ matrix.rid }}.*
@@ -148,11 +148,11 @@ jobs:
     env:
       VERSION: ${{ needs.meta.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: dotnet/global.json
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: mods
       - run: tar -xf mods.tar
@@ -165,7 +165,7 @@ jobs:
       # Сервер и боты (клиенты протокола без GPU) на пакете, 2 минуты.
       - name: Смоук сервера с ботами
         run: pwsh dotnet/tools/smoke.ps1 server -Package "$RUNNER_TEMP/out" $SMOKE_SERVER_ARGS
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: server-${{ matrix.rid }}
           path: ${{ runner.temp }}/out/kharos-server-${{ matrix.rid }}.*
@@ -181,7 +181,7 @@ jobs:
     env:
       VERSION: ${{ needs.meta.outputs.version }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: '{desktop,server}-*'
           path: dist

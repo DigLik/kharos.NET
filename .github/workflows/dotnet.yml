@@ -2,6 +2,11 @@ name: .NET
 
 # Линия .NET (docs/dotnet.md): сборка и тесты на Windows и Linux (macOS вне плана, docs/dotnet-n7.md Н7.9).
 # TS-задания не трогает. Через workflow_call его же берёт release.yml.
+#
+# Устройство: моды в wasm собираются один раз (задание mods, артефакт ci-mods; при тех же исходниках — из кэша), тесты —
+# параллельными частями на каждой ОС: Base.Tests тремя частями по пространствам имён и все прочие проекты одной. Тесты
+# идут на host.wasm и client.wasm (KHAROS_MODS=wasm): модуль компилируется раз на процесс, а в режиме CLR каждая партия
+# заново компилирует JIT-ом весь мод (Sim.DefaultMode).
 on:
   push:
     paths:
@@ -25,67 +30,149 @@ on:
 permissions:
   contents: read
 
+env:
+  DOTNET_NOLOGO: 1
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  # Части Base.Tests по пространствам имён Kharos.Base.Tests.*; всё, что не названо, — в части base-rest (так новый
+  # раздел не выпадет из прогона). Время частей примерно равное.
+  BASE_SIM_1: Kernel Combat Construction Defense Missiles Tactics
+  BASE_SIM_2: Energy Logistics Players Researching Mining Production Pipes Trade Movement Harness Data Layers Balance
+
 jobs:
-  build:
+  # Моды в wasm (NativeAOT-LLVM, docs/dotnet.md Р5): .wasm у всех ОС один, собираем раз на Linux x64. Те же исходники —
+  # те же .wasm из кэша (ключ — исходники модов, SDK модов и настройки сборки).
+  mods:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - id: built
+        uses: actions/cache@v6
+        with:
+          path: |
+            dotnet/mods/*/host.wasm
+            dotnet/mods/*/client.wasm
+          key: mods-${{ hashFiles('dotnet/mods/**/*.cs', 'dotnet/mods/**/*.csproj', 'dotnet/mods/**/*.props', 'dotnet/mods/**/*.targets', 'dotnet/src/Kharos.Mod.Sdk/**', 'dotnet/src/Kharos.Engine/Math/DetMath*.cs', 'dotnet/Directory.Build.props', 'dotnet/Directory.Packages.props', 'dotnet/global.json', 'dotnet/nuget.config', 'dotnet/tools/build-mods.ps1', 'dotnet/tools/wasi-sdk.*') }}
+      - uses: actions/setup-dotnet@v6
+        if: steps.built.outputs.cache-hit != 'true'
+        with:
+          global-json-file: dotnet/global.json
+      - uses: actions/cache@v6
+        if: steps.built.outputs.cache-hit != 'true'
+        with:
+          path: dotnet/.cache/wasi-sdk
+          key: wasi-sdk-29-${{ runner.os }}-${{ runner.arch }}
+      - uses: actions/cache@v6
+        if: steps.built.outputs.cache-hit != 'true'
+        with:
+          path: ~/.nuget/packages
+          key: nuget-mods-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('dotnet/Directory.Packages.props', 'dotnet/nuget.config', 'dotnet/global.json') }}
+          restore-keys: nuget-mods-${{ runner.os }}-${{ runner.arch }}-
+      - run: pwsh dotnet/tools/build-mods.ps1
+        if: steps.built.outputs.cache-hit != 'true'
+      # tar сохраняет пути dotnet/mods/<мод>/*.wasm (upload-artifact отбросил бы общий префикс). Имя — не «mods»: тот же
+      # прогон release.yml выкладывает свой артефакт mods.
+      - run: tar -cf mods.tar dotnet/mods/*/host.wasm dotnet/mods/*/client.wasm
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ci-mods
+          path: mods.tar
+          if-no-files-found: error
+          retention-days: 3
+
+  test:
+    needs: mods
+    name: test (${{ matrix.os }}, ${{ matrix.shard }})
     strategy:
       fail-fast: false
       matrix:
         os: ${{ fromJSON(inputs.os || '["ubuntu-latest","ubuntu-24.04-arm","windows-latest"]') }}
+        shard: [base-sim-1, base-sim-2, base-rest, other]
     runs-on: ${{ matrix.os }}
     # Зависший тест не держит машину часами (по умолчанию — 6 ч).
-    timeout-minutes: 40
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: dotnet
+        shell: bash
+    env:
+      SHARD: ${{ matrix.shard }}
+      # Моды из артефакта — тесты на wasm, как в игре (без переменной Sim.DefaultMode сверял бы их свежесть с исходниками).
+      KHAROS_MODS: wasm
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: dotnet/global.json
-      # Сверка кадров с эталоном идёт на программном Vulkan (lavapipe): видеокарты на раннере нет.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('dotnet/Directory.Packages.props', 'dotnet/nuget.config', 'dotnet/global.json', 'dotnet/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-${{ runner.arch }}-
+      # Lavapipe — частям с кадрами на GPU (клиент base и Kharos.Gpu.Tests).
       - name: Mesa Vulkan
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && (matrix.shard == 'base-rest' || matrix.shard == 'other')
         working-directory: .
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers
-      - run: dotnet build Kharos.slnx -c Release
-      # Моды в wasm (NativeAOT-LLVM, docs/dotnet.md Р5): WASI SDK и компилятор есть под linux-x64, linux-arm64 и win-x64;
-      # собираем на Linux x64 — тесты с host.wasm там идут по-настоящему, на прочих ОС пропускаются.
-      - uses: actions/cache@v4
-        if: matrix.os == 'ubuntu-latest'
+      # Моды — до сборки: Kharos.Desktop копирует mods/*/*.wasm себе в bin при сборке.
+      - uses: actions/download-artifact@v8
         with:
-          path: dotnet/.cache/wasi-sdk
-          key: wasi-sdk-29-${{ runner.os }}-${{ runner.arch }}
-      - run: pwsh tools/build-mods.ps1
-        if: matrix.os == 'ubuntu-latest'
+          name: ci-mods
+      - run: tar -xf mods.tar
+        working-directory: .
+      - name: Сборка
+        run: |
+          case "$SHARD" in
+            base-*) dotnet build tests/Kharos.Base.Tests/Kharos.Base.Tests.csproj -c Release ;;
+            *) dotnet build Kharos.slnx -c Release ;;
+          esac
       # Тест, висящий дольше 10 минут, обрывается и попадает в отчёт.
       - name: Тесты
         env:
+          # Сверка кадров идёт на программном адаптере: видеокарты на раннере нет (Linux — lavapipe, Windows — WARP).
           KHAROS_GPU_ADAPTER: ${{ runner.os == 'Linux' && 'software' || '' }}
-        run: dotnet test Kharos.slnx -c Release --no-build --logger GitHubActions --blame-hang-timeout 10m --blame-hang-dump-type none
+        run: |
+          any() { local f=""; for n in "$@"; do f="$f${f:+|}FullyQualifiedName~Kharos.Base.Tests.$n."; done; echo "$f"; }
+          none() { local f=""; for n in "$@"; do f="$f${f:+&}FullyQualifiedName!~Kharos.Base.Tests.$n."; done; echo "$f"; }
+          base=tests/Kharos.Base.Tests/Kharos.Base.Tests.csproj
+          case "$SHARD" in
+            base-sim-1) target=$base; filter=$(any $BASE_SIM_1) ;;
+            base-sim-2) target=$base; filter=$(any $BASE_SIM_2) ;;
+            base-rest) target=$base; filter=$(none $BASE_SIM_1 $BASE_SIM_2) ;;
+            other) target=Kharos.slnx; filter='FullyQualifiedName!~Kharos.Base.Tests.' ;;
+          esac
+          echo "$target: $filter"
+          dotnet test "$target" -c Release --no-build --filter "$filter" --logger GitHubActions --blame-hang-timeout 10m --blame-hang-dump-type none
       # Песочница модов на этой ОС: Wasmtime, пул, сторож эпох, белый список импортов.
-      - run: dotnet run --project tools/Kharos.Plugins.Bench -c Release --no-build -- --security
+      - if: matrix.shard == 'other'
+        run: dotnet run --project tools/Kharos.Plugins.Bench -c Release --no-build -- --security
 
   # Пробный пакет linux-x64: публикация NativeAOT, состав архива и смоук одиночной игры (Н7.4, Н7.3).
   package:
     if: ${{ !inputs.skip-package }}
+    needs: mods
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: dotnet/global.json
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-package-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('dotnet/Directory.Packages.props', 'dotnet/nuget.config', 'dotnet/global.json', 'dotnet/**/*.csproj') }}
+          restore-keys: nuget-package-${{ runner.os }}-${{ runner.arch }}-
       - name: Пакеты ОС
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends clang zlib1g-dev xvfb mesa-vulkan-drivers libasound2
-      - uses: actions/cache@v4
+      - uses: actions/download-artifact@v8
         with:
-          path: dotnet/.cache/wasi-sdk
-          key: wasi-sdk-29-${{ runner.os }}-${{ runner.arch }}
-      - run: pwsh dotnet/tools/build-mods.ps1
+          name: ci-mods
+      - run: tar -xf mods.tar
       - name: Упаковка
         run: sh dotnet/tools/package.sh linux-x64 desktop "0.2.0-ci.${{ github.run_number }}" "$RUNNER_TEMP/out"
       # Оркестратор смоука (dotnet/tools/smoke.ps1, П2): вызов в одном месте, чтобы править в одном месте.

@@ -30,6 +30,18 @@ public sealed class SmokeScriptTests : IDisposable
         return gpu is not null;
     }
 
+    /// <summary>
+    /// Моды из репозитория (dotnet/mods), а не их копия рядом с тестами: копию в bin делает сборка, и wasm, собранный после
+    /// неё (CI: dotnet build, потом build-mods), туда не попадает — hello шёл бы без кода, и роверов бы не было.
+    /// </summary>
+    private static List<string> ModRoots()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+            if (File.Exists(Path.Combine(dir.FullName, "Kharos.slnx")))
+                return [Path.Combine(dir.FullName, "mods")];
+        return DesktopOptions.FindModRoots();
+    }
+
     /// <summary>Сценарий на hello (партия сразу, мимо меню); код выхода и отчёт.</summary>
     private (int Code, JsonElement Report) Smoke(string steps, bool noGpu)
     {
@@ -38,7 +50,7 @@ public sealed class SmokeScriptTests : IDisposable
         var script = Path.Combine(_root, "script.json");
         var report = Path.Combine(_root, "report.json");
         File.WriteAllText(script, steps);
-        var options = new DesktopOptions(DesktopOptions.FindModRoots(), "hello", false, 1f, null, Smoke: new SmokeOptions(script, report), NoGpu: noGpu);
+        var options = new DesktopOptions(ModRoots(), "hello", false, 1f, null, Smoke: new SmokeOptions(script, report), NoGpu: noGpu);
         Assert.False(options.Visible);
         var code = Shell.Run(options);
         using var document = JsonDocument.Parse(File.ReadAllText(report));
@@ -52,6 +64,10 @@ public sealed class SmokeScriptTests : IDisposable
     [Fact(DisplayName = "смоук: одиночная партия hello в скрытом окне — приказ, отметки, сохранение и загрузка; профиль только в KHAROS_HOME")]
     public void SinglePlayerScriptOnHello()
     {
+        // Роверы ставит код мода: без host.wasm партия hello идёт пустой, и ждать их бессмысленно.
+        var hello = Path.Combine(ModRoots()[0], "hello");
+        Assert.SkipUnless(File.Exists(Path.Combine(hello, "host.wasm")) && File.Exists(Path.Combine(hello, "client.wasm")),
+            "mods/hello/host.wasm и client.wasm не собраны: pwsh dotnet/tools/build-mods.ps1 -Mod hello");
         var gpu = HasGpu();
         var slot = "smoke-" + Guid.NewGuid().ToString("N")[..8];
         var shot = Path.Combine(_root, "game.png").Replace('\\', '/');

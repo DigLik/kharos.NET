@@ -94,11 +94,10 @@ public class ScenarioTests
         throw new InvalidOperationException($"здание {type} не встало у ({x}, {y})");
     }
 
-    [Fact]
-    public void TickTimeOfOnePlayerSkirmish()
+    /// <summary>Skirmish одного игрока: стартовый набор ездит туда-сюда 200 тиков; время каждого тика, мс (по возрастанию).</summary>
+    private static (double[] Times, KHost Host) PlaySkirmish()
     {
-        Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);
-        using var host = BaseGame.Create();
+        var host = BaseGame.Create();
         host.Start();
         host.Join(1);
         var mine = BaseGame.Units(host, 1);
@@ -116,8 +115,27 @@ public class ScenarioTests
             host.TakeDelta();
         }
         Array.Sort(times);
+        return (times, host);
+    }
+
+    [Fact]
+    public void OnePlayerSkirmishRunsWithoutErrors()
+    {
+        Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);
+        var (_, host) = PlaySkirmish();
+        using (host)
+            Assert.Empty(host.Errors);
+    }
+
+    [Fact(Explicit = true)]
+    [Trait("Category", "Bench")]
+    public void TickTimeOfOnePlayerSkirmish()
+    {
+        Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);
+        var (times, host) = PlaySkirmish();
+        using var _ = host;
         string F(double value) => value.ToString("0.000", CultureInfo.InvariantCulture);
-        TestContext.Current.TestOutputHelper?.WriteLine($"тик skirmish, 1 игрок (стартовый набор: MCV, 2 багги, 3 пехотинца; {BaseGame.With(host, "Deposit").Count} месторождений): среднее {F(times.Average())} мс, медиана {F(times[ticks / 2])}, 95% {F(times[ticks * 95 / 100])}, наибольший {F(times[^1])}");
+        TestContext.Current.TestOutputHelper?.WriteLine($"тик skirmish, 1 игрок (стартовый набор: MCV, 2 багги, 3 пехотинца; {BaseGame.With(host, "Deposit").Count} месторождений): среднее {F(times.Average())} мс, медиана {F(times[times.Length / 2])}, 95% {F(times[times.Length * 95 / 100])}, наибольший {F(times[^1])}");
         Assert.True(times.Average() < 5, $"тик {times.Average()} мс");
         foreach (var timing in host.Scheduler.Timings())
             TestContext.Current.TestOutputHelper?.WriteLine($"  {timing.Name}: {timing}");

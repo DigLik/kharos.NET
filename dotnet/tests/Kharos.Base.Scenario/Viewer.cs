@@ -18,7 +18,7 @@ public sealed class ViewerOptions
     public float Width { get; init; } = 1280;
     public float Height { get; init; } = 720;
 
-    /// <summary>Режим кода клиентского мода; null — <c>KHAROS_MODS</c> (wasm | clr), не задана — CLR.</summary>
+    /// <summary>Режим кода клиентского мода; null — <see cref="Sim.DefaultMode"/> (<c>KHAROS_MODS</c>, не задана — свежий wasm, иначе CLR).</summary>
     public ModMode? Mode { get; init; }
 
     /// <summary>Шаг часов клиента на кадр, секунды (60 кадров в секунду).</summary>
@@ -33,7 +33,7 @@ public sealed class ViewerOptions
 
 /// <summary>
 /// Клиент игрока поверх сценария (docs/dotnet-n6.md, Н6-6, Н6.3): настоящий <see cref="ClientGame"/> с модом base в
-/// режиме CLR (по умолчанию; <c>KHAROS_MODS=wasm</c> — client.wasm) на реплике хоста <see cref="Sim"/>. Хост шлёт ему
+/// режиме <see cref="Sim.DefaultMode"/> (client.wasm или CLR) на реплике хоста <see cref="Sim"/>. Хост шлёт ему
 /// приветствие, снимок и дельты настоящим путём протокола (HostSession, VisionView, транспорт в памяти); приказы
 /// клиента уходят хосту перед следующим тиком. Окна, звука и видеокарты нет (Audio = null); кадр картинкой — по
 /// желанию, <see cref="Render"/> на <c>GpuContext.TryCreateHeadless</c>.

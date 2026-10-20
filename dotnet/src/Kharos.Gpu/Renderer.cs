@@ -270,8 +270,13 @@ public sealed unsafe partial class Renderer : IDisposable
         if (_readback == null || _readbackSize < size)
         {
             if (_readback != null) Release(_readback);
-            var descriptor = new BufferDescriptor { Usage = BufferUsage.MapRead | BufferUsage.CopyDst, Size = (ulong)size };
+            // Буфер создаётся отображённым и сразу отпускается: так он с рождения считается заполненным. Иначе wgpu
+            // заполняет его нулями лениво, при первом отображении, — и на WARP (CI windows-latest) первое чтение кадра
+            // каждого рендера давало чёрную картинку (ViewerRendersHeadlessFrame «кадр однотонный», «день 0,0» у
+            // Showcase_DayDuskNight, первая сцена ParityTests), а следующие, в тот же буфер, — верную.
+            var descriptor = new BufferDescriptor { Usage = BufferUsage.MapRead | BufferUsage.CopyDst, Size = (ulong)size, MappedAtCreation = true };
             _readback = api.DeviceCreateBuffer(_gpu.Device, &descriptor);
+            api.BufferUnmap(_readback);
             _readbackSize = size;
         }
         var encoder = api.DeviceCreateCommandEncoder(_gpu.Device, null);
@@ -280,6 +285,8 @@ public sealed unsafe partial class Renderer : IDisposable
         var extent = new Extent3D((uint)Width, (uint)Height, 1);
         api.CommandEncoderCopyTextureToBuffer(encoder, &source, &destination, &extent);
         Submit(encoder);
+        // Копия кадра закончена до отображения буфера: порядок не зависит от того, как адаптер ведёт очередь.
+        _gpu.WaitIdle();
         int status = 0;
         api.BufferMapAsync(_readback, MapMode.Read, 0, (nuint)size, new PfnBufferMapCallback(&OnMapped), &status);
         while (status == 0) _gpu.WaitIdle();

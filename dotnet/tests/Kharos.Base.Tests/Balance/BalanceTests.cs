@@ -9,7 +9,7 @@ namespace Kharos.Base.Tests.Balance;
 /// ±2 с, счёт ±1. Сцены раздела считаются разом (<c>Kharos.Balance.Work</c>: KHAROS_BALANCE_JOBS, по умолчанию все ядра).
 /// Долгие (минуты) и нужны не в каждом прогоне, поэтому <c>Explicit</c>: запускаются руками,
 /// <c>dotnet run -c Release --project tests/Kharos.Base.Tests -- --explicit only --filter-class "*BalanceTests"</c>
-/// (или <c>--filter-method "*Siege"</c> для одного). Режим кода мода — <c>KHAROS_MODS</c> (CLR по умолчанию). Что .NET пока
+/// (или <c>--filter-method "*Siege"</c> для одного). Режим кода мода — <c>Sim.DefaultMode</c> (<c>KHAROS_MODS</c>, без неё — свежий host.wasm, иначе CLR). Что .NET пока
 /// не считает, харнесс пропускает с причиной (<c>SkipItem</c>) — такие куски перечислены в выводе теста, но не валят его.
 /// Тест падает, если доля расхождений больше <c>KHAROS_BALANCE_ALLOW</c> (по умолчанию 0); вывод .NET лежит рядом с тестами в
 /// <c>Balance/actual/&lt;раздел&gt;.json</c> — тот же вид, что у эталона, для diff.

@@ -30,13 +30,12 @@ public sealed class ZoneOutlineTests
         return [.. dots];
     }
 
-    [Fact(DisplayName = "граница зоны по сетке — та же, что перебором, и на большой базе считается быстро")]
-    public void OutlineByGridMatchesBruteForceAndIsFast()
+    /// <summary>База на тысячу зданий и труб: главное здание и россыпь кругов поменьше, в том числе по обе стороны нуля.</summary>
+    private static List<double> LargeBase()
     {
         // Тот же ряд, что в TS: seed * 16807 mod (2^31 - 1).
         long seed = 7;
         double Random() => (seed = seed * 16807 % 2147483647) / 2147483647.0;
-        // База на тысячу зданий и труб: главное здание и россыпь кругов поменьше, в том числе по обе стороны нуля.
         var zone = new List<double> { 1.5, 1.5, 12 };
         for (var i = 0; i < 1000; i++)
         {
@@ -44,6 +43,23 @@ public sealed class ZoneOutlineTests
             var y = Math.Floor(Random() * 120) - 40 + 0.5;
             zone.AddRange([x, y, Random() < 0.5 ? 5 : 2]);
         }
+        return zone;
+    }
+
+    [Fact(DisplayName = "граница зоны по сетке — та же, что перебором")]
+    public void OutlineByGridMatchesBruteForce()
+    {
+        var zone = LargeBase();
+        var dots = ZoneOutline.Of(zone);
+        Assert.Equal(Slow(zone), dots);
+        Assert.True(dots.Length > 0);
+    }
+
+    [Fact(Explicit = true, DisplayName = "замер: граница зоны по сетке на большой базе считается быстрее перебора")]
+    [Trait("Category", "Bench")]
+    public void OutlineByGridIsFast()
+    {
+        var zone = LargeBase();
         // Первый вызов прогревает JIT обоих путей: меряется работа, а не компиляция.
         _ = ZoneOutline.Of([1.5, 1.5, 12, 4, 4, 5]);
         _ = Slow([1.5, 1.5, 12, 4, 4, 5]);
@@ -54,7 +70,6 @@ public sealed class ZoneOutlineTests
         var expected = Slow(zone);
         var tookSlow = Stopwatch.GetElapsedTime(started);
         Assert.Equal(expected, dots);
-        Assert.True(dots.Length > 0);
         // Порог — относительно перебора, а не в миллисекундах: машины сборки бывают медленными.
         Assert.True(took < tookSlow / 2, $"по сетке {took.TotalMilliseconds:0.0} мс, перебором {tookSlow.TotalMilliseconds:0.0} мс");
     }

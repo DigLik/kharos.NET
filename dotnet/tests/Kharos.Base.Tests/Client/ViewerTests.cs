@@ -145,6 +145,8 @@ public sealed class ViewerTests
         viewer.Run(0.5);
         var pixels = viewer.Render(gpu!);
         Assert.Equal(640 * 400 * 4, pixels.Length);
-        Assert.True(pixels.Where((_, i) => i % 4 == 0).Distinct().Count() > 8, "кадр однотонный");
+        var red = pixels.Where((_, i) => i % 4 == 0).Distinct().Count();
+        var mean = pixels.Where((_, i) => i % 4 != 3).Average(value => (double)value);
+        Assert.True(red > 8, $"кадр однотонный: {gpu!.AdapterName} ({gpu.Backend}, программный: {gpu.IsSoftware}), оттенков красного {red}, средняя яркость {mean:F1}; журнал: {string.Join(" | ", viewer.Log)}");
     }
 }

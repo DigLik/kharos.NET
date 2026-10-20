@@ -40,6 +40,12 @@ public sealed class HostSessionOptions
     /// </summary>
     public TimeSpan ChatGap { get; init; } = TimeSpan.FromMilliseconds(500);
 
+    /// <summary>
+    /// Часы сессии для паузы чата (<see cref="ChatGap"/>), счёта сообщений и запрета /admin после неверного пароля;
+    /// по умолчанию — системные. Тесты подставляют свои и двигают время сами, не завися от загрузки машины.
+    /// </summary>
+    public TimeProvider Time { get; init; } = TimeProvider.System;
+
     /// <summary>Куда писать, что делают администраторы.</summary>
     public Action<string>? Log { get; init; }
 }
@@ -161,13 +167,14 @@ public sealed class HostSession
     private string[]? _unitTypes;
     private readonly List<uint> _alive = [];
     private readonly Dictionary<uint, bool[]> _visible = [];
-    private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private readonly long _started;
     private long _stepStarted;
 
     public HostSession(Host host, HostSessionOptions? options = null)
     {
         Host = host;
         Options = options ?? new HostSessionOptions();
+        _started = Options.Time.GetTimestamp();
         Filter = player => new VisionView(Host, player);
         AddBuiltins();
         AddDeclared();
@@ -630,12 +637,15 @@ public sealed class HostSession
 
     // ------------------------------------------------------------------ сообщения клиента
 
+    /// <summary>Секунды с начала сессии по её часам (<see cref="HostSessionOptions.Time"/>).</summary>
+    private double Now => Options.Time.GetElapsedTime(_started).TotalSeconds;
+
     /// <summary>Счёт сообщений: сверх — отбрасывается, а кто не унимается — отключается.</summary>
     private bool Admit(Connection connection)
     {
         if (connection.MessageBucket is not { } messages || connection.Admin)
             return true;
-        var now = _clock.Elapsed.TotalSeconds;
+        var now = Now;
         if (messages.Take(now))
             return true;
         if (connection.Strikes!.Take(now))
@@ -688,7 +698,7 @@ public sealed class HostSession
     private void Chat(Connection connection, string text)
     {
         var clean = PlayerRoster.CleanChat(text);
-        var now = _clock.Elapsed.TotalSeconds;
+        var now = Now;
         if (clean.Length == 0 || now - connection.LastChat < Options.ChatGap.TotalSeconds)
             return;
         connection.LastChat = now;
@@ -862,7 +872,7 @@ public sealed class HostSession
                     call.Caller.Reply("alreadyAdmin");
                     return;
                 }
-                var now = _clock.Elapsed.TotalSeconds;
+                var now = Now;
                 if (now < connection.AdminLocked)
                 {
                     call.Caller.Reply("wait");

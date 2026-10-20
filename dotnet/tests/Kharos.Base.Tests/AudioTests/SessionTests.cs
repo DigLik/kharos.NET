@@ -256,7 +256,9 @@ public sealed class SessionTests
             c.Ui.Button("t:btn", S.Style.Button with { Height = 30 }, () => c.Ui.Text("OK")));
     }
 
-    [Fact]
+    // Замер (цена звука в кадре по часам): не в обычном прогоне — на загруженной машине он мерит соседей.
+    [Fact(Explicit = true)]
+    [Trait("Category", "Bench")]
     public void AudioStageCostWithTwentyBuggies()
     {
         // Кадр клиента с 20 багги, которые едут: со звуком и без. Разница медиан — цена звука за кадр (обработчики
