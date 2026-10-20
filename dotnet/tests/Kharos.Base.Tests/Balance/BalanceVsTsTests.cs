@@ -45,18 +45,18 @@ public sealed class BalanceVsTsTests
 
     /// <summary>
     /// Принятые расхождения (<c>Balance/golden/ts/DIFF.md</c>): (раздел, номер элемента в файле эталона TS, строка таблицы по
-    /// первой ячейке или null — весь элемент) → причина. «Б2: …» — ошибка или подозрение для пакета Б2: исправив, он
-    /// убирает строку отсюда и из DIFF.md, и сверка снова требует допуска.
+    /// первой ячейке или null — весь элемент) → причина. Причины разобраны в DIFF.md («Разобрано в Б2»); исправленное
+    /// убирается отсюда и из DIFF.md, и сверка снова требует допуска.
     /// </summary>
     private static readonly (string Section, int Item, string? Row, string Why)[] Accepted =
     [
         ("combat", 5, "lancer", "ход боя: lancer против drone 3/7 → 4/7, один бой из семи у ничьей"),
-        ("combat", 5, "carrier", "Б2: carrier против lancer 5/7 → 2/7, носитель турелей"),
-        ("combat", 5, "drone", "Б2: drone против tesla 4/7 → 0/7, носитель турелей"),
-        ("siege", 3, null, "правило погони (повтор приказа раз в 0,25 с) и ход боя; остаток — Б2"),
-        ("raid", 3, null, "правило погони (повтор приказа раз в 0,25 с) и ход боя; остаток — Б2"),
+        ("combat", 5, "carrier", "очередь по номерам сущностей и рулёжка: carrier против lancer 5/7 → 2/7 (TS со сдвигом номеров — 4/7)"),
+        ("combat", 5, "drone", "место у цели в своём тайле (SlotSnap, Н5): drone против tesla 4/7 → 0/7, без SlotSnap — 5/7"),
+        ("siege", 3, null, "сцена TS на болоте, правило погони, SlotSnap, номера сущностей; выровняв их — 28 строк из 33 до цифры"),
+        ("raid", 3, null, "правило погони (повтор приказа раз в 0,25 с); остаток — в разбросе TS от номеров сущностей"),
         ("movement", 2, "встречные 12+12", "движок: рулёжка на встречных, .NET вихляет меньше"),
-        ("movement", 2, "атака 12", "Б2: ход боя, места у цели (один приказ, без погони)"),
+        ("movement", 2, "атака 12", "очередь по номерам сущностей: TS со сдвигом номеров, как в .NET, даёт те же 18,3 и 13,2"),
         ("movement", 5, null, "ход боя: места у цели, у .NET стреляют все (один приказ, без погони)"),
     ];
 
@@ -103,7 +103,7 @@ public sealed class BalanceVsTsTests
             report.AppendLine("  НЕ ПРИНЯТО " + diff);
         foreach (var (diff, why) in accepted)
             report.AppendLine($"  принято ({why}) " + diff);
-        // Принятое, которого больше нет (например, Б2 исправил): строку пора убрать отсюда и из DIFF.md.
+        // Принятое, которого больше нет (например, ошибку исправили): строку пора убрать отсюда и из DIFF.md.
         var first = take is null ? 0 : offset;
         var last = take is { } length ? offset + length - 1 : int.MaxValue;
         foreach (var entry in Accepted.Where(entry => entry.Section == section && entry.Item >= first && entry.Item <= last && !used.Contains(entry.Why)))

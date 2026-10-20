@@ -156,8 +156,19 @@ public sealed class SessionTests
             session.Step();
             Thread.Sleep(10);
         }
-        Watch(1);
+        // Громкость петли — то, что звук машин просит прямо сейчас, и она гаснет, пока цех не двигался дольше WorkHold. Под
+        // нагрузкой хост может стоять дольше этого между своими тиками, и единственный замер в конце окна попадал в паузу.
+        // Берём наибольшую громкость за окно в секунду звука: она по-прежнему доказывает, что петля просит нужный уровень
+        // у цеха посреди экрана.
         var level = session.Engine.LoopVolume("machinery");
+        var windowEnd = session.Output.Count + Rate;
+        while (session.Output.Count < windowEnd)
+        {
+            session.Look(X(), Y());
+            session.Step();
+            Thread.Sleep(10);
+            level = Math.Max(level, session.Engine.LoopVolume("machinery"));
+        }
         var after = BaseSession.Rms(session.Output, session.Output.Count - Rate, Rate);
         Report(string.Create(CultureInfo.InvariantCulture, $"Главное здание: петля цеха {level:F4}, фон {before:F5}, с цехом {after:F5}, голосов {voices} → {session.Engine.ActiveVoices}"));
         // Цех посреди экрана: громкость петли — 0,25 × (1 − e^(−близость/3)), близость у середины — около 1.

@@ -26,7 +26,7 @@ namespace Kharos.Desktop;
 /// Условия wait: <c>menu</c> (главное меню и первый показанный кадр витрины, не дольше <see cref="ShowcaseLimit"/>),
 /// <c>game</c>, <c>tick&gt;=N</c> (<c>tick&gt;=+N</c> — от начала шага), <c>ui &lt;id&gt;</c>, <c>chat &lt;подстрока&gt;</c>,
 /// <c>roster &lt;ник&gt; online|offline</c>, <c>allied &lt;ник&gt;</c>, <c>count &lt;вид&gt;[@чей] &lt;оп&gt; &lt;n&gt;</c>
-/// (вид — имя или «раздел/имя», * — всё; чей — mine по умолчанию, all или ник), <c>damaged &lt;чей&gt;</c> (mine, all, enemy или
+/// (вид — имя или «раздел/имя», * — всё, «!Компонент» и «+Компонент» — без него и с ним; чей — mine по умолчанию, all или ник), <c>damaged &lt;чей&gt;</c> (mine, all, enemy или
 /// ник: прочность ниже полной), <c>lost</c> (партия оборвалась), <c>seconds N</c>, <c>frames N</c>.
 /// </para>
 /// </summary>
@@ -307,6 +307,7 @@ internal sealed partial class SmokeRunner
             case "tick": return tick;
             case "entities": return entities;
             case "time": return Now;
+            case "hurt": return Game is { } game ? Hurt(game, "mine") : 0;
         }
         var dot = word.LastIndexOf('.');
         if (dot > 0 && _marks.TryGetValue(word[..dot], out var mark))
@@ -331,12 +332,23 @@ internal sealed partial class SmokeRunner
             ?? throw new SmokeFailure($"нет игрока «{who}»"),
     };
 
-    /// <summary>Сущности вида kind у хозяина owner (null — у всех).</summary>
+    /// <summary>
+    /// Сущности вида kind у хозяина owner (null — у всех). Вид с «!Компонент» — без этого компонента, с «+Компонент» —
+    /// с ним: «factory!Site» — достроенный завод (у стройки есть Site).
+    /// </summary>
     private static List<uint> Entities(ClientGame game, string kind, uint? owner)
     {
         var found = new List<uint>();
         if (game.Replica.World is not { } world)
             return found;
+        var filters = new List<(int? Component, bool Present)>();
+        var cut = kind.IndexOfAny(['!', '+'], 1);
+        if (cut > 0)
+        {
+            foreach (System.Text.RegularExpressions.Match part in System.Text.RegularExpressions.Regex.Matches(kind[cut..], @"([!+])([^!+]+)"))
+                filters.Add((world.Schema.Find(part.Groups[2].Value), part.Groups[1].Value == "+"));
+            kind = kind[..cut];
+        }
         var protos = game.Content.Protos.ToDictionary(p => p.Id);
         var store = world.Store(Builtin.Proto);
         var ids = store.Column(0);
@@ -351,16 +363,28 @@ internal sealed partial class SmokeRunner
             }
             if (owner is { } player && !(world.TryNumber(entity, Builtin.Owner, 0, out var number) && (uint)number == player))
                 continue;
+            // Компонента нет в схеме — его нет ни у кого.
+            if (filters.Any(f => (f.Component is { } c && world.Has(entity, c)) != f.Present))
+                continue;
             found.Add(entity);
         }
         found.Sort();
         return found;
     }
 
-    /// <summary>«@вид», «@вид.x+3» для order.</summary>
+    /// <summary>
+    /// «@вид», «@вид.x+3» для order; «@вид@ник» — сущности другого игрока (видимые этому клиенту), «@#ник» — номер
+    /// игрока (у ally — кому предложить союз).
+    /// </summary>
     private double[] Reference(string text)
     {
         var game = NeedGame();
+        if (text.StartsWith('#'))
+        {
+            var nick = text[1..];
+            return [game.Players.FirstOrDefault(p => string.Equals(p.Name, nick, StringComparison.OrdinalIgnoreCase))?.Player
+                ?? throw new SmokeFailure($"нет игрока «{nick}»")];
+        }
         var offset = 0.0;
         var cut = text.IndexOfAny(['+', '-'], 1);
         if (cut > 0)
@@ -374,9 +398,12 @@ internal sealed partial class SmokeRunner
             axis = text[^1] == 'x' ? 0 : 1;
             text = text[..^2];
         }
-        var entities = Entities(game, text, game.Replica.Player);
+        var who = "mine";
+        if (text.IndexOf('@') is > 0 and var owner)
+            (text, who) = (text[..owner], text[(owner + 1)..]);
+        var entities = Entities(game, text, Owner(game, who));
         if (entities.Count == 0)
-            throw new SmokeFailure($"нет своих «{text}»");
+            throw new SmokeFailure(who == "mine" ? $"нет своих «{text}»" : $"не видно «{text}» у {who}");
         if (axis < 0)
             return [.. entities.Select(e => (double)e + offset)];
         var world = game.Replica.World!;
@@ -581,10 +608,14 @@ internal sealed partial class SmokeRunner
             ? throw new SmokeFailure($"партия не состоялась: {failed.Error ?? failed.State.ToString()}")
             : true;
 
-    private static bool Damaged(ClientGame game, string whose)
+    private static bool Damaged(ClientGame game, string whose) => Hurt(game, whose, stopAtFirst: true) > 0;
+
+    /// <summary>Сколько сущностей «чей» с прочностью ниже полной (слово выражения <c>hurt</c> — свои).</summary>
+    private static int Hurt(ClientGame game, string whose, bool stopAtFirst = false)
     {
         if (game.Replica.World is not { } world || world.Schema.Find("Health") is not { } health)
-            return false;
+            return 0;
+        var hurt = 0;
         var def = world.Schema[health];
         var (value, max) = (def.FieldIndex("value"), def.FieldIndex("max"));
         var me = game.Replica.Player;
@@ -595,9 +626,13 @@ internal sealed partial class SmokeRunner
             if (whose == "enemy" ? mine == me || mine == 0 : owner is { } o && mine != o)
                 continue;
             if (world.TryNumber(entity, health, value, out var hp) && world.TryNumber(entity, health, max, out var full) && hp < full)
-                return true;
+            {
+                hurt++;
+                if (stopAtFirst)
+                    break;
+            }
         }
-        return false;
+        return hurt;
     }
 
     /// <summary>Ждать, пока начатая партия встанет; не встала — провал.</summary>

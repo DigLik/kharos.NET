@@ -1,0 +1,71 @@
+{
+  "about": "одиночная игра (Н7.3): меню с витриной, новая игра, база, юнит, езда, сохранение и загрузка, редактор; запись ролика",
+  // Мод smoke: без дерева технологий (завод строится сразу) и без защиты новичка.
+  "mods": ["smoke"],
+  // Кисть редактора — вложенный объект MemoryPack: готовые байты EditPaintOrder { X 0, Y 0, Size 9, Brush { Terrain 2 } } (сверяет SmokeTests).
+  "vars": { "paint": "BAAAAAAAAAAACQAAAAYBAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////w==" },
+  "steps": [
+    { "do": "client", "name": "solo", "timeout": 900, "script": { "timeout": 90, "steps": [
+      // 1. Меню с фоном-витриной: снимок, фон не пуст (не меньше 50 цветов; без GPU снимок пропускается).
+      { "do": "wait menu" },
+      { "do": "shot menu.png 50" },
+      // 2. Новая игра: base, фиксированное зерно, самая малая карта меню (512²).
+      { "do": "click menu:new" },
+      { "do": "type menu:new:seed 4242" },
+      { "do": "click menu:new:size:0" },
+      { "do": "click menu:new:start" },
+      { "do": "wait game", "timeout": 240 },
+      { "do": "mark start" },
+      // 3. MCV → главное здание, строитель, электростанция и завод, багги, езда, 60 с игры.
+      { "do": "order deploy", "args": [{ "u32": "@mcv" }, { "bool": false }, { "i32": 0 }, { "i32": 0 }] },
+      { "do": "wait count command >= 1" },
+      { "do": "order produce", "args": [{ "u32": "@command" }, { "str": "builder" }] },
+      { "do": "wait count builder >= 1" },
+      { "do": "order build", "args": [{ "str": "generator" }, { "i32": "@command.x+3" }, { "i32": "@command.y-1" }, { "u32[]": "@builder" }, { "bool": false }] },
+      // «!Site» — достроено: у стройки есть компонент Site.
+      { "do": "wait count generator!Site >= 1", "timeout": 180 },
+      { "do": "order build", "args": [{ "str": "factory" }, { "i32": "@command.x-6" }, { "i32": "@command.y-1" }, { "u32[]": "@builder" }, { "bool": false }] },
+      { "do": "wait count factory >= 1" },
+      { "do": "wait count factory!Site >= 1", "timeout": 240 },
+      { "do": "order produce", "args": [{ "u32": "@factory" }, { "str": "buggy" }] },
+      { "do": "wait count buggy >= 3", "timeout": 240 },
+      { "do": "order move", "args": [{ "u32[]": "@buggy" }, { "i32": "@buggy.x+12" }, { "i32": "@buggy.y+6" }, { "bool": false }] },
+      { "do": "wait tick>=+1200", "timeout": 120 },
+      { "do": "mark played" },
+      { "do": "assert played.tick >= start.tick + 1200" },
+      { "do": "shot game.png 50" },
+      // 4. Сохранить в слот smoke, выйти в меню (выход тоже пишет слот).
+      { "do": "save smoke" },
+      { "do": "wait tick>=+20" },
+      { "do": "mark left" },
+      { "do": "leave" },
+      { "do": "wait ui menu:new" },
+      // 5. Загрузить слот, сверить тик и число сущностей с отметкой.
+      { "do": "load smoke" },
+      { "do": "wait game" },
+      { "do": "mark loaded" },
+      { "do": "assert loaded.tick >= left.tick" },
+      { "do": "assert loaded.tick <= left.tick + 40" },
+      { "do": "assert loaded.entities >= left.entities - 2" },
+      { "do": "assert loaded.entities <= left.entities + 2" },
+      { "do": "leave" },
+      { "do": "wait ui menu:new" },
+      // 6. Редактор новой карты: кисть земли (скала 9×9), здание, месторождение; сохранить и открыть как партию.
+      { "do": "editor smoke-map 128" },
+      { "do": "order edit.paint", "payload": "${paint}" },
+      { "do": "order edit.building", "args": [{ "str": "generator" }, { "i32": 0 }, { "i32": 0 }, { "u32": 1 }] },
+      { "do": "order edit.deposit", "args": [{ "i32": 10 }, { "i32": 10 }, { "str": "metal" }, { "f64": 500 }] },
+      { "do": "wait count generator@all >= 1" },
+      { "do": "shot editor.png 50" },
+      { "do": "save smoke-map" },
+      { "do": "leave" },
+      { "do": "wait ui menu:new" },
+      { "do": "load smoke-map" },
+      { "do": "wait game" },
+      { "do": "wait count generator@all >= 1" },
+      { "do": "leave" }
+    ] } },
+    // 7. Отдельный запуск записи: 90 кадров PNG и WAV без ffmpeg.
+    { "do": "record", "frames": 90 }
+  ]
+}

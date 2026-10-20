@@ -1,29 +1,32 @@
-name: Клиент на GitHub Pages
+name: Страница Kharos на GitHub Pages
 
+# Статическая страница dotnet/site без сборки. Срабатывает только при слиянии в main (ворота Г4, docs/dotnet-n7.md).
 on:
   push:
     branches: [main]
-    # Документация, ридми и лицензия не меняют сборку.
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - 'LICENSE'
+    paths:
+      - 'dotnet/site/**'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun test
-      - run: bun run build
+      # Владелец и репозиторий в ссылках скачивания — из github.repository (dotnet/site/README.md).
+      - name: Подставить репозиторий
+        run: sed -i 's#DigLik/kharos\.NET#${{ github.repository }}#g' dotnet/site/index.html
       - uses: crazy-max/ghaction-github-pages@v4
         with:
           target_branch: gh-pages
-          build_dir: apps/web/dist
+          build_dir: dotnet/site
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

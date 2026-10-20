@@ -77,7 +77,7 @@ internal static class SmokeScript
 
 /// <summary>
 /// Выражения <c>assert</c> и чисел условий: «левое оп правое», оп — == != &gt;= &lt;= &gt; &lt;; сторона — сумма слагаемых через
-/// + и −: число, <c>tick</c>, <c>entities</c>, <c>time</c> (секунды смоука) или поле отметки <c>имя.tick</c>,
+/// + и −: число, <c>tick</c>, <c>entities</c>, <c>time</c> (секунды смоука), <c>hurt</c> (свои с прочностью ниже полной) или поле отметки <c>имя.tick</c>,
 /// <c>имя.entities</c>, <c>имя.time</c>.
 /// </summary>
 internal static partial class SmokeExpr

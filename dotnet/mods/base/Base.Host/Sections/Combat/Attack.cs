@@ -72,7 +72,11 @@ internal static class Attack
         Unprotect(call, player);
         var air = call.UnitType(target) is { } type && Factory.Unit(type)?.Kind == "air";
         var ordered = false;
-        foreach (var entity in units.Distinct().ToList())
+        var list = units.Distinct().ToList();
+        // Что о юнитах спросят ниже — одним чтением на всех: приказ армии — тысячи вопросов сцене.
+        if (call.Writes)
+            call.Stage.Prefetch(System.Runtime.InteropServices.CollectionsMarshal.AsSpan(list), S.Owner, S.Armed, S.Unit, S.Mount, S.Proto, S.Tactics);
+        foreach (var entity in list)
         {
             if (!call.IsOwn(player, entity))
                 continue;

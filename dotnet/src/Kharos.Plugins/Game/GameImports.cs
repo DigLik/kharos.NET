@@ -23,6 +23,12 @@ internal sealed class GameStoreData(string modId, GameModuleOptions options, ulo
 
     /// <summary>Недописанная строка stdout/stderr мода.</summary>
     public StringBuilder Output { get; } = new();
+
+    /// <summary>
+    /// Память модуля, найденная при первом вызове импорта: поиск экспорта по имени на каждый вызов инструмента (их в
+    /// тике десятки тысяч) заметно дороже самого инструмента. Экземпляр в хранилище один, память у него та же.
+    /// </summary>
+    public Wasmtime.Memory? Memory { get; set; }
 }
 
 /// <summary>
@@ -100,7 +106,7 @@ internal static class GameImports
         linker.DefineFunction(kh, "tool", (Caller caller, int id, int inPtr, int inLen, int outPtr, int outCap) =>
         {
             var data = Data(caller);
-            var memory = Memory(caller);
+            var memory = data.Memory ??= Memory(caller);
             var size = memory.GetLength();
             if (inLen < 0 || outCap < 0 || inPtr < 0 || outPtr < 0 || (long)inPtr + inLen > size || (long)outPtr + outCap > size)
                 return ModAbi.ErrorBadInput;

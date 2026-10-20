@@ -136,6 +136,11 @@ internal static class Dispatch
             offering[network, good].Any(source => !Demand.Barred(view, to, source) && Demand.GivenBy(view, source, good, sale) >= least);
         // Есть ли в сети хранилище, куда этот груз ещё помещается.
         bool HasStore(Zones.Zone network, int good) => storesIn(network).Any(store => Demand.SpaceFor(view, flows, 0, store, good) > 1e-9);
+        // Откуда заявка может брать, не глядя на грузовик и на обещанное (отбор Look до проверки остатка), и что источник
+        // отдаёт без обещанного: за обход диспетчера мир не меняется, меняются только потоки. Без этого каждый свободный
+        // грузовик перебирал бы заново все здания игрока на каждую заявку — пик тика диспетчера.
+        var candidates = new Dictionary<(int Request, int Kind, bool Local), List<uint>>();
+        var given = new Dictionary<(uint Source, int Good, bool Sale), double>();
 
         foreach (var truck in trucks)
         {
@@ -148,8 +153,9 @@ internal static class Dispatch
                 truck.Supply = 0;
             HashSet<uint>? serving = truck.Supply != 0 ? [truck.Supply] : truck.Serve.Count > 0 ? [.. truck.Serve] : null;
             Job? best = null;
-            foreach (var request in requests)
+            for (var index = 0; index < requests.Count; index++)
             {
+                var request = requests[index];
                 if (request.Amount < Demand.MinJob || !truck.Carries(request.Good))
                     continue;
                 if ((serving is not null && !serving.Contains(request.To)) || view.Unreachable(request.To))
@@ -159,18 +165,29 @@ internal static class Dispatch
                 if (network is not null && HasLocal(network, request.To, request.Good, Math.Min(request.Amount, Demand.MinJob), request.Sale))
                     continue;
                 var found = false;
-                void Look(IReadOnlyList<uint> sources)
+                void Look(IReadOnlyList<uint> sources, int kind)
                 {
-                    foreach (var source in sources)
+                    if (!candidates.TryGetValue((index, kind, network is null), out var open))
                     {
-                        if (source == request.To || !offersOf(source).Contains(request.Good) || view.Unreachable(source))
-                            continue;
-                        if ((network is not null && ReferenceEquals(Pass.NetworkOf(source), network)) || Demand.Barred(view, request.To, source))
-                            continue;
-                        // Руду шахты, у которой уже есть привязанный грузовик, свободные не возят.
-                        if (request.Mines && bound.Contains(source))
-                            continue;
-                        var available = Demand.Available(view, flows, source, request.Good, request.Sale);
+                        open = [];
+                        foreach (var source in sources)
+                        {
+                            if (source == request.To || !offersOf(source).Contains(request.Good) || view.Unreachable(source))
+                                continue;
+                            if ((network is not null && ReferenceEquals(Pass.NetworkOf(source), network)) || Demand.Barred(view, request.To, source))
+                                continue;
+                            // Руду шахты, у которой уже есть привязанный грузовик, свободные не возят.
+                            if (request.Mines && bound.Contains(source))
+                                continue;
+                            open.Add(source);
+                        }
+                        candidates[(index, kind, network is null)] = open;
+                    }
+                    foreach (var source in open)
+                    {
+                        if (!given.TryGetValue((source, request.Good, request.Sale), out var spare))
+                            given[(source, request.Good, request.Sale)] = spare = Demand.GivenBy(view, source, request.Good, request.Sale);
+                        var available = Math.Max(0, spare - flows.Out(source, request.Good));
                         if (available < Math.Min(request.Amount, Demand.MinJob))
                             continue;
                         found = true;
@@ -181,10 +198,15 @@ internal static class Dispatch
                     }
                 }
                 var local = !request.Mines && serving is null && network is null;
-                Look(request.Mines ? mines : local ? SourcesOf(request.Zone) : AnyZone());
+                if (request.Mines)
+                    Look(mines, 0);
+                else if (local)
+                    Look(SourcesOf(request.Zone), 1);
+                else
+                    Look(AnyZone(), 2);
                 // В своей зоне взять нечего — из любой своей.
                 if (local && !found)
-                    Look(AnyZone());
+                    Look(AnyZone(), 2);
             }
             if (best is null && serving is null)
                 best = Outlet(pass, truck, flows, outlets, room, HasStore, offersOf);

@@ -9,12 +9,22 @@ namespace Base.Host.Sections.Tactics;
 /// место, откуда ушли в погоню. Дошедший до точки патруля идёт к следующей.
 /// <para>
 /// Доступ к чужому (Н5-3): кадр — юниты с тактикой; идёт ли юнит (Path) и есть ли цель у стрелка (Armed) — побочными
-/// таблицами; турели — Children только у тех, кто дошёл до проверки. Патруль — байты пачкой у тех, кого вообще разбирают.
+/// таблицами; турели — одним вызовом Children у тех, кто дошёл до проверки. Патруль — байты пачкой у тех, кого вообще
+/// разбирают. Поиск путей — с нормой на тик (<see cref="SearchTiles"/>).
 /// </para>
 /// </summary>
 internal sealed class Patrol : ISystem
 {
     private Column _resupply, _leg, _away, _homeX, _homeY, _x, _y, _target;
+
+    /// <summary>
+    /// Норма поиска путей патруля и возвращения домой на тик — тайлов на всех (pool инструмента Plan; не из TS: там ищут
+    /// все разом). После большого боя домой разом собираются сотни, и до дома, обступленного своими же, путь не находится
+    /// долго: такие поиски — пик тика в десятки миллисекунд. Первый поиск тика идёт без нормы: недостижимое место надо
+    /// уметь признать недостижимым (долгий поиск больше нормы), остальные делят норму. Кому она не досталась, тот ждёт
+    /// своей очереди (раз в RESUME_TICKS), как если бы она ещё не пришла.
+    /// </summary>
+    private const uint SearchPool = 0x7A7801, SearchTiles = 15000;
 
     public static SystemDeclaration Declare(SystemDeclaration declaration) => declaration
         .Query(Names.Tactics.Name, Names.Position.Name)
@@ -59,13 +69,36 @@ internal sealed class Patrol : ISystem
         var px = ctx.Column(_x);
         var py = ctx.Column(_y);
         var rows = new List<int>();
+        // Чьи турели смотреть: юниты без своей цели. Турели — одним вызовом Children на всех (инструмент обходит все
+        // турели мира, и вызов на юнит в бою тысяч — пик тика).
+        var unsure = new List<int>();
         for (var row = 0; row < ctx.Count; row++)
         {
             var entity = ctx.Entities[row];
             // Идущего за боеприпасами ведёт снабжение: на место он вернётся, когда наполнит магазин.
-            if (resupply[row] != 0 || paths.RowOf(entity) >= 0 || !Core.OnTurn(ctx.Tick, entity, Stances.ResumeTicks) || Fighting(call, armed, targets, entity))
+            if (resupply[row] != 0 || paths.RowOf(entity) >= 0 || !Core.OnTurn(ctx.Tick, entity, Stances.ResumeTicks) || HasTarget(armed, targets, entity))
                 continue;
-            rows.Add(row);
+            // Турели смотрим, только если у самого юнита целей нет, а Armed в мире вообще есть.
+            if (armed.Count > 0)
+                unsure.Add(row);
+            else
+                rows.Add(row);
+        }
+        if (unsure.Count > 0)
+        {
+            var carriers = new uint[unsure.Count];
+            for (var i = 0; i < carriers.Length; i++)
+                carriers[i] = ctx.Entities[unsure[i]];
+            var turrets = Tools.Children(carriers);
+            for (var i = 0; i < carriers.Length; i++)
+            {
+                var fighting = false;
+                foreach (var turret in turrets[i])
+                    fighting |= HasTarget(armed, targets, turret);
+                if (!fighting)
+                    rows.Add(unsure[i]);
+            }
+            rows.Sort();
         }
         if (rows.Count == 0)
             return;
@@ -106,9 +139,14 @@ internal sealed class Patrol : ISystem
             else
                 moves.Add(new Move(entity, (int)homeX[row], (int)homeY[row], false, 0, 0));
         }
+        var first = true;
         foreach (var move in moves)
         {
-            Moves.Order(call, move.Entity, move.X, move.Y);
+            var (pool, budget) = first ? (0u, 0u) : (SearchPool, SearchTiles);
+            first = false;
+            // Норма вышла: ничего не решено, юнит попробует в свою очередь. Разворачивающийся (врос) — как в TS: пути нет.
+            if (Moves.Order(call, move.Entity, move.X, move.Y, pool: pool, budget: budget) == PlanStatus.Cut && pool != 0 && !call.Has(move.Entity, S.Converting))
+                continue;
             var hasPath = call.Has(move.Entity, S.Path);
             // Ближе к точке патруля не подойти (она на здании, за обрывом): точка засчитана, юнит идёт к следующей. Иначе он
             // искал бы путь к ней каждые RESUME_TICKS.
@@ -120,19 +158,6 @@ internal sealed class Patrol : ISystem
         }
     }
 
-    /// <summary>Занят ли юнит боем: у него или у его турелей есть цель (fighting).</summary>
-    private static bool Fighting(Call call, TableView armed, Span<double> targets, uint entity)
-    {
-        if (HasTarget(armed, targets, entity))
-            return true;
-        // Турели смотрим, только если у самого юнита целей нет, а Armed в мире вообще есть.
-        if (armed.Count == 0)
-            return false;
-        foreach (var turret in Tools.Children(entity))
-            if (HasTarget(armed, targets, turret))
-                return true;
-        return false;
-    }
-
+    /// <summary>Есть ли цель у стрелка: юнит занят боем (fighting), если она есть у него или у его турелей.</summary>
     private static bool HasTarget(TableView armed, Span<double> targets, uint gunner) => armed.RowOf(gunner) is var row and >= 0 && targets[row] != 0;
 }

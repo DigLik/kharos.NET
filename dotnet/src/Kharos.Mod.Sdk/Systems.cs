@@ -28,6 +28,7 @@ public class PartBinding
 {
     private readonly string[] _query;
     private readonly int[] _offsets;
+    private readonly int[] _ids;
     private readonly WorldSchema _schema;
     private readonly string _owner;
 
@@ -37,10 +38,12 @@ public class PartBinding
         _query = query;
         _schema = schema;
         _offsets = new int[query.Length];
+        _ids = new int[query.Length];
         var width = 0;
         for (var at = 0; at < query.Length; at++)
         {
             _offsets[at] = width;
+            _ids[at] = schema.Get(query[at]).Id;
             width += schema.Get(query[at]).Columns;
         }
         Width = width;
@@ -64,11 +67,11 @@ public class PartBinding
         return new Column(_offsets[at] + def.Slot, def);
     }
 
-    /// <summary>Первый столбец компонента в блоке; нет в запросе — -1.</summary>
+    /// <summary>Первый столбец компонента в блоке; нет в запросе — -1. Горячий путь сцены: номера — заранее, без поиска по имени.</summary>
     internal int OffsetOf(int component)
     {
-        for (var at = 0; at < _query.Length; at++)
-            if (_schema.Get(_query[at]).Id == component)
+        for (var at = 0; at < _ids.Length; at++)
+            if (_ids[at] == component)
                 return _offsets[at];
         return -1;
     }

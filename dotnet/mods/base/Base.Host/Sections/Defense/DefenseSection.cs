@@ -23,9 +23,9 @@ internal static class DefenseSection
         Supply.Declare(Order.System(mod, "supply", new Supply()));
         RestTurrets.Declare(Order.System(mod, "restTurrets", new RestTurrets()));
         ChargeShields.Declare(Order.System(mod, "chargeShields", new ChargeShields()));
-        Hooks.UnitHasAmmo = (call, entity, type, weapon) => Magazines.HasAmmo(call, entity, type, weapon);
-        Hooks.SpendAmmo = (call, entity, type, weapon) => Magazines.Spend(call, entity, type, weapon);
-        Hooks.Empty = (call, entity) => Magazines.IsEmpty(call, entity);
+        Hooks.UnitHasAmmo = Magazines.HasAmmo;
+        Hooks.SpendAmmo = Magazines.Spend;
+        Hooks.Empty = Magazines.IsEmpty;
         Hooks.Shields = call => Domes.Of(call);
         Queries(mod);
     }

@@ -1,14 +1,16 @@
 using System.Diagnostics;
 using System.Globalization;
 using Base.Shared.Orders;
+using Kharos.Engine.World;
 using static Kharos.Base.Tests.Logistics.LogisticsScene;
 
 namespace Kharos.Base.Tests.Combat;
 
 /// <summary>
-/// Ворота замера Н5.2 (не из TS): весь тик хоста при ~10 тыс. сущностей — две армии в бою и базы с логистикой и энергией.
-/// Печатает тик целиком, сумму систем мода и движка и самые дорогие системы. Только по KHAROS_BENCH=1 (режим —
-/// KHAROS_MODS); KHAROS_BENCH_ARMY — бюджет армии одной стороны (по умолчанию 300 тыс. кредитов).
+/// Ворота замера Н5.2 и Н7 (не из TS): весь тик хоста при ~10 тыс. сущностей — две армии в бою и базы с логистикой и
+/// энергией. Печатает тик целиком, сумму систем мода и движка, пять худших тиков (что в них дорого), пики систем и самые
+/// дорогие системы. Только по KHAROS_BENCH=1 (режим — KHAROS_MODS); KHAROS_BENCH_ARMY — бюджет армии одной стороны (по
+/// умолчанию 300 тыс. кредитов).
 /// </summary>
 public sealed class CombatBench
 {
@@ -61,6 +63,9 @@ public sealed class CombatBench
         var before = sim.Host.Scheduler.Timings().ToDictionary(t => t.Name);
         const int ticks = 200;
         var spent = new double[ticks];
+        // Цена систем по тикам: у худших тиков видно, какая система дала пик, а что пришлось на время вне систем (приказы).
+        var perTick = new Dictionary<string, double>[ticks];
+        var last = before;
         for (var i = 0; i < ticks; i++)
         {
             if (i % 20 == 0)
@@ -68,6 +73,9 @@ public sealed class CombatBench
             var from = Stopwatch.GetTimestamp();
             sim.Advance();
             spent[i] = Stopwatch.GetElapsedTime(from).TotalMilliseconds;
+            var now = sim.Host.Scheduler.Timings().ToDictionary(t => t.Name);
+            perTick[i] = now.ToDictionary(pair => pair.Key, pair => Total(pair.Value) - (last.TryGetValue(pair.Key, out var was) ? Total(was) : 0));
+            last = now;
         }
         var rows = sim.Host.Scheduler.Timings()
             .Select(t => (t.Name, Ms: ((t.Gather + t.Run + t.Scatter + t.Commands) - (before.TryGetValue(t.Name, out var was) ? was.Gather + was.Run + was.Scatter + was.Commands : 0)) / ticks,
@@ -80,6 +88,17 @@ public sealed class CombatBench
             $"режим {sim.Mode}: сущностей {entities} (армия {army.Count}×2, грузовиков {trucks}), после замера {sim.World.Count}; {ticks} тиков",
             $"тик целиком: среднее {F(spent.Average())} мс, худший {F(spent.Max())} мс; системы мода {F(mod)} мс, движка {F(engine)} мс",
         };
+        foreach (var i in Enumerable.Range(0, ticks).OrderByDescending(i => spent[i]).Take(5))
+            lines.Add($"  тик {i}: {F(spent[i])} мс, вне систем {F(spent[i] - perTick[i].Values.Sum())} — "
+                + string.Join(", ", perTick[i].OrderByDescending(p => p.Value).Take(3).Select(p => $"{p.Key} {F(p.Value)}")));
+        // Пики систем: у каждой, чей худший тик дороже 5 мс, — этот тик и сколько тиков дороже 5 мс.
+        foreach (var name in perTick[0].Keys)
+        {
+            var series = Enumerable.Range(0, ticks).Select(i => perTick[i].GetValueOrDefault(name)).ToArray();
+            var peak = Array.IndexOf(series, series.Max());
+            if (series[peak] > 5)
+                lines.Add($"  пик {name}: {F(series[peak])} мс на тике {peak}, тиков дороже 5 мс — {series.Count(v => v > 5)}");
+        }
         foreach (var row in rows.Take(14))
             lines.Add($"  {row.Name}: {F(row.Ms)} мс (система {F(row.Run)})");
         // Ракеты и игроки (волна 6) — всегда, даже если не в первых строках.
@@ -91,6 +110,8 @@ public sealed class CombatBench
         var file = Environment.GetEnvironmentVariable("KHAROS_BENCH_OUT") is { Length: > 0 } path ? path : Path.Combine(Path.GetTempPath(), "kharos-combat-bench.txt");
         File.AppendAllText(file, string.Join("\n", lines) + "\n\n");
     }
+
+    private static double Total(SystemTiming timing) => timing.Gather + timing.Run + timing.Scatter + timing.Commands;
 
     private static string F(double value) => value.ToString("0.00", CultureInfo.InvariantCulture);
 }

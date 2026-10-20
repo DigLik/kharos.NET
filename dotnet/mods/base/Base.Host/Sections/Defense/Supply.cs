@@ -182,13 +182,13 @@ internal sealed class Supply : ISystem
         bool OnPass(uint entity, int passes) => (number + entity) % (ulong)passes == 0;
 
         // Магазины, тактика и пути известны таблицами кадра.
-        var magazine = new Dictionary<uint, double>();
         var table = ctx.Table(MagazineT);
+        var magazine = new Dictionary<uint, double>(table.Count);
         var column = table.Column(_ammo);
         for (var row = 0; row < table.Count; row++)
             magazine[table.Entities[row]] = column[row];
-        var resupply = new HashSet<uint>();
         table = ctx.Table(TacticsT);
+        var resupply = new HashSet<uint>();
         column = table.Column(_resupply);
         for (var row = 0; row < table.Count; row++)
             if (column[row] != 0)

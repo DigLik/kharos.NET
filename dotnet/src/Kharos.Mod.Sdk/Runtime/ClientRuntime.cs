@@ -110,6 +110,7 @@ public static unsafe class ClientRuntime
     /// <summary>kh_frame без адресов wasm (его зовёт и мост режима CLR).</summary>
     internal static int FrameCore(ReadOnlySpan<byte> input)
     {
+        Tools.LeaveCall();
         if (_builder is null || _client is null)
             return ModRuntime.Fail(ModAbi.ErrorNotLoaded, "kh_frame до kh_load");
         try

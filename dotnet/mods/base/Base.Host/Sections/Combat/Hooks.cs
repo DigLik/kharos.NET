@@ -9,17 +9,23 @@ namespace Base.Host.Sections.Combat;
 /// </summary>
 internal static class Hooks
 {
+    // Магазин юнита бой читает сам, побочной таблицей Magazine: has — есть ли компонент, ammo — сколько в нём с тратами
+    // этого тика. Чтение каждого стрелка через сцену стоило бы вызова инструмента на юнит в каждом тике.
+
     /// <summary>
-    /// Магазин юнита (supply.ts, С5b): хватит ли юниту carrier вида unit на выстрел оружием weapon (unitHasAmmo). Нет —
-    /// хватает всегда.
+    /// Магазин юнита (supply.ts, С5b): хватит ли юниту вида unit с магазином (has, ammo) на выстрел оружием weapon
+    /// (unitHasAmmo). Нет — хватает всегда.
     /// </summary>
-    public static Func<Call, uint, string, Weapon, bool>? UnitHasAmmo { get; set; }
+    public static Func<string, Weapon, bool, double, bool>? UnitHasAmmo { get; set; }
 
-    /// <summary>Списывает выстрел из магазина юнита (spendAmmo, С5b). Нет — ничего не тратится.</summary>
-    public static Action<Call, uint, string, Weapon>? SpendAmmo { get; set; }
+    /// <summary>
+    /// Списывает выстрел из магазина (has, ammo) юнита carrier вида unit (spendAmmo, С5b): пишет Magazine и возвращает
+    /// остаток; NaN — магазин не тронут. Нет — ничего не тратится.
+    /// </summary>
+    public static Func<Call, uint, string, Weapon, bool, double, double>? SpendAmmo { get; set; }
 
-    /// <summary>Пуст ли магазин юнита (isEmpty, С5b): такой молчит и бросает цель. Нет — не пуст.</summary>
-    public static Func<Call, uint, bool>? Empty { get; set; }
+    /// <summary>Пуст ли магазин (has, ammo) юнита вида unit (isEmpty, С5b): такой молчит и бросает цель. Нет — не пуст.</summary>
+    public static Func<string, bool, double, bool>? Empty { get; set; }
 
     /// <summary>
     /// Купола щитов тика (domes в shields.ts, С5b). Нет — щитов нет: урон не гасится, снаряды долетают. Щит получает урон

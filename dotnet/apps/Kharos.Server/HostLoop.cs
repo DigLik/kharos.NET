@@ -214,7 +214,7 @@ public sealed class HostLoop : IDisposable
         var next = step;
         var nextSave = _options.SaveEvery.TotalMilliseconds;
         var nextReport = _options.ReportEvery.TotalMilliseconds;
-        double busy = 0;
+        double busy = 0, worst = 0;
         long ticks = 0;
         while (!_stop)
         {
@@ -236,6 +236,7 @@ public sealed class HostLoop : IDisposable
             Volatile.Write(ref _lastTickMs, spent);
             Interlocked.Increment(ref _ticks);
             busy += spent;
+            worst = Math.Max(worst, spent);
             ticks++;
             next += step;
             // Отстали больше чем на пять тиков (сон ОС, отладчик) — не догонять залпом.
@@ -250,9 +251,12 @@ public sealed class HostLoop : IDisposable
             if (_options.ReportEvery > TimeSpan.Zero && now >= nextReport)
             {
                 nextReport = now + _options.ReportEvery.TotalMilliseconds;
+                // Худший тик и память процесса — для нагрузочного смоука (Н7.3, ворота: худший ≤ 50 мс, память не растёт).
                 if (session.Connections.Count > 0)
-                    _log($"клиентов {session.Connections.Count}, сущностей {session.Host.World.Count}, тик {(ticks == 0 ? 0 : busy / ticks):0.00} мс");
+                    _log($"клиентов {session.Connections.Count}, сущностей {session.Host.World.Count}, тик {(ticks == 0 ? 0 : busy / ticks):0.00} мс, " +
+                        $"худший {worst:0.00} мс, память {Environment.WorkingSet / (1024 * 1024)} МБ, куча {GC.GetTotalMemory(false) / (1024 * 1024)} МБ");
                 busy = 0;
+                worst = 0;
                 ticks = 0;
             }
         }

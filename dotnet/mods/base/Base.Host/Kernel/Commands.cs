@@ -129,7 +129,10 @@ internal static partial class Commands
         // Настройки (стойка, фильтр груза) — не приказы; стройка из меню очередь не трогает: занятым она встаёт в конец.
         if (done && !entry.Has(Flags.Setting) && name != BuildOrder.Name)
         {
-            var own = Own(call, player, entry.Units(order));
+            var units = entry.Units(order);
+            if (call.Writes)
+                call.Stage.Prefetch(units, S.Owner, S.Converting);
+            var own = Own(call, player, units);
             ClearOrders(call, own);
             // Другой приказ MCV отменяет поездку на разворачивание.
             foreach (var unit in own)

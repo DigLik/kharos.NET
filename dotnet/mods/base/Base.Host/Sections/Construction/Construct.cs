@@ -57,6 +57,8 @@ internal sealed class Construct : ISystem
     {
         var call = Call.Of(ctx);
         var entities = ctx.Entities.ToArray();
+        // Ремонтники — и юниты, и турели: о каждом ниже спросят, юнит ли он, идёт ли, строится ли. Одним чтением на всех.
+        call.Stage.Prefetch(entities, S.Unit, S.Path, S.Converting, S.Site, S.Building);
         var free = new List<uint>();
         var late = new List<uint>();
         foreach (var entity in entities)

@@ -48,7 +48,7 @@ internal sealed partial class Battle
         var moving = HasPath(mover);
         var unitCarrier = body.Unit;
         // Расстрелявший магазин молчит: цель бросает и новой не ищет, пока не пополнится.
-        if (unitCarrier is not null && (Hooks.Empty?.Invoke(_call, carrier) ?? false))
+        if (unitCarrier is not null && (Hooks.Empty?.Invoke(unitCarrier.Type, body.Magazine, body.Ammo) ?? false))
         {
             if (_armChase[row])
                 RemovePath(mover);
@@ -285,7 +285,7 @@ internal sealed partial class Battle
             _chasing.Add(mover);
             Moves.WritePath(_call, mover, [spot.X, spot.Y], goalX, goalY);
             _call.Set(mover, S.Path).Flag(S.PathSlot, true);
-            _paths[mover] = new PathState { GoalX = goalX, GoalY = goalY, Wait = 0, Slot = true };
+            _paths[mover] = NewPath(goalX, goalY, 0, true);
             _armStuck[row] = 0;
             return;
         }
@@ -302,7 +302,7 @@ internal sealed partial class Battle
                 Moves.WritePath(_call, mover, plan.Points, plan.GoalX, plan.GoalY, false, plan.Roads, 0, near);
                 if (slot.HasValue)
                     _call.Set(mover, S.Path).Flag(S.PathSlot, true);
-                _paths[mover] = new PathState { GoalX = plan.GoalX, GoalY = plan.GoalY, Wait = 0, Slot = slot.HasValue };
+                _paths[mover] = NewPath(plan.GoalX, plan.GoalY, 0, slot.HasValue);
                 _armStuck[row] = 0;
                 break;
             case PlanStatus.None:
@@ -332,9 +332,13 @@ internal sealed partial class Battle
     {
         if (body.Unit is { } unit)
         {
-            if (!(Hooks.UnitHasAmmo?.Invoke(_call, body.Entity, unit.Type, weapon) ?? true))
+            if (!(Hooks.UnitHasAmmo?.Invoke(unit.Type, weapon, body.Magazine, body.Ammo) ?? true))
                 return false;
-            Hooks.SpendAmmo?.Invoke(_call, body.Entity, unit.Type, weapon);
+            if (Hooks.SpendAmmo?.Invoke(_call, body.Entity, unit.Type, weapon, body.Magazine, body.Ammo) is { } left && !double.IsNaN(left))
+            {
+                body.Magazine = true;
+                body.Ammo = left;
+            }
             return true;
         }
         if (body.Building is not { Spec.Ammo: true } || weapon.Ammo == 0)

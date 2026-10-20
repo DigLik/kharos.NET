@@ -188,6 +188,10 @@ public sealed partial class Sim
             if (targets.Count > 0 && !targets.Any(target => target != 0 && Alive(target) && Has(target, Names.Position.Name)))
                 idle.Add(unit);
         }
+        // Приказы — пачкой на цель (свои юниты одного игрока, в порядке idle): приказ атаки действует на каждого юнита
+        // отдельно, так что пачка равна приказам по одному, а приказ мода в wasm — вызов с заметной ценой на каждый.
+        var orders = new List<(uint Player, uint Target, List<uint> Units)>();
+        var byTarget = new Dictionary<(uint, uint), int>();
         foreach (var self in idle)
         {
             if (!self.Ground && !self.Sky)
@@ -205,9 +209,17 @@ public sealed partial class Sim
                     nearest = other.Entity;
                 }
             }
-            if (nearest != 0)
-                Send(self.Player, new AttackOrder { Units = [self.Entity], Target = nearest });
+            if (nearest == 0)
+                continue;
+            if (!byTarget.TryGetValue((self.Player, nearest), out var at))
+            {
+                byTarget[(self.Player, nearest)] = at = orders.Count;
+                orders.Add((self.Player, nearest, []));
+            }
+            orders[at].Units.Add(self.Entity);
         }
+        foreach (var (owner, target, group) in orders)
+            Send(owner, new AttackOrder { Units = [.. group], Target = target });
         static bool Reaches(Fighter from, Fighter to) => from.Player != to.Player && (to.Air ? from.Sky : from.Ground);
         return units.Any(unit => unit.Player == player) && units.Any(unit => unit.Player != player) && units.Any(from => units.Any(to => Reaches(from, to)));
     }

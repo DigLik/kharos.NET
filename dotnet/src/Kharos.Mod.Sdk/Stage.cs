@@ -15,6 +15,9 @@ public sealed class Stage
     private readonly SystemBinding? _binding;
     private readonly Dictionary<(uint Entity, int Component), Slot> _slots = [];
     private readonly Dictionary<(uint Entity, int Component), ComponentValues?> _read = [];
+    /// <summary>Есть ли компонент в мире до вызова — у меток и у того, что читали только на наличие (Prefetch).</summary>
+    private readonly Dictionary<(uint Entity, int Component), bool> _present = [];
+    private readonly Dictionary<uint, bool> _alive = [];
     private readonly HashSet<uint> _spawned = [];
     private readonly List<uint> _born = [];
     private readonly HashSet<uint> _destroyed = [];
@@ -40,7 +43,10 @@ public sealed class Stage
             return false;
         if (_spawned.Contains(entity) || (_frame is not null && _frame.RowOf(entity) >= 0))
             return true;
-        return Tools.Alive(entity);
+        // Мир до вызова не меняется: ответ — в кэш вызова.
+        if (!_alive.TryGetValue(entity, out var alive))
+            _alive[entity] = alive = Tools.Alive(entity);
+        return alive;
     }
 
     /// <summary>Есть ли у сущности компонент с учётом этого вызова.</summary>
@@ -57,9 +63,12 @@ public sealed class Stage
     public bool TryNumber(uint entity, ComponentRef component, FieldRef field, out double value)
     {
         value = 0;
-        if (!Has(entity, component) || !field.Columnar)
+        // То же, что Has, но запись о компоненте ищется раз (горячий путь: Num на каждое поле).
+        if (_destroyed.Contains(entity))
             return false;
-        var slot = _slots.GetValueOrDefault((entity, component.Id));
+        _slots.TryGetValue((entity, component.Id), out var slot);
+        if (!(slot?.Present ?? Before(entity, component)) || !field.Columnar)
+            return false;
         if (slot is not null && slot.Written(field.Index))
         {
             value = slot.Texts[field.Index] is { } text ? Tools.StringId(text) ?? 0 : slot.Numbers[field.Index];
@@ -92,6 +101,57 @@ public sealed class Stage
         if (slot is { Fresh: true } && !slot.Written(field.Index))
             return field.DefaultText ?? "";
         return TryNumber(entity, component, field, out var id) ? Tools.Text((uint)id) : null;
+    }
+
+    /// <summary>
+    /// Прочитать компоненты многих сущностей разом (мир до вызова): поля-столбцы — одним Columns на компонент; метки и
+    /// компоненты с полями-байтами — только наличие, одним Has (байты по-прежнему читает Get, когда спросят). Дальше Has и
+    /// Number по ним вызова инструмента не стоят. Ничего не меняет в ответах сцены — только сколько раз она зовёт движок.
+    /// </summary>
+    public void Prefetch(ReadOnlySpan<uint> entities, params ReadOnlySpan<ComponentRef> components)
+    {
+        var asked = new List<uint>(entities.Length);
+        foreach (var component in components)
+        {
+            var fields = component.Fields;
+            var columnar = true;
+            foreach (var field in fields)
+                columnar &= field.Columnar;
+            var whole = columnar && !component.Tag;
+            asked.Clear();
+            foreach (var entity in entities)
+                if (!_spawned.Contains(entity) && !_read.ContainsKey((entity, component.Id)) && (whole || !_present.ContainsKey((entity, component.Id))))
+                    asked.Add(entity);
+            if (asked.Count == 0)
+                continue;
+            var list = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(asked);
+            if (!whole)
+            {
+                var has = new bool[list.Length];
+                Tools.Has(list, component, has);
+                for (var i = 0; i < list.Length; i++)
+                    _present[(list[i], component.Id)] = has[i];
+                continue;
+            }
+            var pairs = new (ComponentRef, FieldRef)[fields.Count];
+            for (var k = 0; k < pairs.Length; k++)
+                pairs[k] = (component, fields[k]);
+            var values = new double[pairs.Length * list.Length];
+            var present = new bool[pairs.Length * list.Length];
+            Tools.Columns(list, pairs, values, present);
+            for (var i = 0; i < list.Length; i++)
+            {
+                if (!present[i])
+                {
+                    _read[(list[i], component.Id)] = null;
+                    continue;
+                }
+                var numbers = new double[fields.Count];
+                for (var k = 0; k < numbers.Length; k++)
+                    numbers[fields[k].Index] = values[k * list.Length + i];
+                _read[(list[i], component.Id)] = new ComponentValues(numbers, new byte[]?[fields.Count]);
+            }
+        }
     }
 
     /// <summary>Байты поля-байтов; компонента нет — null.</summary>
@@ -173,8 +233,15 @@ public sealed class Stage
             return false;
         if (_frame is not null && _binding is not null && _binding.OffsetOf(component.Id) >= 0 && _frame.RowOf(entity) >= 0)
             return true;
+        // Наличие уже известно (Prefetch, метка) — без вызова инструмента; мир до вызова не меняется.
+        if (_present.TryGetValue((entity, component.Id), out var known))
+            return known;
+        if (!component.Tag)
+            return Read(entity, component) is not null;
         // У метки полей нет: Get ответит пусто и тогда, когда она есть.
-        return component.Tag ? Tools.Has(entity, component) : Read(entity, component) is not null;
+        var has = Tools.Has(entity, component);
+        _present[(entity, component.Id)] = has;
+        return has;
     }
 
     /// <summary>Значение до вызова: из кадра (в нынешнем виде — со своими правками столбцов) или инструментом.</summary>

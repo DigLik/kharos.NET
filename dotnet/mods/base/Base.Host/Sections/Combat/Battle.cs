@@ -64,6 +64,7 @@ internal sealed partial class Battle
     private Column _pathGoalX, _pathGoalY, _pathWait, _pathSlot;
     private Column _stance, _away, _homeX, _homeY, _resupply;
     private Column _playerId, _playerSafe, _teamHead;
+    private Column _magazineAmmo;
 
     public void Bind(SystemBinding binding)
     {
@@ -124,6 +125,7 @@ internal sealed partial class Battle
         _playerId = T(Fight.PlayersT).Column(Names.Player.Name, Names.Player.Id);
         _playerSafe = T(Fight.PlayersT).Column(Names.Player.Name, Names.Player.Safe);
         _teamHead = T(Fight.PlayersT).Column(Names.Team.Name, Names.Team.Head);
+        _magazineAmmo = T(Fight.MagazinesT).Column(Names.Magazine.Name, Names.Magazine.Ammo);
     }
 
     // ===== Снимок тика =====
@@ -174,6 +176,29 @@ internal sealed partial class Battle
     private readonly Dictionary<uint, TacticsState> _tactics = [];
     private bool _patrolsRead;
     private readonly Dictionary<double, Stance> _stances = [];
+
+    // Состояния путей и тактики — из запаса, переиспользуемого каждый тик: тысячи объектов на тик — работа сборщику.
+    private readonly List<PathState> _pathPool = [];
+    private readonly List<TacticsState> _tacticsPool = [];
+    private int _pathUsed, _tacticsUsed;
+
+    private PathState NewPath(int goalX, int goalY, double wait, bool slot)
+    {
+        if (_pathUsed == _pathPool.Count)
+            _pathPool.Add(new PathState());
+        var path = _pathPool[_pathUsed++];
+        (path.GoalX, path.GoalY, path.Wait, path.Slot) = (goalX, goalY, wait, slot);
+        return path;
+    }
+
+    private TacticsState NewTactics(Stance stance, bool away, double homeX, double homeY, bool resupply, int patrol)
+    {
+        if (_tacticsUsed == _tacticsPool.Count)
+            _tacticsPool.Add(new TacticsState());
+        var tactics = _tacticsPool[_tacticsUsed++];
+        (tactics.Stance, tactics.Away, tactics.HomeX, tactics.HomeY, tactics.Resupply, tactics.Patrol) = (stance, away, homeX, homeY, resupply, patrol);
+        return tactics;
+    }
 
     private sealed class PathState
     {
@@ -230,14 +255,16 @@ internal sealed partial class Battle
         }
         _turrets.Clear();
         _paths.Clear();
+        _pathUsed = 0;
         _converting.Clear();
         _off.Clear();
         _tactics.Clear();
+        _tacticsUsed = 0;
         _patrolsRead = false;
         _stances.Clear();
         _blasts.Clear();
         _gone.Clear();
-        _pursuers.Clear();
+        ClearPursuers();
         _slots.Clear();
         _chasing.Clear();
         _walkable.Clear();
@@ -269,18 +296,25 @@ internal sealed partial class Battle
         var buildingW = buildings.Column(_buildingW);
         var buildingH = buildings.Column(_buildingH);
         var buildingOpen = buildings.Column(_buildingOpen);
-        var order = new List<(uint Entity, int Row, int Kind)>(table.Count);
+        // Порядок — ключом (вид, номер) одним числом: сортировка без сравнения делегатом (в wasm она заметна).
+        Grow(ref _orderKeys, table.Count);
+        Grow(ref _orderRows, table.Count);
+        var listed = 0;
         for (var row = 0; row < table.Count; row++)
         {
             var entity = table.Entities[row];
-            if (units.RowOf(entity) >= 0)
-                order.Add((entity, row, 0));
-            else if (buildings.RowOf(entity) >= 0)
-                order.Add((entity, row, 1));
+            var kind = units.RowOf(entity) >= 0 ? 0UL : buildings.RowOf(entity) >= 0 ? 1UL : 2UL;
+            if (kind == 2)
+                continue;
+            _orderKeys[listed] = kind << 32 | entity;
+            _orderRows[listed++] = row;
         }
-        order.Sort((a, b) => a.Kind != b.Kind ? a.Kind.CompareTo(b.Kind) : a.Entity.CompareTo(b.Entity));
-        foreach (var (entity, row, kind) in order)
+        Array.Sort(_orderKeys, _orderRows, 0, listed);
+        for (var index = 0; index < listed; index++)
         {
+            var entity = (uint)_orderKeys[index];
+            var row = _orderRows[index];
+            var kind = (int)(_orderKeys[index] >> 32);
             var mark = NewMark();
             mark.Entity = entity;
             mark.Player = (uint)owners[row];
@@ -329,6 +363,15 @@ internal sealed partial class Battle
         }
         foreach (var mark in _marks)
             _grid.Put(mark);
+        // Магазины юнитов — побочной таблицей, а не чтением каждого стрелка через сцену (вызов инструмента на юнит).
+        var magazines = ctx.Table(Fight.MagazinesT);
+        var ammo = magazines.Column(_magazineAmmo);
+        for (var row = 0; row < magazines.Count; row++)
+            if (MarkOf(magazines.Entities[row]) is { Unit: not null } armed)
+            {
+                armed.Magazine = true;
+                armed.Ammo = ammo[row];
+            }
 
         // Стрелки.
         var count = ctx.Count;
@@ -363,7 +406,9 @@ internal sealed partial class Battle
             _armRow.Set(entity, row);
             _shooters[row] = row;
         }
-        Array.Sort(_shooters, 0, count, Comparer<int>.Create((a, b) => _armEntity[a].CompareTo(_armEntity[b])));
+        Grow(ref _shooterKeys, count);
+        Array.Copy(_armEntity, _shooterKeys, count);
+        Array.Sort(_shooterKeys, _shooters, 0, count);
 
         // Турели.
         var mounts = ctx.Table(Fight.MountsT);
@@ -377,6 +422,7 @@ internal sealed partial class Battle
         Grow(ref _mountTurned, _mountCount);
         Grow(ref _mountEntity, _mountCount);
         var byEntity = new int[_mountCount];
+        var mountKeys = new uint[_mountCount];
         for (var row = 0; row < _mountCount; row++)
         {
             var entity = mounts.Entities[row];
@@ -387,8 +433,9 @@ internal sealed partial class Battle
             _mountTurned[row] = false;
             _mountRow.Set(entity, row);
             byEntity[row] = row;
+            mountKeys[row] = entity;
         }
-        Array.Sort(byEntity, (a, b) => _mountEntity[a].CompareTo(_mountEntity[b]));
+        Array.Sort(mountKeys, byEntity);
         foreach (var row in byEntity)
         {
             var parent = _mountParentOf[row];
@@ -405,7 +452,7 @@ internal sealed partial class Battle
         var wait = paths.Column(_pathWait);
         var slot = paths.Column(_pathSlot);
         for (var row = 0; row < paths.Count; row++)
-            _paths[paths.Entities[row]] = new PathState { GoalX = (int)goalX[row], GoalY = (int)goalY[row], Wait = wait[row], Slot = slot[row] != 0 };
+            _paths[paths.Entities[row]] = NewPath((int)goalX[row], (int)goalY[row], wait[row], slot[row] != 0);
         foreach (var entity in ctx.Table(Fight.ConvertingT).Entities)
             _converting.Add(entity);
         foreach (var entity in ctx.Table(Fight.OffT).Entities)
@@ -418,10 +465,7 @@ internal sealed partial class Battle
         var homeY = tactics.Column(_homeY);
         var resupply = tactics.Column(_resupply);
         for (var row = 0; row < tactics.Count; row++)
-            _tactics[tactics.Entities[row]] = new TacticsState
-            {
-                Stance = StanceOf(stance[row]), Away = away[row] != 0, HomeX = homeX[row], HomeY = homeY[row], Resupply = resupply[row] != 0, Patrol = -1,
-            };
+            _tactics[tactics.Entities[row]] = NewTactics(StanceOf(stance[row]), away[row] != 0, homeX[row], homeY[row], resupply[row] != 0, -1);
 
         ReadShots(ctx);
         ReadBlasts(ctx);
@@ -445,10 +489,15 @@ internal sealed partial class Battle
         mark.Building = null;
         mark.Facing = 0;
         mark.Proto = -1;
+        mark.Magazine = false;
+        mark.Ammo = 0;
         return mark;
     }
 
     private int _used;
+    private ulong[] _orderKeys = [];
+    private int[] _orderRows = [];
+    private uint[] _shooterKeys = [];
 
     private static void Grow<T>(ref T[] array, int count)
     {
@@ -577,7 +626,7 @@ internal sealed partial class Battle
             _call.Set(entity, S.Tactics).Flag(R.TacticsAway, true).Number(R.TacticsHomeX, homeX).Number(R.TacticsHomeY, homeY);
         if (tactics is null)
         {
-            _tactics[entity] = new TacticsState { Stance = Stance.Defensive, Away = true, HomeX = homeX, HomeY = homeY };
+            _tactics[entity] = NewTactics(Stance.Defensive, true, homeX, homeY, false, 0);
             return;
         }
         tactics.Away = true;

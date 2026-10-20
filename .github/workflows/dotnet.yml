@@ -1,6 +1,7 @@
 name: .NET
 
-# Линия .NET (docs/dotnet.md): сборка и тесты на всех ОС клиента. TS-задания не трогает.
+# Линия .NET (docs/dotnet.md): сборка и тесты на Windows и Linux (macOS вне плана, docs/dotnet-n7.md Н7.9).
+# TS-задания не трогает. Через workflow_call его же берёт release.yml.
 on:
   push:
     paths:
@@ -10,13 +11,26 @@ on:
     paths:
       - 'dotnet/**'
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      os:
+        description: 'JSON-массив ОС для тестов; пусто — все три'
+        type: string
+        default: ''
+      skip-package:
+        description: 'true — не собирать пробный пакет (release.yml собирает свои)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
 
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest]
+        os: ${{ fromJSON(inputs.os || '["ubuntu-latest","ubuntu-24.04-arm","windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     # Зависший тест не держит машину часами (по умолчанию — 6 ч).
     timeout-minutes: 40
@@ -28,6 +42,13 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: dotnet/global.json
+      # Сверка кадров с эталоном идёт на программном Vulkan (lavapipe): видеокарты на раннере нет.
+      - name: Mesa Vulkan
+        if: runner.os == 'Linux'
+        working-directory: .
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers
       - run: dotnet build Kharos.slnx -c Release
       # Моды в wasm (NativeAOT-LLVM, docs/dotnet.md Р5): WASI SDK и компилятор есть под linux-x64, linux-arm64 и win-x64;
       # собираем на Linux x64 — тесты с host.wasm там идут по-настоящему, на прочих ОС пропускаются.
@@ -39,6 +60,41 @@ jobs:
       - run: pwsh tools/build-mods.ps1
         if: matrix.os == 'ubuntu-latest'
       # Тест, висящий дольше 10 минут, обрывается и попадает в отчёт.
-      - run: dotnet test Kharos.slnx -c Release --no-build --logger GitHubActions --blame-hang-timeout 10m --blame-hang-dump-type none
+      - name: Тесты
+        env:
+          KHAROS_GPU_ADAPTER: ${{ runner.os == 'Linux' && 'software' || '' }}
+        run: dotnet test Kharos.slnx -c Release --no-build --logger GitHubActions --blame-hang-timeout 10m --blame-hang-dump-type none
       # Песочница модов на этой ОС: Wasmtime, пул, сторож эпох, белый список импортов.
       - run: dotnet run --project tools/Kharos.Plugins.Bench -c Release --no-build -- --security
+
+  # Пробный пакет linux-x64: публикация NativeAOT, состав архива и смоук одиночной игры (Н7.4, Н7.3).
+  package:
+    if: ${{ !inputs.skip-package }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: dotnet/global.json
+      - name: Пакеты ОС
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang zlib1g-dev xvfb mesa-vulkan-drivers libasound2
+      - uses: actions/cache@v4
+        with:
+          path: dotnet/.cache/wasi-sdk
+          key: wasi-sdk-29-${{ runner.os }}-${{ runner.arch }}
+      - run: pwsh dotnet/tools/build-mods.ps1
+      - name: Упаковка
+        run: sh dotnet/tools/package.sh linux-x64 desktop "0.2.0-ci.${{ github.run_number }}" "$RUNNER_TEMP/out"
+      # Оркестратор смоука (dotnet/tools/smoke.ps1, П2): вызов в одном месте, чтобы править в одном месте.
+      - name: Смоук пакета
+        env:
+          KHAROS_GPU_ADAPTER: software
+        run: |
+          smoke() { xvfb-run -a pwsh dotnet/tools/smoke.ps1 single -Package "$RUNNER_TEMP/out"; }
+          if ! smoke; then
+            echo "::warning::Смоук с lavapipe не прошёл, повтор без GPU (KHAROS_GPU=none)"
+            KHAROS_GPU=none smoke
+          fi

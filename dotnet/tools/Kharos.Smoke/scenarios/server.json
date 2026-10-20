@@ -1,0 +1,105 @@
+{
+  "about": "сервер и два клиента (Н7.3): чат, бой, союз, переподключение, остановка stop и перезапуск сервера",
+  // Мод smoke (с сервера его получают и клиенты): без защиты новичка — бой сразу.
+  "mods": ["smoke"],
+  // Хост выбрасывает чат чаще раза в 0,5 с (ChatGap): между строками чата — wait seconds 0.6.
+  "steps": [
+    // 1. settings.json со свободным портом, admin «smoke», свой save.
+    { "do": "server" },
+    // 2. Клиенты A и B со своими KHAROS_HOME; дальше они сходятся только условиями по миру.
+    { "do": "client", "name": "a", "wait": false, "script": { "timeout": 120, "steps": [
+      { "do": "wait game", "timeout": 240 },
+      // 3. Чат: A ждёт B и пишет.
+      { "do": "wait roster b online", "timeout": 240 },
+      { "do": "chat привет от a" },
+      { "do": "wait seconds 0.6" },
+      // 4. Бой: A — администратор; в редакторе ставит багги игрока B у своего MCV (чужое далеко в тумане) и атакует их своими.
+      { "do": "chat /admin smoke" },
+      { "do": "wait seconds 0.6" },
+      { "do": "chat /editor" },
+      { "do": "wait seconds 0.6" },
+      { "do": "order edit.unit", "args": [{ "str": "buggy" }, { "f64": "@mcv.x+6" }, { "f64": "@mcv.y" }, { "u32": "@#b" }] },
+      { "do": "order edit.unit", "args": [{ "str": "buggy" }, { "f64": "@mcv.x+6" }, { "f64": "@mcv.y+2" }, { "u32": "@#b" }] },
+      { "do": "order edit.unit", "args": [{ "str": "buggy" }, { "f64": "@mcv.x+6" }, { "f64": "@mcv.y-2" }, { "u32": "@#b" }] },
+      { "do": "chat /editor" },
+      { "do": "wait seconds 0.6" },
+      { "do": "wait count buggy@b >= 3" },
+      { "do": "order attack", "args": [{ "u32[]": "@buggy" }, { "u32": "@buggy@b" }, { "bool": false }] },
+      { "do": "wait damaged b" },
+      // 5. Союз: оба предлагают, оба ждут allied; потом починка и 5 с без нового урона.
+      { "do": "order ally", "args": [{ "u32": "@#b" }] },
+      { "do": "wait allied b" },
+      { "do": "wait seconds 3" },
+      { "do": "chat /heal" },
+      { "do": "wait seconds 5" },
+      { "do": "assert hurt == 0" },
+      // 6. B переподключается (оркестратор убивает его и поднимает снова).
+      { "do": "wait roster b offline", "timeout": 180 },
+      { "do": "wait roster b online", "timeout": 240 },
+      { "do": "chat снова привет" },
+      // 7. Сервер останавливается: связь обрывается, сценарий кончается.
+      { "do": "wait lost", "timeout": 600 }
+    ] } },
+    { "do": "client", "name": "b", "as": "b1", "wait": false, "script": { "timeout": 120, "steps": [
+      { "do": "wait game", "timeout": 240 },
+      { "do": "wait roster a online", "timeout": 240 },
+      { "do": "wait chat привет от a" },
+      { "do": "wait damaged mine", "timeout": 180 },
+      { "do": "order ally", "args": [{ "u32": "@#a" }] },
+      { "do": "wait allied a" },
+      { "do": "wait seconds 3" },
+      { "do": "chat /admin smoke" },
+      { "do": "wait seconds 0.6" },
+      { "do": "chat /heal" },
+      { "do": "wait seconds 5" },
+      { "do": "assert hurt == 0" },
+      { "do": "mark before" },
+      // Дальше B ждёт, пока его убьют.
+      { "do": "wait lost", "timeout": 600 }
+    ] } },
+    // Отметка B — из его журнала смоука: номер шага «mark before», затем «шаг N готов … (тик T, сущностей E)».
+    { "do": "expect", "name": "b1", "pattern": "шаг (?<i>\\d+) «mark before»", "as": "bmark", "timeout": 600 },
+    { "do": "expect", "name": "b1", "pattern": "шаг ${bmark.i} готов .*тик (?<tick>\\d+), сущностей (?<entities>\\d+)", "as": "bbefore", "timeout": 30 },
+    // 6. Переподключение: убить B и поднять с тем же KHAROS_HOME — прежний игрок, юниты, призраки, разведанное.
+    { "do": "kill", "name": "b1" },
+    { "do": "client", "name": "b", "as": "b2", "wait": false, "script": { "timeout": 120, "steps": [
+      { "do": "wait game", "timeout": 240 },
+      { "do": "wait tick>=+20" },
+      { "do": "mark after" },
+      { "do": "assert after.tick > ${bbefore.tick}" },
+      { "do": "assert after.entities >= ${bbefore.entities} - 3" },
+      { "do": "wait allied a" },
+      { "do": "wait chat снова привет" },
+      { "do": "wait lost", "timeout": 600 }
+    ] } },
+    { "do": "expect", "name": "b2", "pattern": "шаг \\d+ «wait lost»", "timeout": 300 },
+    { "do": "expect", "name": "a", "pattern": "шаг \\d+ «wait lost»", "timeout": 300 },
+    // 7. Сохранение и перезапуск: stop в stdin, код 0, файл на месте; сервер снова, клиенты connect.
+    { "do": "console", "line": "status", "expect": "^тик (?<tick>\\d+), сущностей (?<entities>\\d+)", "as": "status" },
+    { "do": "stop", "code": 0 },
+    { "do": "wait", "name": "a", "timeout": 60 },
+    { "do": "wait", "name": "b2", "timeout": 60 },
+    { "do": "file", "path": "${server}/save.kharos" },
+    { "do": "server" },
+    { "do": "expect", "pattern": "мир загружен .*тик (?<tick>\\d+), сущностей (?<entities>\\d+)", "as": "loaded" },
+    { "do": "assert", "expr": "${loaded.tick} >= ${status.tick}" },
+    { "do": "assert", "expr": "${loaded.entities} >= ${status.entities} - 2" },
+    { "do": "assert", "expr": "${loaded.entities} <= ${status.entities} + 2" },
+    { "do": "client", "name": "a", "as": "a2", "connect": false, "script": { "timeout": 120, "steps": [
+      { "do": "connect ${url}" },
+      { "do": "wait game" },
+      { "do": "wait tick>=${loaded.tick}+20" },
+      { "do": "wait allied b" },
+      { "do": "mark resumed" },
+      { "do": "assert resumed.entities > 0" }
+    ] } },
+    { "do": "client", "name": "b", "as": "b3", "connect": false, "script": { "timeout": 120, "steps": [
+      { "do": "connect ${url}" },
+      { "do": "wait game" },
+      { "do": "wait tick>=${loaded.tick}+20" },
+      { "do": "mark resumed" },
+      { "do": "assert resumed.entities >= ${bbefore.entities} - 3" }
+    ] } },
+    { "do": "stop", "code": 0 }
+  ]
+}

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Тесты оркестратора смоука (П2): разбор сценариев, подстановки и выражения, свободный порт, уборка процессов, WAV. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\tools\Kharos.Smoke\Kharos.Smoke.csproj" />
+    <ProjectReference Include="..\..\mods\base\Base.Shared\Base.Shared.csproj" />
+    <PackageReference Include="MemoryPack" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

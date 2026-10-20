@@ -150,6 +150,7 @@ public static unsafe class ModRuntime
     /// <summary>Загрузка: Setup, схема, Load, привязка систем; в выходе — ModManifest.</summary>
     internal static int LoadCore(Mod mod, ReadOnlySpan<byte> bytes)
     {
+        Tools.EnterCall();
         try
         {
             var info = MemoryPackSerializer.Deserialize<ModLoadInfo>(bytes);
@@ -224,6 +225,7 @@ public static unsafe class ModRuntime
                 return Fail(ModAbi.ErrorCapacity, $"kh_system: часть {part}: n = {counts[part]}, место на {frame.Capacity}");
             frame.Begin(counts[part]);
         }
+        Tools.EnterCall();
         Commands.Reset(next);
         try
         {
@@ -244,6 +246,7 @@ public static unsafe class ModRuntime
             return Fail(ModAbi.ErrorNotLoaded, "kh_event до kh_load");
         if ((uint)handler >= (uint)_builder.Events.Count)
             return Fail(ModAbi.ErrorUnknownId, $"kh_event: нет обработчика {handler}");
+        Tools.EnterCall();
         Commands.Reset(next);
         var (name, run) = _builder.Events[handler];
         try
@@ -264,6 +267,7 @@ public static unsafe class ModRuntime
             return Fail(ModAbi.ErrorNotLoaded, "kh_command до kh_load");
         if ((uint)order >= (uint)_builder.Orders.Count)
             return Fail(ModAbi.ErrorUnknownId, $"kh_command: нет приказа {order}");
+        Tools.EnterCall();
         Commands.Reset(next);
         var (name, run) = _builder.Orders[order];
         try
@@ -284,6 +288,7 @@ public static unsafe class ModRuntime
             return Fail(ModAbi.ErrorNotLoaded, "kh_query до kh_load");
         if ((uint)query >= (uint)_builder.Queries.Count)
             return Fail(ModAbi.ErrorUnknownId, $"kh_query: нет запроса {query}");
+        Tools.EnterCall();
         Reply.Clear();
         var (name, run) = _builder.Queries[query];
         try

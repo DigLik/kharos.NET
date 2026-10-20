@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Оркестратор смоука (docs/dotnet-n7.md, Н7-2, Н7.3, пакет П2): запускает опубликованные kharos и kharos-server
+    отдельными процессами со сценариями KHAROS_SMOKE, собирает отчёты и журналы, ведёт сервер через stdin; боты нагрузки —
+    клиенты протокола без GPU (GameConnector и реплика). Обёртка — dotnet/tools/smoke.ps1.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Kharos.Smoke.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Kharos.Client\Kharos.Client.csproj" />
+    <ProjectReference Include="..\..\src\Kharos.Protocol\Kharos.Protocol.csproj" />
+    <ProjectReference Include="..\..\mods\base\Base.Shared\Base.Shared.csproj" />
+    <PackageReference Include="MemoryPack" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Сценарии и мод смоука лежат рядом с программой. -->
+    <None Include="scenarios\**\*.json;mods\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

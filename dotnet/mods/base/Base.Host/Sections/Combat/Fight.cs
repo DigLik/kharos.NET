@@ -10,14 +10,15 @@ namespace Base.Host.Sections.Combat;
 /// <para>
 /// Доступ к чужому (Н5-3): кадр — стрелки (Armed, Position), всё о целях — побочными таблицами: метки (Health, Position,
 /// Owner), юниты, здания, турели (Mount), выстрелы, взрывы, аварии, обречённые, пути, превращения, выключенные, тактика,
-/// счета игроков. Урон, повороты, цели копятся в памяти тика (<see cref="Battle"/>) и уходят в мир в конце: прочность и
-/// повороты — командами, цели — столбцами кадра, выстрелы и взрывы — столбцами пишущих таблиц.
+/// счета игроков, магазины юнитов. Урон, повороты, цели копятся в памяти тика (<see cref="Battle"/>) и уходят в мир в
+/// конце: прочность и повороты — командами, цели — столбцами кадра, выстрелы и взрывы — столбцами пишущих таблиц, траты
+/// магазинов — командами.
 /// </para>
 /// </summary>
 internal sealed class Fight : ISystem
 {
     public const int MarksT = 0, UnitsT = 1, BuildingsT = 2, MountsT = 3, ShotsT = 4, BlastsT = 5, BurstsT = 6, DoomedT = 7, PathsT = 8,
-        ConvertingT = 9, OffT = 10, TacticsT = 11, PlayersT = 12;
+        ConvertingT = 9, OffT = 10, TacticsT = 11, PlayersT = 12, MagazinesT = 13;
 
     private readonly Battle _battle = new();
 
@@ -36,7 +37,8 @@ internal sealed class Fight : ISystem
         .Table(Names.Converting.Name)
         .Table(Names.Off.Name)
         .Table(Names.Tactics.Name)
-        .Table(Names.Player.Name, Names.Team.Name);
+        .Table(Names.Player.Name, Names.Team.Name)
+        .Table(Names.Magazine.Name);
 
     public void Bind(SystemBinding binding)
     {

@@ -62,21 +62,46 @@ internal sealed partial class Battle
             var targetEntity = (uint)_armTarget[row];
             var target = MarkOf(targetEntity);
             if (!_pursuers.TryGetValue(targetEntity, out var around))
-                _pursuers[targetEntity] = around = [];
-            var known = around.Find(item => item.Entity == carrier);
+                _pursuers[targetEntity] = around = _pursuerLists.Count > 0 ? _pursuerLists.Pop() : [];
+            // Носитель за этой целью уже записан (другой его турелью) — номер в списке цели; поиск по списку был бы
+            // квадратом от толпы у одной цели.
+            var key = (long)targetEntity << 32 | carrier;
+            var known = _pursuerAt.TryGetValue(key, out var at) ? around[at] : null;
             if (known is not null && known.Reach <= reach)
                 continue;
             var settled = !HasPath(carrier) && target is not null && target.DistanceTo(body.X, body.Y) <= weapon.Range;
-            var pursuer = new Pursuer
-            {
-                Entity = carrier, X = body.X, Y = body.Y, Radius = unit.Spec.Radius, Reach = reach, Foot = unit.Foot, Settled = settled,
-                Player = body.Player, Order = known?.Order ?? around.Count,
-            };
+            if (_pursuerUsed == _pursuerPool.Count)
+                _pursuerPool.Add(new Pursuer());
+            var pursuer = _pursuerPool[_pursuerUsed++];
+            (pursuer.Entity, pursuer.X, pursuer.Y, pursuer.Radius, pursuer.Reach, pursuer.Foot, pursuer.Settled, pursuer.Player, pursuer.Order) =
+                (carrier, body.X, body.Y, unit.Spec.Radius, reach, unit.Foot, settled, body.Player, known?.Order ?? around.Count);
             if (known is not null)
                 around[known.Order] = pursuer;
             else
+            {
+                _pursuerAt[key] = around.Count;
                 around.Add(pursuer);
+            }
         }
+    }
+
+    // Запас гонящихся и их списков на тик.
+    private readonly List<Pursuer> _pursuerPool = [];
+    private int _pursuerUsed;
+    private readonly Stack<List<Pursuer>> _pursuerLists = [];
+    private readonly Dictionary<long, int> _pursuerAt = [];
+
+    /// <summary>Забыть гонящихся прошлого тика (списки — в запас).</summary>
+    private void ClearPursuers()
+    {
+        foreach (var list in _pursuers.Values)
+        {
+            list.Clear();
+            _pursuerLists.Push(list);
+        }
+        _pursuers.Clear();
+        _pursuerAt.Clear();
+        _pursuerUsed = 0;
     }
 
     /// <summary>Место носителя carrier у цели; не нашлось — null.</summary>

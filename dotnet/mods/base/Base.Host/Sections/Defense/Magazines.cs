@@ -92,26 +92,41 @@ internal static class Magazines
         return ammo < CheapestShot(type) - Epsilon;
     }
 
-    /// <summary>Хватит ли юниту боеприпасов на выстрел этим оружием (unitHasAmmo).</summary>
-    public static bool HasAmmo(Call call, uint entity, string type, Weapon weapon)
+    /// <summary>
+    /// Пуст ли известный магазин юнита вида type (isEmpty; горячий путь боя): has — есть ли Magazine, ammo — сколько в нём.
+    /// </summary>
+    public static bool IsEmpty(string type, bool has, double ammo)
+    {
+        if (!Core.Rules.UnitAmmo || !has || ammo >= HighestThreshold() - Epsilon || CapacityOf(type) == 0)
+            return false;
+        return ammo < CheapestShot(type) - Epsilon;
+    }
+
+    /// <summary>Хватит ли юниту вида type с магазином (has, ammo) на выстрел этим оружием (unitHasAmmo); без магазина — полный.</summary>
+    public static bool HasAmmo(string type, Weapon weapon, bool has, double ammo)
     {
         if (!Core.Rules.UnitAmmo)
             return true;
         var cost = ShotCost(type, weapon.Reload);
-        return cost == 0 || AmmoOf(call, entity, type) >= cost - Epsilon;
+        return cost == 0 || (has ? ammo : CapacityOf(type)) >= cost - Epsilon;
     }
 
-    /// <summary>Списывает выстрел из магазина юнита; проверять запас — <see cref="HasAmmo"/> (spendAmmo).</summary>
-    public static void Spend(Call call, uint entity, string type, Weapon weapon)
+    /// <summary>
+    /// Списывает выстрел из магазина (has, ammo) юнита (spendAmmo); проверять запас — <see cref="HasAmmo"/>. Возвращает
+    /// остаток; NaN — магазин не тронут.
+    /// </summary>
+    public static double Spend(Call call, uint entity, string type, Weapon weapon, bool has, double ammo)
     {
         if (!Core.Rules.UnitAmmo)
-            return;
+            return double.NaN;
         var cost = ShotCost(type, weapon.Reload);
         if (cost == 0)
-            return;
-        if (call.Has(entity, S.Magazine))
-            call.Set(entity, S.Magazine).Number(S.MagazineAmmo, Math.Max(0, call.Num(entity, S.Magazine, S.MagazineAmmo) - cost));
+            return double.NaN;
+        var left = Math.Max(0, (has ? ammo : CapacityOf(type)) - cost);
+        if (has)
+            call.Set(entity, S.Magazine).Number(S.MagazineAmmo, left);
         else
-            call.Add(entity, S.Magazine).Number(S.MagazineAmmo, Math.Max(0, CapacityOf(type) - cost));
+            call.Add(entity, S.Magazine).Number(S.MagazineAmmo, left);
+        return left;
     }
 }

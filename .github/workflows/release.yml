@@ -1,0 +1,207 @@
+name: Релиз
+
+# Сборка архивов игры и сервера .NET (docs/dotnet-n7.md, Н7.4). Без подписи и без macOS.
+# Запуск только вручную или тегом v*; на push в main сам не срабатывает. Релиз всегда черновик: публикует человек.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Версия сборки (SemVer), например 0.2.0'
+        type: string
+        required: true
+      publish:
+        description: 'Пометить релиз как последний (make_latest); черновик остаётся черновиком'
+        type: boolean
+        default: false
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: 1
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  # Вызов оркестратора смоука (dotnet/tools/smoke.ps1, П2) собран здесь и в шагах «Смоук»: аргументы правятся в этих местах.
+  SMOKE_SERVER_ARGS: '-Soak 2m -Bots 4'
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - id: v
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$REF_TYPE" = tag ]; then v="${REF_NAME#v}"; else v="${INPUT_VERSION#v}"; fi
+          echo "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' || { echo "::error::версия '$v' не SemVer"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          case "$v" in *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT";; *) echo "prerelease=false" >> "$GITHUB_OUTPUT";; esac
+
+  # .wasm у всех RID один и тот же: моды собираем один раз.
+  mods:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: dotnet/global.json
+      - uses: actions/cache@v4
+        with:
+          path: dotnet/.cache/wasi-sdk
+          key: wasi-sdk-29-${{ runner.os }}-${{ runner.arch }}
+      - run: pwsh dotnet/tools/build-mods.ps1
+      # tar сохраняет пути dotnet/mods/<мод>/*.wasm (upload-artifact отбросил бы общий префикс).
+      - run: tar -cf mods.tar dotnet/mods/*/host.wasm dotnet/mods/*/client.wasm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mods
+          path: mods.tar
+          if-no-files-found: error
+          retention-days: 7
+
+  test:
+    uses: ./.github/workflows/dotnet.yml
+    with:
+      os: '["ubuntu-latest","windows-latest"]'
+      skip-package: true
+
+  desktop:
+    needs: [meta, mods]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: win-x64, os: windows-latest }
+          - { rid: linux-x64, os: ubuntu-22.04 }
+          - { rid: linux-arm64, os: ubuntu-22.04-arm }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: dotnet/global.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: mods
+      - run: tar -xf mods.tar
+      - name: Пакеты ОС (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang zlib1g-dev xvfb mesa-vulkan-drivers libasound2
+      - name: Упаковка (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: dotnet/tools/package.ps1 -Rid ${{ matrix.rid }} -Kind desktop -Version $env:VERSION -Out "$env:RUNNER_TEMP/out"
+      - name: Упаковка (Linux)
+        if: runner.os == 'Linux'
+        run: sh dotnet/tools/package.sh ${{ matrix.rid }} desktop "$VERSION" "$RUNNER_TEMP/out"
+      # Windows: WARP (программный адаптер DX12). Linux: Xvfb и lavapipe; не вышло — без GPU (KHAROS_GPU=none).
+      - name: Смоук пакета (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          KHAROS_GPU_ADAPTER: software
+        run: dotnet/tools/smoke.ps1 single -Package "$env:RUNNER_TEMP/out"
+      - name: Смоук пакета (Linux)
+        if: runner.os == 'Linux'
+        env:
+          KHAROS_GPU_ADAPTER: software
+        run: |
+          smoke() { xvfb-run -a pwsh dotnet/tools/smoke.ps1 single -Package "$RUNNER_TEMP/out"; }
+          if ! smoke; then
+            echo "::warning::Смоук с lavapipe не прошёл, повтор без GPU (KHAROS_GPU=none)"
+            KHAROS_GPU=none smoke
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.rid }}
+          path: ${{ runner.temp }}/out/kharos-${{ matrix.rid }}.*
+          if-no-files-found: error
+          retention-days: 7
+
+  server:
+    needs: [meta, mods]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: linux-x64, os: ubuntu-22.04 }
+          - { rid: linux-arm64, os: ubuntu-22.04-arm }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: dotnet/global.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: mods
+      - run: tar -xf mods.tar
+      - name: Пакеты ОС
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang zlib1g-dev
+      - name: Упаковка
+        run: sh dotnet/tools/package.sh ${{ matrix.rid }} server "$VERSION" "$RUNNER_TEMP/out"
+      # Сервер и боты (клиенты протокола без GPU) на пакете, 2 минуты.
+      - name: Смоук сервера с ботами
+        run: pwsh dotnet/tools/smoke.ps1 server -Package "$RUNNER_TEMP/out" $SMOKE_SERVER_ARGS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-${{ matrix.rid }}
+          path: ${{ runner.temp }}/out/kharos-server-${{ matrix.rid }}.*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    needs: [meta, test, desktop, server]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '{desktop,server}-*'
+          path: dist
+          merge-multiple: true
+      - name: SHA256SUMS
+        working-directory: dist
+        run: |
+          rm -f -- *.sha256
+          ls -l
+          sha256sum kharos-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Kharos ${{ env.VERSION }} (протокол 3, сохранение 1)
+          draft: true
+          prerelease: ${{ needs.meta.outputs.prerelease == 'true' }}
+          make_latest: ${{ inputs.publish == true && needs.meta.outputs.prerelease != 'true' && 'true' || 'false' }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/kharos-*
+            dist/SHA256SUMS.txt

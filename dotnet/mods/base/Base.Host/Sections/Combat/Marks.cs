@@ -47,6 +47,10 @@ internal sealed class Mark
     /// <summary>Proto сущности.</summary>
     public int Proto;
 
+    /// <summary>Магазин юнита (Magazine.ammo) с тратами этого тика; нет компонента — <see cref="Ammo"/> не в счёт.</summary>
+    public bool Magazine;
+    public double Ammo;
+
     /// <summary>Расстояние от точки до края цели (distanceTo).</summary>
     public double DistanceTo(double x, double y) => Math.Max(0, RectDistance(Left, Top, Width, Height, x, y) - Radius);
 
