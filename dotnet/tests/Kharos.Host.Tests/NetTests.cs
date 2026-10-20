@@ -26,6 +26,7 @@ public class NetTests
         public List<string> Refused { get; } = [];
         public bool Admin { get; private set; }
         public List<ContentChunk> Chunks { get; } = [];
+        public Action<Replica, MessageType>? Applied { get; set; }
 
         public void Pump()
         {
@@ -46,7 +47,8 @@ public class NetTests
                         Admin = Messages.ReadCommands(message).Admin;
                         break;
                 }
-                Replica.Apply(message);
+                var type = Replica.Apply(message);
+                Applied?.Invoke(Replica, type);
             }
             Replica.Inbox.Clear();
         }
@@ -61,7 +63,7 @@ public class NetTests
             client.Pump();
     }
 
-    [Fact]
+    [Fact(DisplayName = "клиент получает только то, что видит: чужую базу вдали — нет, а подошедшего врага — да")]
     public void ForeignUnitsAppearOnlyWhileSeen()
     {
         using var host = HelloGame.Create();
@@ -98,9 +100,19 @@ public class NetTests
             Drive(3);
         Assert.Equal(units, one.Units(2));
         Assert.Empty(host.Errors);
+
+        // Счёт чужого игрока не приходит никогда, свой — приходит (арена со счетами: Sighting allies).
+        using var arena = new Arena();
+        arena.Account(1, 100);
+        arena.Account(2, 200);
+        arena.Unit(1, 0.5, 0.5);
+        arena.Unit(2, 0.5, 1.5);
+        var seen = arena.Join(1);
+        arena.Step();
+        Assert.Equal([1.0], seen.With("Player").Select(account => seen.Number(account, "Player", "id")));
     }
 
-    [Fact]
+    [Fact(DisplayName = "тесный бюджет: новое приходит сразу, что на экране — чаще остального, а отложенное не застревает и догоняет")]
     public void TinyBudgetServesScreenFirstAndConverges()
     {
         using var host = HelloGame.Create();
@@ -120,6 +132,13 @@ public class NetTests
         host.Send(1, "hello.move", HelloGame.Move(-40, -30, left));
         host.Send(1, "hello.move", HelloGame.Move(40, -30, right));
         var spans = 0;
+        var updates = new Dictionary<uint, int>();
+        void Tally()
+        {
+            foreach (var move in client.Replica.Moves)
+                updates[move.Entity] = updates.GetValueOrDefault(move.Entity) + 1;
+        }
+        client.Applied = (_, type) => Tally();
         for (var tick = 0; tick < 40; tick++)
         {
             Step(session, client);
@@ -136,6 +155,13 @@ public class NetTests
         Assert.True(onScreen < offScreen, $"на экране отстают на {onScreen:0.00}, за экраном — на {offScreen:0.00}");
         Assert.True(spans > 0, "отложенные приходят со сроком сглаживания");
         Assert.True(session.Deferred > 0);
+        int Count(uint[] group) => group.Sum(e => updates.GetValueOrDefault(e));
+        Assert.True(Count(left) > Count(right), $"на экране обновлений {Count(left)}, за экраном — {Count(right)}");
+
+        // Юнит, появившийся посреди перегрузки, приходит в том же тике.
+        host.Send(1, "hello.spawn", HelloGame.Spawn(1, 0, 30, spread: 0));
+        Step(session, client);
+        Assert.Equal(304, client.Units(1).Count);
 
         // Мир замер (хост не тикает, рассылка идёт): бюджета хватает догнать всех.
         for (var tick = 0; tick < 2000 && client.Connection.Waiting > 0; tick++)
@@ -145,6 +171,9 @@ public class NetTests
         }
         Assert.Equal(0, client.Connection.Waiting);
         NetAssert.Same(host, client.Replica, client.Connection.Filter);
+        // За экраном никто не забыт: очередь дошла до каждого.
+        foreach (var entity in right)
+            Assert.True(updates.GetValueOrDefault(entity) > 0, $"{entity} за экраном не обновлялся");
         Assert.Empty(host.Errors);
     }
 

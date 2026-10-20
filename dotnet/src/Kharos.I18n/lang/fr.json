@@ -144,7 +144,8 @@
     "aboutText": "Un RTS multijoueur dans le navigateur : véhicule fondateur, carte procédurale, extraction et raffinage du minerai, logistique de fret et défense de la base.",
     "authors": "Auteurs",
     "sourceCode": "Code source",
-    "protocolVersion": "Version du protocole {version}",
+    "protocolVersion": "Version {version} · protocole {protocol}",
+    "download": "Télécharger la nouvelle version",
     "previewSize": "{width}×{height} cases",
     "previewShares": "roche {rock} % · marais {swamp} %"
   },
@@ -240,7 +241,7 @@
     "kickedYou": "Un administrateur vous a déconnecté",
     "flood": "Trop de messages",
     "tooManyNewcomers": "Trop de nouveaux joueurs ont été créés depuis votre adresse, réessayez plus tard",
-    "versionOld": "Versions différentes : le serveur a la {server}, vous la {client} — rechargez la page",
+    "versionOld": "Versions différentes : le serveur a le protocole {server}, vous le {client} — téléchargez la nouvelle version du jeu",
     "versionNew": "Versions différentes : le serveur a la {server}, vous la {client} — le serveur est plus ancien que le client et doit être mis à jour",
     "creditsNow": "{name} a maintenant {credits} crédits",
     "needPlayer": "Indiquez un joueur",

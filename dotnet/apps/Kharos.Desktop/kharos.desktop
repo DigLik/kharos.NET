@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Kharos
+Comment=RTS / Стратегия в реальном времени
+Exec=kharos
+Icon=kharos
+Terminal=false
+Categories=Game;StrategyGame;

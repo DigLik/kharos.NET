@@ -16,9 +16,17 @@ public sealed class FileStorage(string root) : IStorage
 
     public string Root { get; } = Path.GetFullPath(root);
 
-    /// <summary>Папка профиля игрока: %LOCALAPPDATA%\Kharos, ~/.local/share/Kharos, ~/Library/Application Support/Kharos.</summary>
+    /// <summary>
+    /// Папка профиля игрока: KHAROS_HOME, если задана (смоук и ручные прогоны не трогают настоящий профиль, Н7.3), иначе
+    /// %LOCALAPPDATA%\Kharos, ~/.local/share/Kharos, ~/Library/Application Support/Kharos. Читается при каждом обращении.
+    /// </summary>
     public static string ProfileDirectory =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kharos");
+        Environment.GetEnvironmentVariable(HomeVariable) is { Length: > 0 } home
+            ? Path.GetFullPath(home)
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kharos");
+
+    /// <summary>Переменная окружения, что заменяет папку профиля.</summary>
+    public const string HomeVariable = "KHAROS_HOME";
 
     public byte[]? Get(string key)
     {

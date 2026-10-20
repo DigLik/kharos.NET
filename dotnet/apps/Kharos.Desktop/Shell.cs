@@ -45,83 +45,119 @@ public static class Shell
 
     public static int Run(DesktopOptions options)
     {
-        // Платформы окон и ввода регистрируются явно: поиск по сборкам через отражение не годится для NativeAOT.
-        GlfwWindowing.RegisterPlatform();
-        GlfwInput.RegisterPlatform();
-
         var shot = options.Shot;
+        if (options.NoGpu && shot is not null)
+        {
+            DesktopLog.Write("KHAROS_GPU=none: снимку и записи нужен рендер");
+            return 1;
+        }
+        SmokeRunner? smoke = null;
+        if (options.Smoke is { } smokeOptions)
+        {
+            // Смоук не трогает настоящий профиль: без KHAROS_HOME — временный.
+            SmokeRunner.IsolateProfile();
+            smoke = SmokeRunner.Load(smokeOptions, options);
+            if (smoke is null)
+                return 2;
+        }
         // Снимок — без следов в профиле игрока: хранилище в памяти.
         IStorage storage = shot is null ? new FileStorage(Path.Combine(FileStorage.ProfileDirectory, "storage")) : new MemoryStorage();
         var prefs = new ShellPrefs(storage);
-        var windowOptions = WindowOptions.Default with
-        {
-            Title = "Kharos",
-            Size = shot is null ? new Vector2D<int>(1280, 800) : new Vector2D<int>(shot.Size.Width, shot.Size.Height),
-            API = GraphicsAPI.None,
-            VSync = shot is null && prefs.VSync,
-            IsVisible = shot is null,
-            WindowBorder = WindowBorder.Resizable,
-        };
-        using var window = Window.Create(windowOptions);
-        window.Initialize();
+        var visible = options.Visible;
         var input = new InputMap();
-        using var context = window.CreateInput();
-        input.Attach(context);
-        window.FocusChanged += focused =>
-        {
-            input.Focused = focused;
-            if (!focused)
-                input.ReleaseAll();
-        };
-
-        using var gpu = GpuContext.CreateForWindow(window, vsync: shot is null && prefs.VSync);
-        DesktopLog.Write($"видеокарта: {gpu.AdapterName}, {gpu.Backend}");
-        using var renderer = new Renderer(gpu);
-
-        AudioEngine? audio = null;
-        OpenAlOutput? output = null;
-        if (options.Record is not null)
-            audio = options.Audio ? RecordSession.CreateAudio() : null; // запись: звук без устройства, его рендерит запись
-        else if (options.Audio)
-        {
-            audio = new AudioEngine();
-            output = OpenAlOutput.TryOpen(audio, out var audioError);
-            if (output is null)
-            {
-                DesktopLog.Write($"звука не будет: {audioError}");
-                audio = null;
-            }
-        }
-
-        using var fonts = Fonts.Load();
-        var launcher = new DesktopLauncher(options, fonts, audio, storage);
-        var app = new ShellApp(new ShellAppOptions
-        {
-            Fonts = fonts, Storage = storage, Launcher = launcher, Audio = audio, Log = DesktopLog.Write,
-            SystemLang = CultureInfo.CurrentUICulture.Name is { Length: > 0 } culture ? culture : Environment.GetEnvironmentVariable("LANG"),
-        });
-        launcher.Lang = () => app.Lang;
-        if (input.Clipboard is { } clipboard)
-            app.Clipboard = clipboard;
-        app.OnFullscreen = on => window.WindowState = on ? WindowState.Fullscreen : WindowState.Normal;
-        app.Menu.OpenUrl = OpenUrl;
-        app.Menu.ExportFile = ExportFile;
-        app.Background = ShowcaseFor(options, launcher);
-        app.Recording = options.Record is not null;
-        if (shot is null && prefs.Fullscreen)
-            window.WindowState = WindowState.Fullscreen;
+        IWindow? window = null;
+        IInputContext? context = null;
+        GpuContext? gpu = null;
+        Renderer? renderer = null;
         try
         {
-            if (!Begin(options, app))
-                return 1;
-            using var recorder = options.Record is { } record ? new RecordSession(record, audio) : null;
-            return Loop(options, window, input, renderer, app, recorder);
+            if (!options.NoGpu)
+            {
+                // Платформы окон и ввода регистрируются явно: поиск по сборкам через отражение не годится для NativeAOT.
+                GlfwWindowing.RegisterPlatform();
+                GlfwInput.RegisterPlatform();
+                (int Width, int Height) size = shot is not null ? shot.Size : smoke is not null ? DesktopOptions.FrameSize() : (1280, 800);
+                var windowOptions = WindowOptions.Default with
+                {
+                    Title = "Kharos",
+                    Size = new Vector2D<int>(size.Width, size.Height),
+                    API = GraphicsAPI.None,
+                    VSync = visible && prefs.VSync,
+                    // Снимок, запись и смоук — в невидимом окне (KHAROS_HIDDEN=1 — так же для ручного прогона).
+                    IsVisible = visible,
+                    WindowBorder = WindowBorder.Resizable,
+                };
+                window = Window.Create(windowOptions);
+                window.Initialize();
+                context = window.CreateInput();
+                input.Attach(context);
+                window.FocusChanged += focused =>
+                {
+                    input.Focused = focused;
+                    if (!focused)
+                        input.ReleaseAll();
+                };
+                gpu = GpuContext.CreateForWindow(window, vsync: visible && prefs.VSync);
+                DesktopLog.Write($"видеокарта: {gpu.AdapterName}, {gpu.Backend}");
+                renderer = new Renderer(gpu);
+            }
+            else
+                DesktopLog.Write("KHAROS_GPU=none: окна и рендера нет, кадры по таймеру");
+
+            AudioEngine? audio = null;
+            OpenAlOutput? output = null;
+            if (options.Record is not null)
+                audio = options.Audio ? RecordSession.CreateAudio() : null; // запись: звук без устройства, его рендерит запись
+            else if (options.Audio && smoke is null)
+            {
+                // Смоук звука не играет.
+                audio = new AudioEngine();
+                output = OpenAlOutput.TryOpen(audio, out var audioError);
+                if (output is null)
+                {
+                    DesktopLog.Write($"звука не будет: {audioError}");
+                    audio = null;
+                }
+            }
+
+            using var fonts = Fonts.Load();
+            var launcher = new DesktopLauncher(options, fonts, audio, storage);
+            var app = new ShellApp(new ShellAppOptions
+            {
+                Fonts = fonts, Storage = storage, Launcher = launcher, Audio = audio, Log = DesktopLog.Write,
+                SystemLang = CultureInfo.CurrentUICulture.Name is { Length: > 0 } culture ? culture : Environment.GetEnvironmentVariable("LANG"),
+            });
+            launcher.Lang = () => app.Lang;
+            if (input.Clipboard is { } clipboard)
+                app.Clipboard = clipboard;
+            if (window is not null)
+                app.OnFullscreen = on => window.WindowState = on ? WindowState.Fullscreen : WindowState.Normal;
+            app.Menu.OpenUrl = OpenUrl;
+            app.Menu.ExportFile = ExportFile;
+            app.Background = ShowcaseFor(options, launcher);
+            app.Recording = options.Record is not null;
+            if (visible && prefs.Fullscreen && window is not null)
+                window.WindowState = WindowState.Fullscreen;
+            try
+            {
+                if (!Begin(options, app))
+                    return 1;
+                using var recorder = options.Record is { } record ? new RecordSession(record, audio) : null;
+                return Loop(options, window, input, renderer, app, recorder, smoke);
+            }
+            finally
+            {
+                // Партия закрывается первой (с сохранением слота), потом звук.
+                app.Dispose();
+                output?.Dispose();
+            }
         }
         finally
         {
-            // Партия закрывается первой (с сохранением слота), потом звук.
-            app.Dispose();
-            output?.Dispose();
+            renderer?.Dispose();
+            gpu?.Dispose();
+            context?.Dispose();
+            window?.Dispose();
         }
     }
 
@@ -185,17 +221,28 @@ public static class Shell
         _ => null,
     };
 
-    private static int Loop(DesktopOptions options, IWindow window, InputMap input, Renderer renderer, ShellApp app, RecordSession? recorder)
+    /// <summary>Сколько ждать первого показанного кадра витрины в снимке её сценки; дольше — снимок как есть.</summary>
+    private static readonly TimeSpan ShowcaseLimit = TimeSpan.FromSeconds(SmokeRunner.ShowcaseLimit);
+
+    /// <summary>Витрина меню показала кадр: партия фона встала и затемнение сошло до показа слайда (или фона нет).</summary>
+    internal static bool ShowcaseShown(ShellApp app) =>
+        app.Session is not null || app.Background is not { } background || (background.Ready && background.Veil <= ShowcaseBackground.Shown + 0.02f);
+
+    private static int Loop(DesktopOptions options, IWindow? window, InputMap input, Renderer? renderer, ShellApp app, RecordSession? recorder, SmokeRunner? smoke)
     {
         var clock = Stopwatch.StartNew();
         var shot = options.Shot;
         var frames = 0;
+        // Кадры ожидания витрины: часы снимка (KHAROS_CLOCK=fixed) идут и в них, иначе затемнение слайда не сойдёт.
+        var held = 0;
+        var showcaseLate = false;
         var last = 0.0;
-        while (!window.IsClosing)
+        var headless = DesktopOptions.FrameSize();
+        while (window is null || !window.IsClosing)
         {
-            window.DoEvents();
-            var buffer = window.FramebufferSize;
-            var size = window.Size;
+            window?.DoEvents();
+            var buffer = window?.FramebufferSize ?? new Vector2D<int>(headless.Width, headless.Height);
+            var size = window?.Size ?? buffer;
             if (buffer.X <= 0 || buffer.Y <= 0 || size.X <= 0 || size.Y <= 0)
             {
                 // Окно свёрнуто: рисовать некуда.
@@ -204,30 +251,47 @@ public static class Shell
             }
             // Окно → физические: кадровый буфер (на Retina он вдвое больше окна). Физические → логические: масштаб.
             var toPhysical = (float)buffer.X / size.X;
-            var scale = options.Scale ?? (shot is not null ? 1 : app.Prefs.Scale > 0 ? app.Prefs.Scale : Math.Max(toPhysical > 1.001f ? toPhysical : Dpi.Of(window), 1));
+            var scale = options.Scale ?? (window is null || !options.Visible ? 1 : app.Prefs.Scale > 0 ? app.Prefs.Scale : Math.Max(toPhysical > 1.001f ? toPhysical : Dpi.Of(window), 1));
             var toLogical = toPhysical / scale;
             if (shot?.Pointer is { } at)
                 input.PlacePointer(at.X / toLogical, at.Y / toLogical);
 
-            // Снимок: партия считается от готовности (хост поднимается в своём потоке), меню — сразу.
-            var waiting = app.Session is { State: SessionState.Connecting } || (shot is not null && app.Background is { Ready: false });
-            renderer.Resize(buffer.X, buffer.Y);
+            // Снимок: партия считается от готовности (хост поднимается в своём потоке), меню — сразу, витрина — с первого
+            // показанного кадра (не дольше ShowcaseLimit).
+            var showcase = shot is not null && !showcaseLate && !ShowcaseShown(app);
+            if (showcase && clock.Elapsed > ShowcaseLimit)
+            {
+                DesktopLog.Write($"снимок: витрина не показалась за {ShowcaseLimit.TotalSeconds} с — снимаю как есть");
+                (showcaseLate, showcase) = (true, false);
+            }
+            var waiting = app.Session is { State: SessionState.Connecting } || showcase;
+            renderer?.Resize(buffer.X, buffer.Y);
             if (recorder is not null && !waiting)
                 recorder.Before(app, frames);
-            var time = shot is { FixedClock: true } ? frames * (options.Record is { } rec ? 1.0 / rec.Fps : ShotFrameSeconds) : clock.Elapsed.TotalSeconds;
-            var frame = app.Step(input.Take(time, buffer.X / scale, buffer.Y / scale, scale, toLogical));
-            app.Upload(renderer);
-            renderer.Render(frame);
+            var time = shot is { FixedClock: true } ? (frames + held) * (options.Record is { } rec ? 1.0 / rec.Fps : ShotFrameSeconds) : clock.Elapsed.TotalSeconds;
+            var frameInput = input.Take(time, buffer.X / scale, buffer.Y / scale, scale, toLogical);
+            if (smoke is not null)
+                frameInput = smoke.Input(frameInput);
+            var frame = app.Step(frameInput);
+            if (renderer is not null)
+            {
+                app.Upload(renderer);
+                renderer.Render(frame);
+            }
             Probe?.Invoke(app);
-            if (recorder is not null && !waiting && recorder.After(renderer, frames))
+            if (smoke?.After(app, renderer) is { } code)
+                return code;
+            if (recorder is not null && renderer is not null && !waiting && recorder.After(renderer, frames))
             {
                 recorder.Finish();
                 return 0;
             }
             if (!waiting)
                 frames++;
+            else if (showcase)
+                held++;
 
-            if (shot is not null)
+            if (shot is not null && renderer is not null)
             {
                 if (app.Session is { State: SessionState.Failed or SessionState.Password } failed)
                 {
@@ -257,10 +321,11 @@ public static class Shell
                     Thread.Sleep(5);
                 continue;
             }
-            // Предел кадров из настроек: остаток кадра — сон.
-            if (app.Prefs.FpsLimit > 0)
+            // Предел кадров: из настроек; без окна, в скрытом окне и в смоуке — 60 в секунду (кадры по таймеру).
+            var limit = options.Visible ? app.Prefs.FpsLimit : 60;
+            if (limit > 0)
             {
-                var period = 1.0 / app.Prefs.FpsLimit;
+                var period = 1.0 / limit;
                 var rest = last + period - clock.Elapsed.TotalSeconds;
                 if (rest > 0.001)
                     Thread.Sleep(TimeSpan.FromSeconds(rest));
@@ -402,6 +467,18 @@ internal sealed class LocalSession : IGameSession
     /// <summary>Запись роликов: довести хост до тика (ручной ход).</summary>
     public void Advance(long ticks) => _local?.Advance(ticks);
 
+    /// <summary>
+    /// Смоук (save): остановить хост и снять мир между тиками; партия после этого стоит — её заменяет партия слота.
+    /// Хоста нет или он упал — null.
+    /// </summary>
+    public byte[]? StopAndSave()
+    {
+        if (_local is not { } local || Game is null)
+            return null;
+        local.Stop();
+        return local.Host is { } host && local.Failure is null ? host.Save() : null;
+    }
+
     public void Poll()
     {
         if (State == SessionState.Failed)
@@ -487,6 +564,7 @@ internal sealed class NetSession : IGameSession
     public string? Status { get; private set; }
     public string? Error { get; private set; }
     public bool WrongPassword { get; private set; }
+    public bool VersionMismatch { get; private set; }
     public ClientGame? Game { get; private set; }
 
     private void Connect()
@@ -541,6 +619,7 @@ internal sealed class NetSession : IGameSession
         if (!connector.Ready)
         {
             var reason = connector.Refused ?? connector.Failure ?? (connector.Transport is WebSocketTransport socket ? NetGame.Describe(socket) : null) ?? _launcher.T("errors.lost");
+            VersionMismatch = connector.VersionMismatch;
             connector.Transport.Dispose();
             Fail(reason);
             return;

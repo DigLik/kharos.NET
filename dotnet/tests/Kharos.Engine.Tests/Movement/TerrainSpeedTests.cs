@@ -46,10 +46,7 @@ public sealed class TerrainSpeedTests
         Assert.Equal(0.5, Speed(softer, "truck", swamp), 9);
     }
 
-    [Fact(DisplayName = "на солончаках болото промёрзло и вязнут меньше, в красных пустошах оно жжёт наземных", Skip = "ждёт С5: урон местности (harm) — в бою мода; доли скорости — в соседнем тесте")]
-    public void FrozenAndToxic()
-    {
-    }
+    // «Болото жжёт наземных в красных пустошах» (вторая половина terrainSpeed.test.ts) — в Base.Tests/Sim/Movement: урон местности ведёт мод base.
 
     [Fact(DisplayName = "на солончаках болото промёрзло: колёса вязнут меньше, в красных пустошах — как в болоте")]
     public void FrozenSwamp()

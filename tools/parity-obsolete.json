@@ -1,0 +1,94 @@
+[
+  {
+    "file": "ecs.test.ts",
+    "reason": "ECS TS (packages/ecs) не переносится: мир движка .NET — GameWorld, покрыт в Н1 (Kharos.Engine.Tests/World: схема, запросы, планировщик, WorldSave)"
+  },
+  {
+    "file": "components.test.ts",
+    "reason": "Rust: список компонентов по умолчанию для крейта Rust; в .NET компоненты объявляют моды (Kharos.Content, Kharos.Engine.Tests/World)"
+  },
+  {
+    "file": "landRust.test.ts",
+    "reason": "Rust: сверка земли TS с крейтом Rust; в .NET земля одна (Kharos.Engine/Terrain), сверка с TS по эталонам — Terrain/LandGoldenTests"
+  },
+  {
+    "file": "mods.test.ts",
+    "title": "мод подписывается на событие, получает его данные и зовёт функции хоста",
+    "reason": "Luau-мод TS не переносится; подписку на событие и ответ мода покрывает HelloModTests.EventHandlerAnswersWithSignal (Kharos.Plugins.Tests)"
+  },
+  {
+    "file": "mods.test.ts",
+    "title": "значения ходят в обе стороны как в JSON: числа, строки, массивы, словари, nil",
+    "reason": "Luau: значения ходят JSON-ом; у модов .NET — ABI и MemoryPack, покрыто CommandBufferTests и HelloModTests.SpawnOrderWritesCommandsInEngineFormat (Kharos.Plugins.Tests)"
+  },
+  {
+    "file": "mods.test.ts",
+    "title": "песочница: нет os, io, require и загрузки кода, библиотеки и kharos не правятся, данные события тоже",
+    "reason": "Luau: песочница с os, io, require; у Wasm-мода песочница — Wasmtime без WASI, покрыта GameSandboxTests.ForbiddenImportIsRejected, ImportedMemoryIsRejected, GameImportsHaveNoClockOfHost (Kharos.Plugins.Tests)"
+  },
+  {
+    "file": "mods.test.ts",
+    "title": "бесконечный цикл кончается по сроку, и pcall его не спасает; машина после этого работает",
+    "reason": "Luau: срок цикла; срок вызова Wasm-мода (прерывание, три нарушения выключают мод) покрыт HelloModTests.EndlessOrderIsInterruptedAndModDisabledAfterThreeStrikes и GrowingPayloadAfterPauseIsNotATimeout (Kharos.Plugins.Tests)"
+  },
+  {
+    "file": "mods.test.ts",
+    "title": "предел памяти: скрипт, который копит строки, получает ошибку памяти, а машина живёт",
+    "reason": "Luau: предел памяти машины; предел памяти Wasm-мода покрыт HelloModTests.MemoryLimitIsEnforced (Kharos.Plugins.Tests)"
+  },
+  {
+    "file": "mods.test.ts",
+    "title": "глубокая вложенность кода — ошибка компиляции, а не падение",
+    "reason": "Luau: глубина вложенности при компиляции; негодный модуль Wasm отвергается при загрузке, покрыто GameSandboxTests.ModuleWithoutAbiIsRejected (Kharos.Plugins.Tests)"
+  },
+  {
+    "file": "mods.test.ts",
+    "title": "ошибка в функции хоста приходит скрипту с местом вызова, ошибка подписчика не мешает другим",
+    "reason": "Luau: ошибки хоста скрипту; у Wasm-мода ошибки приходят кодами, покрыто HelloModTests.ErrorsComeBackAsCodes и ClrModuleTests.ModErrorsComeBackAsCodes (Kharos.Plugins.Tests)"
+  },
+  {
+    "file": "mods.test.ts",
+    "title": "моды: аргументы проверяются по схеме, превысивший срок трижды выключается",
+    "reason": "Luau: проверка аргументов по схеме и отключение после трёх превышений срока; отключение — HelloModTests.EndlessOrderIsInterruptedAndModDisabledAfterThreeStrikes, негодные буферы — CommandBufferTests.DecoderRejectsBrokenBuffers (Kharos.Plugins.Tests)"
+  },
+  {
+    "file": "mods.test.ts",
+    "title": "хост раздаёт модам события мира, и мод пишет в чат от имени сервера",
+    "reason": "Luau: события мира и чат от имени сервера через Lua-API; у .NET события и чат модов покрыты Kharos.Host.Tests (HostApiTests, ChatTests)"
+  },
+  {
+    "file": "mods.test.ts",
+    "title": "описания типов для мододелов совпадают со схемой (bun tools/modapi.ts)",
+    "reason": "Luau: описания типов для мододелов (tools/modapi.ts); у .NET SDK модов — типизированный Kharos.Mod.Sdk, схему проверяет Kharos.Host.Tests/SchemaContentTests"
+  },
+  {
+    "file": "local.test.ts",
+    "title": "две вкладки локальной игры видят один мир и играют за одного игрока",
+    "reason": "вкладки браузера: общий локальный сервер для нескольких вкладок и воркер не переносятся (Н7, решение Р8); в .NET одиночная игра — LocalGame на один клиент"
+  },
+  {
+    "file": "local.test.ts",
+    "title": "новый мир получают все вкладки: копии сбрасываются, а не смешивают старое с новым",
+    "reason": "вкладки браузера: уход вкладки и воркер не переносятся (Р8); уход в .NET — LocalSession.Leave с сохранением в слот"
+  },
+  {
+    "file": "local.test.ts",
+    "title": "уходящая вкладка получает последнее сохранение, а без вкладок мир стоит",
+    "reason": null
+  },
+  {
+    "file": "local.test.ts",
+    "title": "вошедший в слот без игроков получает мир из своего сохранения, а не оставшийся в воркере; reload подменяет мир играющим",
+    "reason": null
+  },
+  {
+    "file": "serverSettings.test.ts",
+    "title": "tls: имя sslip.io по IP и срок продления",
+    "reason": "tls: имя sslip.io по IP и срок продления нужны режиму tls auto, а он в .NET не поддержан (режимы off и files; TlsTests, ServerTests.TlsAutoIsRefusedClearly)"
+  },
+  {
+    "file": "sim.test.ts",
+    "title": "снимок мира берёт только перечисленные компоненты и не делит данные с миром",
+    "reason": "ECS TS (World.snapshot): в движке .NET снимок — WorldSave (Kharos.Engine.Tests/World), покрыто в Н1"
+  }
+]

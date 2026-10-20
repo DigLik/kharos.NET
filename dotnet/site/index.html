@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kharos</title>
+<meta name="description" content="Kharos: RTS with mods. Download for Windows and Linux, run your own server.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<!-- data-repo: единственное место с владельцем репозитория; CI подставляет ${{ github.repository }} -->
+<body data-repo="DigLik/kharos.NET">
+<a class="skip" href="#main"><span data-l="ru">К содержимому</span><span data-l="en">Skip to content</span></a>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="favicon.png" alt="" width="32" height="32"><span>Kharos</span></a>
+    <nav class="lang" aria-label="Language / Язык">
+      <a href="#ru" hreflang="ru" lang="ru" data-set-lang="ru">RU</a>
+      <a href="#en" hreflang="en" lang="en" data-set-lang="en">EN</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <section id="hero">
+    <h1 id="top">Kharos</h1>
+    <p class="lead" data-l="ru">Стратегия в реальном времени с модами. Игра и сервер на .NET: скачайте архив, распакуйте и запустите.</p>
+    <p class="lead" data-l="en">A real-time strategy game with mods. Game and server run on .NET: download the archive, unpack it and launch.</p>
+  </section>
+
+  <section id="download" aria-labelledby="h-dl">
+    <h2 id="h-dl"><span data-l="ru">Скачать игру</span><span data-l="en">Download the game</span></h2>
+    <p class="detected" id="detected" aria-live="polite"></p>
+    <ul class="dl" id="game-list">
+      <li><a class="btn" data-file="kharos-win-x64.zip" data-os="win-x64" href="#download"><span class="name">kharos-win-x64.zip</span><span>Windows 10+ x64</span></a></li>
+      <li><a class="btn" data-file="kharos-linux-x64.tar.gz" data-os="linux-x64" href="#download"><span class="name">kharos-linux-x64.tar.gz</span><span>Linux x64</span></a></li>
+      <li><a class="btn" data-file="kharos-linux-arm64.tar.gz" data-os="linux-arm64" href="#download"><span class="name">kharos-linux-arm64.tar.gz</span><span>Linux arm64</span></a></li>
+    </ul>
+    <p data-l="ru">macOS пока не поддерживается.</p>
+    <p data-l="en">macOS is not supported yet.</p>
+    <noscript><p>JavaScript is required for file links / нужен JavaScript для ссылок: <a href="https://github.com/DigLik/kharos.NET/releases/latest">releases</a>.</p></noscript>
+  </section>
+
+  <section id="requirements" aria-labelledby="h-req">
+    <h2 id="h-req"><span data-l="ru">Требования</span><span data-l="en">Requirements</span></h2>
+    <ul>
+      <li data-l="ru"><strong>Windows:</strong> Windows 10 или новее, x64.</li>
+      <li data-l="en"><strong>Windows:</strong> Windows 10 or newer, x64.</li>
+      <li data-l="ru"><strong>Linux:</strong> glibc 2.35 или новее (Ubuntu 22.04+), x64 или arm64; Vulkan (<code>mesa-vulkan-drivers</code> или драйвер видеокарты); X11 или XWayland; ALSA (<code>libasound2</code>) или PulseAudio.</li>
+      <li data-l="en"><strong>Linux:</strong> glibc 2.35 or newer (Ubuntu 22.04+), x64 or arm64; Vulkan (<code>mesa-vulkan-drivers</code> or a GPU driver); X11 or XWayland; ALSA (<code>libasound2</code>) or PulseAudio.</li>
+    </ul>
+  </section>
+
+  <section id="unsigned" aria-labelledby="h-uns">
+    <h2 id="h-uns"><span data-l="ru">Сборки без подписи</span><span data-l="en">Unsigned builds</span></h2>
+    <div data-l="ru">
+      <p>Сборки не подписаны. Windows SmartScreen покажет «Неизвестный издатель»: нажмите <strong>Подробнее</strong>, затем <strong>Выполнить в любом случае</strong>.</p>
+      <p>Чтобы проверить файл, скачайте <a data-file="SHA256SUMS.txt" href="#download">SHA256SUMS.txt</a> в ту же папку и сверьте сумму:</p>
+    </div>
+    <div data-l="en">
+      <p>The builds are not signed. Windows SmartScreen shows “Unknown publisher”: click <strong>More info</strong>, then <strong>Run anyway</strong>.</p>
+      <p>To verify a file, download <a data-file="SHA256SUMS.txt" href="#download">SHA256SUMS.txt</a> into the same folder and compare the hash:</p>
+    </div>
+<pre><code># Linux
+sha256sum -c --ignore-missing SHA256SUMS.txt
+# Windows PowerShell
+(Get-FileHash .\kharos-win-x64.zip -Algorithm SHA256).Hash
+# compare with the matching line in SHA256SUMS.txt</code></pre>
+  </section>
+
+  <section id="server" aria-labelledby="h-srv">
+    <h2 id="h-srv"><span data-l="ru">Свой сервер</span><span data-l="en">Your own server</span></h2>
+    <p data-l="ru">Сервер только для Linux (x64 или arm64):</p>
+    <p data-l="en">The server is Linux only (x64 or arm64):</p>
+    <ul class="dl" id="server-list">
+      <li><a class="btn" data-file="kharos-server-linux-x64.tar.gz" data-os="linux-x64" href="#server"><span class="name">kharos-server-linux-x64.tar.gz</span><span>Linux x64</span></a></li>
+      <li><a class="btn" data-file="kharos-server-linux-arm64.tar.gz" data-os="linux-arm64" href="#server"><span class="name">kharos-server-linux-arm64.tar.gz</span><span>Linux arm64</span></a></li>
+    </ul>
+    <p data-l="ru">Или из консоли (для arm64 замените <code>x64</code> на <code>arm64</code>):</p>
+    <p data-l="en">Or from a shell (for arm64 replace <code>x64</code> with <code>arm64</code>):</p>
+<pre><code>curl -LO <span class="url" data-url="kharos-server-linux-x64.tar.gz">https://github.com/DigLik/kharos.NET/releases/latest/download/kharos-server-linux-x64.tar.gz</span>
+tar xzf kharos-server-linux-x64.tar.gz
+cd kharos-server-*-linux-x64
+PORT=8787 ./kharos-server</code></pre>
+    <p data-l="ru">Архив распаковывается в папку <code>kharos-server-&lt;версия&gt;-linux-x64</code>. Настройки — <code>settings.json</code> в текущей папке (создаётся при первом запуске; другой путь — <code>--settings</code> или переменная <code>SETTINGS</code>): порт, мод, правила партии. Порт также задаётся переменной <code>PORT</code>. <code>./kharos-server --version</code> печатает версии сборки и протокола; клиент и сервер должны быть из одного релиза.</p>
+    <p data-l="en">The archive extracts to a <code>kharos-server-&lt;version&gt;-linux-x64</code> folder. Settings are in <code>settings.json</code> in the current folder (created on first start; another path via <code>--settings</code> or the <code>SETTINGS</code> variable): port, mod, match rules. The port can also be set with the <code>PORT</code> variable. <code>./kharos-server --version</code> prints the build and protocol versions; the client and server should come from the same release.</p>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><a id="src-link" href="https://github.com/DigLik/kharos.NET"><span data-l="ru">Исходный код на GitHub</span><span data-l="en">Source code on GitHub</span></a>
+    · <a id="rel-link" href="https://github.com/DigLik/kharos.NET/releases"><span data-l="ru">Все релизы</span><span data-l="en">All releases</span></a></p>
+    <p data-l="ru">Шрифт Ark Pixel © 2021 TakWolf, лицензия SIL OFL 1.1 (<a href="fonts/OFL.txt">текст</a>).</p>
+    <p data-l="en">Ark Pixel font © 2021 TakWolf, SIL OFL 1.1 license (<a href="fonts/OFL.txt">text</a>).</p>
+  </div>
+</footer>
+<script src="site.js"></script>
+</body>
+</html>

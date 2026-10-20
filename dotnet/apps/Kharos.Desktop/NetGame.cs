@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Kharos.Client.Game;
 using Kharos.Client.Net;
+using Kharos.Client.Shell;
 using Kharos.Content;
 using Kharos.Protocol;
 
@@ -69,7 +70,7 @@ internal static class NetGame
     public static readonly TimeSpan EnterTimeout = TimeSpan.FromMinutes(3);
 
     /// <summary>Кэш модов, присланных серверами, — рядом с журналом.</summary>
-    public static string CacheDirectory { get; } = Path.Combine(Path.GetDirectoryName(DesktopLog.FilePath)!, "mods");
+    public static string CacheDirectory => Path.Combine(FileStorage.ProfileDirectory, "mods");
 
     /// <summary>Свои моды: годятся, если совпали с серверными по хешу; не читаются — не беда, придут с сервера.</summary>
     public static List<ModPackage> LocalMods(DesktopOptions options)
@@ -107,14 +108,14 @@ internal static class NetGame
 }
 
 /// <summary>
-/// Токены игрока по адресам серверов, в servers.json рядом с журналом (<c>%LOCALAPPDATA%\Kharos</c> на Windows,
+/// Токены игрока по адресам серверов, в servers.json рядом с журналом (KHAROS_HOME или <c>%LOCALAPPDATA%\Kharos</c> на Windows,
 /// <c>~/.local/share/Kharos</c> на Linux, <c>~/Library/Application Support/Kharos</c> на macOS). Сервер узнаёт игрока
 /// по токену и отдаёт прежнего. Первый раз клиент заводит токен сам (сервер принимает его как нового игрока); токен из
 /// приветствия запоминается (<see cref="Remember"/>, NetGame.Enter) — если сервер выдал свой, дальше идёт он.
 /// </summary>
 internal sealed class PlayerTokens
 {
-    public static string FilePath { get; } = Path.Combine(Path.GetDirectoryName(DesktopLog.FilePath)!, "servers.json");
+    public static string FilePath => Path.Combine(FileStorage.ProfileDirectory, "servers.json");
 
     private ServersFile _file = Read();
 

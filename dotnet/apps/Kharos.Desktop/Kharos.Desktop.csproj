@@ -17,9 +17,23 @@
     <IlcTreatWarningsAsErrors>false</IlcTreatWarningsAsErrors>
     <NoWarn>$(NoWarn);IL2104;IL3053;IL3000;IL3002</NoWarn>
   </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>kharos.ico</ApplicationIcon>
+    <!-- На публикации — только base (Н7-6); обычная сборка берёт все моды (hello нужен тестам). -->
+    <KharosShipMods Condition="'$(KharosShipMods)' == '' and '$(_IsPublishing)' == 'true'">base</KharosShipMods>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(_IsPublishing)' == 'true' and !$(RuntimeIdentifier.StartsWith('win'))">
+    <!-- Значок и ярлык Linux кладутся в архив рядом с программой. -->
+    <None Include="kharos.desktop;kharos.png" CopyToPublishDirectory="PreserveNewest" CopyToOutputDirectory="Never" />
+  </ItemGroup>
   <ItemGroup>
     <!-- Моды рядом с программой: mod.json, data/*.json, schema/*.json (компоненты — без них хосту base нечего объявлять), i18n/*.json (словари мода, Н6-5) и wasm (после tools/build-mods.ps1); исходники и сборки не берутся. -->
     <ModFile Include="..\..\mods\*\mod.json;..\..\mods\*\*.wasm;..\..\mods\*\data\*.json;..\..\mods\*\schema\*.json;..\..\mods\*\i18n\*.json" />
+    <!-- Публикация (Н7-6): только моды из KharosShipMods (по умолчанию base); hello — пример в репозитории, в сборки не идёт. -->
+    <_ShipMod Include="$(KharosShipMods)" Condition="'$(KharosShipMods)' != ''" />
+    <_AllMod Include="$([System.IO.Directory]::GetDirectories('$(MSBuildProjectDirectory)\..\..\mods'))" Condition="'$(KharosShipMods)' != ''" />
+    <_SkipMod Include="@(_AllMod->'%(Filename)')" Exclude="@(_ShipMod)" />
+    <ModFile Remove="@(_SkipMod->'..\..\mods\%(Identity)\**')" />
     <None Include="@(ModFile)" Link="mods\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>

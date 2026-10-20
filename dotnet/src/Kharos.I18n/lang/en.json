@@ -144,7 +144,8 @@
     "aboutText": "A multiplayer browser RTS: a founding vehicle, a procedural map, mining and refining ore, cargo logistics and base defence.",
     "authors": "Authors",
     "sourceCode": "Source code",
-    "protocolVersion": "Protocol version {version}",
+    "protocolVersion": "Version {version} · protocol {protocol}",
+    "download": "Download the new version",
     "previewSize": "{width}×{height} tiles",
     "previewShares": "rock {rock}% · swamps {swamp}%"
   },
@@ -240,7 +241,7 @@
     "kickedYou": "An administrator disconnected you",
     "flood": "Too many messages",
     "tooManyNewcomers": "Too many new players have been created from your address, try again later",
-    "versionOld": "Version mismatch: the server has {server}, you have {client} — reload the page",
+    "versionOld": "Version mismatch: the server has protocol {server}, you have {client} — download the new version of the game",
     "versionNew": "Version mismatch: the server has {server}, you have {client} — the server is older than the client and needs an update",
     "creditsNow": "{name} now has {credits} credits",
     "needPlayer": "Specify a player",

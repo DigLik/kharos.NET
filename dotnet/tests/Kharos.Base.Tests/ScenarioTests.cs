@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using Base.Shared.Orders;
 using Kharos.Content;
 using Kharos.Engine.World;
 using KHost = Kharos.Host.Host;
@@ -37,7 +38,7 @@ public class ScenarioTests
         return WorldSave.Save(host.World);
     }
 
-    [Fact(Skip = "ждёт Б1")]
+    [Fact]
     public void SameSeedGivesIdenticalWorldBytes()
     {
         Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);
@@ -47,35 +48,53 @@ public class ScenarioTests
         Assert.True(first.Length > 1000);
     }
 
-    [Fact(Skip = "ждёт Б1")]
+    [Fact]
     public void RulesComeFromDataSoAnotherModCanTuneThem()
     {
         Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);
-        // Мод без кода правит данные: багги медленнее и дешевле, больше стартовых юнитов и кредитов.
+        // Мод без кода правит данные: багги медленнее, грузовик дешевле и быстрее в постройке, стартовый набор — четыре багги, другие кредиты.
         var tweak = new ModPackage("tweak",
             """{ "name": "tweak", "version": "1", "requires": ["base"] }"""u8,
             new Dictionary<string, byte[]>
             {
-                ["units"] = Encoding.UTF8.GetBytes("""{ "buggy": { "speed": 2.5, "cost": 100, "time": 2 } }"""),
-                ["games"] = Encoding.UTF8.GetBytes("""{ "skirmish": { "credits": 400, "start": { "buggy": 4 } } }"""),
+                ["units"] = Encoding.UTF8.GetBytes("""{ "buggy": { "speed": 2.5 }, "truck": { "cost": 100, "buildTime": 2 } }"""),
+                ["games"] = Encoding.UTF8.GetBytes("""{ "skirmish": { "credits": 400, "units": ["buggy", "buggy", "buggy", "buggy"] } }"""),
             });
         using var host = BaseGame.Create(content: GameContent.Load([ModPackage.Read(BaseGame.ModDir), tweak]));
         host.Start();
         host.Join(1);
         var units = BaseGame.Units(host, 1);
         Assert.Equal(4, units.Count);
-        Assert.All(units, e => Assert.Equal(2.5, BaseGame.Num(host, e, "Drive", "speed")));
+        Assert.All(units, e => Assert.Equal(2.5, BaseGame.Num(host, e, "Mover", "speed")));
         Assert.Equal(400, BaseGame.Credits(host, 1));
-        var factory = BaseGame.Factory(host, 1);
-        BaseGame.Produce(host, 1, factory);
+        // Главное здание правкой редактора рядом с багги: заказ грузовика списывает цену из мода, грузовик выходит за его время.
+        var (x, y) = BaseGame.At(host, units[0]);
+        var command = PutBuilding(host, "command", x, y);
+        var credits = BaseGame.Credits(host, 1);
+        BaseGame.Produce(host, 1, command, "truck");
         BaseGame.Step(host);
-        Assert.Equal(300, BaseGame.Credits(host, 1));
-        BaseGame.Run(host, BaseGame.TicksFor(2) - 1);
+        Assert.Equal(credits - 100, BaseGame.Credits(host, 1));
+        BaseGame.Run(host, BaseGame.TicksFor(2) + 2);
         Assert.Equal(5, BaseGame.Units(host, 1).Count);
         Assert.Empty(host.Errors);
     }
 
-    [Fact(Skip = "ждёт Б1")]
+    /// <summary>Здание игрока 1 у точки (x, y): правка редактора пробует места по кругу, пока не встанет.</summary>
+    private static uint PutBuilding(KHost host, string type, double x, double y)
+    {
+        var before = BaseGame.With(host, "Building").ToHashSet();
+        for (var r = 6; r <= 30; r += 3)
+            foreach (var (dx, dy) in new (int, int)[] { (r, 0), (-r, 0), (0, r), (0, -r), (r, r), (-r, -r) })
+            {
+                BaseGame.Edit(host, EditBuildingOrder.Name, new EditBuildingOrder { Type = type, X = (int)x + dx, Y = (int)y + dy, Player = 1 });
+                BaseGame.Step(host);
+                if (BaseGame.With(host, "Building").FirstOrDefault(e => !before.Contains(e)) is var found and not 0)
+                    return found;
+            }
+        throw new InvalidOperationException($"здание {type} не встало у ({x}, {y})");
+    }
+
+    [Fact]
     public void TickTimeOfOnePlayerSkirmish()
     {
         Assert.SkipUnless(BaseGame.Built, BaseGame.NotBuilt);
@@ -98,7 +117,7 @@ public class ScenarioTests
         }
         Array.Sort(times);
         string F(double value) => value.ToString("0.000", CultureInfo.InvariantCulture);
-        TestContext.Current.TestOutputHelper?.WriteLine($"тик skirmish, 1 игрок (завод, 3 багги, 3 турели, {BaseGame.With(host, "Deposit").Count} месторождений): среднее {F(times.Average())} мс, медиана {F(times[ticks / 2])}, 95% {F(times[ticks * 95 / 100])}, наибольший {F(times[^1])}");
+        TestContext.Current.TestOutputHelper?.WriteLine($"тик skirmish, 1 игрок (стартовый набор: MCV, 2 багги, 3 пехотинца; {BaseGame.With(host, "Deposit").Count} месторождений): среднее {F(times.Average())} мс, медиана {F(times[ticks / 2])}, 95% {F(times[ticks * 95 / 100])}, наибольший {F(times[^1])}");
         Assert.True(times.Average() < 5, $"тик {times.Average()} мс");
         foreach (var timing in host.Scheduler.Timings())
             TestContext.Current.TestOutputHelper?.WriteLine($"  {timing.Name}: {timing}");

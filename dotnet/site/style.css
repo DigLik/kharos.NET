@@ -1,0 +1,58 @@
+@font-face {
+  font-family: "Ark Pixel 12";
+  src: url("fonts/ark-pixel-12px-0.woff2") format("woff2");
+  font-display: swap;
+  unicode-range: U+20-2C6F;
+}
+:root {
+  --bg: #08111c;
+  --panel: #101d2e;
+  --line: #2c4666;
+  --text: #e6eef8;
+  --muted: #a9bad0;
+  --accent: #ffc247;
+  --accent-text: #1a1200;
+  --link: #7cc4ff;
+  --code: #050b13;
+}
+* { box-sizing: border-box; }
+html { font-family: "Ark Pixel 12", ui-monospace, Consolas, monospace; font-size: 16px; line-height: 1.6; background: var(--bg); color: var(--text); }
+body { margin: 0; }
+a { color: var(--link); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 56rem; margin: 0 auto; padding: 0 16px; }
+header.top { border-bottom: 2px solid var(--line); padding: 12px 0; }
+header.top .wrap { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; font-size: 1.25rem; color: var(--text); text-decoration: none; }
+.brand img { width: 32px; height: 32px; image-rendering: pixelated; }
+.lang { display: flex; gap: 8px; }
+.lang a { padding: 4px 12px; border: 2px solid var(--line); color: var(--text); text-decoration: none; }
+.lang a[aria-current="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+h1 { font-size: 2rem; line-height: 1.2; margin: 32px 0 8px; }
+h2 { font-size: 1.35rem; margin: 0 0 12px; color: var(--accent); }
+section { margin: 28px 0; padding: 20px; background: var(--panel); border: 2px solid var(--line); }
+section#hero { background: none; border: 0; padding: 0; }
+.lead { color: var(--muted); max-width: 40rem; }
+.detected { margin: 16px 0 8px; color: var(--muted); }
+.dl { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.dl a.btn { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border: 2px solid var(--line); background: var(--bg); color: var(--text); text-decoration: none; }
+.dl a.btn:hover { border-color: var(--link); }
+.dl a.btn .name { font-weight: bold; overflow-wrap: anywhere; }
+.dl a.btn.match { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-size: 1.1rem; }
+.dl h3 { margin: 12px 0 0; font-size: 1rem; color: var(--muted); }
+pre { background: var(--code); border: 2px solid var(--line); padding: 12px; overflow-x: auto; margin: 12px 0; }
+code { font-family: inherit; color: #bfe3ff; }
+ul { padding-left: 1.4rem; }
+footer { border-top: 2px solid var(--line); padding: 20px 0 40px; color: var(--muted); font-size: 0.9rem; }
+/* language switching: lang is set on <html> by script, or by :target when no script */
+[data-l] { display: none; }
+html[lang="ru"] [data-l="ru"], html[lang="en"] [data-l="en"] { display: revert; }
+html[lang="ru"] li[data-l="ru"], html[lang="en"] li[data-l="en"] { display: list-item; }
+html[lang="ru"] span[data-l="ru"], html[lang="en"] span[data-l="en"], html[lang="ru"] a[data-l="ru"], html[lang="en"] a[data-l="en"] { display: inline; }
+@media (max-width: 480px) {
+  html { font-size: 15px; }
+  h1 { font-size: 1.6rem; }
+  section { padding: 14px; }
+}
+.skip { position: absolute; left: -999px; top: 8px; background: var(--accent); color: var(--accent-text); padding: 6px 12px; z-index: 10; }
+.skip:focus { left: 8px; }

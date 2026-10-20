@@ -18,11 +18,19 @@ namespace Base.Host.Sections.Players;
 /// расстановка. Трубы (connectAll) кладёт система players/sandbox по одной сети за тик — кэш сетей видит новые трубы только
 /// в следующем вызове (<see cref="Piping.ConnectAll"/>); кого ещё соединять, помнит память мода (<see cref="Key"/>).
 /// </para>
+/// <para>
+/// В TS юниты встают после труб и на трубу не встают. Здесь юниты встают сразу (на тех же кольцах), а когда база
+/// соединена, система пересаживает их туда, куда их поставил бы TS: на те же места-кандидаты без легших труб
+/// (<see cref="Seats"/>). Без этого юнит стоял внутри трубы, а места остальных сдвигались против TS.
+/// </para>
 /// </summary>
 internal static class Sandbox
 {
     /// <summary>Ключ памяти: базы, которые ещё соединяются трубами (игрок, шахта, главное здание, первый грузовик — u32).</summary>
     public const string Key = "players.sandbox";
+
+    /// <summary>Ключ памяти: места юнитов ждущей базы (игрок, юниты, места-кандидаты по порядку колец).</summary>
+    public const string Seats = "players.sandbox.seats";
 
     /// <summary>Кредиты игрока на тестовой карте (SANDBOX_CREDITS).</summary>
     public const double Credits = 10000;
@@ -186,30 +194,37 @@ internal static class Sandbox
         }
         // Места юнитам — только там, куда доедет техника, и не под новыми зданиями (freeTilesNear с blocked).
         var count = Trucks + Units.Length;
-        var tiles = FreeTiles(placed, reach, (int)Math.Floor(cx), (int)Math.Floor(cy), count, 2);
+        // Все места-кандидаты на кольцах: часть из них займут трубы, и тогда юниты пересядут дальше (Reseat).
+        var tiles = FreeTiles(placed, reach, (int)Math.Floor(cx), (int)Math.Floor(cy), count, 2, all: true);
         var trucks = new List<uint>();
-        for (var i = 0; i < tiles.Count; i++)
+        var units = new List<uint>();
+        for (var i = 0; i < Math.Min(count, tiles.Count); i++)
         {
             var type = i < Trucks ? Truck : Units[i - Trucks];
             var unit = Factory.SpawnUnit(call, type, player, tiles[i].X + 0.5, tiles[i].Y + 0.5);
+            units.Add(unit);
             if (type == Truck)
                 trucks.Add(unit);
         }
+        SaveSeats(call, player, units, tiles);
         // База — одна сеть: здания соединяет трубами система players/sandbox, начиная со следующего тика.
         Pending(call, [.. Pending(call), (player, mine, core, trucks.Count > 0 ? trucks[0] : 0)]);
         return true;
     }
 
-    /// <summary>Свободные тайлы кольцами с шагом группы (freeTilesNear): проходимые, в reach и не под новыми зданиями.</summary>
-    private static List<(int X, int Y)> FreeTiles(Placed placed, HashSet<long> reach, int x, int y, int count, int from)
+    /// <summary>
+    /// Свободные тайлы кольцами с шагом группы (freeTilesNear): проходимые, в reach и не под новыми зданиями. all — все
+    /// до последнего кольца поиска, а не первые count.
+    /// </summary>
+    private static List<(int X, int Y)> FreeTiles(Placed placed, HashSet<long> reach, int x, int y, int count, int from, bool all = false)
     {
         var radiusMax = Math.Min(MaxGroupRadius, Math.Max(8, (int)Math.Ceiling(Math.Sqrt(count))));
         var tiles = new List<(int X, int Y)>();
-        for (var radius = from; radius <= radiusMax && tiles.Count < count; radius++)
+        for (var radius = from; radius <= radiusMax && (all || tiles.Count < count); radius++)
             for (var dy = -radius; dy <= radius; dy++)
                 for (var dx = -radius; dx <= radius; dx++)
                 {
-                    if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != radius || tiles.Count >= count)
+                    if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != radius || (!all && tiles.Count >= count))
                         continue;
                     var (tx, ty) = (x + dx * GroupSpacing, y + dy * GroupSpacing);
                     if (reach.Contains(Key2(tx, ty)) && !placed.Hits(tx, ty, 1, 1) && Tools.Walkable(tx, ty))
@@ -237,10 +252,80 @@ internal static class Sandbox
             var (player, mine, core, truck) = pending[0];
             if (Piping.ConnectAll(call, player))
                 return;
+            Reseat(call, player);
             if (call.Alive(mine) && truck != 0 && call.Alive(truck) && !ReferenceEquals(Zones.NetworkOf(mine), Zones.NetworkOf(core != 0 ? core : mine)))
                 Commands.Accept(call, player, HaulOrder.Name, new HaulOrder { Units = [truck], Mine = mine });
             Pending(call, pending.Skip(1).ToList());
         }
+    }
+
+    /// <summary>Помнит юниты базы и места-кандидаты: (игрок u32, юнитов u32, юниты u32…, мест u32, места i32 x, y…).</summary>
+    private static void SaveSeats(Call call, uint player, List<uint> units, List<(int X, int Y)> tiles)
+    {
+        var old = Memory.Of(call).Get(Seats) ?? [];
+        var bytes = new byte[old.Length + 12 + units.Count * 4 + tiles.Count * 8];
+        old.CopyTo(bytes, 0);
+        var at = old.Length;
+        void U32(uint value)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(at), value);
+            at += 4;
+        }
+        U32(player);
+        U32((uint)units.Count);
+        foreach (var unit in units)
+            U32(unit);
+        U32((uint)tiles.Count);
+        foreach (var (x, y) in tiles)
+        {
+            U32((uint)x);
+            U32((uint)y);
+        }
+        Memory.Of(call).Put(call, Seats, bytes);
+    }
+
+    /// <summary>
+    /// Пересаживает юниты соединённой базы (freeTilesNear после connectAll): места-кандидаты, на которые не легли трубы
+    /// и здания, по порядку колец. Пересаживается только тот, кто ещё стоит, где встал.
+    /// </summary>
+    private static void Reseat(Call call, uint player)
+    {
+        if (Memory.Of(call).Get(Seats) is not { Length: > 0 } bytes)
+            return;
+        var rest = new List<byte>();
+        var at = 0;
+        uint U32()
+        {
+            var value = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(at));
+            at += 4;
+            return value;
+        }
+        while (at + 12 <= bytes.Length)
+        {
+            var start = at;
+            var owner = U32();
+            var units = new uint[U32()];
+            for (var i = 0; i < units.Length; i++)
+                units[i] = U32();
+            var tiles = new (int X, int Y)[U32()];
+            for (var i = 0; i < tiles.Length; i++)
+                tiles[i] = ((int)U32(), (int)U32());
+            if (owner != player)
+            {
+                rest.AddRange(bytes.AsSpan(start, at - start).ToArray());
+                continue;
+            }
+            var free = tiles.Where(tile => Tools.Walkable(tile.X, tile.Y)).ToList();
+            for (var i = 0; i < units.Length && i < free.Count; i++)
+            {
+                var (x, y) = (tiles[i].X + 0.5, tiles[i].Y + 0.5);
+                if (free[i] == tiles[i] || !call.Alive(units[i]) || call.At(units[i]) != (x, y))
+                    continue;
+                call.Set(units[i], S.Position).Number(S.PositionX, free[i].X + 0.5).Number(S.PositionY, free[i].Y + 0.5);
+                call.Remove(units[i], S.Path);
+            }
+        }
+        Memory.Of(call).Put(call, Seats, [.. rest]);
     }
 
     private static List<(uint Player, uint Mine, uint Core, uint Truck)> Pending(Call call)

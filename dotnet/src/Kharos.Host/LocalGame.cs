@@ -133,6 +133,13 @@ public sealed class LocalGame : IDisposable
         _ready.Dispose();
     }
 
+    /// <summary>Срок следующего тика (мс по часам игры): на шаг позже прежнего; отстали больше чем на пять тиков (отладчик, сон ОС) — отсчёт заново от now, без залпа догона.</summary>
+    public static double Pace(double next, double now, double step)
+    {
+        next += step;
+        return now - next > step * 5 ? now + step : next;
+    }
+
     private void Run()
     {
         HostSession? session = null;
@@ -195,10 +202,7 @@ public sealed class LocalGame : IDisposable
                         break;
                     continue;
                 }
-                next += step;
-                // Отстали больше чем на пять тиков (отладчик, сон ОС) — не догонять залпом.
-                if (clock.Elapsed.TotalMilliseconds - next > step * 5)
-                    next = clock.Elapsed.TotalMilliseconds + step;
+                next = Pace(next, clock.Elapsed.TotalMilliseconds, step);
                 if (_hostEnd.Closed)
                     break;
             }

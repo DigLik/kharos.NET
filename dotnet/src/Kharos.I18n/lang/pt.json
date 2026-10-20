@@ -144,7 +144,8 @@
     "aboutText": "Um RTS multijogador de navegador: veículo fundador, mapa procedural, extração e refino de minério, logística de carga e defesa da base.",
     "authors": "Autores",
     "sourceCode": "Código-fonte",
-    "protocolVersion": "Versão do protocolo {version}",
+    "protocolVersion": "Versão {version} · protocolo {protocol}",
+    "download": "Baixar a nova versão",
     "previewSize": "{width}×{height} casas",
     "previewShares": "rocha {rock}% · pântanos {swamp}%"
   },
@@ -240,7 +241,7 @@
     "kickedYou": "Um administrador desconectou você",
     "flood": "Mensagens demais",
     "tooManyNewcomers": "Foram criados jogadores novos demais a partir do seu endereço, tente mais tarde",
-    "versionOld": "As versões não coincidem: o servidor tem a {server} e você a {client} — recarregue a página",
+    "versionOld": "As versões não coincidem: o servidor tem o protocolo {server} e você o {client} — baixe a nova versão do jogo",
     "versionNew": "As versões não coincidem: o servidor tem a {server} e você a {client} — o servidor é mais antigo que o cliente e precisa ser atualizado",
     "creditsNow": "{name} agora tem {credits} créditos",
     "needPlayer": "Indique um jogador",

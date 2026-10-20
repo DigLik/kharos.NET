@@ -42,6 +42,9 @@ public sealed class GameConnector
     /// <summary>Почему хост не пустил; null — пустил (или ещё не ответил).</summary>
     public string? Refused { get; private set; }
 
+    /// <summary>Хост не пустил из-за версии протокола (<c>versionOld</c> или <c>versionNew</c>): игроку нужна новая сборка.</summary>
+    public bool VersionMismatch { get; private set; }
+
     /// <summary>Язык, на котором пишется причина отказа хоста (сообщение хоста идёт ключом, Н6-5).</summary>
     public string Lang { get; set; } = global::Kharos.I18n.Langs.Default;
 
@@ -78,6 +81,7 @@ public sealed class GameConnector
             {
                 var (reason, password, args) = Messages.ReadRefused(message);
                 Refused = args is null ? reason : Texts.Host(Lang, reason, args);
+                VersionMismatch = args is not null && reason is "versionOld" or "versionNew";
                 PasswordNeeded = password;
             }
             else if (message[0] == (byte)MessageType.Welcome && !ReferenceEquals(_welcome, Replica.Welcome))

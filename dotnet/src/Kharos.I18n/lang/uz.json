@@ -144,7 +144,8 @@
     "aboutText": "Ko‘p o‘yinchili brauzer RTS: asoschi mashina, protsedurali xarita, ruda qazib olish va qayta ishlash, yuk logistikasi va baza mudofaasi.",
     "authors": "Mualliflar",
     "sourceCode": "Manba kodi",
-    "protocolVersion": "Protokol versiyasi {version}",
+    "protocolVersion": "Versiya {version} · protokol {protocol}",
+    "download": "Yangi versiyani yuklab olish",
     "previewSize": "{width}×{height} katak",
     "previewShares": "qoyalar {rock}% · botqoqliklar {swamp}%"
   },
@@ -240,7 +241,7 @@
     "kickedYou": "Sizni administrator o‘yindan chiqardi",
     "flood": "Juda ko‘p xabarlar",
     "tooManyNewcomers": "Sizning manzilingizdan juda ko‘p yangi o‘yinchilar ochildi, keyinroq urinib ko‘ring",
-    "versionOld": "Versiyalar mos emas: serverda {server}, sizda {client} — sahifani yangilang",
+    "versionOld": "Versiyalar mos emas: serverda protokol {server}, sizda {client} — o'yinning yangi versiyasini yuklab oling",
     "versionNew": "Versiyalar mos emas: serverda {server}, sizda {client} — server mijozdan eskiroq, uni yangilash kerak",
     "creditsNow": "{name} endi {credits} kreditga ega",
     "needPlayer": "O‘yinchini ko‘rsating",

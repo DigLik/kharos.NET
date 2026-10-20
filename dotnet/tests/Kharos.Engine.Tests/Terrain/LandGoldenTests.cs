@@ -55,7 +55,7 @@ public sealed class LandGoldenTests(ITestOutputHelper output)
         Assert.Equal(sample.GetProperty("sha256").GetString(), Golden.Sha256(schema));
     }
 
-    [Fact]
+    [Fact(DisplayName = "выводимое у чанков не зависит от порядка сборки и не меняется после загрузки")]
     public void DerivedBytesDoNotDependOnBuildOrderOrReload()
     {
         // Сид 3: у гор на стыке чанков выводимое зависело от того, собран ли сосед (packages/tests/land.test.ts).

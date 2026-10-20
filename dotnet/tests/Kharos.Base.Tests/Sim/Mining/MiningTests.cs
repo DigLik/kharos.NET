@@ -81,9 +81,34 @@ public sealed class MiningTests
             Assert.True((double)missing[kind] / points <= 0.1, $"{kind}: нет у {missing[kind]} из {points} точек");
     }
 
-    [Fact(DisplayName = "шахта ставится только на месторождение и без своей зоны, строит её строитель", Skip = "ждёт С1: стройка (canBuild, зоны, приказ build, награда за шахту)")]
+    [Fact(DisplayName = "шахта ставится только на месторождение и без своей зоны, строит её строитель")]
     public void MineOnlyOnDepositAndOutsideForeignZone()
     {
+        using var sim = Create();
+        // start() в mining.test.ts: металлическое месторождение, справа от которого есть скала под хранилище.
+        DepositSpot? found = null;
+        for (var cellY = -5; cellY < 5 && found is null; cellY++)
+            for (var cellX = -5; cellX < 5 && found is null; cellX++)
+                if (sim.DepositIn(cellX, cellY) is { Kind: "metal" } candidate && Scene.CanPlace(sim, "metalYard", candidate.X + 3, candidate.Y))
+                    found = candidate;
+        var spot = found ?? throw new InvalidOperationException("В мире не нашлось месторождения");
+        sim.SetCredits(1, 1000);
+        Assert.Empty(sim.Zones(1));
+        Assert.True(sim.CanBuild(1, "mine", spot.X, spot.Y));
+        Assert.False(sim.CanBuild(1, "mine", spot.X + 1, spot.Y));
+        // Чужая зона закрывает месторождение.
+        var core = sim.PutBuilding("command", spot.X + 6, spot.Y, 2);
+        Assert.False(sim.CanBuild(1, "mine", spot.X, spot.Y));
+        sim.Erase(core);
+
+        var builder = sim.PutUnit("builder", 1, spot.X - 1 + 0.5, spot.Y + 0.5);
+        sim.Send(1, new BuildOrder { Building = "mine", X = spot.X, Y = spot.Y, Builders = [] });
+        sim.Seconds(30);
+        // Готовая шахта начинает свою зону: рядом можно строить.
+        Assert.Single(sim.Zones(1));
+        Assert.Equal(["mine"], Scene.Rewards(sim, 1));
+        Assert.True(sim.CanBuild(1, "metalYard", spot.X + 3, spot.Y));
+        Assert.NotEqual(0u, builder);
     }
 
     [Fact(DisplayName = "шахта копит руду; привязанный грузовик возит её на переработку, а без неё руду не берёт")]

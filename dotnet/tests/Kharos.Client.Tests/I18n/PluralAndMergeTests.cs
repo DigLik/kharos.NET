@@ -139,7 +139,7 @@ public sealed class PluralAndMergeTests
         Assert.Equal("versionOld", reason);
         Assert.Equal(["server", "3", "client", "2"], args);
         var texts = Texts.Shell();
-        Assert.Contains("у сервера 3, у вас 2", texts.Host("ru", reason, args));
+        Assert.Contains("у сервера протокол 3, у вас 2", texts.Host("ru", reason, args));
         Assert.Contains("3", texts.Host("en", reason, args));
         // Старый вид отказа — готовый текст — читается как прежде.
         var plain = Messages.ReadRefused(Messages.Refused("Неверный пароль"));

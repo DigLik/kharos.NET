@@ -12,6 +12,7 @@ internal sealed class FakeSession(Launch launch) : IGameSession
     public string? Status { get; set; } = "подключаюсь";
     public string? Error { get; set; }
     public bool WrongPassword { get; set; }
+    public bool VersionMismatch { get; set; }
     public ClientGame? Game { get; set; }
     public List<string> Passwords { get; } = [];
     public int Polls { get; private set; }

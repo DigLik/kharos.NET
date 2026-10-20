@@ -13,7 +13,7 @@ namespace Kharos.Plugins.Game;
 /// Engine, сторож эпох и Module никто не освобождает. Движок один на интервал сторожа — единственный параметр
 /// конфигурации, зависящий от опций; пределы памяти и таймауты заданы на уровне Store.
 /// Дисковый кэш компиляции Wasmtime (между запусками) необязателен: каталог — KHAROS_WASM_CACHE
-/// («off» выключает), иначе LocalApplicationData/Kharos/wasmtime-cache; любая неудача — работа без него.
+/// («off» выключает), иначе KHAROS_HOME/wasmtime-cache, иначе LocalApplicationData/Kharos/wasmtime-cache; любая неудача — работа без него.
 /// </summary>
 internal static class SharedWasm
 {
@@ -78,6 +78,8 @@ internal static class SharedWasm
             var dir = Environment.GetEnvironmentVariable("KHAROS_WASM_CACHE");
             if (string.Equals(dir, "off", StringComparison.OrdinalIgnoreCase))
                 return null;
+            if (string.IsNullOrWhiteSpace(dir) && Environment.GetEnvironmentVariable("KHAROS_HOME") is { Length: > 0 } home)
+                dir = Path.Combine(Path.GetFullPath(home), "wasmtime-cache");
             if (string.IsNullOrWhiteSpace(dir))
             {
                 var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);

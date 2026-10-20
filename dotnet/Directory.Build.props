@@ -11,4 +11,31 @@
     <Deterministic>true</Deterministic>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
+
+  <!-- Версия сборки (Н7-4): релиз передаёт -p:KharosVersion=X.Y.Z; KharosCommit можно задать снаружи (CI), иначе берётся из git. -->
+  <PropertyGroup>
+    <KharosVersion Condition="'$(KharosVersion)' == ''">0.2.0-dev</KharosVersion>
+    <KharosRepo Condition="'$(KharosRepo)' == ''">DigLik/kharos.NET</KharosRepo>
+    <Version>$(KharosVersion)</Version>
+    <InformationalVersion>$(KharosVersion)</InformationalVersion>
+  </PropertyGroup>
+
+  <Target Name="KharosStamp" BeforeTargets="GetAssemblyVersion;GenerateAssemblyInfo;AddSourceRevisionToInformationalVersion">
+    <Exec Condition="'$(KharosCommit)' == ''" Command="git rev-parse --short HEAD" ConsoleToMSBuild="true" IgnoreExitCode="true" StandardErrorImportance="low" StandardOutputImportance="low" WorkingDirectory="$(MSBuildThisFileDirectory)">
+      <Output TaskParameter="ConsoleOutput" PropertyName="KharosCommit" />
+      <Output TaskParameter="ExitCode" PropertyName="KharosGitExit" />
+    </Exec>
+    <PropertyGroup>
+      <!-- Без git (архив исходников) git пишет ошибку: коммита тогда нет. -->
+      <KharosCommit Condition="'$(KharosGitExit)' != '' and '$(KharosGitExit)' != '0'"></KharosCommit>
+      <KharosCommit Condition="'$(KharosCommit)' != ''">$([System.String]::Copy('$(KharosCommit)').Trim())</KharosCommit>
+      <KharosCommit Condition="$(KharosCommit.Contains(' '))">$(KharosCommit.Split(' ')[0])</KharosCommit>
+      <InformationalVersion Condition="'$(KharosCommit)' != ''">$(KharosVersion)+$(KharosCommit)</InformationalVersion>
+    </PropertyGroup>
+    <ItemGroup>
+      <AssemblyMetadata Include="KharosVersion" Value="$(KharosVersion)" />
+      <AssemblyMetadata Include="KharosCommit" Value="$(KharosCommit)" />
+      <AssemblyMetadata Include="KharosRepo" Value="$(KharosRepo)" />
+    </ItemGroup>
+  </Target>
 </Project>

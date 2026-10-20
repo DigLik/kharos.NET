@@ -5,7 +5,7 @@ namespace Kharos.Server.Tests;
 /// <summary>Привратник по адресам и ведро жетонов (packages/host/src/limits.ts).</summary>
 public class LimitsTests
 {
-    [Fact]
+    [Fact(DisplayName = "ведро жетонов: разом не больше запаса, потом — по скорости")]
     public void BucketRefillsAtRateUpToBurst()
     {
         long now = 0;
@@ -80,7 +80,7 @@ public class LimitsTests
         }
     }
 
-    [Fact]
+    [Fact(DisplayName = "адрес клиента: заголовку прокси верят только от своего прокси и берут то, что дописал он")]
     public void ForwardedForIsTrustedOnlyFromLocalProxy()
     {
         var loopback = IPAddress.Loopback;
@@ -94,5 +94,36 @@ public class LimitsTests
         Assert.Equal("203.0.113.9", ClientAddress.Of(outside, "5.6.7.8"));
         Assert.Equal("203.0.113.9", ClientAddress.Of(IPAddress.Parse("::ffff:203.0.113.9"), null));
         Assert.Equal("unknown", ClientAddress.Of(null, null));
+    }
+
+    [Fact(DisplayName = "привратник: с одного адреса — не больше подключений разом, попыток в минуту и новых игроков в час")]
+    public void GateCapsConnectionsAttemptsAndNewcomersTogether()
+    {
+        long now = 0;
+        var gate = new ConnectGate(new ConnectLimits(Connections: 2, ConnectsPerMinute: 4, NewPlayersPerHour: 1), () => now);
+        for (var i = 0; i < 2; i++)
+        {
+            Assert.True(gate.Admit("a"));
+            gate.Opened("a");
+        }
+        // Мест с адреса больше нет, а другому адресу это не мешает.
+        Assert.False(gate.Admit("a"));
+        Assert.True(gate.Admit("b"));
+        gate.Closed("a");
+        Assert.True(gate.Admit("a"));
+        // Попытки кончились, хотя место есть; через четверть минуты одна возвращается.
+        Assert.False(gate.Admit("a"));
+        now += 15_000;
+        Assert.True(gate.Admit("a"));
+        Assert.Equal([true, false, true], [gate.Newcomer("a"), gate.Newcomer("a"), gate.Newcomer("b")]);
+        now += 3_600_000;
+        Assert.True(gate.Newcomer("a"));
+        // Ноль снимает ограничение.
+        var open = new ConnectGate(new ConnectLimits(0, 0, 0), () => now);
+        for (var i = 0; i < 100; i++)
+        {
+            Assert.True(open.Admit("a") && open.Newcomer("a"));
+            open.Opened("a");
+        }
     }
 }

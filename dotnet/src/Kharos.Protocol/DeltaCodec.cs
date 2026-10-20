@@ -226,10 +226,13 @@ public sealed class DeltaWriter
         Values(group.W, world, entity, component, mask);
     }
 
-    /// <summary>Сущность догоняет мир за span тиков: реплика ведёт её к новому месту столько же.</summary>
+    /// <summary>Дольше скольких тиков сглаживание не длится (SPAN_MOST в codec.ts).</summary>
+    public const int SpanMost = 128;
+
+    /// <summary>Сущность догоняет мир за span тиков (от 1 до <see cref="SpanMost"/>): реплика ведёт её к новому месту столько же.</summary>
     public void Span(uint entity, int span)
     {
-        _spans.SVarint(entity - _spansPrev).Varint((ulong)span);
+        _spans.SVarint(entity - _spansPrev).Varint((ulong)Math.Clamp(span, 1, SpanMost));
         _spansPrev = entity;
         _spansCount++;
     }

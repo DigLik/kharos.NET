@@ -541,8 +541,16 @@ public sealed class Host : IDisposable
     /// <summary>Есть ли у какого-нибудь мода приказ с таким именем.</summary>
     public bool HasOrder(string name) => _mods.Any(mod => !mod.Disabled && mod.Manifest.Orders.Contains(name));
 
-    /// <summary>Сохранение партии (на потоке хоста): мир, слои, игроки, тик и случайный ряд.</summary>
-    public byte[] Save() => HostSave.Capture(this).Encode();
+    /// <summary>
+    /// Сохранение партии (на потоке хоста): мир, слои, игроки, тик и случайный ряд. Обзор сначала пересчитывается на тик
+    /// сохранения — так же, как его пересчитывает загрузка: иначе у хоста из файла разведанное опережает прежнее на тайлы,
+    /// открытые с последнего пересчёта (раз в <see cref="Kharos.Host.Vision.Ticks"/> тиков), и туман расходится.
+    /// </summary>
+    public byte[] Save()
+    {
+        Vision?.Update(World, Tick);
+        return HostSave.Capture(this).Encode();
+    }
 
     /// <summary>Пакеты модов для клиентов (без кода хоста) — в порядке загрузки; собираются при первом обращении.</summary>
     public IReadOnlyList<HostPack> Packs => _packs ??= [.. Content.Mods.Select(HostPack.Of)];

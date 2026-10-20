@@ -659,7 +659,7 @@ public sealed class Menu
             gui.Text(_words["menu.sourceCode"].ToUpperInvariant(), new TextStyle { Color = Colors.Muted });
             if (_forms.Link("about:repo", "github.com/vicimpa/kharos"))
                 OpenUrl?.Invoke(Repository);
-            gui.Text(_words.T("menu.protocolVersion", ("version", Welcome.ProtocolVersion)), new TextStyle { Color = Colors.Muted });
+            gui.Text(_words.T("menu.protocolVersion", ("version", BuildInfo.Version), ("protocol", Welcome.ProtocolVersion)), new TextStyle { Color = Colors.Muted });
         }, Place(gui), _words["common.back"]);
         if (back)
             Home();

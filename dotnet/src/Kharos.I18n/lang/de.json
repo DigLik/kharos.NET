@@ -144,7 +144,8 @@
     "aboutText": "Ein Mehrspieler-RTS im Browser: Gründerfahrzeug, prozedurale Karte, Erzabbau und -verarbeitung, Frachtlogistik und Basisverteidigung.",
     "authors": "Autoren",
     "sourceCode": "Quellcode",
-    "protocolVersion": "Protokollversion {version}",
+    "protocolVersion": "Version {version} · Protokoll {protocol}",
+    "download": "Neue Version herunterladen",
     "previewSize": "{width}×{height} Felder",
     "previewShares": "Fels {rock} % · Sümpfe {swamp} %"
   },
@@ -240,7 +241,7 @@
     "kickedYou": "Ein Administrator hat dich getrennt",
     "flood": "Zu viele Nachrichten",
     "tooManyNewcomers": "Von deiner Adresse wurden zu viele neue Spieler angelegt, versuche es später",
-    "versionOld": "Versionen passen nicht: Der Server hat {server}, du hast {client} — lade die Seite neu",
+    "versionOld": "Versionen passen nicht: Der Server hat Protokoll {server}, du {client} — lade die neue Version des Spiels herunter",
     "versionNew": "Versionen passen nicht: Der Server hat {server}, du hast {client} — der Server ist älter als der Client und muss aktualisiert werden",
     "creditsNow": "{name} hat jetzt {credits} Credits",
     "needPlayer": "Gib einen Spieler an",

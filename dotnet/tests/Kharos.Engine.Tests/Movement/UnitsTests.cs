@@ -220,10 +220,7 @@ public sealed class UnitsTests
         Assert.True(Math.Sqrt(Math.Pow(tileX - x - 23, 2) + Math.Pow(tileY - y - 4, 2)) < 4);
     }
 
-    [Fact(DisplayName = "чужими юнитами командовать нельзя", Skip = "ждёт Б1: проверка приказа move — в Kernel/Commands")]
-    public void ForeignUnits()
-    {
-    }
+    // «Чужими юнитами командовать нельзя» — в Base.Tests/Sim/Movement: проверка приказа move в Kernel/Commands мода base.
 
     [Fact(DisplayName = "здание на пути заставляет проложить путь заново")]
     public void BuildingInTheWay()

@@ -4,6 +4,7 @@ using Kharos.Client.Ui;
 using Kharos.Gpu;
 using Kharos.I18n;
 using Kharos.Mod.Abi;
+using Kharos.Protocol;
 using RenderFrame = Kharos.Gpu.Frame;
 
 namespace Kharos.Client.Shell;
@@ -28,6 +29,9 @@ public interface IGameSession : IDisposable
 
     /// <summary>Пароль спрошен после неверного.</summary>
     bool WrongPassword { get; }
+
+    /// <summary>Сервер не пустил из-за версии протокола: к тексту ошибки добавляется кнопка «скачать новую версию».</summary>
+    bool VersionMismatch => false;
 
     /// <summary>Игра; null — ещё нет.</summary>
     ClientGame? Game { get; }
@@ -386,6 +390,8 @@ public sealed class ShellApp : IDisposable
                 {
                     if (_forms.Button("play:menu", _words["common.toMenu"]))
                         Leave(save: false);
+                    if (session.VersionMismatch && _forms.Button("play:download", _words["menu.download"], primary: true))
+                        Menu.OpenUrl?.Invoke(BuildInfo.ReleasesUrl);
                     if (_forms.Button("play:reload", session.Launch is ServerLaunch ? _words["game.reconnect"] : _words["game.reload"]))
                         Start(session.Launch);
                 });

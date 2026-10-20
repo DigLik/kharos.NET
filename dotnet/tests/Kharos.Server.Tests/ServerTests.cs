@@ -237,7 +237,7 @@ public class ServerTests
         Assert.Equal(3, second.Units(1).Count);
     }
 
-    [Fact]
+    [Fact(DisplayName = "поток сообщений: лишнее отбрасывается, а кто не унимается — отключается; другим игрокам это не мешает")]
     public async Task MessageFloodDisconnectsClient()
     {
         Assert.SkipUnless(Env.HelloBuilt, Env.NotBuilt);
@@ -245,6 +245,8 @@ public class ServerTests
         await using var server = await TestServer.StartAsync(temp);
         await using var client = await TestClient.ConnectAsync(server, "a");
         await client.WaitAsync(() => client.Replica.Ready, "вошёл");
+        await using var quiet = await TestClient.ConnectAsync(server, "quiet");
+        await quiet.WaitAsync(() => quiet.Replica.Ready, "тихий вошёл");
         var junk = DeltaCodec.Order("x", []);
         // Burst 120 проходит, 300 прощается, дальше — отключение.
         try
@@ -259,6 +261,10 @@ public class ServerTests
         var (status, _) = await client.ClosedAsync();
         Assert.Equal(WebSocketCloseStatus.NormalClosure, status);
         Assert.Contains("Слишком много сообщений", client.Refusals());
+        // Другим игрокам это не мешает: тихий на месте и слышит сервер.
+        await quiet.SendAsync(DeltaCodec.Order("x", []));
+        Assert.Equal(WebSocketState.Open, quiet.State);
+        Assert.False(quiet.Finished);
     }
 
     [Fact]

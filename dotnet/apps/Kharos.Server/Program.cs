@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using Kharos.Server;
 
 // Выделенный сервер Kharos. Использование: kharos-server [--settings путь] [--mods папка]... [--game партия]
+// --version печатает версию сборки, протокола и сохранения и выходит.
 // Настройки — settings.json рядом (создаётся со всеми умолчаниями); PORT, SAVE, SETTINGS сильнее файла.
 // Моды: папка mods рядом с программой, затем --mods и settings.mods. Консоль: строки stdin (help, list, players, say, kick, status, save, stop).
 
@@ -16,6 +17,9 @@ for (var at = 0; at < args.Length; at++)
         case "--settings" when at + 1 < args.Length:
             settingsPath = args[++at];
             break;
+        case "--version":
+            Console.WriteLine(VersionLine.Text());
+            return 0;
         case "--game" when at + 1 < args.Length:
             game = args[++at];
             break;
@@ -23,11 +27,12 @@ for (var at = 0; at < args.Length; at++)
             modRoots.Add(args[++at]);
             break;
         default:
-            Console.Error.WriteLine("Использование: kharos-server [--settings путь] [--mods папка]... [--game партия]");
+            Console.Error.WriteLine("Использование: kharos-server [--settings путь] [--mods папка]... [--game партия] [--version]");
             return 2;
     }
 }
 
+Console.WriteLine(VersionLine.Text());
 GameServer server;
 try
 {

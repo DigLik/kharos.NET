@@ -9,11 +9,7 @@ namespace Kharos.Host.Tests;
 /// </summary>
 public class VisionRulesTests
 {
-    [Fact(DisplayName = "обзор: разведчик видит дальше пехоты, стрелок — дальше своего оружия, радар — дальше всех зданий", Skip = "ждёт Б1")]
-    public void SightNumbersComeFromData()
-    {
-        // Радиус обзора — данные мода (unitSight, buildingSight): base ставит Sight.radius, движок его только читает.
-    }
+    // «Обзор: разведчик видит дальше пехоты…» — в Base.Tests/Sim/Movement: числа обзора (Sight.radius) ставит мод base.
 
     [Fact(DisplayName = "игрок видит вокруг своих юнитов, а ушедший юнит оставляет за собой разведанное, но не видимое")]
     public void UnitLeavesExploredBehind()

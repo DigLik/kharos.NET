@@ -44,7 +44,7 @@ public class SettingsTests
         Assert.False(settings.Fog);
     }
 
-    [Fact]
+    [Fact(DisplayName = "настройки сервера: известное берётся, опечатки и чужие типы пропускаются с предупреждением")]
     public void UnknownKeysAndWrongTypesAreSkippedWithWarnings()
     {
         var warnings = new List<string>();
@@ -67,7 +67,7 @@ public class SettingsTests
         Assert.Equal("", settings.Password);
     }
 
-    [Fact]
+    [Fact(DisplayName = "не объект вместо настроек — всё по умолчанию")]
     public void NonObjectRootIsRejected()
     {
         var warnings = new List<string>();

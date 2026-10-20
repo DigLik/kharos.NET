@@ -1,4 +1,5 @@
 using System.Globalization;
+using Kharos.Client.Shell;
 
 namespace Kharos.Desktop;
 
@@ -14,10 +15,17 @@ public sealed record ShotOptions(string Path, int Frames, (float X, float Y)? Po
 /// Настройки запуска из окружения (как у пилота): KHAROS_MODS — папки с модами через разделитель путей, KHAROS_GAME —
 /// партия, KHAROS_AUDIO=off — без звука, KHAROS_SCALE — масштаб интерфейса вместо масштаба экрана. Сеть (Н4):
 /// KHAROS_SERVER=ws://хост:порт — играть на сервере вместо одиночной партии, KHAROS_NAME — ник, KHAROS_PASSWORD — пароль сервера.
+/// Н7.3: KHAROS_SMOKE=script.json — сценарий смоука (<see cref="SmokeOptions"/>, отчёт — KHAROS_SMOKE_OUT), KHAROS_HIDDEN=1 —
+/// окно скрыто, KHAROS_GPU=none — ни окна, ни рендера (кадры по таймеру), KHAROS_HOME — папка профиля
+/// (<see cref="FileStorage.ProfileDirectory"/>).
 /// </summary>
 public sealed record DesktopOptions(IReadOnlyList<string> ModRoots, string? Game, bool Audio, float? Scale, ShotOptions? Shot,
-    string? Server = null, string? Name = null, string? Password = null, RecordOptions? Record = null)
+    string? Server = null, string? Name = null, string? Password = null, RecordOptions? Record = null,
+    SmokeOptions? Smoke = null, bool NoGpu = false, bool Hidden = false)
 {
+    /// <summary>Окно видно: не снимок, не запись, не смоук и не KHAROS_HIDDEN.</summary>
+    public bool Visible => Shot is null && Smoke is null && !Hidden && !NoGpu;
+
     public static DesktopOptions FromEnvironment()
     {
         var record = RecordOptions.FromEnvironment();
@@ -29,8 +37,14 @@ public sealed record DesktopOptions(IReadOnlyList<string> ModRoots, string? Game
                 Env("KHAROS_SHOT_SCENE"), Hour(Env("KHAROS_SHOT_HOUR")), string.Equals(Env("KHAROS_CLOCK"), "fixed", StringComparison.OrdinalIgnoreCase))
             : null;
         return new DesktopOptions(FindModRoots(), Env("KHAROS_GAME"), !string.Equals(Env("KHAROS_AUDIO"), "off", StringComparison.OrdinalIgnoreCase),
-            Float(Env("KHAROS_SCALE")) ?? record?.Ratio, shot, Env("KHAROS_SERVER"), Env("KHAROS_NAME"), Env("KHAROS_PASSWORD"), record);
+            Float(Env("KHAROS_SCALE")) ?? record?.Ratio, shot, Env("KHAROS_SERVER"), Env("KHAROS_NAME"), Env("KHAROS_PASSWORD"), record,
+            Env("KHAROS_SMOKE") is { } script ? new SmokeOptions(Path.GetFullPath(script), Env("KHAROS_SMOKE_OUT") is { } report ? Path.GetFullPath(report) : null) : null,
+            string.Equals(Env("KHAROS_GPU"), "none", StringComparison.OrdinalIgnoreCase),
+            Env("KHAROS_HIDDEN") is "1" or "true" or "on");
     }
+
+    /// <summary>Размер кадра без окна (KHAROS_GPU=none) и скрытого окна смоука: KHAROS_SHOT_SIZE, иначе 1280×800.</summary>
+    internal static (int Width, int Height) FrameSize() => Size(Env("KHAROS_SHOT_SIZE"));
 
     /// <summary>
     /// KHAROS_MODS; иначе папка mods рядом с программой, а из репозитория — dotnet/mods выше по дереву. Значения «wasm» и
@@ -83,7 +97,8 @@ public static class DesktopLog
 {
     private static readonly Lock Gate = new();
 
-    public static string FilePath { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Kharos", "kharos.log");
+    /// <summary>Файл журнала в профиле (KHAROS_HOME, если задана: <see cref="FileStorage.ProfileDirectory"/>).</summary>
+    public static string FilePath => Path.Combine(FileStorage.ProfileDirectory, "kharos.log");
 
     public static void Write(string message)
     {
