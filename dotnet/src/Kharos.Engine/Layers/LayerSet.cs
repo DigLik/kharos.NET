@@ -151,6 +151,53 @@ public sealed class LayerSet
     }
 
     /// <summary>
+    /// Пишет канал всем тайлам прямоугольника [left, right) × [top, bottom) — как <see cref="Set"/> по каждому, но
+    /// чанками: блок ищется раз на чанк (открыть всю карту — /reveal — миллион тайлов).
+    /// </summary>
+    public void Fill(int id, LayerOwner owner, int left, int top, int right, int bottom, int channel, double value)
+    {
+        var layer = _layers[id];
+        if (left >= right || top >= bottom || layer.Blocks(owner) is not { } blocks)
+            return;
+        var kind = layer.Kinds[channel];
+        var offset = layer.Offsets[channel];
+        var size = kind.Size();
+        Span<byte> pattern = stackalloc byte[size];
+        kind.Write(pattern, value);
+        for (var cy = top >> 5; cy <= (bottom - 1) >> 5; cy++)
+            for (var cx = left >> 5; cx <= (right - 1) >> 5; cx++)
+            {
+                if (!blocks.TryGetValue((cx, cy), out var bytes))
+                {
+                    if (value == 0)
+                        continue;
+                    blocks[(cx, cy)] = bytes = new byte[ChunkTiles * layer.Stride];
+                }
+                var changed = false;
+                var (fromX, toX) = (Math.Max(left, cx * Chunk), Math.Min(right, cx * Chunk + Chunk));
+                var (fromY, toY) = (Math.Max(top, cy * Chunk), Math.Min(bottom, cy * Chunk + Chunk));
+                for (var y = fromY; y < toY; y++)
+                    for (var x = fromX; x < toX; x++)
+                    {
+                        var place = bytes.AsSpan(((y & (Chunk - 1)) * Chunk + (x & (Chunk - 1))) * layer.Stride + offset, size);
+                        if (place.SequenceEqual(pattern))
+                            continue;
+                        var before = kind.Read(place);
+                        pattern.CopyTo(place);
+                        if (kind.Read(place).Equals(before))
+                            continue;
+                        changed = true;
+                        layer.Tiles?.Add((x, y));
+                    }
+                if (changed)
+                {
+                    layer.Dirty.Add((owner.Code, cx, cy));
+                    Revision++;
+                }
+            }
+    }
+
+    /// <summary>
     /// Следить за тайлами слоя-сетки мира: каждое изменение значения записывается (<see cref="TakeTiles"/>). Нужно
     /// памяти игроков (Recall): блок целиком она бы сверяла в тысячу раз дольше. Сеть и загрузка (<see cref="Apply"/>) не пишут.
     /// </summary>

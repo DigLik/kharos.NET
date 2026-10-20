@@ -74,18 +74,25 @@ public sealed class Vision
             cells[i] = _layers.Get(_explored, owner, Bounds.Left + i % width, Bounds.Top + i / width, 0) != 0 ? Known : Unseen;
     }
 
-    /// <summary>Вся карта игроку разведана (/reveal).</summary>
+    /// <summary>
+    /// Вся карта игроку разведана (/reveal; host.ts: vision.explore на всю карту): туман над картой — «разведано»,
+    /// но видимое сейчас — по-прежнему только от глаз, так что чужие юниты вне обзора скрыты, как в
+    /// TS. Слой «разведано» пишется чанками (<see cref="LayerSet.Fill"/>): потайловая запись карты 1024² стоила сотни мс тика.
+    /// </summary>
     public void Reveal(uint player)
     {
         var sight = SightOf(player);
         var cells = sight.Cells;
+        var any = false;
         for (var i = 0; i < cells.Length; i++)
             if (cells[i] == Unseen)
             {
                 cells[i] = Known;
-                Mirror(player, i, _explored, 1);
+                any = true;
             }
         sight.Changed++;
+        if (any && _layers is not null && _explored >= 0)
+            _layers.Fill(_explored, LayerOwner.Player(player), Bounds.Left, Bounds.Top, Bounds.Right, Bounds.Bottom, 0, 1);
     }
 
     /// <summary>Игрок начинает заново: всё не разведано.</summary>

@@ -33,7 +33,11 @@ public sealed class HostSessionOptions
     public int FloodBurst { get; init; } = 300;
     public int FloodRate { get; init; } = 1;
 
-    /// <summary>Как часто подключение может писать в чат.</summary>
+    /// <summary>
+    /// Как часто подключение может писать в чат. Строка (и команда «/…») чаще этого молча отбрасывается, без ответа —
+    /// как CHAT_GAP в host.ts: ответ на каждую лишнюю строку сам был бы потоком. Клиенты и боты, шлющие подряд,
+    /// держат паузу сами (EditorShell.ChatGap, очередь чата в Kharos.Smoke).
+    /// </summary>
     public TimeSpan ChatGap { get; init; } = TimeSpan.FromMilliseconds(500);
 
     /// <summary>Куда писать, что делают администраторы.</summary>

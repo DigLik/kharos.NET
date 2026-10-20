@@ -61,6 +61,40 @@ public class VisionTests
         Assert.Empty(layers.TakeChanges());
     }
 
+    [Fact(DisplayName = "/reveal: вся карта разведана чанками слоя, видимое — только от глаз, повтор ничего не шлёт")]
+    public void RevealExploresWholeMapByChunks()
+    {
+        var (world, _) = World(1, 0.5, 0.5, 2);
+        var layers = new LayerSet(Fog.Layers);
+        layers.AddPlayer(1);
+        // Края не по чанкам: полные и обрезанные чанки.
+        var bounds = new MapBounds(-40, -37, 45, 30);
+        var vision = new Vision(bounds, layers);
+        vision.AddPlayer(1);
+        vision.Update(world);
+        layers.TakeChanges();
+        vision.Reveal(1);
+        var explored = layers.Id(Fog.Explored);
+        var sight = layers.Id(Fog.Sight);
+        for (var y = bounds.Top - 2; y < bounds.Bottom + 2; y++)
+            for (var x = bounds.Left - 2; x < bounds.Right + 2; x++)
+            {
+                var inside = bounds.Contains(x, y);
+                Assert.Equal(inside ? 1.0 : 0.0, layers.Get(explored, LayerOwner.Player(1), x, y, 0));
+                Assert.Equal(inside, vision.Explored(1, x + 0.5, y + 0.5));
+            }
+        // Видит по-прежнему только глаз: чужое вне круга скрыто (host.ts: explore не зажигает).
+        Assert.True(vision.Sees(1, 0.5, 0.5));
+        Assert.False(vision.Sees(1, 20.5, 20.5));
+        var changes = layers.TakeChanges();
+        Assert.All(changes, change => Assert.Equal(Fog.Explored, change.Layer));
+        // Чанки 32², задетые картой: x от −40 до 44 — 4 чанка, y от −37 до 29 — 3.
+        Assert.Equal(12, changes.Count);
+        vision.Reveal(1);
+        Assert.Empty(layers.TakeChanges());
+        Assert.Equal(1.0, layers.Get(sight, LayerOwner.Player(1), 0, 0, 0));
+    }
+
     [Fact]
     public void EyeWithoutOwnerOrOffMapLightsNothing()
     {

@@ -37,7 +37,12 @@ void Log(string text) => Console.WriteLine(text);
 using var group = new ProcessGroup();
 Runner? runner = null;
 var code = 1;
-var runDir = cli.Out ?? Path.Combine(Path.GetTempPath(), "kharos-smoke", $"{cli.Scenario}-{DateTime.Now:yyyyMMdd-HHmmss}");
+var runName = $"{cli.Scenario}-{DateTime.Now:yyyyMMdd-HHmmss}";
+var runDir = cli.Out ?? Path.Combine(Path.GetTempPath(), "kharos-smoke", runName);
+// Непустая --out — уже бывший прогон: его сохранение сервера (server/save.kharos) и профили клиентов (home-*) подхватил
+// бы новый — сервер загрузил бы старый мир. Прогон тогда — в своей подпапке.
+if (cli.Out is not null && Directory.Exists(cli.Out) && Directory.EnumerateFileSystemEntries(cli.Out).Any())
+    runDir = Path.Combine(cli.Out, runName);
 try
 {
     Directory.CreateDirectory(runDir);

@@ -57,6 +57,13 @@ internal sealed class Supply : ISystem
     private Column _proto, _x, _y, _owner, _ammo, _resupply;
     private int[]? _suppliers;
 
+    // Рабочее прохода (Refill): магазины, тактика, пути, строки по номерам, ищущие снабжения.
+    private readonly Dictionary<uint, double> _magazine = [];
+    private readonly HashSet<uint> _resupplying = [], _tactical = [], _moving = [];
+    private int[] _rows = [];
+    private uint[] _keys = [];
+    private readonly List<int> _seekers = [];
+
     public static SystemDeclaration Declare(SystemDeclaration declaration) => declaration
         .Query(Names.Unit.Name, Names.Proto.Name, Names.Position.Name, Names.Owner.Name)
         .Table(Names.Magazine.Name)
@@ -181,20 +188,31 @@ internal sealed class Supply : ISystem
         var number = ctx.Tick / PassTicks;
         bool OnPass(uint entity, int passes) => (number + entity) % (ulong)passes == 0;
 
-        // Магазины, тактика и пути известны таблицами кадра.
+        // Магазины, тактика и пути известны таблицами кадра. Наборы — поля системы: проход за проходом их не выделять
+        // заново (в wasm каждая лишняя тысяча записей приближает сборку мусора, а та ложится на чей-то тик).
         var table = ctx.Table(MagazineT);
-        var magazine = new Dictionary<uint, double>(table.Count);
+        var magazine = _magazine;
+        magazine.Clear();
+        magazine.EnsureCapacity(table.Count);
         var column = table.Column(_ammo);
         for (var row = 0; row < table.Count; row++)
             magazine[table.Entities[row]] = column[row];
         table = ctx.Table(TacticsT);
-        var resupply = new HashSet<uint>();
+        var resupply = _resupplying;
+        var tactics = _tactical;
+        resupply.Clear();
+        tactics.Clear();
         column = table.Column(_resupply);
         for (var row = 0; row < table.Count; row++)
+        {
+            tactics.Add(table.Entities[row]);
             if (column[row] != 0)
                 resupply.Add(table.Entities[row]);
-        var tactics = new HashSet<uint>(table.Entities.ToArray());
-        var moving = new HashSet<uint>(ctx.Table(PathT).Entities.ToArray());
+        }
+        var moving = _moving;
+        moving.Clear();
+        foreach (var entity in ctx.Table(PathT).Entities)
+            moving.Add(entity);
 
         // Машины снабжения в кругах своей сети грузятся из её хранилищ.
         foreach (var machine in machines)
@@ -211,15 +229,24 @@ internal sealed class Supply : ISystem
         var ys = ctx.Column(_y);
         var owners = ctx.Column(_owner);
         var entities = ctx.Entities;
-        var rows = new int[ctx.Count];
-        for (var row = 0; row < rows.Length; row++)
-            rows[row] = row;
-        var keys = entities.ToArray();
-        Array.Sort(keys, rows);
-
-        var seekers = new List<int>();
-        foreach (var row in rows)
+        // Строки кадра по номерам сущностей (номера различны — порядок однозначен).
+        var count = ctx.Count;
+        if (_rows.Length < count)
         {
+            _rows = new int[count];
+            _keys = new uint[count];
+        }
+        var (rows, keys) = (_rows, _keys);
+        for (var row = 0; row < count; row++)
+            rows[row] = row;
+        entities.CopyTo(keys);
+        Array.Sort(keys, rows, 0, count);
+
+        var seekers = _seekers;
+        seekers.Clear();
+        for (var index = 0; index < count; index++)
+        {
+            var row = rows[index];
             if (Arms.Unit((int)protos[row]) is not { } unit)
                 continue;
             var entity = entities[row];
@@ -401,15 +428,73 @@ internal sealed class Supply : ISystem
         /// <summary>Сеть игрока, в кругах которой точка: из тех, где круги перекрываются, — с боеприпасами.</summary>
         public Zones.Zone? ZoneAt(uint player, double x, double y)
         {
+            var circles = CirclesOf(player);
+            if (circles.Zones.Length == 0 || x < circles.Left || x > circles.Right || y < circles.Top || y > circles.Bottom)
+                return null;
             Zones.Zone? found = null;
-            foreach (var zone in Pass.ZonesOf(player))
+            var values = circles.Values;
+            var at = 0;
+            for (var index = 0; index < circles.Zones.Length; index++)
             {
-                if (!BuildRules.InCircles(zone.Circles, x, y))
+                var zone = circles.Zones[index];
+                var end = circles.Ends[index];
+                var inside = false;
+                // То же, что BuildRules.InCircles: Hypot(dx, dy) ≥ |dx| и ≥ |dy| (sqrt(fl(dx²)) = |dx|), так что круг,
+                // от центра которого точка дальше радиуса по одной оси, её не содержит — Hypot не нужен.
+                for (; at < end; at += 3)
+                {
+                    var (dx, dy, radius) = (x - values[at], y - values[at + 1], values[at + 2]);
+                    if (Math.Abs(dx) > radius || Math.Abs(dy) > radius || !(BuildRules.Hypot(dx, dy) <= radius))
+                        continue;
+                    inside = true;
+                    break;
+                }
+                at = end;
+                if (!inside)
                     continue;
                 if (Stocked(zone))
                     return zone;
                 found ??= zone;
             }
+            return found;
+        }
+
+        /// <summary>
+        /// Круги сетей игрока массивом на проход (ZoneAt зовётся на каждого юнита с неполным магазином, а сетей у игрока —
+        /// сотни): сети по порядку, конец кругов каждой и рамка всех кругов с запасом в тайл.
+        /// </summary>
+        private readonly Dictionary<uint, PlayerCircles> _circles = [];
+
+        private sealed record PlayerCircles(Zones.Zone[] Zones, int[] Ends, double[] Values, double Left, double Top, double Right, double Bottom);
+
+        private PlayerCircles CirclesOf(uint player)
+        {
+            if (_circles.TryGetValue(player, out var found))
+                return found;
+            var zones = Pass.ZonesOf(player);
+            var list = new Zones.Zone[zones.Count];
+            var ends = new int[zones.Count];
+            var values = new List<double>();
+            var (left, top, right, bottom) = (double.PositiveInfinity, double.PositiveInfinity, double.NegativeInfinity, double.NegativeInfinity);
+            for (var index = 0; index < list.Length; index++)
+            {
+                var zone = list[index] = zones[index];
+                var circles = zone.Circles;
+                for (var i = 0; i + 2 < circles.Count; i += 3)
+                {
+                    var (cx, cy, radius) = (circles[i], circles[i + 1], circles[i + 2]);
+                    values.Add(cx);
+                    values.Add(cy);
+                    values.Add(radius);
+                    left = Math.Min(left, cx - Math.Abs(radius) - 1);
+                    top = Math.Min(top, cy - Math.Abs(radius) - 1);
+                    right = Math.Max(right, cx + Math.Abs(radius) + 1);
+                    bottom = Math.Max(bottom, cy + Math.Abs(radius) + 1);
+                }
+                ends[index] = values.Count;
+            }
+            found = new PlayerCircles(list, ends, [.. values], left, top, right, bottom);
+            _circles[player] = found;
             return found;
         }
 
