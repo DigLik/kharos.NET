@@ -4,7 +4,8 @@ name: .NET
 # TS-задания не трогает. Через workflow_call его же берёт release.yml.
 #
 # Устройство: моды в wasm собираются один раз (задание mods, артефакт ci-mods; при тех же исходниках — из кэша), тесты —
-# параллельными частями на каждой ОС: Base.Tests тремя частями по пространствам имён и все прочие проекты одной. Тесты
+# параллельными частями на каждой ОС: Base.Tests тремя частями по пространствам имён, Kharos.Gpu.Tests и
+# Kharos.Desktop.Tests — своими (на WARP и lavapipe это самые долгие), все прочие проекты — одной. Тесты
 # идут на host.wasm и client.wasm (KHAROS_MODS=wasm): модуль компилируется раз на процесс, а в режиме CLR каждая партия
 # заново компилирует JIT-ом весь мод (Sim.DefaultMode).
 on:
@@ -87,7 +88,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ${{ fromJSON(inputs.os || '["ubuntu-latest","ubuntu-24.04-arm","windows-latest"]') }}
-        shard: [base-sim-1, base-sim-2, base-rest, other]
+        shard: [base-sim-1, base-sim-2, base-rest, gpu, desktop, other]
     runs-on: ${{ matrix.os }}
     # Зависший тест не держит машину часами (по умолчанию — 6 ч).
     timeout-minutes: 25
@@ -109,9 +110,9 @@ jobs:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('dotnet/Directory.Packages.props', 'dotnet/nuget.config', 'dotnet/global.json', 'dotnet/**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-${{ runner.arch }}-
-      # Lavapipe — частям с кадрами на GPU (клиент base и Kharos.Gpu.Tests).
+      # Lavapipe — частям с кадрами на GPU (клиент base, Kharos.Gpu.Tests, десктоп, клиент hello).
       - name: Mesa Vulkan
-        if: runner.os == 'Linux' && (matrix.shard == 'base-rest' || matrix.shard == 'other')
+        if: runner.os == 'Linux' && matrix.shard != 'base-sim-1' && matrix.shard != 'base-sim-2'
         working-directory: .
         run: |
           sudo apt-get update
@@ -126,6 +127,8 @@ jobs:
         run: |
           case "$SHARD" in
             base-*) dotnet build tests/Kharos.Base.Tests/Kharos.Base.Tests.csproj -c Release ;;
+            gpu) dotnet build tests/Kharos.Gpu.Tests/Kharos.Gpu.Tests.csproj -c Release ;;
+            desktop) dotnet build tests/Kharos.Desktop.Tests/Kharos.Desktop.Tests.csproj -c Release ;;
             *) dotnet build Kharos.slnx -c Release ;;
           esac
       # Тест, висящий дольше 10 минут, обрывается и попадает в отчёт.
@@ -141,10 +144,12 @@ jobs:
             base-sim-1) target=$base; filter=$(any $BASE_SIM_1) ;;
             base-sim-2) target=$base; filter=$(any $BASE_SIM_2) ;;
             base-rest) target=$base; filter=$(none $BASE_SIM_1 $BASE_SIM_2) ;;
-            other) target=Kharos.slnx; filter='FullyQualifiedName!~Kharos.Base.Tests.' ;;
+            gpu) target=tests/Kharos.Gpu.Tests/Kharos.Gpu.Tests.csproj; filter='' ;;
+            desktop) target=tests/Kharos.Desktop.Tests/Kharos.Desktop.Tests.csproj; filter='' ;;
+            other) target=Kharos.slnx; filter='FullyQualifiedName!~Kharos.Base.Tests.&FullyQualifiedName!~Kharos.Gpu.Tests.&FullyQualifiedName!~Kharos.Desktop.Tests.' ;;
           esac
-          echo "$target: $filter"
-          dotnet test "$target" -c Release --no-build --filter "$filter" --logger GitHubActions --blame-hang-timeout 10m --blame-hang-dump-type none
+          echo "$target: ${filter:-все тесты}"
+          dotnet test "$target" -c Release --no-build ${filter:+--filter "$filter"} --logger GitHubActions --blame-hang-timeout 10m --blame-hang-dump-type none
       # Песочница модов на этой ОС: Wasmtime, пул, сторож эпох, белый список импортов.
       - if: matrix.shard == 'other'
         run: dotnet run --project tools/Kharos.Plugins.Bench -c Release --no-build -- --security

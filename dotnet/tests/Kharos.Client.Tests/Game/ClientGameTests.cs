@@ -168,10 +168,13 @@ public sealed class ClientGameTests
         if (gpu is null)
             Assert.Skip($"нет адаптера WebGPU: {reason}");
         using var context = gpu;
-        using var session = new HelloSession();
-        var game = session.Game;
+        // Рендер — до партии: его конвейеры на программном адаптере (WARP, lavapipe) собираются десятки секунд, а роверы
+        // hello всё это время бродят. Камера встаёт на их середину один раз, и за полминуты они расходятся за края
+        // экрана — «роверы на экране» не дожидались (CI windows-latest).
         using var renderer = new Renderer(context!);
         renderer.Resize(1280, 720);
+        using var session = new HelloSession();
+        var game = session.Game;
         session.Until(frame => HelloSession.Sprites(frame) >= 3, "роверы на экране");
         var units = session.Units();
         var world = game.Replica.World!;

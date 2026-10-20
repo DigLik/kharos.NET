@@ -10,12 +10,17 @@ internal enum Blend { None, Alpha, Premultiplied, Additive, Multiply, Interface 
 /// <summary>Раскладка инстансов или вершин: шаг и атрибуты (формат, смещение, location).</summary>
 internal readonly record struct Layout(int Stride, VertexStepMode Step, (VertexFormat Format, int Offset, int Location)[] Attributes);
 
-/// <summary>Программы WGSL и конвейеры: общее начало (common.wgsl) плюс файл прохода, как COMMON + шейдер у render.rs.</summary>
+/// <summary>
+/// Программы WGSL и конвейеры: общее начало (common.wgsl) плюс файл прохода, как COMMON + шейдер у render.rs. Один набор
+/// на устройство (<see cref="For"/>), общий у всех его рендеров: сборка конвейеров на программном адаптере (WARP,
+/// lavapipe) стоит десятки секунд, а рендеров на устройство бывает много (тесты, снимки). Освобождает устройство.
+/// </summary>
 internal sealed unsafe class Pipelines : IDisposable
 {
     private readonly GpuContext _gpu;
+    private readonly Lock _gate = new();
     private readonly Dictionary<string, nint> _modules = [];
-    private readonly Dictionary<string, nint> _pipelines = [];
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, nint> _pipelines = [];
     public BindGroupLayout* Uniforms { get; }
     public BindGroupLayout* Image { get; }
     public PipelineLayout* Layout { get; }
@@ -24,7 +29,14 @@ internal sealed unsafe class Pipelines : IDisposable
     public const int DrawSize = 128;
     public const int PaletteSize = 12 * 16;
 
-    public Pipelines(GpuContext gpu)
+    /// <summary>Набор устройства: создаётся первым рендером, живёт до <see cref="GpuContext.Dispose"/>.</summary>
+    public static Pipelines For(GpuContext gpu)
+    {
+        lock (gpu.CacheGate)
+            return gpu.SharedPipelines ??= new Pipelines(gpu);
+    }
+
+    private Pipelines(GpuContext gpu)
     {
         _gpu = gpu;
         var api = gpu.Api;
@@ -93,6 +105,15 @@ internal sealed unsafe class Pipelines : IDisposable
     /// <summary>Конвейер под именем name: вершинная и фрагментная точки входа файла, цель format, смешение и раскладка.</summary>
     public void Create(string name, string file, string vertex, string fragment, TextureFormat format, Blend blend, Layout? layout,
         PrimitiveTopology topology = PrimitiveTopology.TriangleStrip)
+    {
+        // Те же имена у всех рендеров устройства — с теми же описаниями: есть — берём готовый.
+        lock (_gate)
+            if (!_pipelines.ContainsKey(name))
+                Build(name, file, vertex, fragment, format, blend, layout, topology);
+    }
+
+    private void Build(string name, string file, string vertex, string fragment, TextureFormat format, Blend blend, Layout? layout,
+        PrimitiveTopology topology)
     {
         var module = Module(file);
         var vertexName = Utf8(vertex);

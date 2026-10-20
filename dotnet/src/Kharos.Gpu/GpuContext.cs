@@ -17,6 +17,10 @@ public sealed class GpuException(string message) : Exception(message);
 public sealed unsafe class GpuContext : IDisposable
 {
     private readonly List<string> _errors = [];
+
+    /// <summary>Программы и конвейеры устройства, общие у его рендеров (<see cref="Pipelines.For"/>).</summary>
+    internal readonly Lock CacheGate = new();
+    internal Pipelines? SharedPipelines;
     private GCHandle _self;
     private bool _disposed;
 
@@ -237,6 +241,8 @@ public sealed unsafe class GpuContext : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        SharedPipelines?.Dispose();
+        SharedPipelines = null;
         if (Queue != null) Api.QueueRelease(Queue);
         if (Device != null) Api.DeviceRelease(Device);
         if (Adapter != null) Api.AdapterRelease(Adapter);

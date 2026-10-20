@@ -158,7 +158,9 @@ public sealed class WebSocketTransportTests
                     received.Add(buffer[..result.Count]);
             }
         };
-        var transport = await Connect(server);
+        // Срок закрытия вольный: тест о том, что Dispose дописывает отправленное и закрывает рукопожатием, а не о скорости.
+        // С 0,5 с по умолчанию на загруженной машине (CI windows-latest) Dispose успевал оборвать сокет до ответа сервера.
+        var transport = await Connect(server, new WebSocketTransportOptions { CloseTimeout = TimeSpan.FromSeconds(10) });
         transport.Send([1, 2]);
         transport.Send([3]);
         transport.Dispose();

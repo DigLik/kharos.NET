@@ -38,6 +38,7 @@ internal sealed class Proc
     private readonly Lock _gate = new();
     private readonly TaskCompletionSource _outputDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _streams = 2;
+    private bool _logClosed;
 
     public Proc(string label, Launch launch, Process process, StreamWriter log)
     {
@@ -88,7 +89,8 @@ internal sealed class Proc
             if (Interlocked.Decrement(ref _streams) == 0)
             {
                 lock (_gate)
-                    _log.Flush();
+                    if (!_logClosed)
+                        _log.Flush();
                 _outputDone.TrySetResult();
             }
             return;
@@ -96,8 +98,13 @@ internal sealed class Proc
         lock (_gate)
         {
             _lines.Add(line);
-            _log.WriteLine(line);
-            _log.Flush();
+            // Чтение вывода идёт в пуле потоков и после Dispose группы (убитый процесс дописывает трубу): закрытый журнал
+            // не трогаем — исключение в обработчике вывода роняет весь процесс.
+            if (!_logClosed)
+            {
+                _log.WriteLine(line);
+                _log.Flush();
+            }
         }
         Line?.Invoke(line);
     }
@@ -190,7 +197,10 @@ internal sealed class Proc
     internal void CloseLog()
     {
         lock (_gate)
+        {
+            _logClosed = true;
             _log.Dispose();
+        }
     }
 }
 

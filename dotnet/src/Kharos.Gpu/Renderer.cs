@@ -97,7 +97,7 @@ public sealed unsafe partial class Renderer : IDisposable
     public Renderer(GpuContext gpu)
     {
         _gpu = gpu;
-        _pipelines = new Pipelines(gpu);
+        _pipelines = Pipelines.For(gpu);
         _nearest = CreateSampler(FilterMode.Nearest, FilterMode.Nearest);
         _linear = CreateSampler(FilterMode.Linear, FilterMode.Linear);
         _minimapSampler = CreateSampler(FilterMode.Linear, FilterMode.Nearest);
@@ -349,6 +349,6 @@ public sealed unsafe partial class Renderer : IDisposable
         api.SamplerRelease(_nearest);
         api.SamplerRelease(_linear);
         api.SamplerRelease(_minimapSampler);
-        _pipelines.Dispose();
+        // Конвейеры — общие у устройства (Pipelines.For): их освобождает GpuContext.
     }
 }

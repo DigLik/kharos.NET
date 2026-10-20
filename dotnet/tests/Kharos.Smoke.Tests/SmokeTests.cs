@@ -165,6 +165,36 @@ public sealed class ProcessTests
         File.Delete(logB);
     }
 
+    /// <summary>
+    /// Группу закрывают, пока процесс сыплет выводом: строки, дочитанные из трубы после закрытия журнала, не пишутся в
+    /// закрытый StreamWriter — исключение в обработчике вывода (пул потоков) роняло весь процесс тестов.
+    /// </summary>
+    [Fact]
+    public void DisposeWhileOutputStreamsKeepsProcessAlive()
+    {
+        var logs = new List<string>();
+        for (var round = 0; round < 3; round++)
+        {
+            var log = TempLog();
+            logs.Add(log);
+            var flood = OperatingSystem.IsWindows()
+                ? new Launch("cmd.exe", ["/c", "for /L %i in (1,1,200000) do @echo line %i"], Path.GetTempPath(), new Dictionary<string, string?>(), log)
+                : new Launch("sh", ["-c", "i=0; while [ $i -lt 200000 ]; do echo line $i; i=$((i+1)); done"], Path.GetTempPath(), new Dictionary<string, string?>(), log);
+            Proc proc;
+            using (var group = new ProcessGroup())
+            {
+                proc = group.Start("flood", flood);
+                while (proc.LineCount < 100 && !proc.Exited)
+                    Thread.Sleep(1);
+            }
+            // Дочитывание трубы после Dispose идёт своим чередом; процесс тестов при этом жив.
+            Thread.Sleep(200);
+            Assert.True(proc.LineCount >= 100);
+        }
+        foreach (var log in logs)
+            File.Delete(log);
+    }
+
     [Fact]
     public void KillAllNamesOnlyTheLiving()
     {

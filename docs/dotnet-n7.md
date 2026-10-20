@@ -245,6 +245,12 @@ false|true`, плюс push тега `v*`; на `main` сам не срабаты
   - CI (`dotnet.yml`): моды — одно задание и артефакт `ci-mods` (из кэша, если исходники те же), тесты — части
     base-sim-1, base-sim-2, base-rest и other на каждой ОС параллельно, кэш NuGet, actions на Node 24.
   - Локально: `dotnet test Kharos.slnx -c Release` — 27 мин → ~1,5 мин (Base.Tests ~1 мин, дольше всех — Kharos.Gpu.Tests).
+  - После первого прогона CI (windows-latest, часть other): конвейеры WebGPU — общие у устройства (`Pipelines.For`), на
+    WARP каждый новый рендер собирал их ~25 с — Kharos.Gpu.Tests на WARP 658 → 91 с; Gpu.Tests и Desktop.Tests — свои
+    части CI. Kharos.Smoke: строки вывода, дочитанные после закрытия журнала процесса, в закрытый StreamWriter не
+    пишутся (исключение в обработчике вывода роняло процесс тестов). WebSocketTransportTests: Dispose с вольным сроком
+    закрытия. ClientGameTests.RendersHeadlessFrames: рендер создаётся до партии — пока WARP собирал конвейеры, роверы
+    hello расходились за края экрана.
 
 **Проверяющий после каждой волны (один, локально):** `build-mods.ps1`; `dotnet test` всего решения на Windows и в WSL,
 CLR и `KHAROS_MODS=wasm`; `tools/parity.ps1` («нет» = 0 после волны 0); `BalanceTests` и `BalanceVsTsTests` (`-explicit
